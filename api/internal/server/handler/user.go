@@ -1,0 +1,92 @@
+package handler
+
+import (
+	"errors"
+	"net/http"
+
+	"github.com/cortexia/rootnet/api/internal/db/gen"
+	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
+)
+
+// userDetailResponse is the response type for user details including balance, reward recipient, and agent list
+type userDetailResponse struct {
+	User             gen.User                `json:"user"`
+	Balance          *gen.UserBalance        `json:"balance,omitempty"`
+	RewardRecipient  *gen.UserRewardRecipient `json:"rewardRecipient,omitempty"`
+	Agents           []gen.Agent             `json:"agents"`
+}
+
+// ListUsers returns a paginated list of users
+func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
+	limit, offset := h.parsePageParams(r)
+
+	users, err := h.queries.ListUsers(r.Context(), gen.ListUsersParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		h.logger.Error("failed to list users", "error", err)
+		h.writeError(w, http.StatusInternalServerError, "failed to list users")
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, users)
+}
+
+// GetUserCount returns the total number of users
+func (h *Handler) GetUserCount(w http.ResponseWriter, r *http.Request) {
+	count, err := h.queries.GetUserCount(r.Context())
+	if err != nil {
+		h.logger.Error("failed to get user count", "error", err)
+		h.writeError(w, http.StatusInternalServerError, "failed to get user count")
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, map[string]int64{"count": count})
+}
+
+// GetUser returns details for a single user including balance, reward recipient, and agent list
+func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
+	address := normalizeAddr(chi.URLParam(r, "address"))
+	if address == "" {
+		h.writeError(w, http.StatusBadRequest, "missing address parameter")
+		return
+	}
+
+	ctx := r.Context()
+
+	// Fetch basic user info
+	user, err := h.queries.GetUser(ctx, address)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			h.writeError(w, http.StatusNotFound, "user not found")
+			return
+		}
+		h.logger.Error("failed to get user", "error", err, "address", address)
+		h.writeError(w, http.StatusInternalServerError, "failed to get user")
+		return
+	}
+
+	resp := userDetailResponse{
+		User:   user,
+		Agents: []gen.Agent{},
+	}
+
+	// Fetch user balance
+	if balance, err := h.queries.GetUserBalance(ctx, address); err == nil {
+		resp.Balance = &balance
+	}
+
+	// Fetch reward recipient
+	if recipient, err := h.queries.GetRewardRecipient(ctx, address); err == nil {
+		resp.RewardRecipient = &recipient
+	}
+
+	// Fetch the user's agent list
+	if agents, err := h.queries.GetActiveAgentsByOwner(ctx, address); err == nil {
+		resp.Agents = agents
+	}
+
+	h.writeJSON(w, http.StatusOK, resp)
+}

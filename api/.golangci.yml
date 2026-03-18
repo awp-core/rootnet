@@ -1,0 +1,21 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+
+formatters:
+  enable: []
+
+issues:
+  exclude-dirs:
+    - internal/chain/bindings
+    - internal/db/gen
+  max-issues-per-linter: 0
+  max-same-issues: 0

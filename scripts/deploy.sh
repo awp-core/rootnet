@@ -1,0 +1,437 @@
+#!/usr/bin/env bash
+# AWP RootNet — One-click deploy: mine vanity salts → deploy contracts → verify → generate api/.env
+#
+# Flow:
+#   1. Build contracts
+#   2. Compute initCodeHashes (tiered, re-run per tier as addresses become known)
+#   3. Mine vanity salts via cast create2 (scripts/vanity/mine.sh)
+#   4. Deploy all contracts with mined salts
+#   5. Verify on BscScan (optional)
+#   6. Generate api/.env
+#   7. Initialize database
+#
+# Usage:
+#   ./scripts/deploy.sh                  # Full: mine + deploy + verify + api config
+#   ./scripts/deploy.sh --dry-run        # Simulate deployment (no broadcast)
+#   ./scripts/deploy.sh --skip-mine      # Skip salt mining (use existing SALT_* from .env)
+#   ./scripts/deploy.sh --verify-only    # Verify existing contracts only
+#
+# Input:  contracts/.env + scripts/vanity/salt.json
+# Output: api/.env (ready for API services)
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+CONTRACTS_DIR="$ROOT_DIR/contracts"
+API_DIR="$ROOT_DIR/api"
+VANITY_DIR="$SCRIPT_DIR/vanity"
+SALT_JSON="$VANITY_DIR/salt.json"
+OUTPUT_ENV="$API_DIR/.env"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
+warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
+error() { echo -e "${RED}[ERROR]${NC} $*" >&2; exit 1; }
+step()  { echo -e "\n${CYAN}══════ $* ══════${NC}"; }
+
+# ─── Prerequisites ───
+
+command -v forge >/dev/null 2>&1 || error "forge not found"
+command -v cast  >/dev/null 2>&1 || error "cast not found"
+command -v jq    >/dev/null 2>&1 || error "jq not found"
+
+# ─── Load config ───
+
+[[ -f "$CONTRACTS_DIR/.env" ]] || error "Missing $CONTRACTS_DIR/.env"
+set -a; source "$CONTRACTS_DIR/.env"; set +a
+
+# ─── Parse flags ───
+
+DRY_RUN=""
+SKIP_MINE=""
+VERIFY_ONLY=""
+for arg in "$@"; do
+    case "$arg" in
+        --dry-run)     DRY_RUN="--dry-run" ;;
+        --skip-mine)   SKIP_MINE=1 ;;
+        --verify-only) VERIFY_ONLY=1 ;;
+    esac
+done
+
+# ─── Validate required vars ───
+
+for var in ETH_RPC_URL DEPLOYER_PRIVATE_KEY GUARDIAN TEAM_VESTING INVESTOR_VESTING LIQUIDITY_POOL AIRDROP POOL_MANAGER POSITION_MANAGER PERMIT2; do
+    [[ -n "${!var:-}" ]] || error "Missing required env var: $var"
+done
+
+DEPLOYER=$(cast wallet address --private-key "$DEPLOYER_PRIVATE_KEY")
+DATABASE_URL="${DATABASE_URL:-postgres://postgres:postgres@localhost:5432/awp?sslmode=disable}"
+REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}"
+HTTP_ADDR="${HTTP_ADDR:-:8080}"
+KEEPER_PRIVATE_KEY="${KEEPER_PRIVATE_KEY:-}"
+RELAYER_PRIVATE_KEY="${RELAYER_PRIVATE_KEY:-}"
+VANITY_RULE="${VANITY_RULE:-0}"
+ETHERSCAN_API_KEY="${ETHERSCAN_API_KEY:-}"
+
+if [[ -n "$VERIFY_ONLY" ]]; then
+    # Skip to verification
+    [[ -f "$OUTPUT_ENV" ]] || error "No $OUTPUT_ENV found. Deploy first."
+    set -a; source "$OUTPUT_ENV"; set +a
+    FACTORY_ADDRESS="${ALPHA_FACTORY_ADDRESS:-}"
+    AWP_EMISSION_IMPL="${AWP_EMISSION_IMPL:-}"
+    CHAIN_ID=$(cast chain-id --rpc-url "$ETH_RPC_URL" 2>/dev/null || echo "56")
+    cd "$CONTRACTS_DIR"
+    # fall through to verification section below
+else
+
+# ═══════════════════════════════════════════════
+#  STEP 1: BUILD
+# ═══════════════════════════════════════════════
+
+step "Step 1/7 — Build contracts"
+cd "$CONTRACTS_DIR"
+forge build --force --quiet
+info "Build complete"
+
+# ═══════════════════════════════════════════════
+#  STEP 2-3: TIERED SALT MINING
+# ═══════════════════════════════════════════════
+
+if [[ -z "$SKIP_MINE" ]]; then
+    step "Step 2/7 — Compute initCodeHashes & mine vanity salts"
+
+    [[ -f "$SALT_JSON" ]] || error "Missing $SALT_JSON"
+
+    # Helper: run InitCodeHashes.s.sol and parse output
+    compute_hashes() {
+        forge script script/InitCodeHashes.s.sol --rpc-url "$ETH_RPC_URL" 2>&1 | grep ': 0x' | while read -r line; do
+            name="${line%%:*}"
+            name=$(echo "$name" | xargs) # trim
+            hash="${line##*: }"
+            echo "$name $hash"
+        done
+    }
+
+    # Helper: update salt.json with initCodeHash for a contract
+    set_hash() {
+        local name="$1" hash="$2"
+        local idx
+        idx=$(jq --arg n "$name" '[.contracts[].name] | index($n)' "$SALT_JSON")
+        if [[ "$idx" != "null" && -n "$idx" ]]; then
+            local tmp=$(mktemp)
+            jq ".contracts[$idx].initCodeHash = \"$hash\"" "$SALT_JSON" > "$tmp" && mv "$tmp" "$SALT_JSON"
+        fi
+    }
+
+    # Helper: read mined address from salt.json
+    get_addr() {
+        jq -r --arg n "$1" '.contracts[] | select(.name==$n) | .address // empty' "$SALT_JSON"
+    }
+
+    # Helper: export mined address as ADDR_* env var for next tier
+    export_addr() {
+        local name="$1"
+        local addr=$(get_addr "$name")
+        [[ -n "$addr" ]] || return
+        case "$name" in
+            AWPToken)          export ADDR_AWP_TOKEN="$addr" ;;
+            AlphaTokenFactory) export ADDR_FACTORY="$addr" ;;
+            AWPEmission_impl)  export ADDR_EMISSION_IMPL="$addr" ;;
+            Treasury)          export ADDR_TREASURY="$addr" ;;
+            RootNet)           export ADDR_ROOTNET="$addr" ;;
+            SubnetNFT)         export ADDR_SUBNET_NFT="$addr" ;;
+            StakingVault)      export ADDR_STAKING_VAULT="$addr" ;;
+            StakeNFT)          export ADDR_STAKE_NFT="$addr" ;;
+        esac
+    }
+
+    # Clear old salts (force fresh mining)
+    for i in $(seq 0 $(($(jq '.contracts | length' "$SALT_JSON") - 1))); do
+        local_tmp=$(mktemp)
+        jq ".contracts[$i].salt = \"\" | .contracts[$i].address = \"\" | .contracts[$i].initCodeHash = \"\"" "$SALT_JSON" > "$local_tmp" && mv "$local_tmp" "$SALT_JSON"
+    done
+
+    # Tier definitions: mine in order, export addresses between tiers
+    TIERS=(
+        "AWPToken AlphaTokenFactory AWPEmission_impl"
+        "Treasury"
+        "RootNet"
+        "SubnetNFT AccessManager LPManager StakingVault AWPEmission_proxy"
+        "StakeNFT"
+        "AWPDAO"
+    )
+
+    for tier_idx in "${!TIERS[@]}"; do
+        tier="${TIERS[$tier_idx]}"
+        info "Tier $((tier_idx + 1))/6: $tier"
+
+        # Compute hashes for this tier
+        while read -r name hash; do
+            for t in $tier; do
+                if [[ "$name" == "$t" ]]; then
+                    set_hash "$name" "$hash"
+                fi
+            done
+        done < <(compute_hashes)
+
+        # Mine salts for contracts in this tier that have patterns
+        cd "$VANITY_DIR"
+        ./mine.sh "$SALT_JSON"
+        cd "$CONTRACTS_DIR"
+
+        # Export mined addresses for next tier
+        for t in $tier; do
+            export_addr "$t"
+        done
+    done
+
+    info "All salts mined!"
+
+    # Write SALT_* env vars to contracts/.env for Deploy.s.sol
+    {
+        echo ""
+        echo "# ── Mined CREATE2 salts (auto-generated by deploy.sh) ──"
+        for i in $(seq 0 $(($(jq '.contracts | length' "$SALT_JSON") - 1))); do
+            NAME=$(jq -r ".contracts[$i].name" "$SALT_JSON")
+            SALT=$(jq -r ".contracts[$i].salt // empty" "$SALT_JSON")
+            if [[ -n "$SALT" ]]; then
+                case "$NAME" in
+                    AWPToken)          echo "SALT_AWP_TOKEN=$SALT" ;;
+                    AlphaTokenFactory) echo "SALT_ALPHA_FACTORY=$SALT" ;;
+                    AWPEmission_impl)  echo "SALT_EMISSION_IMPL=$SALT" ;;
+                    AWPEmission_proxy) echo "SALT_EMISSION_PROXY=$SALT" ;;
+                    Treasury)          echo "SALT_TREASURY=$SALT" ;;
+                    RootNet)           echo "SALT_ROOTNET=$SALT" ;;
+                    SubnetNFT)         echo "SALT_SUBNET_NFT=$SALT" ;;
+                    AccessManager)     echo "SALT_ACCESS_MANAGER=$SALT" ;;
+                    LPManager)         echo "SALT_LP_MANAGER=$SALT" ;;
+                    StakingVault)      echo "SALT_STAKING_VAULT=$SALT" ;;
+                    StakeNFT)          echo "SALT_STAKE_NFT=$SALT" ;;
+                    AWPDAO)            echo "SALT_DAO=$SALT" ;;
+                esac
+            fi
+        done
+    } >> "$CONTRACTS_DIR/.env"
+
+    # Reload env with new salts
+    set -a; source "$CONTRACTS_DIR/.env"; set +a
+
+else
+    step "Step 2/7 — Skipping salt mining (--skip-mine)"
+fi
+
+# ═══════════════════════════════════════════════
+#  STEP 4: DEPLOY
+# ═══════════════════════════════════════════════
+
+step "Step 3/7 — Record deploy block"
+DEPLOY_BLOCK=$(cast block-number --rpc-url "$ETH_RPC_URL")
+info "Starting block: $DEPLOY_BLOCK"
+
+step "Step 4/7 — Deploy contracts"
+[[ -n "$DRY_RUN" ]] && info "Dry-run mode"
+
+DEPLOY_OUTPUT=$(forge script script/Deploy.s.sol \
+    --rpc-url "$ETH_RPC_URL" \
+    --broadcast $DRY_RUN 2>&1) || { echo "$DEPLOY_OUTPUT"; error "Deployment failed"; }
+
+# Parse addresses
+parse_address() {
+    echo "$DEPLOY_OUTPUT" | grep -i "$1" | grep -oE '0x[0-9a-fA-F]{40}' | tail -1
+}
+
+AWP_TOKEN_ADDRESS=$(parse_address "AWPToken:")
+FACTORY_ADDRESS=$(parse_address "AlphaTokenFactory:")
+TREASURY_ADDRESS=$(parse_address "Treasury:")
+ROOTNET_ADDRESS=$(parse_address "RootNet:")
+SUBNETNFT_ADDRESS=$(parse_address "SubnetNFT:")
+ACCESS_MANAGER_ADDRESS=$(parse_address "AccessManager:")
+LP_MANAGER_ADDRESS=$(parse_address "LPManager:")
+AWP_EMISSION_IMPL=$(parse_address "AWPEmission impl:")
+AWP_EMISSION_ADDRESS=$(parse_address "AWPEmission proxy:")
+STAKING_VAULT_ADDRESS=$(parse_address "StakingVault:")
+STAKENFT_ADDRESS=$(parse_address "StakeNFT:")
+DAO_ADDRESS=$(parse_address "AWPDAO:")
+
+for var in AWP_TOKEN_ADDRESS FACTORY_ADDRESS TREASURY_ADDRESS ROOTNET_ADDRESS SUBNETNFT_ADDRESS \
+           ACCESS_MANAGER_ADDRESS LP_MANAGER_ADDRESS AWP_EMISSION_ADDRESS STAKING_VAULT_ADDRESS \
+           STAKENFT_ADDRESS DAO_ADDRESS; do
+    [[ -n "${!var:-}" ]] || error "Failed to parse $var"
+done
+
+info "All contracts deployed!"
+
+# Get actual deploy block
+if [[ -z "$DRY_RUN" ]]; then
+    CHAIN_ID=$(cast chain-id --rpc-url "$ETH_RPC_URL" 2>/dev/null || echo "56")
+    RUN_FILE="$CONTRACTS_DIR/broadcast/Deploy.s.sol/$CHAIN_ID/run-latest.json"
+    if [[ -f "$RUN_FILE" ]]; then
+        ACTUAL_BLOCK=$(jq -r '.receipts[0].blockNumber // empty' "$RUN_FILE" 2>/dev/null | xargs printf "%d" 2>/dev/null || true)
+        [[ "${ACTUAL_BLOCK:-0}" -gt 0 ]] && DEPLOY_BLOCK="$ACTUAL_BLOCK"
+    fi
+fi
+
+# Compute AlphaToken initCodeHash
+ALPHA_INITCODE_HASH=$(cast keccak "$(jq -r '.bytecode.object' out/AlphaToken.sol/AlphaToken.json)" 2>/dev/null || echo "")
+
+# ═══════════════════════════════════════════════
+#  STEP 5: GENERATE API .env
+# ═══════════════════════════════════════════════
+
+step "Step 5/7 — Generate $OUTPUT_ENV"
+
+cat > "$OUTPUT_ENV" <<ENVFILE
+# AWP RootNet — API Configuration
+# Generated by scripts/deploy.sh at $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# ── Database ──
+DATABASE_URL=$DATABASE_URL
+
+# ── Redis ──
+REDIS_URL=$REDIS_URL
+
+# ── HTTP server ──
+HTTP_ADDR=$HTTP_ADDR
+
+# ── Chain ──
+RPC_URL=$ETH_RPC_URL
+
+# ── Contract addresses (all 11 protocol contracts) ──
+ROOTNET_ADDRESS=$ROOTNET_ADDRESS
+AWP_TOKEN_ADDRESS=$AWP_TOKEN_ADDRESS
+AWP_EMISSION_ADDRESS=$AWP_EMISSION_ADDRESS
+STAKING_VAULT_ADDRESS=$STAKING_VAULT_ADDRESS
+STAKE_NFT_ADDRESS=$STAKENFT_ADDRESS
+SUBNETNFT_ADDRESS=$SUBNETNFT_ADDRESS
+ACCESS_MANAGER_ADDRESS=$ACCESS_MANAGER_ADDRESS
+LP_MANAGER_ADDRESS=$LP_MANAGER_ADDRESS
+ALPHA_FACTORY_ADDRESS=$FACTORY_ADDRESS
+DAO_ADDRESS=$DAO_ADDRESS
+TREASURY_ADDRESS=$TREASURY_ADDRESS
+
+# ── Indexer start block ──
+DEPLOY_BLOCK=$DEPLOY_BLOCK
+
+# ── Vanity address mining ──
+ALPHA_INITCODE_HASH=${ALPHA_INITCODE_HASH:-}
+VANITY_RULE=$VANITY_RULE
+
+# ── Gasless relay (fill private key to enable) ──
+RELAYER_PRIVATE_KEY=$RELAYER_PRIVATE_KEY
+
+# ── Keeper (fill private key to enable) ──
+KEEPER_PRIVATE_KEY=$KEEPER_PRIVATE_KEY
+
+# ── For verification (internal) ──
+AWP_EMISSION_IMPL=$AWP_EMISSION_IMPL
+ENVFILE
+
+chmod 600 "$OUTPUT_ENV"
+info "Config written to $OUTPUT_ENV (chmod 600)"
+
+# ═══════════════════════════════════════════════
+#  STEP 6: DATABASE
+# ═══════════════════════════════════════════════
+
+step "Step 6/7 — Database setup"
+if command -v psql >/dev/null 2>&1 && [[ -z "$DRY_RUN" ]]; then
+    psql "$DATABASE_URL" -f "$API_DIR/internal/db/schema.sql" 2>/dev/null || info "Schema already exists"
+    psql "$DATABASE_URL" -c "
+        INSERT INTO sync_states (contract_name, last_block)
+        VALUES ('indexer', $((DEPLOY_BLOCK - 1)))
+        ON CONFLICT (contract_name) DO UPDATE SET last_block = EXCLUDED.last_block;
+    " 2>/dev/null && info "sync_states set to block $((DEPLOY_BLOCK - 1))" \
+                  || warn "Failed to set sync_states"
+else
+    warn "Skipping DB setup (psql not found or dry-run)"
+fi
+
+fi # end of non-verify-only block
+
+# ═══════════════════════════════════════════════
+#  STEP 7: VERIFY
+# ═══════════════════════════════════════════════
+
+step "Step 7/7 — Verify contracts"
+
+if [[ -z "${ETHERSCAN_API_KEY:-}" ]]; then
+    warn "ETHERSCAN_API_KEY not set — skipping verification"
+    warn "Set it in contracts/.env and re-run with --verify-only"
+else
+    CHAIN_ID="${CHAIN_ID:-$(cast chain-id --rpc-url "$ETH_RPC_URL" 2>/dev/null || echo "56")}"
+    VERIFIER_URL=""
+    case "$CHAIN_ID" in
+        56) VERIFIER_URL="https://api.bscscan.com/api" ;;
+        97) VERIFIER_URL="https://api-testnet.bscscan.com/api" ;;
+    esac
+    VF="--etherscan-api-key $ETHERSCAN_API_KEY"
+    [[ -n "$VERIFIER_URL" ]] && VF="$VF --verifier-url $VERIFIER_URL"
+
+    vc() {
+        local addr="$1" contract="$2" args="${3:-}" label="${4:-$contract}"
+        [[ -z "$addr" ]] && { warn "Skip $label — no address"; return; }
+        local cmd="forge verify-contract $addr $contract --chain-id $CHAIN_ID $VF --watch"
+        [[ -n "$args" ]] && cmd="$cmd --constructor-args $args"
+        info "Verifying $label at $addr ..."
+        eval "$cmd" 2>&1 | tail -3 || warn "Verification failed for $label"
+    }
+
+    vc "$AWP_TOKEN_ADDRESS" "src/token/AWPToken.sol:AWPToken" \
+        "$(cast abi-encode 'c(string,string,address)' 'AWP Token' 'AWP' "$DEPLOYER")" "AWPToken"
+    vc "$FACTORY_ADDRESS" "src/token/AlphaTokenFactory.sol:AlphaTokenFactory" \
+        "$(cast abi-encode 'c(address,uint64)' "$DEPLOYER" "$VANITY_RULE")" "AlphaTokenFactory"
+    vc "$TREASURY_ADDRESS" "src/governance/Treasury.sol:Treasury" \
+        "$(cast abi-encode 'c(uint256,address[],address[],address)' 172800 '[]' '[0x0000000000000000000000000000000000000000]' "$DEPLOYER")" "Treasury"
+    vc "$ROOTNET_ADDRESS" "src/RootNet.sol:RootNet" \
+        "$(cast abi-encode 'c(address,address,address)' "$DEPLOYER" "$TREASURY_ADDRESS" "$GUARDIAN")" "RootNet"
+    vc "$SUBNETNFT_ADDRESS" "src/core/SubnetNFT.sol:SubnetNFT" \
+        "$(cast abi-encode 'c(string,string,address)' 'AWP Subnet' 'AWPSUB' "$ROOTNET_ADDRESS")" "SubnetNFT"
+    vc "$ACCESS_MANAGER_ADDRESS" "src/core/AccessManager.sol:AccessManager" \
+        "$(cast abi-encode 'c(address)' "$ROOTNET_ADDRESS")" "AccessManager"
+    [[ -n "$POOL_MANAGER" && -n "$POSITION_MANAGER" && -n "$PERMIT2" ]] && \
+    vc "$LP_MANAGER_ADDRESS" "src/core/LPManager.sol:LPManager" \
+        "$(cast abi-encode 'c(address,address,address,address,address)' "$ROOTNET_ADDRESS" "$POOL_MANAGER" "$POSITION_MANAGER" "$PERMIT2" "$AWP_TOKEN_ADDRESS")" "LPManager"
+    [[ -n "${AWP_EMISSION_IMPL:-}" ]] && vc "$AWP_EMISSION_IMPL" "src/token/AWPEmission.sol:AWPEmission" "" "AWPEmission (impl)"
+    vc "$STAKING_VAULT_ADDRESS" "src/core/StakingVault.sol:StakingVault" \
+        "$(cast abi-encode 'c(address)' "$ROOTNET_ADDRESS")" "StakingVault"
+    vc "$STAKENFT_ADDRESS" "src/core/StakeNFT.sol:StakeNFT" \
+        "$(cast abi-encode 'c(address,address,address)' "$AWP_TOKEN_ADDRESS" "$STAKING_VAULT_ADDRESS" "$ROOTNET_ADDRESS")" "StakeNFT"
+    vc "$DAO_ADDRESS" "src/governance/AWPDAO.sol:AWPDAO" \
+        "$(cast abi-encode 'c(address,address,address,uint48,uint32,uint256)' "$STAKENFT_ADDRESS" "$AWP_TOKEN_ADDRESS" "$TREASURY_ADDRESS" 7200 50400 4)" "AWPDAO"
+    info "Verification complete!"
+fi
+
+# ═══════════════════════════════════════════════
+#  SUMMARY
+# ═══════════════════════════════════════════════
+
+echo ""
+echo "════════════════════════════════════════════════"
+echo "  AWP RootNet Deployment Complete"
+echo "════════════════════════════════════════════════"
+echo ""
+echo "  RootNet:          ${ROOTNET_ADDRESS:-N/A}"
+echo "  AWPToken:         ${AWP_TOKEN_ADDRESS:-N/A}"
+echo "  AWPEmission:      ${AWP_EMISSION_ADDRESS:-N/A}"
+echo "  StakingVault:     ${STAKING_VAULT_ADDRESS:-N/A}"
+echo "  StakeNFT:         ${STAKENFT_ADDRESS:-N/A}"
+echo "  SubnetNFT:        ${SUBNETNFT_ADDRESS:-N/A}"
+echo "  AccessManager:    ${ACCESS_MANAGER_ADDRESS:-N/A}"
+echo "  LPManager:        ${LP_MANAGER_ADDRESS:-N/A}"
+echo "  Factory:          ${FACTORY_ADDRESS:-N/A}"
+echo "  AWPDAO:           ${DAO_ADDRESS:-N/A}"
+echo "  Treasury:         ${TREASURY_ADDRESS:-N/A}"
+echo ""
+echo "  Deploy Block:     ${DEPLOY_BLOCK:-N/A}"
+echo "  Vanity Rule:      $VANITY_RULE"
+echo "  API Config:       $OUTPUT_ENV"
+echo ""
+echo "  Next: ./scripts/deploy-api.sh"
+echo "════════════════════════════════════════════════"

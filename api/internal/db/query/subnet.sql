@@ -1,0 +1,43 @@
+-- name: InsertSubnet :exec
+INSERT INTO subnets (subnet_id, owner, name, symbol, metadata_uri, subnet_contract, coordinator_url, skills_uri, min_stake, alpha_token, lp_pool, status, created_at, immunity_ends_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Pending', $12, $13)
+ON CONFLICT (subnet_id) DO NOTHING;
+
+-- name: GetSubnet :one
+SELECT * FROM subnets WHERE subnet_id = $1;
+
+-- name: ListSubnets :many
+SELECT * FROM subnets WHERE burned = FALSE ORDER BY subnet_id DESC LIMIT $1 OFFSET $2;
+
+-- name: ListSubnetsByStatus :many
+SELECT * FROM subnets WHERE status = $1 AND burned = FALSE ORDER BY subnet_id DESC LIMIT $2 OFFSET $3;
+
+-- name: UpdateSubnetLP :exec
+UPDATE subnets SET lp_pool = $2 WHERE subnet_id = $1;
+
+-- name: UpdateSubnetStatus :exec
+UPDATE subnets SET status = $2 WHERE subnet_id = $1;
+
+-- name: UpdateSubnetActivated :exec
+UPDATE subnets SET status = 'Active', activated_at = $2 WHERE subnet_id = $1;
+
+-- name: UpdateSubnetMetadata :exec
+UPDATE subnets SET metadata_uri = $2, coordinator_url = $3 WHERE subnet_id = $1;
+
+-- name: UpdateSubnetSkillsURI :exec
+UPDATE subnets SET skills_uri = $2 WHERE subnet_id = $1;
+
+-- name: UpdateSubnetMinStake :exec
+UPDATE subnets SET min_stake = $2 WHERE subnet_id = $1;
+
+-- name: GetSubnetSkills :one
+SELECT skills_uri FROM subnets WHERE subnet_id = $1;
+
+-- name: UpdateSubnetOwner :exec
+UPDATE subnets SET owner = $2 WHERE subnet_id = $1;
+
+-- name: UpdateSubnetBurned :exec
+UPDATE subnets SET burned = TRUE WHERE subnet_id = $1;
+
+-- name: GetActiveSubnets :many
+SELECT * FROM subnets WHERE status = 'Active' AND burned = FALSE ORDER BY subnet_id;

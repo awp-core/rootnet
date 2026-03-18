@@ -1,0 +1,194 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
+
+import {Test} from "forge-std/Test.sol";
+import {SubnetNFT} from "../src/core/SubnetNFT.sol";
+import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
+
+contract SubnetNFTTest is Test {
+    SubnetNFT public nft;
+
+    address public rootNet = makeAddr("rootNet");
+    address public alice = makeAddr("alice");
+    address public bob = makeAddr("bob");
+
+    function setUp() public {
+        nft = new SubnetNFT("AWP Subnet", "SUBNET", rootNet);
+    }
+
+    // ──────────────────────────────────────────────
+    // Constructor
+    // ──────────────────────────────────────────────
+
+    function test_constructor() public view {
+        assertEq(nft.name(), "AWP Subnet");
+        assertEq(nft.symbol(), "SUBNET");
+        assertEq(nft.rootNet(), rootNet);
+    }
+
+    // ──────────────────────────────────────────────
+    // mint
+    // ──────────────────────────────────────────────
+
+    function test_mint_success() public {
+        vm.prank(rootNet);
+        nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0);
+
+        assertEq(nft.ownerOf(1), alice);
+        assertEq(nft.balanceOf(alice), 1);
+    }
+
+    function test_mint_multipleTokens() public {
+        vm.startPrank(rootNet);
+        nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0);
+        nft.mint(alice, 2, "Test", address(0x1), address(0x2), 0);
+        nft.mint(bob, 3, "Test", address(0x1), address(0x2), 0);
+        vm.stopPrank();
+
+        assertEq(nft.balanceOf(alice), 2);
+        assertEq(nft.balanceOf(bob), 1);
+        assertEq(nft.ownerOf(2), alice);
+        assertEq(nft.ownerOf(3), bob);
+    }
+
+    function test_mint_onlyRootNet() public {
+        vm.prank(alice);
+        vm.expectRevert(SubnetNFT.NotRootNet.selector);
+        nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0);
+    }
+
+    function test_mint_duplicateTokenId_reverts() public {
+        vm.startPrank(rootNet);
+        nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0);
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InvalidSender.selector, address(0)));
+        nft.mint(bob, 1, "Test", address(0x1), address(0x2), 0);
+        vm.stopPrank();
+    }
+
+    // ──────────────────────────────────────────────
+    // burn
+    // ──────────────────────────────────────────────
+
+    function test_burn_success() public {
+        vm.startPrank(rootNet);
+        nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0);
+        nft.burn(1);
+        vm.stopPrank();
+
+        assertEq(nft.balanceOf(alice), 0);
+
+        // ownerOf should revert since token no longer exists
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, uint256(1)));
+        nft.ownerOf(1);
+    }
+
+    function test_burn_nonexistentToken_reverts() public {
+        vm.prank(rootNet);
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, uint256(999)));
+        nft.burn(999);
+    }
+
+    function test_burn_onlyRootNet() public {
+        vm.prank(rootNet);
+        nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0);
+
+        vm.prank(alice);
+        vm.expectRevert(SubnetNFT.NotRootNet.selector);
+        nft.burn(1);
+    }
+
+    // ──────────────────────────────────────────────
+    // setBaseURI
+    // ──────────────────────────────────────────────
+
+    function test_setBaseURI_success() public {
+        vm.startPrank(rootNet);
+        nft.mint(alice, 42, "Test", address(0x1), address(0x2), 0);
+        nft.setBaseURI("https://api.cortexia.io/subnet/");
+        vm.stopPrank();
+
+        assertEq(nft.tokenURI(42), "https://api.cortexia.io/subnet/42");
+    }
+
+    function test_setBaseURI_updateURI() public {
+        vm.startPrank(rootNet);
+        nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0);
+        nft.setBaseURI("https://old.example.com/");
+        assertEq(nft.tokenURI(1), "https://old.example.com/1");
+
+        nft.setBaseURI("https://new.example.com/meta/");
+        vm.stopPrank();
+
+        assertEq(nft.tokenURI(1), "https://new.example.com/meta/1");
+    }
+
+    function test_setBaseURI_onlyRootNet() public {
+        vm.prank(alice);
+        vm.expectRevert(SubnetNFT.NotRootNet.selector);
+        nft.setBaseURI("https://evil.com/");
+    }
+
+    // ──────────────────────────────────────────────
+    // tokenURI
+    // ──────────────────────────────────────────────
+
+    function test_tokenURI_emptyBaseURI() public {
+        vm.prank(rootNet);
+        nft.mint(alice, 7, "Test", address(0x1), address(0x2), 0);
+
+        // when baseURI is empty, tokenURI returns empty + tokenId.toString()
+        assertEq(nft.tokenURI(7), "7");
+    }
+
+    function test_tokenURI_withBaseURI() public {
+        vm.startPrank(rootNet);
+        nft.setBaseURI("ipfs://QmHash/");
+        nft.mint(alice, 100, "Test", address(0x1), address(0x2), 0);
+        vm.stopPrank();
+
+        assertEq(nft.tokenURI(100), "ipfs://QmHash/100");
+    }
+
+    function test_tokenURI_nonexistentToken_reverts() public {
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, uint256(1)));
+        nft.tokenURI(1);
+    }
+
+    function test_tokenURI_afterBurn_reverts() public {
+        vm.startPrank(rootNet);
+        nft.mint(alice, 5, "Test", address(0x1), address(0x2), 0);
+        nft.burn(5);
+        vm.stopPrank();
+
+        vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, uint256(5)));
+        nft.tokenURI(5);
+    }
+
+    // ──────────────────────────────────────────────
+    // ERC721 standard behavior
+    // ──────────────────────────────────────────────
+
+    function test_transferFrom() public {
+        vm.prank(rootNet);
+        nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0);
+
+        vm.prank(alice);
+        nft.transferFrom(alice, bob, 1);
+
+        assertEq(nft.ownerOf(1), bob);
+    }
+
+    function test_approve_and_transferFrom() public {
+        vm.prank(rootNet);
+        nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0);
+
+        vm.prank(alice);
+        nft.approve(bob, 1);
+
+        vm.prank(bob);
+        nft.transferFrom(alice, bob, 1);
+
+        assertEq(nft.ownerOf(1), bob);
+    }
+}
