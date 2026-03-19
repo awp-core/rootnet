@@ -547,12 +547,17 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// SubnetRegistered
 	if evt, err := awpRegistry.ParseSubnetRegistered(lg); err == nil {
-		// Read skillsURI and minStake from SubnetNFT on-chain (set at mint time, same tx)
-		skillsURI := ""
-		var minStake *big.Int
-		if nftData, err := idx.chain.SubnetNFT.GetSubnetData(nil, evt.SubnetId); err == nil {
-			skillsURI = nftData.SkillsURI
-			minStake = nftData.MinStake
+		// Read skillsURI and minStake from event (available since V2 event format)
+		skillsURI := evt.SkillsURI
+		minStake := evt.MinStake
+		// Fallback: read from SubnetNFT on-chain if event fields are empty (old event format)
+		if skillsURI == "" && minStake != nil && minStake.Sign() == 0 {
+			if nftData, nftErr := idx.chain.SubnetNFT.GetSubnetData(nil, evt.SubnetId); nftErr == nil {
+				skillsURI = nftData.SkillsURI
+				if nftData.MinStake != nil && nftData.MinStake.Sign() > 0 {
+					minStake = nftData.MinStake
+				}
+			}
 		}
 		if minStake == nil {
 			minStake = big.NewInt(0)
