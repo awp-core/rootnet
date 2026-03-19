@@ -107,7 +107,41 @@ info "Build complete"
 if [[ -z "$SKIP_MINE" ]]; then
     step "Step 2/7 — Compute initCodeHashes & mine vanity salts"
 
-    [[ -f "$SALT_JSON" ]] || error "Missing $SALT_JSON"
+    # Generate salt.json from .env vanity patterns
+    info "Generating $SALT_JSON from vanity patterns..."
+    _vp() { echo "${!1:-}"; }  # read env var by name, empty if unset
+    python3 - "$SALT_JSON" <<'PYEOF'
+import json, os, sys
+contracts = [
+    {"name": "AWPToken",           "env_prefix": "AWP_TOKEN"},
+    {"name": "AlphaTokenFactory",  "env_prefix": "ALPHA_FACTORY"},
+    {"name": "AWPEmission_impl",   "env_prefix": "EMISSION_IMPL"},
+    {"name": "SubnetManager_impl", "env_prefix": "SUBNET_MANAGER_IMPL"},
+    {"name": "Treasury",           "env_prefix": "TREASURY"},
+    {"name": "AWPRegistry",        "env_prefix": "AWP_REGISTRY"},
+    {"name": "SubnetNFT",          "env_prefix": "SUBNET_NFT"},
+    {"name": "LPManager",          "env_prefix": "LP_MANAGER"},
+    {"name": "StakingVault",       "env_prefix": "STAKING_VAULT"},
+    {"name": "AWPEmission_proxy",  "env_prefix": "EMISSION_PROXY"},
+    {"name": "StakeNFT",           "env_prefix": "STAKE_NFT"},
+    {"name": "AWPDAO",             "env_prefix": "DAO"},
+]
+out = {"deployer": "0x4e59b44847b379578588920cA78FbF26c0B4956C", "contracts": []}
+for c in contracts:
+    prefix = os.environ.get(f"VANITY_PREFIX_{c['env_prefix']}", "")
+    suffix = os.environ.get(f"VANITY_SUFFIX_{c['env_prefix']}", "")
+    out["contracts"].append({
+        "name": c["name"],
+        "prefix": prefix,
+        "suffix": suffix,
+        "initCodeHash": "",
+        "salt": "",
+        "address": ""
+    })
+with open(sys.argv[1], "w") as f:
+    json.dump(out, f, indent=2)
+print(f"Generated {sys.argv[1]} with {len(contracts)} contracts")
+PYEOF
 
     # Helper: run InitCodeHashes.s.sol and parse output
     compute_hashes() {

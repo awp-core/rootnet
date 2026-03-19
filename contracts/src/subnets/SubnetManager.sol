@@ -69,11 +69,11 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
     int24 public tickSpacing;
 
     // ── Action codes ──
-    uint8 private constant ACT_CL_MINT_POSITION = 0x02;
-    uint8 private constant ACT_CL_SWAP_EXACT_IN_SINGLE = 0x06;
-    uint8 private constant ACT_SETTLE_ALL = 0x0c;
-    uint8 private constant ACT_SETTLE_PAIR = 0x0d;
-    uint8 private constant ACT_TAKE_ALL = 0x0f;
+    uint8 internal constant ACT_CL_MINT_POSITION = 0x02;
+    uint8 internal constant ACT_CL_SWAP_EXACT_IN_SINGLE = 0x06;
+    uint8 internal constant ACT_SETTLE_ALL = 0x0c;
+    uint8 internal constant ACT_SETTLE_PAIR = 0x0d;
+    uint8 internal constant ACT_TAKE_ALL = 0x0f;
 
     // ── Storage (set via initialize) ──
     IAlphaToken public alphaToken;
@@ -117,7 +117,7 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
     function initialize(
         address alphaToken_, address awpToken_, bytes32 poolId_, address admin_,
         bytes calldata dexConfig_
-    ) external initializer {
+    ) external virtual initializer {
         __AccessControl_init();
         __ReentrancyGuard_init();
 
@@ -247,7 +247,7 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
     //  Internal: PancakeSwap V4 — Add Single-Sided Liquidity
     // ═══════════════════════════════════════════════
 
-    function _addSingleSidedLiquidity(uint256 amount) internal {
+    function _addSingleSidedLiquidity(uint256 amount) internal virtual {
         (, int24 currentTick,,) = ICLPoolManager(clPoolManager).getSlot0(poolId);
 
         // Floor-align currentTick to tickSpacing
@@ -302,7 +302,7 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
     //  Internal: PancakeSwap V4 — Buyback + Burn
     // ═══════════════════════════════════════════════
 
-    function _buybackAndBurn(uint256 amount) internal {
+    function _buybackAndBurn(uint256 amount) internal virtual {
         IERC20(address(awpToken)).forceApprove(permit2, amount);
         IPermit2(permit2).approve(address(awpToken), clSwapRouter, uint160(amount), uint48(block.timestamp + 600));
 

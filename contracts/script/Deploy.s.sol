@@ -10,11 +10,13 @@ import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {SubnetNFT} from "../src/core/SubnetNFT.sol";
 import {LPManager} from "../src/core/LPManager.sol";
+import {LPManagerUni} from "../src/core/LPManagerUni.sol";
 import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {SubnetManager} from "../src/subnets/SubnetManager.sol";
+import {SubnetManagerUni} from "../src/subnets/SubnetManagerUni.sol";
 
 /// @title Deploy — Deterministic deployment via CREATE2 factory (0x4e59b44847b379578588920cA78FbF26c0B4956C)
 /// @dev Account System V2: AccessManager removed, binding/delegation/recipient managed in AWPRegistry directly.
@@ -51,6 +53,7 @@ contract Deploy is Script {
         address positionManager = vm.envAddress("POSITION_MANAGER");
         address permit2Addr = vm.envAddress("PERMIT2");
         address clSwapRouter = vm.envAddress("CL_SWAP_ROUTER");
+        address stateView = vm.envOr("STATE_VIEW", address(0));
         uint64 vanityRule = uint64(vm.envOr("VANITY_RULE", uint256(0)));
 
         // Read per-contract salts
@@ -112,12 +115,21 @@ contract Deploy is Script {
         ));
         console.log("SubnetNFT:", address(nft));
 
-        // Step 6: LPManager
-        LPManager lp = LPManager(_create2(
-            saltLPManager,
-            abi.encodePacked(type(LPManager).creationCode, abi.encode(address(rootNet), poolManager, positionManager, permit2Addr, address(awp)))
-        ));
-        console.log("LPManager:", address(lp));
+        // Step 6: LPManager (auto-select based on chain: BSC → PancakeSwap, other → Uniswap V4)
+        address lpAddr;
+        if (block.chainid == 56 || block.chainid == 97) {
+            lpAddr = _create2(
+                saltLPManager,
+                abi.encodePacked(type(LPManager).creationCode, abi.encode(address(rootNet), poolManager, positionManager, permit2Addr, address(awp)))
+            );
+            console.log("LPManager (PancakeSwap):", lpAddr);
+        } else {
+            lpAddr = _create2(
+                saltLPManager,
+                abi.encodePacked(type(LPManagerUni).creationCode, abi.encode(address(rootNet), poolManager, positionManager, permit2Addr, address(awp)))
+            );
+            console.log("LPManager (Uniswap):", lpAddr);
+        }
 
         // Step 7: AWPEmission (UUPS proxy)
         AWPEmission emission;
@@ -149,12 +161,22 @@ contract Deploy is Script {
         ));
         console.log("StakeNFT:", address(stakeNft));
 
-        // Step 9: SubnetManager implementation
-        SubnetManager subnetMgrImpl = SubnetManager(_create2(
-            saltSubnetMgrImpl,
-            abi.encodePacked(type(SubnetManager).creationCode)
-        ));
-        console.log("SubnetManager impl:", address(subnetMgrImpl));
+        // Step 9: SubnetManager implementation (auto-select based on chain)
+        // BSC (56/97) uses PancakeSwap V4 SubnetManager; other chains use Uniswap V4 SubnetManagerUni
+        SubnetManager subnetMgrImpl;
+        if (block.chainid == 56 || block.chainid == 97) {
+            subnetMgrImpl = SubnetManager(_create2(
+                saltSubnetMgrImpl,
+                abi.encodePacked(type(SubnetManager).creationCode)
+            ));
+            console.log("SubnetManager impl (PancakeSwap):", address(subnetMgrImpl));
+        } else {
+            subnetMgrImpl = SubnetManager(address(SubnetManagerUni(_create2(
+                saltSubnetMgrImpl,
+                abi.encodePacked(type(SubnetManagerUni).creationCode)
+            ))));
+            console.log("SubnetManager impl (Uniswap):", address(subnetMgrImpl));
+        }
 
         // Step 10: AWPDAO
         AWPDAO dao;
@@ -184,10 +206,17 @@ contract Deploy is Script {
         // Step 12: Initialize registry (no accessManager)
         uint24 POOL_FEE = 10000;
         int24 TICK_SPACING = 200;
-        bytes memory dexCfg = abi.encode(poolManager, positionManager, clSwapRouter, permit2Addr, uint24(POOL_FEE), int24(TICK_SPACING));
+        bytes memory dexCfg;
+        if (block.chainid == 56 || block.chainid == 97) {
+            // PancakeSwap V4: 6-field dexConfig
+            dexCfg = abi.encode(poolManager, positionManager, clSwapRouter, permit2Addr, uint24(POOL_FEE), int24(TICK_SPACING));
+        } else {
+            // Uniswap V4: 7-field dexConfig (extra: stateView)
+            dexCfg = abi.encode(poolManager, positionManager, clSwapRouter, permit2Addr, uint24(POOL_FEE), int24(TICK_SPACING), stateView);
+        }
         rootNet.initializeRegistry(
             address(awp), address(nft), address(factory), address(emission),
-            address(lp), address(vault), address(stakeNft),
+            lpAddr, address(vault), address(stakeNft),
             address(subnetMgrImpl), dexCfg
         );
         console.log("Registry initialized");

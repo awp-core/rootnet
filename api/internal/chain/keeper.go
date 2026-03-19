@@ -84,8 +84,8 @@ func NewKeeper(
 }
 
 // Start launches the scheduled task scheduler.
-func (k *Keeper) Start(parentCtx context.Context) {
-	ctx, cancel := context.WithCancel(parentCtx)
+func (k *Keeper) Start(_ context.Context) {
+	ctx, cancel := context.WithCancel(context.Background())
 	k.cancel = cancel
 
 	// Attempt to settle epoch every 30 seconds
