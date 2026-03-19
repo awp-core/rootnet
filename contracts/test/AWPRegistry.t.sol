@@ -11,11 +11,11 @@ import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {SubnetNFT} from "../src/core/SubnetNFT.sol";
 import {MockLPManager} from "./helpers/MockLPManager.sol";
-import {RootNet} from "../src/RootNet.sol";
-import {IRootNet} from "../src/interfaces/IRootNet.sol";
+import {AWPRegistry} from "../src/AWPRegistry.sol";
+import {IAWPRegistry} from "../src/interfaces/IAWPRegistry.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 
-contract RootNetTest is Test {
+contract AWPRegistryTest is Test {
     AWPToken awp;
     AlphaTokenFactory factory;
     AWPEmission emission;
@@ -24,7 +24,7 @@ contract RootNetTest is Test {
     StakeNFT stakeNFT;
     SubnetNFT nft;
     MockLPManager lp;
-    RootNet rootNet;
+    AWPRegistry rootNet;
     Treasury treasury;
 
     address deployer = address(1);
@@ -49,8 +49,8 @@ contract RootNetTest is Test {
         executors[0] = address(0);
         treasury = new Treasury(0, proposers, executors, deployer);
 
-        // Deploy RootNet (no epochDuration param)
-        rootNet = new RootNet(deployer, address(treasury), guardian);
+        // Deploy AWPRegistry (no epochDuration param)
+        rootNet = new AWPRegistry(deployer, address(treasury), guardian);
 
         // Deploy sub-contracts
         factory = new AlphaTokenFactory(deployer, 0);
@@ -106,7 +106,7 @@ contract RootNetTest is Test {
     // ── Registry tests ──
 
     function test_initializeRegistryOnce() public {
-        vm.expectRevert(RootNet.NotDeployer.selector);
+        vm.expectRevert(AWPRegistry.NotDeployer.selector);
         rootNet.initializeRegistry(
             address(awp), address(nft), address(factory), address(emission),
             address(lp), address(access), address(vault), address(stakeNFT), address(0), ""
@@ -308,9 +308,9 @@ contract RootNetTest is Test {
         uint256 subnetId = _registerSubnet();
         assertEq(subnetId, 1);
 
-        IRootNet.SubnetInfo memory info = rootNet.getSubnet(1);
+        IAWPRegistry.SubnetInfo memory info = rootNet.getSubnet(1);
         assertEq(rootNet.getSubnetFull(subnetId).subnetManager, subnetManager);
-        assertTrue(info.status == IRootNet.SubnetStatus.Pending);
+        assertTrue(info.status == IAWPRegistry.SubnetStatus.Pending);
     }
 
     function test_registerSubnetInvalidParams() public {
@@ -318,9 +318,9 @@ contract RootNetTest is Test {
         awp.approve(address(rootNet), 2_000_000 * 1e18);
 
         // Empty name
-        vm.expectRevert(RootNet.InvalidSubnetParams.selector);
+        vm.expectRevert(AWPRegistry.InvalidSubnetParams.selector);
         rootNet.registerSubnet(
-            IRootNet.SubnetParams({
+            IAWPRegistry.SubnetParams({
                 name: "",
                 symbol: "TEST",
                 subnetManager: subnetManager,
@@ -331,9 +331,9 @@ contract RootNetTest is Test {
         );
 
         // Empty subnet contract address
-        vm.expectRevert(RootNet.SubnetManagerRequired.selector);
+        vm.expectRevert(AWPRegistry.SubnetManagerRequired.selector);
         rootNet.registerSubnet(
-            IRootNet.SubnetParams({
+            IAWPRegistry.SubnetParams({
                 name: "Test",
                 symbol: "TEST",
                 subnetManager: address(0),
@@ -377,13 +377,13 @@ contract RootNetTest is Test {
         vm.prank(address(treasury));
         rootNet.banSubnet(subnetId);
 
-        IRootNet.SubnetInfo memory info = rootNet.getSubnet(subnetId);
-        assertTrue(info.status == IRootNet.SubnetStatus.Banned);
+        IAWPRegistry.SubnetInfo memory info = rootNet.getSubnet(subnetId);
+        assertTrue(info.status == IAWPRegistry.SubnetStatus.Banned);
 
         vm.prank(address(treasury));
         rootNet.unbanSubnet(subnetId);
         info = rootNet.getSubnet(subnetId);
-        assertTrue(info.status == IRootNet.SubnetStatus.Active);
+        assertTrue(info.status == IAWPRegistry.SubnetStatus.Active);
     }
 
     function test_deregisterSubnet() public {
@@ -392,7 +392,7 @@ contract RootNetTest is Test {
         rootNet.activateSubnet(subnetId);
 
         vm.prank(address(treasury));
-        vm.expectRevert(RootNet.ImmunityNotExpired.selector);
+        vm.expectRevert(AWPRegistry.ImmunityNotExpired.selector);
         rootNet.deregisterSubnet(subnetId);
 
         vm.warp(block.timestamp + 31 days);
@@ -405,13 +405,13 @@ contract RootNetTest is Test {
     // ── Permission tests ──
 
     function test_onlyTimelockFunctions() public {
-        vm.expectRevert(RootNet.NotTimelock.selector);
+        vm.expectRevert(AWPRegistry.NotTimelock.selector);
         rootNet.setInitialAlphaPrice(1e15);
 
-        vm.expectRevert(RootNet.NotTimelock.selector);
+        vm.expectRevert(AWPRegistry.NotTimelock.selector);
         rootNet.setGuardian(address(0));
 
-        vm.expectRevert(RootNet.NotTimelock.selector);
+        vm.expectRevert(AWPRegistry.NotTimelock.selector);
         rootNet.unpause();
     }
 
@@ -420,7 +420,7 @@ contract RootNetTest is Test {
         rootNet.pause();
         assertTrue(rootNet.paused());
 
-        vm.expectRevert(RootNet.NotGuardian.selector);
+        vm.expectRevert(AWPRegistry.NotGuardian.selector);
         rootNet.pause();
     }
 
@@ -445,7 +445,7 @@ contract RootNetTest is Test {
         vm.prank(user1);
         rootNet.allocate(agent1, 1, 500 * 1e18);
 
-        RootNet.AgentInfo memory info = rootNet.getAgentInfo(agent1, 1);
+        AWPRegistry.AgentInfo memory info = rootNet.getAgentInfo(agent1, 1);
         assertEq(info.owner, user1);
         assertTrue(info.isValid);
         assertEq(info.stake, 500 * 1e18);
@@ -472,7 +472,7 @@ contract RootNetTest is Test {
         vm.startPrank(user1);
         awp.approve(address(rootNet), lpCost);
         uint256 subnetId = rootNet.registerSubnet(
-            IRootNet.SubnetParams({
+            IAWPRegistry.SubnetParams({
                 name: "TestSubnet",
                 symbol: "TSUB",
                 subnetManager: subnetManager,
@@ -493,7 +493,7 @@ contract RootNetTest is Test {
         vm.startPrank(user1);
         awp.approve(address(rootNet), lpCost);
         uint256 subnetId = rootNet.registerSubnet(
-            IRootNet.SubnetParams({
+            IAWPRegistry.SubnetParams({
                 name: "MinStakeSubnet",
                 symbol: "MSUB",
                 subnetManager: subnetManager,
@@ -517,7 +517,7 @@ contract RootNetTest is Test {
 
         // Allocate below minStake — should revert
         vm.prank(user1);
-        vm.expectRevert(RootNet.InsufficientMinStake.selector);
+        vm.expectRevert(AWPRegistry.InsufficientMinStake.selector);
         rootNet.allocate(agent1, subnetId, 500 * 1e18);
 
         // Allocate at minStake — should succeed

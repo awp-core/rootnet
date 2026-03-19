@@ -12,8 +12,8 @@ import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {SubnetNFT} from "../src/core/SubnetNFT.sol";
 import {MockLPManager} from "./helpers/MockLPManager.sol";
-import {RootNet} from "../src/RootNet.sol";
-import {IRootNet} from "../src/interfaces/IRootNet.sol";
+import {AWPRegistry} from "../src/AWPRegistry.sol";
+import {IAWPRegistry} from "../src/interfaces/IAWPRegistry.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
@@ -30,7 +30,7 @@ contract IntegrationTest is EmissionSigningHelper {
     StakeNFT stakeNFT;
     SubnetNFT nft;
     MockLPManager lp;
-    RootNet rootNet;
+    AWPRegistry rootNet;
     Treasury treasury;
     AWPDAO dao;
 
@@ -74,8 +74,8 @@ contract IntegrationTest is EmissionSigningHelper {
         executors[0] = address(0);
         treasury = new Treasury(0, proposers, executors, deployer);
 
-        // Step 5: RootNet (no epochDuration — epochs now owned by AWPEmission)
-        rootNet = new RootNet(deployer, address(treasury), guardian);
+        // Step 5: AWPRegistry (no epochDuration — epochs now owned by AWPEmission)
+        rootNet = new AWPRegistry(deployer, address(treasury), guardian);
 
         // Step 6-7: Sub-contracts
         nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(rootNet));
@@ -222,7 +222,7 @@ contract IntegrationTest is EmissionSigningHelper {
         vm.startPrank(owner1);
         awp.approve(address(rootNet), 1_000_000 * 1e18);
         uint256 subnetId = rootNet.registerSubnet(
-            IRootNet.SubnetParams({
+            IAWPRegistry.SubnetParams({
                 name: "TestSubnet",
                 symbol: "TSUB",
                 subnetManager: subnetManager1,
@@ -235,7 +235,7 @@ contract IntegrationTest is EmissionSigningHelper {
         assertEq(subnetId, 1);
 
         // Verify Alpha Token
-        IRootNet.SubnetInfo memory info = rootNet.getSubnet(subnetId);
+        IAWPRegistry.SubnetInfo memory info = rootNet.getSubnet(subnetId);
         assertFalse(rootNet.getSubnetFull(subnetId).alphaToken == address(0));
         AlphaToken alpha = AlphaToken(rootNet.getSubnetFull(subnetId).alphaToken);
         assertTrue(alpha.mintersLocked());
@@ -264,7 +264,7 @@ contract IntegrationTest is EmissionSigningHelper {
         assertEq(vault.getSubnetTotalStake(subnetId), 300_000 * 1e18);
 
         // 8. Query Agent info
-        RootNet.AgentInfo memory agentInfo = rootNet.getAgentInfo(agent1, subnetId);
+        AWPRegistry.AgentInfo memory agentInfo = rootNet.getAgentInfo(agent1, subnetId);
         assertEq(agentInfo.owner, owner1);
         assertTrue(agentInfo.isValid);
         assertEq(agentInfo.stake, 300_000 * 1e18);
@@ -311,10 +311,10 @@ contract IntegrationTest is EmissionSigningHelper {
         awp.approve(address(rootNet), 2_000_000 * 1e18);
 
         uint256 subnet1 = rootNet.registerSubnet(
-            IRootNet.SubnetParams("Sub1", "S1", subnetManager1, bytes32(0), 0, "")
+            IAWPRegistry.SubnetParams("Sub1", "S1", subnetManager1, bytes32(0), 0, "")
         );
         uint256 subnet2 = rootNet.registerSubnet(
-            IRootNet.SubnetParams("Sub2", "S2", subnetManager2, bytes32(0), 0, "")
+            IAWPRegistry.SubnetParams("Sub2", "S2", subnetManager2, bytes32(0), 0, "")
         );
 
         rootNet.activateSubnet(subnet1);
@@ -388,7 +388,7 @@ contract IntegrationTest is EmissionSigningHelper {
         vm.startPrank(owner1);
         awp.approve(address(rootNet), 1_000_000 * 1e18);
         uint256 subnetId = rootNet.registerSubnet(
-            IRootNet.SubnetParams("Sub", "SUB", subnetManager1, bytes32(0), 0, "")
+            IAWPRegistry.SubnetParams("Sub", "SUB", subnetManager1, bytes32(0), 0, "")
         );
         rootNet.activateSubnet(subnetId);
         awp.approve(address(stakeNFT), 500_000 * 1e18);
@@ -419,7 +419,7 @@ contract IntegrationTest is EmissionSigningHelper {
         vm.startPrank(owner1);
         awp.approve(address(rootNet), 1_000_000 * 1e18);
         uint256 subnetId = rootNet.registerSubnet(
-            IRootNet.SubnetParams("Sub", "SUB", subnetManager1, bytes32(0), 0, "")
+            IAWPRegistry.SubnetParams("Sub", "SUB", subnetManager1, bytes32(0), 0, "")
         );
         rootNet.activateSubnet(subnetId);
         vm.stopPrank();
@@ -459,7 +459,7 @@ contract IntegrationTest is EmissionSigningHelper {
 
         for (uint256 i = 0; i < 3; i++) {
             address sc = address(uint160(0x400 + i));
-            rootNet.registerSubnet(IRootNet.SubnetParams("Sub", "SUB", sc, bytes32(0), 0, ""));
+            rootNet.registerSubnet(IAWPRegistry.SubnetParams("Sub", "SUB", sc, bytes32(0), 0, ""));
             rootNet.activateSubnet(i + 1);
         }
         vm.stopPrank();
@@ -528,7 +528,7 @@ contract IntegrationTest is EmissionSigningHelper {
         vm.startPrank(owner1);
         awp.approve(address(rootNet), 1_000_000 * 1e18);
         uint256 subnetId = rootNet.registerSubnet(
-            IRootNet.SubnetParams("Sub", "SUB", subnetManager1, bytes32(0), 0, "")
+            IAWPRegistry.SubnetParams("Sub", "SUB", subnetManager1, bytes32(0), 0, "")
         );
         rootNet.activateSubnet(subnetId);
         // Deposit via StakeNFT

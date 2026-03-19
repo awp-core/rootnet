@@ -34,7 +34,7 @@
       "address": "0x8C62A1373C3d0AAf3282da9807bd7F14D1F36620"
     },
     {
-      "name": "RootNet",
+      "name": "AWPRegistry",
       "initCodeHash": "0x03f81dd38f7a1ac144e53e568a42052958cbb1358a9651e3450830934eef2fe6",
       "prefix": "0000",
       "suffix": "00b1",

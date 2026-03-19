@@ -74,6 +74,44 @@
   },
   {
     "type": "function",
+    "name": "activateSubnetFor",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "subnetId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "v",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "r",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "s",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "allocate",
     "inputs": [
       {
@@ -90,6 +128,54 @@
         "name": "amount",
         "type": "uint256",
         "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "allocateFor",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "agent",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "subnetId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "v",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "r",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "s",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [],
@@ -223,6 +309,54 @@
   },
   {
     "type": "function",
+    "name": "deallocateFor",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "agent",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "subnetId",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "v",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "r",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "s",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "defaultSubnetManagerImpl",
     "inputs": [],
     "outputs": [
@@ -246,6 +380,19 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "dexConfig",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -341,7 +488,7 @@
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct RootNet.AgentInfo",
+        "internalType": "struct AWPRegistry.AgentInfo",
         "components": [
           {
             "name": "owner",
@@ -387,7 +534,7 @@
       {
         "name": "",
         "type": "tuple[]",
-        "internalType": "struct RootNet.AgentInfo[]",
+        "internalType": "struct AWPRegistry.AgentInfo[]",
         "components": [
           {
             "name": "owner",
@@ -486,7 +633,7 @@
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct IRootNet.SubnetInfo",
+        "internalType": "struct IAWPRegistry.SubnetInfo",
         "components": [
           {
             "name": "lpPool",
@@ -496,7 +643,7 @@
           {
             "name": "status",
             "type": "uint8",
-            "internalType": "enum IRootNet.SubnetStatus"
+            "internalType": "enum IAWPRegistry.SubnetStatus"
           },
           {
             "name": "createdAt",
@@ -527,7 +674,7 @@
       {
         "name": "",
         "type": "tuple",
-        "internalType": "struct IRootNet.SubnetFullInfo",
+        "internalType": "struct IAWPRegistry.SubnetFullInfo",
         "components": [
           {
             "name": "subnetManager",
@@ -547,7 +694,7 @@
           {
             "name": "status",
             "type": "uint8",
-            "internalType": "enum IRootNet.SubnetStatus"
+            "internalType": "enum IAWPRegistry.SubnetStatus"
           },
           {
             "name": "createdAt",
@@ -671,6 +818,11 @@
         "name": "defaultSubnetManagerImpl_",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "dexConfig_",
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "outputs": [],
@@ -909,7 +1061,7 @@
       {
         "name": "params",
         "type": "tuple",
-        "internalType": "struct IRootNet.SubnetParams",
+        "internalType": "struct IAWPRegistry.SubnetParams",
         "components": [
           {
             "name": "name",
@@ -935,6 +1087,11 @@
             "name": "minStake",
             "type": "uint128",
             "internalType": "uint128"
+          },
+          {
+            "name": "skillsURI",
+            "type": "string",
+            "internalType": "string"
           }
         ]
       }
@@ -960,7 +1117,7 @@
       {
         "name": "params",
         "type": "tuple",
-        "internalType": "struct IRootNet.SubnetParams",
+        "internalType": "struct IAWPRegistry.SubnetParams",
         "components": [
           {
             "name": "name",
@@ -986,6 +1143,11 @@
             "name": "minStake",
             "type": "uint128",
             "internalType": "uint128"
+          },
+          {
+            "name": "skillsURI",
+            "type": "string",
+            "internalType": "string"
           }
         ]
       },
@@ -1031,7 +1193,7 @@
       {
         "name": "params",
         "type": "tuple",
-        "internalType": "struct IRootNet.SubnetParams",
+        "internalType": "struct IAWPRegistry.SubnetParams",
         "components": [
           {
             "name": "name",
@@ -1057,6 +1219,11 @@
             "name": "minStake",
             "type": "uint128",
             "internalType": "uint128"
+          },
+          {
+            "name": "skillsURI",
+            "type": "string",
+            "internalType": "string"
           }
         ]
       },
@@ -1177,6 +1344,19 @@
   },
   {
     "type": "function",
+    "name": "setDexConfig",
+    "inputs": [
+      {
+        "name": "dexConfig_",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "setGuardian",
     "inputs": [
       {
@@ -1222,6 +1402,44 @@
         "name": "recipient",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setRewardRecipientFor",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "v",
+        "type": "uint8",
+        "internalType": "uint8"
+      },
+      {
+        "name": "r",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "s",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
     "outputs": [],
@@ -1298,7 +1516,7 @@
       {
         "name": "status",
         "type": "uint8",
-        "internalType": "enum IRootNet.SubnetStatus"
+        "internalType": "enum IAWPRegistry.SubnetStatus"
       },
       {
         "name": "createdAt",
@@ -1461,6 +1679,19 @@
   },
   {
     "type": "event",
+    "name": "AlphaTokenFactoryUpdated",
+    "inputs": [
+      {
+        "name": "newFactory",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Deallocated",
     "inputs": [
       {
@@ -1491,6 +1722,19 @@
         "name": "operator",
         "type": "address",
         "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "DefaultSubnetManagerImplUpdated",
+    "inputs": [
+      {
+        "name": "newImpl",
+        "type": "address",
+        "indexed": true,
         "internalType": "address"
       }
     ],
@@ -1531,6 +1775,45 @@
     "type": "event",
     "name": "EIP712DomainChanged",
     "inputs": [],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "GuardianUpdated",
+    "inputs": [
+      {
+        "name": "newGuardian",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ImmunityPeriodUpdated",
+    "inputs": [
+      {
+        "name": "newPeriod",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "InitialAlphaPriceUpdated",
+    "inputs": [
+      {
+        "name": "newPrice",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
     "anonymous": false
   },
   {

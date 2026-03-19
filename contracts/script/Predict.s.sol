@@ -11,7 +11,7 @@ import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {SubnetNFT} from "../src/core/SubnetNFT.sol";
 import {LPManager} from "../src/core/LPManager.sol";
-import {RootNet} from "../src/RootNet.sol";
+import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
 import {SubnetManager} from "../src/subnets/SubnetManager.sol";
@@ -72,12 +72,12 @@ contract Predict is Script {
         }
         console.log("Treasury:          ", treasury);
 
-        // RootNet
+        // AWPRegistry
         address rootNet = _predict(
-            _readSalt("SALT_ROOTNET"),
-            abi.encodePacked(type(RootNet).creationCode, abi.encode(deployer, treasury, guardian))
+            _readSalt("SALT_AWP_REGISTRY"),
+            abi.encodePacked(type(AWPRegistry).creationCode, abi.encode(deployer, treasury, guardian))
         );
-        console.log("RootNet:           ", rootNet);
+        console.log("AWPRegistry:           ", rootNet);
 
         // SubnetNFT
         address subnetNFT = _predict(

@@ -20,9 +20,9 @@ V2 AWPEmission has two design problems:
 | Settlement locking | `require(settleProgress == 0)` on submitAllocations | Simpler than dedicated bool + modifier; prevents array mutation during iteration |
 | `setMaxActiveSubnets` | Removed | `settleEpoch(limit)` makes gas control caller-side |
 | `setBatchSize` | Removed | Replaced by `limit` parameter |
-| RootNet lifecycle notifications | Removed from AWPEmission | Oracle excludes banned/paused subnets; DAO uses `emergencySetWeight` |
+| AWPRegistry lifecycle notifications | Removed from AWPEmission | Oracle excludes banned/paused subnets; DAO uses `emergencySetWeight` |
 | `emergencySetWeight` | Kept | DAO emergency override; accepted that next oracle submission overwrites it |
-| `getActiveSubnetCount` | Moved to RootNet self-maintained | RootNet restores its own `activeSubnetIds` EnumerableSet |
+| `getActiveSubnetCount` | Moved to AWPRegistry self-maintained | AWPRegistry restores its own `activeSubnetIds` EnumerableSet |
 
 ## Contract Changes
 
@@ -80,15 +80,15 @@ uint256[40] private __gap;                       // slots 20-59 (reserve for fut
 **Removed from V2:**
 - `struct SubnetWeight` — replaced by `recipients[]` + `weights` mapping
 - `mapping(uint256 => SubnetWeight) public subnetWeights` — gone
-- `EnumerableSet.UintSet private activeSubnetIds` — moved to RootNet
+- `EnumerableSet.UintSet private activeSubnetIds` — moved to AWPRegistry
 - `uint128 public maxActiveSubnets` — deleted
 - `uint128 public batchSize` — replaced by call parameter
 - `bool public epochSettling` — replaced by `settleProgress > 0` check
 - `uint256 public settleIndex` — replaced by `settleProgress`
 - `_epochTotalWeight`, `_epochActiveCount`, `_epochSubnetPool`, `_epochSubnetMinted` — replaced by `_snapshotWeight`, `_snapshotLen`, `_snapshotPool`, `_epochMinted`
 - All lifecycle functions: `registerSubnet`, `activateSubnet`, `deactivateSubnet`, `reactivateSubnet`, `removeSubnet`
-- `onlyRootNet` modifier — no longer needed
-- `NotRootNet` error — no longer needed
+- `onlyAWPRegistry` modifier — no longer needed
+- `NotAWPRegistry` error — no longer needed
 - `MaxActiveSubnetsReached` error — no longer needed
 - `SubnetNotRegistered` error — replaced by address(0) check in submitAllocations
 - `CurrentlySettling` error — replaced by `SettlementInProgress`
@@ -224,9 +224,9 @@ error InvalidParameter();
 error RecipientNotFound();
 ```
 
-### 2. RootNet Changes
+### 2. AWPRegistry Changes
 
-**Restore `activeSubnetIds` to RootNet:**
+**Restore `activeSubnetIds` to AWPRegistry:**
 ```solidity
 EnumerableSet.UintSet private activeSubnetIds;
 ```
@@ -254,7 +254,7 @@ function getActiveSubnetIdAt(uint256 index) external view returns (uint256) {
 - `currentEpoch()` — still delegates to `IAWPEmission(awpEmission).currentEpoch()`
 
 **Re-add imports:**
-- `EnumerableSet` import restored to RootNet
+- `EnumerableSet` import restored to AWPRegistry
 
 ### 3. IAWPEmission Interface
 
@@ -288,9 +288,9 @@ interface IAWPEmission {
 
 **Removed from V2 interface:**
 - `registerSubnet`, `activateSubnet`, `deactivateSubnet`, `reactivateSubnet`, `removeSubnet`
-- `rootNet()` view (still exists on contract but not needed in interface — RootNet doesn't call it)
+- `rootNet()` view (still exists on contract but not needed in interface — AWPRegistry doesn't call it)
 - `setBatchSize`, `setMaxActiveSubnets`
-- `getActiveSubnetCount`, `getActiveSubnetIdAt` (moved to RootNet)
+- `getActiveSubnetCount`, `getActiveSubnetIdAt` (moved to AWPRegistry)
 - `epochSettling` (replaced by `settleProgress`)
 
 ### 4. Deployment Changes
@@ -332,8 +332,8 @@ indexer.go:
    - Emission decay, DAO share, EpochSettled event
    - Oracle config, nonce replay, upgrade
 
-2. **RootNet.t.sol** — update:
-   - `getActiveSubnetCount` now reads from RootNet's own set
+2. **AWPRegistry.t.sol** — update:
+   - `getActiveSubnetCount` now reads from AWPRegistry's own set
    - Lifecycle functions no longer call AWPEmission
 
 3. **E2E.t.sol** — update:
@@ -349,10 +349,10 @@ indexer.go:
 |------|--------|
 | `contracts/src/token/AWPEmission.sol` | Rewrite (remove subnet, simplify settlement) |
 | `contracts/src/interfaces/IAWPEmission.sol` | Rewrite |
-| `contracts/src/RootNet.sol` | Restore activeSubnetIds, remove AWPEmission lifecycle calls |
+| `contracts/src/AWPRegistry.sol` | Restore activeSubnetIds, remove AWPEmission lifecycle calls |
 | `contracts/test/helpers/EmissionSigningHelper.sol` | Update typehash (subnetIds→recipients) |
 | `contracts/test/AWPEmission.t.sol` | Rewrite |
-| `contracts/test/RootNet.t.sol` | Update |
+| `contracts/test/AWPRegistry.t.sol` | Update |
 | `contracts/test/E2E.t.sol` | Update |
 | `contracts/test/Integration.t.sol` | Update |
 | `contracts/script/Deploy.s.sol` | Minor update |

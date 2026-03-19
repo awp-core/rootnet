@@ -73,7 +73,7 @@ Each `SKILL.md` follows the OpenClaw skill format — YAML frontmatter + markdow
 ```markdown
 ---
 name: my-subnet-tasks
-description: Submit and retrieve AI tasks from My Subnet on AWP RootNet
+description: Submit and retrieve AI tasks from My Subnet on AWP
 user-invocable: true
 metadata: {"openclaw":{"requires":{"env":["AWP_SUBNET_API_KEY"]}}}
 ---

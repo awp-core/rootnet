@@ -1,4 +1,4 @@
-# Deployment & Operations Guide — AWP RootNet
+# Deployment & Operations Guide — AWP
 
 ## Table of Contents
 
@@ -109,8 +109,8 @@ forge script script/Deploy.s.sol --rpc-url $ETH_RPC_URL --broadcast --verify
 | 5 | AWPDAO | Custom NFT-based voting (6 params, no rootNet dependency) |
 | 6 | Grant roles | DAO gets PROPOSER + CANCELLER on Treasury |
 | 7 | Renounce admin | Treasury admin permanently locked |
-| 8 | RootNet | Unified entry (deployer, treasury, guardian) |
-| 9 | SubnetNFT | ERC721, only RootNet can mint/burn |
+| 8 | AWPRegistry | Unified entry (deployer, treasury, guardian) |
+| 9 | SubnetNFT | ERC721, only AWPRegistry can mint/burn |
 | 10 | AccessManager | User/Agent registration |
 | 11 | StakingVault | Pure allocation logic |
 | 11b | StakeNFT | ERC721 position NFT (awpToken, stakingVault, rootNet) |
@@ -118,8 +118,8 @@ forge script script/Deploy.s.sol --rpc-url $ETH_RPC_URL --broadcast --verify
 | 13 | AWPEmission | UUPS proxy (impl + ERC1967Proxy + initialize(awpToken, treasury, initialDailyEmission, genesisTime_, epochDuration_=86400)) |
 | 14 | Add minter | AWPEmission added as sole AWP minter |
 | 15 | Renounce admin | AWP minter list permanently locked |
-| 16 | Configure factory | `factory.setAddresses(rootNet)` — links to RootNet and renounces ownership |
-| 17 | Initialize registry | All module addresses injected into RootNet |
+| 16 | Configure factory | `factory.setAddresses(awpRegistry)` — links to AWPRegistry and renounces ownership |
+| 17 | Initialize registry | All module addresses injected into AWPRegistry |
 | 18-22 | Distribute AWP | Treasury 90M, LP 10M, Airdrop 100M |
 
 ### 2.4 Verify Deployment
@@ -135,7 +135,7 @@ cast call <AWPToken> "admin()" --rpc-url $ETH_RPC_URL
 cast call <AWPToken> "minters(address)" <AWPEmission> --rpc-url $ETH_RPC_URL
 # Should return true
 
-cast call <RootNet> "registryInitialized()" --rpc-url $ETH_RPC_URL
+cast call <AWPRegistry> "registryInitialized()" --rpc-url $ETH_RPC_URL
 # Should return true
 ```
 
@@ -146,7 +146,7 @@ After deployment, save all addresses for backend configuration:
 ```bash
 # Output format from Deploy.s.sol console.log:
 # Step 1: AWPToken deployed at 0x...
-# Step 8: RootNet at 0x...
+# Step 8: AWPRegistry at 0x...
 # Step 9: SubnetNFT at 0x...
 # Step 13: AWPEmission proxy at 0x...
 # ...
@@ -244,7 +244,7 @@ HTTP_ADDR=:8080
 RPC_URL=https://bsc-mainnet.example.com
 
 # Contract addresses (from deployment output)
-ROOTNET_ADDRESS=0x...
+AWP_REGISTRY_ADDRESS=0x...
 AWP_TOKEN_ADDRESS=0x...
 AWP_EMISSION_ADDRESS=0x...
 STAKING_VAULT_ADDRESS=0x...
@@ -354,7 +354,7 @@ sudo systemctl start awp-api awp-indexer awp-keeper
 | `REDIS_URL` | api, indexer, keeper | `redis://localhost:6379/0` | Redis connection string |
 | `HTTP_ADDR` | api | `:8080` | HTTP listen address |
 | `RPC_URL` | indexer, keeper | `https://bsc-testnet-rpc.publicnode.com` | BSC JSON-RPC endpoint |
-| `ROOTNET_ADDRESS` | indexer | — | RootNet contract address |
+| `AWP_REGISTRY_ADDRESS` | indexer | — | AWPRegistry contract address |
 | `AWP_TOKEN_ADDRESS` | keeper | — | AWP token address |
 | `AWP_EMISSION_ADDRESS` | indexer, keeper | — | AWPEmission proxy address |
 | `STAKING_VAULT_ADDRESS` | indexer | — | StakingVault address |
@@ -373,7 +373,7 @@ sudo systemctl start awp-api awp-indexer awp-keeper
 | `TIMELOCK_DELAY` | 2 days (172800s) | Deploy.s.sol |
 | `POOL_FEE` | 1% (10000) | LPManager.sol |
 | `TICK_SPACING` | 200 | LPManager.sol |
-| `MAX_ACTIVE_SUBNETS` | 10,000 | RootNet.sol |
+| `MAX_ACTIVE_SUBNETS` | 10,000 | AWPRegistry.sol |
 | `maxRecipients` | 10,000 | AWPEmission.sol |
 | `DECAY_FACTOR` | 996844 / 1000000 | AWPEmission.sol |
 | `EMISSION_SPLIT_BPS` | 5000 (50%) | AWPEmission.sol |
@@ -451,19 +451,19 @@ redis-cli GET awp_info
 
 ```bash
 # 1. Register as user
-cast send <RootNet> "register()" --private-key $USER_KEY --rpc-url $RPC_URL
+cast send <AWPRegistry> "register()" --private-key $USER_KEY --rpc-url $RPC_URL
 
 # 2. Approve AWP for LP
-cast send <AWPToken> "approve(address,uint256)" <RootNet> 1000000000000000000000000 \
+cast send <AWPToken> "approve(address,uint256)" <AWPRegistry> 1000000000000000000000000 \
   --private-key $USER_KEY --rpc-url $RPC_URL
 
 # 3. Register subnet (salt=0x00..00 uses subnetId as CREATE2 salt)
-cast send <RootNet> "registerSubnet((string,string,address,bytes32,uint128,string))" \
+cast send <AWPRegistry> "registerSubnet((string,string,address,bytes32,uint128,string))" \
   "(\"My Subnet\",\"MSUB\",0x0000000000000000000000000000000000000000,0x0000000000000000000000000000000000000000000000000000000000000000,0,\"ipfs://QmSkills...\")" \
   --private-key $USER_KEY --rpc-url $RPC_URL
 
 # 4. Activate
-cast send <RootNet> "activateSubnet(uint256)" 1 \
+cast send <AWPRegistry> "activateSubnet(uint256)" 1 \
   --private-key $USER_KEY --rpc-url $RPC_URL
 ```
 
@@ -492,12 +492,12 @@ cast call <AWPEmission> "settledEpoch()" --rpc-url $RPC_URL
 
 **Emergency Pause (Guardian):**
 ```bash
-cast send <RootNet> "pause()" --private-key $GUARDIAN_KEY --rpc-url $RPC_URL
+cast send <AWPRegistry> "pause()" --private-key $GUARDIAN_KEY --rpc-url $RPC_URL
 ```
 
 **Resume (via DAO/Timelock):**
 ```bash
-cast send <RootNet> "unpause()" --private-key $TIMELOCK_KEY --rpc-url $RPC_URL
+cast send <AWPRegistry> "unpause()" --private-key $TIMELOCK_KEY --rpc-url $RPC_URL
 ```
 
 **Upgrade AWPEmission (via DAO Proposal):**

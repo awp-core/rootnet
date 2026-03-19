@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Refactor AWPEmission to UUPS upgradeable proxy with multi-oracle batch weight submission, removing all emission delegation from RootNet.
+**Goal:** Refactor AWPEmission to UUPS upgradeable proxy with multi-oracle batch weight submission, removing all emission delegation from AWPRegistry.
 
-**Architecture:** AWPEmission becomes a UUPS proxy with EIP-712 signature verification for oracle-submitted weight batches. RootNet retains only subnet lifecycle notifications. DAO governs oracle config and upgrades via Treasury (Timelock).
+**Architecture:** AWPEmission becomes a UUPS proxy with EIP-712 signature verification for oracle-submitted weight batches. AWPRegistry retains only subnet lifecycle notifications. DAO governs oracle config and upgrades via Treasury (Timelock).
 
 **Tech Stack:** Solidity 0.8.20, OpenZeppelin 5.x (Upgradeable), Foundry, Go 1.26, abigen
 
@@ -50,7 +50,7 @@ interface IAWPEmission {
     function setBatchSize(uint128 b) external;
     function setMaxActiveSubnets(uint128 m) external;
 
-    // ── RootNet 生命周期同步（onlyRootNet） ──
+    // ── AWPRegistry 生命周期同步（onlyAWPRegistry） ──
     function registerSubnet(uint256 subnetId, address recipient) external;
     function activateSubnet(uint256 subnetId) external;
     function deactivateSubnet(uint256 subnetId) external;
@@ -134,14 +134,14 @@ oracles, oracleThreshold, allocationNonce, __gap[47]
 Run: `/home/ubuntu/.foundry/bin/forge build`
 Expected: AWPEmission.sol compiles. Test files and deploy scripts will still fail (expected).
 
-### Task 3: Remove Delegation Functions from RootNet
+### Task 3: Remove Delegation Functions from AWPRegistry
 
 **Files:**
-- Modify: `contracts/src/RootNet.sol`
+- Modify: `contracts/src/AWPRegistry.sol`
 
 - [ ] **Step 1: Remove 4 delegation functions**
 
-Delete these functions from RootNet.sol:
+Delete these functions from AWPRegistry.sol:
 - `setGovernanceWeight(uint256 subnetId, uint128 w)` (line 744-749)
 - `setMaxActiveSubnets(uint128 m)` (line 765-769)
 - `setEpochDuration(uint256 d)` (line 783-787)
@@ -149,10 +149,10 @@ Delete these functions from RootNet.sol:
 
 Also remove `setGovernanceWeight` and `setMaxActiveSubnets` from `test_onlyTimelockFunctions` test expectations.
 
-- [ ] **Step 2: Verify compilation of RootNet.sol**
+- [ ] **Step 2: Verify compilation of AWPRegistry.sol**
 
 Run: `/home/ubuntu/.foundry/bin/forge build`
-Expected: RootNet.sol compiles. Tests that call removed functions will fail (expected).
+Expected: AWPRegistry.sol compiles. Tests that call removed functions will fail (expected).
 
 ### Task 4: Update Deploy Scripts
 
@@ -201,7 +201,7 @@ Expected: All source files and scripts compile.
 
 ```bash
 git add contracts/src/ contracts/script/
-git commit -m "feat: AWPEmission V2 — UUPS proxy + oracle consensus + remove RootNet delegation"
+git commit -m "feat: AWPEmission V2 — UUPS proxy + oracle consensus + remove AWPRegistry delegation"
 ```
 
 ## Chunk 2: Test Updates
@@ -266,10 +266,10 @@ Helper: `_signAllocations(uint256 pk, uint256[] subnetIds, uint128[] weights, ui
 Run: `/home/ubuntu/.foundry/bin/forge test --match-contract AWPEmissionTest -v`
 Expected: All tests pass.
 
-### Task 6: Update RootNet.t.sol
+### Task 6: Update AWPRegistry.t.sol
 
 **Files:**
-- Modify: `contracts/test/RootNet.t.sol`
+- Modify: `contracts/test/AWPRegistry.t.sol`
 
 - [ ] **Step 1: Update setUp for proxy deployment**
 
@@ -291,14 +291,14 @@ Update `test_onlyTimelockFunctions`:
 
 - [ ] **Step 4: Run tests**
 
-Run: `/home/ubuntu/.foundry/bin/forge test --match-contract RootNetTest -v`
+Run: `/home/ubuntu/.foundry/bin/forge test --match-contract AWPRegistryTest -v`
 Expected: All tests pass.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add contracts/test/AWPEmission.t.sol contracts/test/RootNet.t.sol
-git commit -m "test: rewrite AWPEmission tests for V2 proxy + oracle, update RootNet tests"
+git add contracts/test/AWPEmission.t.sol contracts/test/AWPRegistry.t.sol
+git commit -m "test: rewrite AWPEmission tests for V2 proxy + oracle, update AWPRegistry tests"
 ```
 
 ### Task 7: Update E2E.t.sol
@@ -411,11 +411,11 @@ cd /home/ubuntu/code/Cortexia/contracts
 /home/ubuntu/go/bin/abigen --abi /tmp/awp_emission_abi.json --pkg bindings --type AWPEmission --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/a_w_p_emission.go
 ```
 
-- [ ] **Step 2: Regenerate RootNet binding**
+- [ ] **Step 2: Regenerate AWPRegistry binding**
 
 ```bash
-/home/ubuntu/.foundry/bin/forge inspect RootNet abi --json > /tmp/rootnet_abi.json
-/home/ubuntu/go/bin/abigen --abi /tmp/rootnet_abi.json --pkg bindings --type RootNet --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/root_net.go
+/home/ubuntu/.foundry/bin/forge inspect AWPRegistry abi --json > /tmp/rootnet_abi.json
+/home/ubuntu/go/bin/abigen --abi /tmp/rootnet_abi.json --pkg bindings --type AWPRegistry --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/root_net.go
 ```
 
 - [ ] **Step 3: Verify Go build**
@@ -479,7 +479,7 @@ git commit -m "feat: regenerate bindings for AWPEmission V2, add new event parsi
 
 Update the Core Architecture section:
 - AWPEmission description: Add "UUPS upgradeable, multi-oracle weight submission"
-- Remove references to `setGovernanceWeight` on RootNet
+- Remove references to `setGovernanceWeight` on AWPRegistry
 - Update deployment sequence to show proxy deployment
 
 - [ ] **Step 2: Update docs/architecture.md**
@@ -490,7 +490,7 @@ Update AWPEmission section (4.4) to describe V2:
 - `emergencySetWeight` for DAO override
 - Oracle config management
 
-Update RootNet section:
+Update AWPRegistry section:
 - Remove `setGovernanceWeight`, `setEpochDuration`, `setBatchSize`, `setMaxActiveSubnets`
 
 Update deployment steps:

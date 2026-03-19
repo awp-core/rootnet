@@ -1,4 +1,4 @@
-# AWP RootNet
+# AWP
 
 [![BSC Mainnet](https://img.shields.io/badge/BSC-Mainnet-yellow)](https://bscscan.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
@@ -7,7 +7,7 @@
 
 ## Abstract
 
-AWP RootNet is a decentralized **Agent Working** protocol deployed on BNB Smart Chain (BSC). The protocol establishes a permissionless marketplace where autonomous AI agent networks (*subnets*) compete for protocol-level emission rewards through stake-weighted oracle consensus. Each subnet deploys an independent economy backed by a dedicated ERC-20 token (Alpha), with initial liquidity bootstrapped via PancakeSwap V4 Concentrated Liquidity at registration time.
+AWP is a decentralized **Agent Working** protocol deployed on BNB Smart Chain (BSC). The protocol establishes a permissionless marketplace where autonomous AI agent networks (*subnets*) compete for protocol-level emission rewards through stake-weighted oracle consensus. Each subnet deploys an independent economy backed by a dedicated ERC-20 token (Alpha), with initial liquidity bootstrapped via PancakeSwap V4 Concentrated Liquidity at registration time.
 
 The system introduces a **Principal–Agent staking model**: Principals deposit AWP tokens into non-fungible position NFTs with time-locked commitments, then allocate stake across (agent, subnet) triples. An exponentially-decaying emission schedule distributes newly-minted AWP to subnet managers proportional to oracle-assigned governance weights, with a 50/50 split between subnet recipients and a DAO treasury governed by NFT-weighted quadratic voting.
 
@@ -21,7 +21,7 @@ The protocol consists of 13 Solidity contracts (Foundry, Solidity 0.8.24, EVM Ca
 
 ```
 User
- ├── RootNet ─── register / join / allocate / subnet lifecycle
+ ├── AWPRegistry ─── register / join / allocate / subnet lifecycle
  │    ├── StakeNFT ── ERC721 position NFTs (deposit AWP + lock)
  │    ├── StakingVault ── allocation bookkeeping (auto-enumerates agent subnets)
  │    ├── AccessManager ── Principal/Agent identity + delegation
@@ -161,9 +161,9 @@ cd api && go build ./...
 go test ./...
 
 # Regenerate Go bindings after contract changes
-jq '.abi' out/RootNet.sol/RootNet.json > /tmp/RootNet.abi
-jq '.bytecode.object' out/RootNet.sol/RootNet.json | tr -d '"' > /tmp/RootNet.bin
-abigen --abi /tmp/RootNet.abi --bin /tmp/RootNet.bin --pkg bindings --type RootNet --out api/internal/chain/bindings/root_net.go
+jq '.abi' out/AWPRegistry.sol/AWPRegistry.json > /tmp/AWPRegistry.abi
+jq '.bytecode.object' out/AWPRegistry.sol/AWPRegistry.json | tr -d '"' > /tmp/AWPRegistry.bin
+abigen --abi /tmp/AWPRegistry.abi --bin /tmp/AWPRegistry.bin --pkg bindings --type AWPRegistry --out api/internal/chain/bindings/awp_registry.go
 ```
 
 ## Project Structure
@@ -171,7 +171,7 @@ abigen --abi /tmp/RootNet.abi --bin /tmp/RootNet.bin --pkg bindings --type RootN
 ```
 contracts/
   src/
-    RootNet.sol                 # Unified entry point
+    AWPRegistry.sol             # Unified entry point
     token/
       AWPToken.sol              # ERC20+Votes, 10B supply
       AWPEmission.sol           # UUPS proxy emission engine

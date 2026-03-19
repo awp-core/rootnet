@@ -1,6 +1,6 @@
-# Subnet Developer Guide — AWP RootNet
+# Subnet Developer Guide — AWP
 
-> This document is intended for subnet developers (Coordinator / Subnet Contract), providing all the information needed to interact with RootNet contracts and APIs.
+> This document is intended for subnet developers (Coordinator / Subnet Contract), providing all the information needed to interact with AWPRegistry contracts and APIs.
 
 ---
 
@@ -9,13 +9,13 @@
 ```
 User (Owner)
   │
-  ├── register() → Register user identity (via RootNet)
+  ├── register() → Register user identity (via AWPRegistry)
   ├── stakeNFT.deposit(AWP, lockDuration) → Deposit AWP, receive position NFT
-  ├── allocate(agent, subnetId, amount) → Allocate stake to a subnet (via RootNet)
+  ├── allocate(agent, subnetId, amount) → Allocate stake to a subnet (via AWPRegistry)
   └── registerSubnet(params) → Register new subnet (deploy Alpha + create LP)
         │
         ▼
-RootNet (Unified Entry Point — allocation + subnet management)
+AWPRegistry (Unified Entry Point — allocation + subnet management)
   │
   ├── AccessManager — User/Agent registration and permissions
   ├── StakingVault — Pure allocation logic (no deposit/withdraw)
@@ -49,13 +49,13 @@ Subnet Contract (What you develop)
 1. **Option A**: Deploy your own subnet manager contract, OR use `address(0)` to auto-deploy the default `SubnetManager` proxy
 2. Prepare AWP — LP creation cost = `INITIAL_ALPHA_MINT × initialAlphaPrice / 1e18` (default: 100M × 0.01 = 1M AWP)
 3. Query current price: `rootNet.initialAlphaPrice()` → calculate the actual AWP amount needed
-4. Call `AWPToken.approve(rootNet, awpAmount)` to authorize RootNet for the transfer
+4. Call `AWPToken.approve(rootNet, awpAmount)` to authorize AWPRegistry for the transfer
 
 ### 2.2 Registration
 
 ```solidity
 // Solidity — auto-deploy SubnetManager (subnetManager = address(0))
-IRootNet.SubnetParams memory params = IRootNet.SubnetParams({
+IAWPRegistry.SubnetParams memory params = IAWPRegistry.SubnetParams({
     name: "My Subnet Alpha",     // Alpha Token name (1-64 bytes)
     symbol: "MSALPHA",           // Alpha Token symbol (1-16 bytes)
     subnetManager: address(0),   // address(0) = auto-deploy SubnetManager proxy
@@ -69,7 +69,7 @@ uint256 subnetId = rootNet.registerSubnet(params);
 // Frontend (wagmi/viem)
 const { writeContract } = useWriteContract();
 await writeContract({
-  address: ROOTNET_ADDRESS,
+  address: AWP_REGISTRY_ADDRESS,
   abi: rootNetABI,
   functionName: 'registerSubnet',
   args: [{ name, symbol, subnetManager: '0x0000000000000000000000000000000000000000',
@@ -114,7 +114,7 @@ curl -X POST https://tapi.awp.sh/api/vanity/upload-salts \
 **Step 3 — Pass the salt in SubnetParams**
 
 ```solidity
-IRootNet.SubnetParams memory params = IRootNet.SubnetParams({
+IAWPRegistry.SubnetParams memory params = IAWPRegistry.SubnetParams({
     // ... other fields ...
     salt: 0xYourMinedSalt000000000000000000000000000000000000000000000000
 });
@@ -128,7 +128,7 @@ The factory will deploy the Alpha token at the vanity address and then validate 
 |------|--------|--------|
 | 1 | Calculate LP cost | `INITIAL_ALPHA_MINT × initialAlphaPrice / 1e18` |
 | 2 | Transfer AWP from user to LPManager | `safeTransferFrom(user, lpManager, awpAmount)` |
-| 3 | Deploy AlphaToken (CREATE2) | Standalone contract via factory; salt from params (or subnetId if 0); admin = RootNet |
+| 3 | Deploy AlphaToken (CREATE2) | Standalone contract via factory; salt from params (or subnetId if 0); admin = AWPRegistry |
 | 4 | Create PancakeSwap V4 CL pool | Full-range liquidity, 1% fee, permanently locked |
 | 5 | Auto-deploy SubnetManager proxy (if subnetManager=0) | ERC1967Proxy → defaultSubnetManagerImpl, admin = user |
 | 6 | Set subnet manager as sole Alpha minter | `setSubnetMinter(sc)` permanently locked |
@@ -142,7 +142,7 @@ After registration, the subnet status is `Pending`. The NFT Owner must manually 
 ```solidity
 rootNet.activateSubnet(subnetId);
 // Status: Pending → Active
-// Added to RootNet's activeSubnetIds set
+// Added to AWPRegistry's activeSubnetIds set
 ```
 
 **Note:** Activation makes the subnet visible as "Active" in the protocol, but it does NOT automatically include it in AWP emission. To receive emissions, the oracle network must include your subnet contract address in their `submitAllocations` submission. Contact the oracle operators or DAO to request inclusion.
@@ -151,7 +151,7 @@ rootNet.activateSubnet(subnetId);
 
 ## 3. SubnetManager — Default Subnet Contract API
 
-> When `subnetManager = address(0)` is passed to `registerSubnet`, RootNet auto-deploys a `SubnetManager` proxy. The registrant (`msg.sender` or the EIP-712 signer for gasless) becomes `DEFAULT_ADMIN_ROLE`.
+> When `subnetManager = address(0)` is passed to `registerSubnet`, AWPRegistry auto-deploys a `SubnetManager` proxy. The registrant (`msg.sender` or the EIP-712 signer for gasless) becomes `DEFAULT_ADMIN_ROLE`.
 
 ### 3.0 Roles
 
@@ -289,7 +289,7 @@ claimed(uint32 epoch, address account) → bool  // Alias for isClaimed
 
 ### 3.1 Default SubnetManager (auto-deployed)
 
-If you pass `subnetManager = address(0)` during registration, RootNet auto-deploys a **SubnetManager** proxy with built-in features:
+If you pass `subnetManager = address(0)` during registration, AWPRegistry auto-deploys a **SubnetManager** proxy with built-in features:
 
 - **Merkle Distribution**: Submit Merkle roots per epoch, users claim Alpha tokens via proof
 - **AWP Strategy**: Choose how incoming AWP is handled:
@@ -334,13 +334,13 @@ contract MySubnetContract {
 | Permission | Who Holds It | Description |
 |------------|-------------|-------------|
 | Alpha minting | **Your subnet contract** | `setSubnetMinter` permanently locked — only you can mint Alpha |
-| Alpha minting pause | RootNet (admin) | `setMinterPaused(true)` pauses your minting when banned |
+| Alpha minting pause | AWPRegistry (admin) | `setMinterPaused(true)` pauses your minting when banned |
 | AWP emission receipt | Oracle-assigned | Your address must be in the oracle's `submitAllocations` list to receive AWP |
 | Alpha MAX_SUPPLY | 10B | Independent cap per subnet |
 
 ### 3.3 Ban and Unban
 
-- **Ban**: After a DAO proposal passes, Treasury (Timelock) calls `banSubnet(subnetId)` → your Alpha minting is paused, subnet removed from RootNet's active list
+- **Ban**: After a DAO proposal passes, Treasury (Timelock) calls `banSubnet(subnetId)` → your Alpha minting is paused, subnet removed from AWPRegistry's active list
 - **Unban**: Treasury calls `unbanSubnet(subnetId)` → status restores to **Active**, re-added to active list
 - During a ban, your existing AWP and Alpha holdings are **unaffected** — only new Alpha minting is blocked
 - Note: The direct caller is the Treasury contract (Timelock), not the DAO contract
@@ -665,15 +665,15 @@ ws.onmessage = (event) => {
 ### 5.1 On-Chain Reads (view functions, no gas)
 
 ```solidity
-// Query full subnet info (combines RootNet state + SubnetNFT identity)
-IRootNet.SubnetFullInfo memory subnet = rootNet.getSubnetFull(subnetId);
+// Query full subnet info (combines AWPRegistry state + SubnetNFT identity)
+IAWPRegistry.SubnetFullInfo memory subnet = awpRegistry.getSubnetFull(subnetId);
 // subnet.subnetManager, subnet.alphaToken, subnet.status, subnet.owner, subnet.minStake
 
 // Query single agent info
-RootNet.AgentInfo memory info = rootNet.getAgentInfo(agentAddress, subnetId);
+AWPRegistry.AgentInfo memory info = awpRegistry.getAgentInfo(agentAddress, subnetId);
 
 // Batch query (Coordinator cold start)
-RootNet.AgentInfo[] memory infos = rootNet.getAgentsInfo(agents, subnetId);
+AWPRegistry.AgentInfo[] memory infos = awpRegistry.getAgentsInfo(agents, subnetId);
 
 // Query current epoch
 uint256 epoch = awpEmission.currentEpoch();
@@ -696,7 +696,7 @@ subnetNFT.setMinStake(subnetId, 100e18); // 100 AWP minimum
 Cold Start:
   1. GET /api/subnets/{subnetId} → Subnet basic info
   2. POST /api/agents/batch-info → Batch query all known agents' stakes
-  3. Or on-chain: rootNet.getAgentsInfo(allAgents, subnetId)
+  3. Or on-chain: awpRegistry.getAgentsInfo(allAgents, subnetId)
 
 Runtime Incremental Updates:
   1. WebSocket subscribe: ["AgentBound", "AgentUnbound", "Allocated", "Deallocated", "AgentRemoved", "Reallocated"]
@@ -705,7 +705,7 @@ Runtime Incremental Updates:
 
 Reward Distribution:
   1. Calculate reward ratio based on agent stake and contribution score
-  2. Query rewardRecipient: GET /api/agents/batch-info or on-chain rootNet.getAgentInfo(agent, subnetId)
+  2. Query rewardRecipient: GET /api/agents/batch-info or on-chain awpRegistry.getAgentInfo(agent, subnetId)
   3. Transfer AWP/Alpha to the rewardRecipient address
 ```
 
@@ -739,7 +739,7 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 
 | Contract | Address | Description |
 |----------|---------|-------------|
-| RootNet | `0x190E0E3128764913D54aD570993b21a38D1411F7` | Unified entry point (allocation + subnet management) |
+| AWPRegistry | `0x190E0E3128764913D54aD570993b21a38D1411F7` | Unified entry point (allocation + subnet management) |
 | AWPToken | `0x0000969dDC625E1c084ECE9079055Fbc50F400a1` | Main token (ERC20Votes) |
 | SubnetNFT | `0xbdfd26f499bd7972242bb765d8C3262d6d89fE63` | Subnet NFT (ERC721) |
 | StakeNFT | `0x3678463cd5EbA407b20CD1c296B6ECc58491C170` | Position NFT (ERC721, deposit/withdraw AWP) |
@@ -760,19 +760,19 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 
 | Error | Contract | Trigger Condition |
 |-------|----------|-------------------|
-| `InvalidSubnetParams()` | RootNet | name/symbol length invalid |
-| `SubnetManagerRequired()` | RootNet | subnetManager is zero and no defaultSubnetManagerImpl set |
-| `NotTimelock()` | RootNet | Caller is not the Treasury (Timelock) |
-| `NotGuardian()` | RootNet | Caller is not the Guardian |
+| `InvalidSubnetParams()` | AWPRegistry | name/symbol length invalid |
+| `SubnetManagerRequired()` | AWPRegistry | subnetManager is zero and no defaultSubnetManagerImpl set |
+| `NotTimelock()` | AWPRegistry | Caller is not the Treasury (Timelock) |
+| `NotGuardian()` | AWPRegistry | Caller is not the Guardian |
 | `PositionExpired()` | StakeNFT | Cannot add tokens to an expired lock position |
-| `NotOwner()` | RootNet | Non-NFT holder calling lifecycle function |
-| `InvalidSubnetStatus()` | RootNet | Status does not meet precondition |
-| `MaxActiveSubnetsReached()` | RootNet | Active subnet count exceeds 10000 |
-| `ImmunityNotExpired()` | RootNet | Attempt to deregister during immunity period |
-| `InvalidAgent()` | RootNet | Agent does not belong to the user |
-| `NotRegistered()` | RootNet | Caller is not a registered user |
-| `ExpiredSignature()` | RootNet | Gasless signature has expired |
-| `InvalidSignature()` | RootNet | Gasless signature verification failed |
+| `NotOwner()` | AWPRegistry | Non-NFT holder calling lifecycle function |
+| `InvalidSubnetStatus()` | AWPRegistry | Status does not meet precondition |
+| `MaxActiveSubnetsReached()` | AWPRegistry | Active subnet count exceeds 10000 |
+| `ImmunityNotExpired()` | AWPRegistry | Attempt to deregister during immunity period |
+| `InvalidAgent()` | AWPRegistry | Agent does not belong to the user |
+| `NotRegistered()` | AWPRegistry | Caller is not a registered user |
+| `ExpiredSignature()` | AWPRegistry | Gasless signature has expired |
+| `InvalidSignature()` | AWPRegistry | Gasless signature verification failed |
 | `InsufficientUnallocated()` | StakingVault | Insufficient unallocated balance |
 | `InsufficientAllocation()` | StakingVault | Allocation insufficient for the reduction |
 | `MinterPaused()` | AlphaToken | Alpha minting paused (subnet is banned) |

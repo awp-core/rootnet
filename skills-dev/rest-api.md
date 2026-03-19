@@ -13,7 +13,7 @@
 Returns all 11 protocol contract addresses (excludes implementation contracts):
 ```json
 {
-  "rootNet": "0x...",
+  "awpRegistry": "0x...",
   "awpToken": "0x...",
   "awpEmission": "0x...",
   "stakingVault": "0x...",
@@ -272,27 +272,27 @@ ws.onmessage = (event) => {
 
 | Event | Data Fields | Source |
 |-------|-------------|--------|
-| `UserRegistered` | `{user}` | RootNet |
-| `AgentBound` | `{principal, agent, oldPrincipal}` | RootNet |
-| `AgentUnbound` | `{principal, agent}` | RootNet |
-| `AgentRemoved` | `{user, agent, operator}` | RootNet |
-| `DelegationUpdated` | `{user, agent, isManager, operator}` | RootNet |
+| `UserRegistered` | `{user}` | AWPRegistry |
+| `AgentBound` | `{principal, agent, oldPrincipal}` | AWPRegistry |
+| `AgentUnbound` | `{principal, agent}` | AWPRegistry |
+| `AgentRemoved` | `{user, agent, operator}` | AWPRegistry |
+| `DelegationUpdated` | `{user, agent, isManager, operator}` | AWPRegistry |
 | `Deposited` | `{user, tokenId, amount, lockEndTime}` | StakeNFT |
 | `PositionIncreased` | `{tokenId, addedAmount, newLockEndTime}` | StakeNFT |
 | `Withdrawn` | `{user, tokenId, amount}` | StakeNFT |
-| `Allocated` | `{user, agent, subnetId, amount, operator}` | RootNet |
-| `Deallocated` | `{user, agent, subnetId, amount, operator}` | RootNet |
-| `Reallocated` | `{user, fromAgent, fromSubnet, toAgent, toSubnet, amount, operator}` | RootNet |
-| `SubnetRegistered` | `{subnetId, owner, name, symbol, subnetManager, alphaToken}` | RootNet |
-| `LPCreated` | `{subnetId, poolId, awpAmount, alphaAmount}` | RootNet |
+| `Allocated` | `{user, agent, subnetId, amount, operator}` | AWPRegistry |
+| `Deallocated` | `{user, agent, subnetId, amount, operator}` | AWPRegistry |
+| `Reallocated` | `{user, fromAgent, fromSubnet, toAgent, toSubnet, amount, operator}` | AWPRegistry |
+| `SubnetRegistered` | `{subnetId, owner, name, symbol, subnetManager, alphaToken}` | AWPRegistry |
+| `LPCreated` | `{subnetId, poolId, awpAmount, alphaAmount}` | AWPRegistry |
 | `SkillsURIUpdated` | `{subnetId, skillsURI}` | SubnetNFT |
 | `MinStakeUpdated` | `{subnetId, minStake}` | SubnetNFT |
-| `SubnetActivated` | `{subnetId}` | RootNet |
-| `SubnetPaused` | `{subnetId}` | RootNet |
-| `SubnetResumed` | `{subnetId}` | RootNet |
-| `SubnetBanned` | `{subnetId}` | RootNet |
-| `SubnetUnbanned` | `{subnetId}` | RootNet |
-| `SubnetDeregistered` | `{subnetId}` | RootNet |
+| `SubnetActivated` | `{subnetId}` | AWPRegistry |
+| `SubnetPaused` | `{subnetId}` | AWPRegistry |
+| `SubnetResumed` | `{subnetId}` | AWPRegistry |
+| `SubnetBanned` | `{subnetId}` | AWPRegistry |
+| `SubnetUnbanned` | `{subnetId}` | AWPRegistry |
+| `SubnetDeregistered` | `{subnetId}` | AWPRegistry |
 | `GovernanceWeightUpdated` | `{addr, weight}` | AWPEmission |
 | `RecipientAWPDistributed` | `{epoch, recipient, awpAmount}` | AWPEmission |
 | `DAOMatchDistributed` | `{epoch, amount}` | AWPEmission |
@@ -354,7 +354,7 @@ Fully gasless subnet registration via `registerSubnetForWithPermit()`. User sign
 ```
 
 **Two signatures required:**
-- `permitSignature`: ERC-2612 permit — authorizes RootNet to spend user's AWP (no prior approve tx needed)
+- `permitSignature`: ERC-2612 permit — authorizes AWPRegistry to spend user's AWP (no prior approve tx needed)
 - `registerSignature`: EIP-712 — authorizes subnet registration parameters
 
 Both are standard 65-byte signatures (r[32] + s[32] + v[1]), hex-encoded with `0x` prefix.
@@ -373,7 +373,7 @@ Both are standard 65-byte signatures (r[32] + s[32] + v[1]), hex-encoded with `0
 | 400 | `{"error": "subnet manager address required (auto-deploy not available)"}` | No default SubnetManager impl set |
 | 400 | `{"error": "insufficient AWP balance"}` | User lacks AWP for subnet registration |
 | 400 | `{"error": "insufficient AWP allowance"}` | Permit signature did not authorize enough AWP |
-| 400 | `{"error": "contract is paused"}` | RootNet is in emergency pause state |
+| 400 | `{"error": "contract is paused"}` | AWPRegistry is in emergency pause state |
 | 400 | `{"error": "relay transaction failed"}` | Unrecognized on-chain revert |
 | 429 | `{"error": "rate limit exceeded: max 100 requests per 3600s"}` | IP rate limit exceeded |
 

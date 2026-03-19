@@ -182,13 +182,13 @@ function createPoolAndAddLiquidity(address alphaToken, uint256 awpAmount, uint25
     external returns (bytes32 poolId, uint256 lpTokenId);
 ```
 
-This requires updating `RootNet.registerSubnet` which stores the return value in `SubnetInfo.lpPool`. The `lpPool` field type in `IRootNet.SubnetInfo` changes from `address` to `bytes32`.
+This requires updating `AWPRegistry.registerSubnet` which stores the return value in `SubnetInfo.lpPool`. The `lpPool` field type in `IAWPRegistry.SubnetInfo` changes from `address` to `bytes32`.
 
 **`createPoolAndAddLiquidity` implementation:**
 
 ```solidity
 function createPoolAndAddLiquidity(address alphaToken, uint256 awpAmount, uint256 alphaAmount)
-    external onlyRootNet returns (bytes32 poolId, uint256 lpTokenId)
+    external onlyAWPRegistry returns (bytes32 poolId, uint256 lpTokenId)
 {
     if (alphaTokenToPoolId[alphaToken] != bytes32(0)) revert PoolAlreadyExists();
 
@@ -294,7 +294,7 @@ function _getLiquidityForAmounts(uint160 sqrtPriceX96, uint256 amt0, uint256 amt
 }
 ```
 
-### IRootNet.sol — SubnetInfo + LPCreated event type change
+### IAWPRegistry.sol — SubnetInfo + LPCreated event type change
 
 ```solidity
 struct SubnetInfo {
@@ -310,7 +310,7 @@ struct SubnetInfo {
 event LPCreated(uint256 indexed subnetId, bytes32 poolId, uint256 awpAmount, uint256 alphaAmount);
 ```
 
-### RootNet.registerSubnet — update lpPool assignment
+### AWPRegistry.registerSubnet — update lpPool assignment
 
 ```solidity
 // Old:
@@ -372,7 +372,7 @@ Tests:
 
 ### Existing tests update
 
-E2E.t.sol, Integration.t.sol, RootNet.t.sol:
+E2E.t.sol, Integration.t.sol, AWPRegistry.t.sol:
 - Replace `new LPManager(rootNet, address(0), address(0), awp)` with `new MockLPManager(rootNet, awp)`
 - Update any assertions on `lpPool` from `address` to `bytes32` type
 - LPCreated event parameter changes if lpPool type changes
@@ -383,13 +383,13 @@ E2E.t.sol, Integration.t.sol, RootNet.t.sol:
 |------|--------|
 | `contracts/src/core/LPManager.sol` | Rewrite (real PancakeSwap V4) |
 | `contracts/src/interfaces/ILPManager.sol` | Update return type to bytes32 |
-| `contracts/src/interfaces/IRootNet.sol` | SubnetInfo.lpPool: address → bytes32 |
-| `contracts/src/RootNet.sol` | Update _deployAlphaAndLP return type |
+| `contracts/src/interfaces/IAWPRegistry.sol` | SubnetInfo.lpPool: address → bytes32 |
+| `contracts/src/AWPRegistry.sol` | Update _deployAlphaAndLP return type |
 | `contracts/test/helpers/MockLPManager.sol` | Create (extract current mock) |
 | `contracts/test/LPManager.t.sol` | Rewrite (fork tests) |
 | `contracts/test/E2E.t.sol` | Use MockLPManager |
 | `contracts/test/Integration.t.sol` | Use MockLPManager |
-| `contracts/test/RootNet.t.sol` | Use MockLPManager |
+| `contracts/test/AWPRegistry.t.sol` | Use MockLPManager |
 | `contracts/test/PancakeSwapV4Research.t.sol` | Delete (research complete) |
 | `contracts/script/Deploy.s.sol` | Update LPManager constructor |
 | `contracts/script/TestDeploy.s.sol` | Update LPManager constructor |

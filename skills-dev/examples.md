@@ -69,14 +69,14 @@ const client = createPublicClient({
   transport: http('https://bsc-dataseed.binance.org'),
 });
 
-const ROOTNET = '0x...'; // from deployment
+const AWP_REGISTRY = '0x...'; // from deployment
 const AWP_EMISSION = '0x...';
 ```
 
-### Read subnet info (full — combines RootNet state + SubnetNFT identity)
+### Read subnet info (full — combines AWPRegistry state + SubnetNFT identity)
 ```javascript
 const subnet = await client.readContract({
-  address: ROOTNET,
+  address: AWP_REGISTRY,
   abi: parseAbi(['function getSubnetFull(uint256) view returns (address subnetManager, address alphaToken, bytes32 lpPool, uint8 status, uint64 createdAt, uint64 activatedAt, string name, string skillsURI, uint128 minStake, address owner)']),
   functionName: 'getSubnetFull',
   args: [1n],
@@ -87,7 +87,7 @@ const subnet = await client.readContract({
 ### Read agent info
 ```javascript
 const info = await client.readContract({
-  address: ROOTNET,
+  address: AWP_REGISTRY,
   abi: parseAbi(['function getAgentInfo(address,uint256) view returns (address owner, bool isValid, uint256 stake, address rewardRecipient)']),
   functionName: 'getAgentInfo',
   args: ['0xAgentAddress', 1n],
@@ -134,7 +134,7 @@ const walletClient = createWalletClient({
 });
 
 const hash = await walletClient.writeContract({
-  address: ROOTNET,
+  address: AWP_REGISTRY,
   abi: parseAbi(['function register()']),
   functionName: 'register',
 });
@@ -180,7 +180,7 @@ await walletClient.writeContract({
 ### Allocate stake
 ```javascript
 await walletClient.writeContract({
-  address: ROOTNET,
+  address: AWP_REGISTRY,
   abi: parseAbi(['function allocate(address,uint256,uint256)']),
   functionName: 'allocate',
   args: ['0xAgentAddress', 1n, 5000n * 10n**18n], // agent, subnetId, amount
@@ -191,7 +191,7 @@ await walletClient.writeContract({
 ```javascript
 // 1. Calculate LP cost
 const initialAlphaPrice = await client.readContract({
-  address: ROOTNET,
+  address: AWP_REGISTRY,
   abi: parseAbi(['function initialAlphaPrice() view returns (uint256)']),
   functionName: 'initialAlphaPrice',
 });
@@ -203,7 +203,7 @@ await walletClient.writeContract({
   address: AWP_TOKEN,
   abi: parseAbi(['function approve(address,uint256) returns (bool)']),
   functionName: 'approve',
-  args: [ROOTNET, lpCost],
+  args: [AWP_REGISTRY, lpCost],
 });
 
 // 3a. (Optional) Compute a vanity salt via the API — pattern determined by factory's vanityRule
@@ -215,7 +215,7 @@ const { salt: vanitySalt, address: predictedAddr } = await vanityRes.json();
 
 // 3b. Register subnet (salt=0x00..00 uses subnetId as CREATE2 salt; or pass vanitySalt for vanity address)
 const hash = await walletClient.writeContract({
-  address: ROOTNET,
+  address: AWP_REGISTRY,
   abi: parseAbi(['function registerSubnet((string,string,address,bytes32,uint128)) returns (uint256)']),
   functionName: 'registerSubnet',
   args: [{
@@ -231,7 +231,7 @@ const hash = await walletClient.writeContract({
 ### Activate subnet
 ```javascript
 await walletClient.writeContract({
-  address: ROOTNET,
+  address: AWP_REGISTRY,
   abi: parseAbi(['function activateSubnet(uint256)']),
   functionName: 'activateSubnet',
   args: [1n], // subnetId

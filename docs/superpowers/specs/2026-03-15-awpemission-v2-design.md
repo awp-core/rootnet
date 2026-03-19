@@ -5,12 +5,12 @@
 
 ## Overview
 
-Refactor AWPEmission to a UUPS upgradeable proxy with multi-oracle consensus for batch weight submission. Remove all emission delegation from RootNet. DAO governance controls oracle configuration and contract upgrades, not individual weight settings.
+Refactor AWPEmission to a UUPS upgradeable proxy with multi-oracle consensus for batch weight submission. Remove all emission delegation from AWPRegistry. DAO governance controls oracle configuration and contract upgrades, not individual weight settings.
 
 ## Motivation
 
 Current design has three problems:
-1. **RootNet as middleman**: DAO votes route through RootNet for no reason, adding gas and coupling.
+1. **AWPRegistry as middleman**: DAO votes route through AWPRegistry for no reason, adding gas and coupling.
 2. **Individual weight voting**: 10000 subnets = 10000 DAO proposals. Unscalable.
 3. **Immutable emission contract**: AWPToken's minter list is permanently locked after `renounceAdmin()`. Cannot deploy a new AWPEmission without losing mint permission.
 
@@ -26,7 +26,7 @@ N oracle nodes (independently verify voting results)
 AWPEmission V2 (UUPS Proxy)
 |-- submitAllocations(ids[], weights[], sigs[])  <-- oracle submission
 |-- settleEpoch()                                 <-- permissionless
-|-- register/activate/deactivate/...              <-- RootNet lifecycle
+|-- register/activate/deactivate/...              <-- AWPRegistry lifecycle
 |-- setOracleConfig(oracles[], threshold)          <-- DAO governance
 |-- upgradeTo(newImpl)                             <-- DAO governance
 ```
@@ -39,7 +39,7 @@ AWPEmission V2 (UUPS Proxy)
 | Oracle consensus | Off-chain aggregated signatures, single on-chain tx | Lowest gas (1 tx), oracles coordinate off-chain |
 | N/M threshold | DAO-governed, initially 3/5 | Flexible, can adjust as network grows |
 | Weight submission frequency | On-demand, long-lived | Weights persist until replaced by new batch |
-| RootNet delegation functions | Remove all 4 | DAO calls AWPEmission directly via Treasury |
+| AWPRegistry delegation functions | Remove all 4 | DAO calls AWPEmission directly via Treasury |
 | Upgradeability | UUPS proxy | Required because AWPToken minter list is permanently locked |
 
 ## Contract Changes
@@ -136,7 +136,7 @@ function _authorizeUpgrade(address) internal override onlyTimelock;
 
 **Modified modifier:**
 ```solidity
-/// @dev onlyTimelock — only Treasury can call (RootNet no longer accepted)
+/// @dev onlyTimelock — only Treasury can call (AWPRegistry no longer accepted)
 modifier onlyTimelock() {
     if (msg.sender != treasury) revert NotTimelock();
     _;
@@ -159,7 +159,7 @@ bytes32 private constant ALLOCATION_TYPEHASH = keccak256(
 );
 ```
 
-### 2. RootNet Changes
+### 2. AWPRegistry Changes
 
 **Remove these functions entirely:**
 - `setGovernanceWeight(uint256 subnetId, uint128 w)`
@@ -320,13 +320,13 @@ uint256[47] private __gap;
    - Test settleEpoch still works (3-phase, unchanged)
    - Test upgrade via treasury
 
-2. **RootNet.t.sol** — remove emission delegation tests:
+2. **AWPRegistry.t.sol** — remove emission delegation tests:
    - Remove test_setEpochDuration, test_setMaxActiveSubnets
    - Remove setGovernanceWeight from test_onlyTimelockFunctions
    - Keep lifecycle notification tests
 
 3. **E2E.t.sol** — update DAO governance tests:
-   - DAO proposal targets AWPEmission directly (not RootNet)
+   - DAO proposal targets AWPEmission directly (not AWPRegistry)
    - Oracle-based weight submission flow
    - Upgrade flow via DAO proposal
 
@@ -348,12 +348,12 @@ If deployed on a chain where AWPEmission V1 is already live with locked minters:
 |------|--------|
 | `contracts/src/token/AWPEmission.sol` | Rewrite (UUPS + oracle consensus) |
 | `contracts/src/interfaces/IAWPEmission.sol` | Update (new functions/events) |
-| `contracts/src/RootNet.sol` | Remove 4 delegation functions |
-| `contracts/src/interfaces/IRootNet.sol` | No change |
+| `contracts/src/AWPRegistry.sol` | Remove 4 delegation functions |
+| `contracts/src/interfaces/IAWPRegistry.sol` | No change |
 | `contracts/script/Deploy.s.sol` | Proxy deployment pattern |
 | `contracts/script/TestDeploy.s.sol` | Proxy deployment pattern |
 | `contracts/test/AWPEmission.t.sol` | Rewrite |
-| `contracts/test/RootNet.t.sol` | Remove emission delegation tests |
+| `contracts/test/AWPRegistry.t.sol` | Remove emission delegation tests |
 | `contracts/test/E2E.t.sol` | Update DAO governance flow |
 | `contracts/test/Integration.t.sol` | Update emission flow |
 | `api/internal/chain/indexer.go` | Add new event parsing |

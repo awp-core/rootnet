@@ -11,14 +11,14 @@ import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {SubnetNFT} from "../src/core/SubnetNFT.sol";
 import {LPManager} from "../src/core/LPManager.sol";
-import {RootNet} from "../src/RootNet.sol";
+import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {SubnetManager} from "../src/subnets/SubnetManager.sol";
 
 /// @title Deploy — Deterministic deployment via CREATE2 factory (0x4e59b44847b379578588920cA78FbF26c0B4956C)
-/// @dev Each contract has its own salt read from .env (e.g. SALT_AWP_TOKEN, SALT_ROOTNET, etc.)
+/// @dev Each contract has its own salt read from .env (e.g. SALT_AWP_TOKEN, SALT_AWPREGISTRY, etc.)
 ///      for vanity address mining. Use the companion predict script to find salts off-chain.
 ///      Same salt + same initcode = same address on any EVM chain.
 contract Deploy is Script {
@@ -60,7 +60,7 @@ contract Deploy is Script {
         bytes32 saltAWPToken = _readSalt("SALT_AWP_TOKEN");
         bytes32 saltFactory = _readSalt("SALT_ALPHA_FACTORY");
         bytes32 saltTreasury = _readSalt("SALT_TREASURY");
-        bytes32 saltRootNet = _readSalt("SALT_ROOTNET");
+        bytes32 saltAWPRegistry = _readSalt("SALT_AWPREGISTRY");
         bytes32 saltSubnetNFT = _readSalt("SALT_SUBNET_NFT");
         bytes32 saltAccessMgr = _readSalt("SALT_ACCESS_MANAGER");
         bytes32 saltLPManager = _readSalt("SALT_LP_MANAGER");
@@ -109,13 +109,13 @@ contract Deploy is Script {
         console.log("Treasury:", address(treasury));
 
         // ═══════════════════════════════════════════════
-        //  Step 4: RootNet
+        //  Step 4: AWPRegistry
         // ═══════════════════════════════════════════════
-        RootNet rootNet = RootNet(_create2(
-            saltRootNet,
-            abi.encodePacked(type(RootNet).creationCode, abi.encode(deployer, address(treasury), guardian))
+        AWPRegistry rootNet = AWPRegistry(_create2(
+            saltAWPRegistry,
+            abi.encodePacked(type(AWPRegistry).creationCode, abi.encode(deployer, address(treasury), guardian))
         ));
-        console.log("RootNet:", address(rootNet));
+        console.log("AWPRegistry:", address(rootNet));
 
         // ═══════════════════════════════════════════════
         //  Step 5: SubnetNFT

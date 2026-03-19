@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title IRootNet — RootNet contract interface
+/// @title IAWPRegistry — AWPRegistry contract interface
 /// @notice Defines subnet status enums, data structures, and events
-interface IRootNet {
+interface IAWPRegistry {
     /// @notice Subnet lifecycle status
     enum SubnetStatus {
         Pending,  // Registered, awaiting activation

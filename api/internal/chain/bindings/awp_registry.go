@@ -29,8 +29,16 @@ var (
 	_ = abi.ConvertType
 )
 
-// IRootNetSubnetFullInfo is an auto generated low-level Go binding around an user-defined struct.
-type IRootNetSubnetFullInfo struct {
+// AWPRegistryAgentInfo is an auto generated low-level Go binding around an user-defined struct.
+type AWPRegistryAgentInfo struct {
+	Owner           common.Address
+	IsValid         bool
+	Stake           *big.Int
+	RewardRecipient common.Address
+}
+
+// IAWPRegistrySubnetFullInfo is an auto generated low-level Go binding around an user-defined struct.
+type IAWPRegistrySubnetFullInfo struct {
 	SubnetManager common.Address
 	AlphaToken    common.Address
 	LpPool        [32]byte
@@ -43,16 +51,16 @@ type IRootNetSubnetFullInfo struct {
 	Owner         common.Address
 }
 
-// IRootNetSubnetInfo is an auto generated low-level Go binding around an user-defined struct.
-type IRootNetSubnetInfo struct {
+// IAWPRegistrySubnetInfo is an auto generated low-level Go binding around an user-defined struct.
+type IAWPRegistrySubnetInfo struct {
 	LpPool      [32]byte
 	Status      uint8
 	CreatedAt   uint64
 	ActivatedAt uint64
 }
 
-// IRootNetSubnetParams is an auto generated low-level Go binding around an user-defined struct.
-type IRootNetSubnetParams struct {
+// IAWPRegistrySubnetParams is an auto generated low-level Go binding around an user-defined struct.
+type IAWPRegistrySubnetParams struct {
 	Name          string
 	Symbol        string
 	SubnetManager common.Address
@@ -61,121 +69,113 @@ type IRootNetSubnetParams struct {
 	SkillsURI     string
 }
 
-// RootNetAgentInfo is an auto generated low-level Go binding around an user-defined struct.
-type RootNetAgentInfo struct {
-	Owner           common.Address
-	IsValid         bool
-	Stake           *big.Int
-	RewardRecipient common.Address
+// AWPRegistryMetaData contains all meta data concerning the AWPRegistry contract.
+var AWPRegistryMetaData = &bind.MetaData{
+	ABI: "[{\"type\":\"constructor\",\"inputs\":[{\"name\":\"deployer_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"treasury_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"guardian_\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"INITIAL_ALPHA_MINT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"MAX_ACTIVE_SUBNETS\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint128\",\"internalType\":\"uint128\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"accessManager\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"activateSubnet\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"activateSubnetFor\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"allocate\",\"inputs\":[{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"allocateFor\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"alphaTokenFactory\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"awpEmission\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"awpToken\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"banSubnet\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"bind\",\"inputs\":[{\"name\":\"principal\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"bindFor\",\"inputs\":[{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"principal\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"deallocate\",\"inputs\":[{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"deallocateFor\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"defaultSubnetManagerImpl\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"deregisterSubnet\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"dexConfig\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"eip712Domain\",\"inputs\":[],\"outputs\":[{\"name\":\"fields\",\"type\":\"bytes1\",\"internalType\":\"bytes1\"},{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"version\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"verifyingContract\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"extensions\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getActiveSubnetCount\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getActiveSubnetIdAt\",\"inputs\":[{\"name\":\"index\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getAgentInfo\",\"inputs\":[{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structAWPRegistry.AgentInfo\",\"components\":[{\"name\":\"owner\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"isValid\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"stake\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"rewardRecipient\",\"type\":\"address\",\"internalType\":\"address\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getAgentsInfo\",\"inputs\":[{\"name\":\"agents\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple[]\",\"internalType\":\"structAWPRegistry.AgentInfo[]\",\"components\":[{\"name\":\"owner\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"isValid\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"stake\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"rewardRecipient\",\"type\":\"address\",\"internalType\":\"address\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getRegistry\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getSubnet\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIAWPRegistry.SubnetInfo\",\"components\":[{\"name\":\"lpPool\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"status\",\"type\":\"uint8\",\"internalType\":\"enumIAWPRegistry.SubnetStatus\"},{\"name\":\"createdAt\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"activatedAt\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getSubnetFull\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIAWPRegistry.SubnetFullInfo\",\"components\":[{\"name\":\"subnetManager\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"alphaToken\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"lpPool\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"status\",\"type\":\"uint8\",\"internalType\":\"enumIAWPRegistry.SubnetStatus\"},{\"name\":\"createdAt\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"activatedAt\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"skillsURI\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"minStake\",\"type\":\"uint128\",\"internalType\":\"uint128\"},{\"name\":\"owner\",\"type\":\"address\",\"internalType\":\"address\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"guardian\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"immunityPeriod\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initialAlphaPrice\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initializeRegistry\",\"inputs\":[{\"name\":\"awpToken_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetNFT_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"alphaTokenFactory_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"awpEmission_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"lpManager_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"accessManager_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"stakingVault_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"stakeNFT_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"defaultSubnetManagerImpl_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"dexConfig_\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"isSubnetActive\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"lpManager\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"nextSubnetId\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"nonces\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"pause\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"pauseSubnet\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"paused\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"reallocate\",\"inputs\":[{\"name\":\"fromAgent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"fromSubnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"toAgent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"toSubnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"register\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"register\",\"inputs\":[{\"name\":\"recipient\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"depositAmount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"lockDuration\",\"type\":\"uint64\",\"internalType\":\"uint64\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"registerAndStake\",\"inputs\":[{\"name\":\"depositAmount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"lockDuration\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"allocateAmount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"registerFor\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"registerSubnet\",\"inputs\":[{\"name\":\"params\",\"type\":\"tuple\",\"internalType\":\"structIAWPRegistry.SubnetParams\",\"components\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"symbol\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"subnetManager\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"minStake\",\"type\":\"uint128\",\"internalType\":\"uint128\"},{\"name\":\"skillsURI\",\"type\":\"string\",\"internalType\":\"string\"}]}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"registerSubnetFor\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"params\",\"type\":\"tuple\",\"internalType\":\"structIAWPRegistry.SubnetParams\",\"components\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"symbol\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"subnetManager\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"minStake\",\"type\":\"uint128\",\"internalType\":\"uint128\"},{\"name\":\"skillsURI\",\"type\":\"string\",\"internalType\":\"string\"}]},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"registerSubnetForWithPermit\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"params\",\"type\":\"tuple\",\"internalType\":\"structIAWPRegistry.SubnetParams\",\"components\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"symbol\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"subnetManager\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"minStake\",\"type\":\"uint128\",\"internalType\":\"uint128\"},{\"name\":\"skillsURI\",\"type\":\"string\",\"internalType\":\"string\"}]},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"permitV\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"permitR\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"permitS\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"registerV\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"registerR\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"registerS\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"registryInitialized\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"removeAgent\",\"inputs\":[{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"resumeSubnet\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setAlphaTokenFactory\",\"inputs\":[{\"name\":\"factory\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setDelegation\",\"inputs\":[{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_isManager\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setDexConfig\",\"inputs\":[{\"name\":\"dexConfig_\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setGuardian\",\"inputs\":[{\"name\":\"g\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setImmunityPeriod\",\"inputs\":[{\"name\":\"p\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setInitialAlphaPrice\",\"inputs\":[{\"name\":\"price\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setRewardRecipient\",\"inputs\":[{\"name\":\"recipient\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setRewardRecipientFor\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"recipient\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setSubnetManagerImpl\",\"inputs\":[{\"name\":\"impl\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"stakeNFT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"stakingVault\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"subnetNFT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"subnets\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"lpPool\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"status\",\"type\":\"uint8\",\"internalType\":\"enumIAWPRegistry.SubnetStatus\"},{\"name\":\"createdAt\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"activatedAt\",\"type\":\"uint64\",\"internalType\":\"uint64\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"treasury\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"unbanSubnet\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"unbind\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"unpause\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"event\",\"name\":\"AgentBound\",\"inputs\":[{\"name\":\"principal\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"oldPrincipal\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"AgentRemoved\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"AgentUnbound\",\"inputs\":[{\"name\":\"principal\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Allocated\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"AlphaTokenFactoryUpdated\",\"inputs\":[{\"name\":\"newFactory\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Deallocated\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"DefaultSubnetManagerImplUpdated\",\"inputs\":[{\"name\":\"newImpl\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"DelegationUpdated\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"isManager\",\"type\":\"bool\",\"indexed\":false,\"internalType\":\"bool\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"EIP712DomainChanged\",\"inputs\":[],\"anonymous\":false},{\"type\":\"event\",\"name\":\"GuardianUpdated\",\"inputs\":[{\"name\":\"newGuardian\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"ImmunityPeriodUpdated\",\"inputs\":[{\"name\":\"newPeriod\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"InitialAlphaPriceUpdated\",\"inputs\":[{\"name\":\"newPrice\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"LPCreated\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"poolId\",\"type\":\"bytes32\",\"indexed\":false,\"internalType\":\"bytes32\"},{\"name\":\"awpAmount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"alphaAmount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Paused\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Reallocated\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"fromAgent\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"fromSubnet\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"toAgent\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"toSubnet\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"RewardRecipientUpdated\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"recipient\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SubnetActivated\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SubnetBanned\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SubnetDeregistered\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SubnetPaused\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SubnetRegistered\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"owner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"name\",\"type\":\"string\",\"indexed\":false,\"internalType\":\"string\"},{\"name\":\"symbol\",\"type\":\"string\",\"indexed\":false,\"internalType\":\"string\"},{\"name\":\"subnetManager\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"alphaToken\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SubnetResumed\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SubnetUnbanned\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Unpaused\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"UserRegistered\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"AlreadyInitialized\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureLength\",\"inputs\":[{\"name\":\"length\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureS\",\"inputs\":[{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"EnforcedPause\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ExpectedPause\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ExpiredSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ImmunityNotExpired\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InsufficientMinStake\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidAgent\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidShortString\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidSubnetParams\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidSubnetStatus\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MaxActiveSubnetsReached\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotDeployer\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotGuardian\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotManager\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotOwner\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotRegistered\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotTimelock\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"PriceTooHigh\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"PriceTooLow\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ReentrancyGuardReentrantCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"SafeERC20FailedOperation\",\"inputs\":[{\"name\":\"token\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"StringTooLong\",\"inputs\":[{\"name\":\"str\",\"type\":\"string\",\"internalType\":\"string\"}]},{\"type\":\"error\",\"name\":\"SubnetManagerRequired\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UnknownAddress\",\"inputs\":[]}]",
 }
 
-// RootNetMetaData contains all meta data concerning the RootNet contract.
-var RootNetMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"constructor\",\"inputs\":[{\"name\":\"deployer_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"treasury_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"guardian_\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"INITIAL_ALPHA_MINT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"MAX_ACTIVE_SUBNETS\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint128\",\"internalType\":\"uint128\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"accessManager\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"activateSubnet\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"activateSubnetFor\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"allocate\",\"inputs\":[{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"allocateFor\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"alphaTokenFactory\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"awpEmission\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"awpToken\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"banSubnet\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"bind\",\"inputs\":[{\"name\":\"principal\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"bindFor\",\"inputs\":[{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"principal\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"deallocate\",\"inputs\":[{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"deallocateFor\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"defaultSubnetManagerImpl\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"deregisterSubnet\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"eip712Domain\",\"inputs\":[],\"outputs\":[{\"name\":\"fields\",\"type\":\"bytes1\",\"internalType\":\"bytes1\"},{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"version\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"verifyingContract\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"extensions\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getActiveSubnetCount\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getActiveSubnetIdAt\",\"inputs\":[{\"name\":\"index\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getAgentInfo\",\"inputs\":[{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structRootNet.AgentInfo\",\"components\":[{\"name\":\"owner\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"isValid\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"stake\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"rewardRecipient\",\"type\":\"address\",\"internalType\":\"address\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getAgentsInfo\",\"inputs\":[{\"name\":\"agents\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple[]\",\"internalType\":\"structRootNet.AgentInfo[]\",\"components\":[{\"name\":\"owner\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"isValid\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"stake\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"rewardRecipient\",\"type\":\"address\",\"internalType\":\"address\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getRegistry\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getSubnet\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIRootNet.SubnetInfo\",\"components\":[{\"name\":\"lpPool\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"status\",\"type\":\"uint8\",\"internalType\":\"enumIRootNet.SubnetStatus\"},{\"name\":\"createdAt\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"activatedAt\",\"type\":\"uint64\",\"internalType\":\"uint64\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getSubnetFull\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"tuple\",\"internalType\":\"structIRootNet.SubnetFullInfo\",\"components\":[{\"name\":\"subnetManager\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"alphaToken\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"lpPool\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"status\",\"type\":\"uint8\",\"internalType\":\"enumIRootNet.SubnetStatus\"},{\"name\":\"createdAt\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"activatedAt\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"skillsURI\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"minStake\",\"type\":\"uint128\",\"internalType\":\"uint128\"},{\"name\":\"owner\",\"type\":\"address\",\"internalType\":\"address\"}]}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"guardian\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"immunityPeriod\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initialAlphaPrice\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initializeRegistry\",\"inputs\":[{\"name\":\"awpToken_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetNFT_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"alphaTokenFactory_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"awpEmission_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"lpManager_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"accessManager_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"stakingVault_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"stakeNFT_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"defaultSubnetManagerImpl_\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"isSubnetActive\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"lpManager\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"nextSubnetId\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"nonces\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"pause\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"pauseSubnet\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"paused\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"reallocate\",\"inputs\":[{\"name\":\"fromAgent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"fromSubnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"toAgent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"toSubnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"register\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"register\",\"inputs\":[{\"name\":\"recipient\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"depositAmount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"lockDuration\",\"type\":\"uint64\",\"internalType\":\"uint64\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"registerAndStake\",\"inputs\":[{\"name\":\"depositAmount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"lockDuration\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"allocateAmount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"registerFor\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"registerSubnet\",\"inputs\":[{\"name\":\"params\",\"type\":\"tuple\",\"internalType\":\"structIRootNet.SubnetParams\",\"components\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"symbol\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"subnetManager\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"minStake\",\"type\":\"uint128\",\"internalType\":\"uint128\"},{\"name\":\"skillsURI\",\"type\":\"string\",\"internalType\":\"string\"}]}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"registerSubnetFor\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"params\",\"type\":\"tuple\",\"internalType\":\"structIRootNet.SubnetParams\",\"components\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"symbol\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"subnetManager\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"minStake\",\"type\":\"uint128\",\"internalType\":\"uint128\"},{\"name\":\"skillsURI\",\"type\":\"string\",\"internalType\":\"string\"}]},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"registerSubnetForWithPermit\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"params\",\"type\":\"tuple\",\"internalType\":\"structIRootNet.SubnetParams\",\"components\":[{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"symbol\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"subnetManager\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"minStake\",\"type\":\"uint128\",\"internalType\":\"uint128\"},{\"name\":\"skillsURI\",\"type\":\"string\",\"internalType\":\"string\"}]},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"permitV\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"permitR\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"permitS\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"registerV\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"registerR\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"registerS\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"registryInitialized\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"removeAgent\",\"inputs\":[{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"resumeSubnet\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setAlphaTokenFactory\",\"inputs\":[{\"name\":\"factory\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setDelegation\",\"inputs\":[{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"_isManager\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setGuardian\",\"inputs\":[{\"name\":\"g\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setImmunityPeriod\",\"inputs\":[{\"name\":\"p\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setInitialAlphaPrice\",\"inputs\":[{\"name\":\"price\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setRewardRecipient\",\"inputs\":[{\"name\":\"recipient\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setRewardRecipientFor\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"recipient\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setSubnetManagerImpl\",\"inputs\":[{\"name\":\"impl\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"stakeNFT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"stakingVault\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"subnetNFT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"subnets\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"lpPool\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"status\",\"type\":\"uint8\",\"internalType\":\"enumIRootNet.SubnetStatus\"},{\"name\":\"createdAt\",\"type\":\"uint64\",\"internalType\":\"uint64\"},{\"name\":\"activatedAt\",\"type\":\"uint64\",\"internalType\":\"uint64\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"treasury\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"unbanSubnet\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"unbind\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"unpause\",\"inputs\":[],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"event\",\"name\":\"AgentBound\",\"inputs\":[{\"name\":\"principal\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"oldPrincipal\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"AgentRemoved\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"AgentUnbound\",\"inputs\":[{\"name\":\"principal\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Allocated\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"AlphaTokenFactoryUpdated\",\"inputs\":[{\"name\":\"newFactory\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Deallocated\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"DefaultSubnetManagerImplUpdated\",\"inputs\":[{\"name\":\"newImpl\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"DelegationUpdated\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"isManager\",\"type\":\"bool\",\"indexed\":false,\"internalType\":\"bool\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"EIP712DomainChanged\",\"inputs\":[],\"anonymous\":false},{\"type\":\"event\",\"name\":\"GuardianUpdated\",\"inputs\":[{\"name\":\"newGuardian\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"ImmunityPeriodUpdated\",\"inputs\":[{\"name\":\"newPeriod\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"InitialAlphaPriceUpdated\",\"inputs\":[{\"name\":\"newPrice\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"LPCreated\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"poolId\",\"type\":\"bytes32\",\"indexed\":false,\"internalType\":\"bytes32\"},{\"name\":\"awpAmount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"alphaAmount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Paused\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Reallocated\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"fromAgent\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"fromSubnet\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"toAgent\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"toSubnet\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"RewardRecipientUpdated\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"recipient\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SubnetActivated\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SubnetBanned\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SubnetDeregistered\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SubnetPaused\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SubnetRegistered\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"owner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"name\",\"type\":\"string\",\"indexed\":false,\"internalType\":\"string\"},{\"name\":\"symbol\",\"type\":\"string\",\"indexed\":false,\"internalType\":\"string\"},{\"name\":\"subnetManager\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"alphaToken\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SubnetResumed\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SubnetUnbanned\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Unpaused\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"UserRegistered\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"AlreadyInitialized\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureLength\",\"inputs\":[{\"name\":\"length\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureS\",\"inputs\":[{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"EnforcedPause\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ExpectedPause\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ExpiredSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ImmunityNotExpired\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InsufficientMinStake\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidAgent\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidShortString\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidSubnetParams\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidSubnetStatus\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MaxActiveSubnetsReached\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotDeployer\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotGuardian\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotManager\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotOwner\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotRegistered\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotTimelock\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"PriceTooHigh\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"PriceTooLow\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ReentrancyGuardReentrantCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"SafeERC20FailedOperation\",\"inputs\":[{\"name\":\"token\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"StringTooLong\",\"inputs\":[{\"name\":\"str\",\"type\":\"string\",\"internalType\":\"string\"}]},{\"type\":\"error\",\"name\":\"SubnetManagerRequired\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UnknownAddress\",\"inputs\":[]}]",
+// AWPRegistryABI is the input ABI used to generate the binding from.
+// Deprecated: Use AWPRegistryMetaData.ABI instead.
+var AWPRegistryABI = AWPRegistryMetaData.ABI
+
+// AWPRegistry is an auto generated Go binding around an Ethereum contract.
+type AWPRegistry struct {
+	AWPRegistryCaller     // Read-only binding to the contract
+	AWPRegistryTransactor // Write-only binding to the contract
+	AWPRegistryFilterer   // Log filterer for contract events
 }
 
-// RootNetABI is the input ABI used to generate the binding from.
-// Deprecated: Use RootNetMetaData.ABI instead.
-var RootNetABI = RootNetMetaData.ABI
-
-// RootNet is an auto generated Go binding around an Ethereum contract.
-type RootNet struct {
-	RootNetCaller     // Read-only binding to the contract
-	RootNetTransactor // Write-only binding to the contract
-	RootNetFilterer   // Log filterer for contract events
-}
-
-// RootNetCaller is an auto generated read-only Go binding around an Ethereum contract.
-type RootNetCaller struct {
+// AWPRegistryCaller is an auto generated read-only Go binding around an Ethereum contract.
+type AWPRegistryCaller struct {
 	contract *bind.BoundContract // Generic contract wrapper for the low level calls
 }
 
-// RootNetTransactor is an auto generated write-only Go binding around an Ethereum contract.
-type RootNetTransactor struct {
+// AWPRegistryTransactor is an auto generated write-only Go binding around an Ethereum contract.
+type AWPRegistryTransactor struct {
 	contract *bind.BoundContract // Generic contract wrapper for the low level calls
 }
 
-// RootNetFilterer is an auto generated log filtering Go binding around an Ethereum contract events.
-type RootNetFilterer struct {
+// AWPRegistryFilterer is an auto generated log filtering Go binding around an Ethereum contract events.
+type AWPRegistryFilterer struct {
 	contract *bind.BoundContract // Generic contract wrapper for the low level calls
 }
 
-// RootNetSession is an auto generated Go binding around an Ethereum contract,
+// AWPRegistrySession is an auto generated Go binding around an Ethereum contract,
 // with pre-set call and transact options.
-type RootNetSession struct {
-	Contract     *RootNet          // Generic contract binding to set the session for
+type AWPRegistrySession struct {
+	Contract     *AWPRegistry      // Generic contract binding to set the session for
 	CallOpts     bind.CallOpts     // Call options to use throughout this session
 	TransactOpts bind.TransactOpts // Transaction auth options to use throughout this session
 }
 
-// RootNetCallerSession is an auto generated read-only Go binding around an Ethereum contract,
+// AWPRegistryCallerSession is an auto generated read-only Go binding around an Ethereum contract,
 // with pre-set call options.
-type RootNetCallerSession struct {
-	Contract *RootNetCaller // Generic contract caller binding to set the session for
-	CallOpts bind.CallOpts  // Call options to use throughout this session
+type AWPRegistryCallerSession struct {
+	Contract *AWPRegistryCaller // Generic contract caller binding to set the session for
+	CallOpts bind.CallOpts      // Call options to use throughout this session
 }
 
-// RootNetTransactorSession is an auto generated write-only Go binding around an Ethereum contract,
+// AWPRegistryTransactorSession is an auto generated write-only Go binding around an Ethereum contract,
 // with pre-set transact options.
-type RootNetTransactorSession struct {
-	Contract     *RootNetTransactor // Generic contract transactor binding to set the session for
-	TransactOpts bind.TransactOpts  // Transaction auth options to use throughout this session
+type AWPRegistryTransactorSession struct {
+	Contract     *AWPRegistryTransactor // Generic contract transactor binding to set the session for
+	TransactOpts bind.TransactOpts      // Transaction auth options to use throughout this session
 }
 
-// RootNetRaw is an auto generated low-level Go binding around an Ethereum contract.
-type RootNetRaw struct {
-	Contract *RootNet // Generic contract binding to access the raw methods on
+// AWPRegistryRaw is an auto generated low-level Go binding around an Ethereum contract.
+type AWPRegistryRaw struct {
+	Contract *AWPRegistry // Generic contract binding to access the raw methods on
 }
 
-// RootNetCallerRaw is an auto generated low-level read-only Go binding around an Ethereum contract.
-type RootNetCallerRaw struct {
-	Contract *RootNetCaller // Generic read-only contract binding to access the raw methods on
+// AWPRegistryCallerRaw is an auto generated low-level read-only Go binding around an Ethereum contract.
+type AWPRegistryCallerRaw struct {
+	Contract *AWPRegistryCaller // Generic read-only contract binding to access the raw methods on
 }
 
-// RootNetTransactorRaw is an auto generated low-level write-only Go binding around an Ethereum contract.
-type RootNetTransactorRaw struct {
-	Contract *RootNetTransactor // Generic write-only contract binding to access the raw methods on
+// AWPRegistryTransactorRaw is an auto generated low-level write-only Go binding around an Ethereum contract.
+type AWPRegistryTransactorRaw struct {
+	Contract *AWPRegistryTransactor // Generic write-only contract binding to access the raw methods on
 }
 
-// NewRootNet creates a new instance of RootNet, bound to a specific deployed contract.
-func NewRootNet(address common.Address, backend bind.ContractBackend) (*RootNet, error) {
-	contract, err := bindRootNet(address, backend, backend, backend)
+// NewAWPRegistry creates a new instance of AWPRegistry, bound to a specific deployed contract.
+func NewAWPRegistry(address common.Address, backend bind.ContractBackend) (*AWPRegistry, error) {
+	contract, err := bindAWPRegistry(address, backend, backend, backend)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNet{RootNetCaller: RootNetCaller{contract: contract}, RootNetTransactor: RootNetTransactor{contract: contract}, RootNetFilterer: RootNetFilterer{contract: contract}}, nil
+	return &AWPRegistry{AWPRegistryCaller: AWPRegistryCaller{contract: contract}, AWPRegistryTransactor: AWPRegistryTransactor{contract: contract}, AWPRegistryFilterer: AWPRegistryFilterer{contract: contract}}, nil
 }
 
-// NewRootNetCaller creates a new read-only instance of RootNet, bound to a specific deployed contract.
-func NewRootNetCaller(address common.Address, caller bind.ContractCaller) (*RootNetCaller, error) {
-	contract, err := bindRootNet(address, caller, nil, nil)
+// NewAWPRegistryCaller creates a new read-only instance of AWPRegistry, bound to a specific deployed contract.
+func NewAWPRegistryCaller(address common.Address, caller bind.ContractCaller) (*AWPRegistryCaller, error) {
+	contract, err := bindAWPRegistry(address, caller, nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetCaller{contract: contract}, nil
+	return &AWPRegistryCaller{contract: contract}, nil
 }
 
-// NewRootNetTransactor creates a new write-only instance of RootNet, bound to a specific deployed contract.
-func NewRootNetTransactor(address common.Address, transactor bind.ContractTransactor) (*RootNetTransactor, error) {
-	contract, err := bindRootNet(address, nil, transactor, nil)
+// NewAWPRegistryTransactor creates a new write-only instance of AWPRegistry, bound to a specific deployed contract.
+func NewAWPRegistryTransactor(address common.Address, transactor bind.ContractTransactor) (*AWPRegistryTransactor, error) {
+	contract, err := bindAWPRegistry(address, nil, transactor, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetTransactor{contract: contract}, nil
+	return &AWPRegistryTransactor{contract: contract}, nil
 }
 
-// NewRootNetFilterer creates a new log filterer instance of RootNet, bound to a specific deployed contract.
-func NewRootNetFilterer(address common.Address, filterer bind.ContractFilterer) (*RootNetFilterer, error) {
-	contract, err := bindRootNet(address, nil, nil, filterer)
+// NewAWPRegistryFilterer creates a new log filterer instance of AWPRegistry, bound to a specific deployed contract.
+func NewAWPRegistryFilterer(address common.Address, filterer bind.ContractFilterer) (*AWPRegistryFilterer, error) {
+	contract, err := bindAWPRegistry(address, nil, nil, filterer)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetFilterer{contract: contract}, nil
+	return &AWPRegistryFilterer{contract: contract}, nil
 }
 
-// bindRootNet binds a generic wrapper to an already deployed contract.
-func bindRootNet(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
-	parsed, err := RootNetMetaData.GetAbi()
+// bindAWPRegistry binds a generic wrapper to an already deployed contract.
+func bindAWPRegistry(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
+	parsed, err := AWPRegistryMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
@@ -186,46 +186,46 @@ func bindRootNet(address common.Address, caller bind.ContractCaller, transactor 
 // sets the output to result. The result type might be a single field for simple
 // returns, a slice of interfaces for anonymous returns and a struct for named
 // returns.
-func (_RootNet *RootNetRaw) Call(opts *bind.CallOpts, result *[]interface{}, method string, params ...interface{}) error {
-	return _RootNet.Contract.RootNetCaller.contract.Call(opts, result, method, params...)
+func (_AWPRegistry *AWPRegistryRaw) Call(opts *bind.CallOpts, result *[]interface{}, method string, params ...interface{}) error {
+	return _AWPRegistry.Contract.AWPRegistryCaller.contract.Call(opts, result, method, params...)
 }
 
 // Transfer initiates a plain transaction to move funds to the contract, calling
 // its default method if one is available.
-func (_RootNet *RootNetRaw) Transfer(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _RootNet.Contract.RootNetTransactor.contract.Transfer(opts)
+func (_AWPRegistry *AWPRegistryRaw) Transfer(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.AWPRegistryTransactor.contract.Transfer(opts)
 }
 
 // Transact invokes the (paid) contract method with params as input values.
-func (_RootNet *RootNetRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
-	return _RootNet.Contract.RootNetTransactor.contract.Transact(opts, method, params...)
+func (_AWPRegistry *AWPRegistryRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.AWPRegistryTransactor.contract.Transact(opts, method, params...)
 }
 
 // Call invokes the (constant) contract method with params as input values and
 // sets the output to result. The result type might be a single field for simple
 // returns, a slice of interfaces for anonymous returns and a struct for named
 // returns.
-func (_RootNet *RootNetCallerRaw) Call(opts *bind.CallOpts, result *[]interface{}, method string, params ...interface{}) error {
-	return _RootNet.Contract.contract.Call(opts, result, method, params...)
+func (_AWPRegistry *AWPRegistryCallerRaw) Call(opts *bind.CallOpts, result *[]interface{}, method string, params ...interface{}) error {
+	return _AWPRegistry.Contract.contract.Call(opts, result, method, params...)
 }
 
 // Transfer initiates a plain transaction to move funds to the contract, calling
 // its default method if one is available.
-func (_RootNet *RootNetTransactorRaw) Transfer(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _RootNet.Contract.contract.Transfer(opts)
+func (_AWPRegistry *AWPRegistryTransactorRaw) Transfer(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.contract.Transfer(opts)
 }
 
 // Transact invokes the (paid) contract method with params as input values.
-func (_RootNet *RootNetTransactorRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
-	return _RootNet.Contract.contract.Transact(opts, method, params...)
+func (_AWPRegistry *AWPRegistryTransactorRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.contract.Transact(opts, method, params...)
 }
 
 // INITIALALPHAMINT is a free data retrieval call binding the contract method 0xb400555a.
 //
 // Solidity: function INITIAL_ALPHA_MINT() view returns(uint256)
-func (_RootNet *RootNetCaller) INITIALALPHAMINT(opts *bind.CallOpts) (*big.Int, error) {
+func (_AWPRegistry *AWPRegistryCaller) INITIALALPHAMINT(opts *bind.CallOpts) (*big.Int, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "INITIAL_ALPHA_MINT")
+	err := _AWPRegistry.contract.Call(opts, &out, "INITIAL_ALPHA_MINT")
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -240,23 +240,23 @@ func (_RootNet *RootNetCaller) INITIALALPHAMINT(opts *bind.CallOpts) (*big.Int, 
 // INITIALALPHAMINT is a free data retrieval call binding the contract method 0xb400555a.
 //
 // Solidity: function INITIAL_ALPHA_MINT() view returns(uint256)
-func (_RootNet *RootNetSession) INITIALALPHAMINT() (*big.Int, error) {
-	return _RootNet.Contract.INITIALALPHAMINT(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) INITIALALPHAMINT() (*big.Int, error) {
+	return _AWPRegistry.Contract.INITIALALPHAMINT(&_AWPRegistry.CallOpts)
 }
 
 // INITIALALPHAMINT is a free data retrieval call binding the contract method 0xb400555a.
 //
 // Solidity: function INITIAL_ALPHA_MINT() view returns(uint256)
-func (_RootNet *RootNetCallerSession) INITIALALPHAMINT() (*big.Int, error) {
-	return _RootNet.Contract.INITIALALPHAMINT(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) INITIALALPHAMINT() (*big.Int, error) {
+	return _AWPRegistry.Contract.INITIALALPHAMINT(&_AWPRegistry.CallOpts)
 }
 
 // MAXACTIVESUBNETS is a free data retrieval call binding the contract method 0xbe65e4c2.
 //
 // Solidity: function MAX_ACTIVE_SUBNETS() view returns(uint128)
-func (_RootNet *RootNetCaller) MAXACTIVESUBNETS(opts *bind.CallOpts) (*big.Int, error) {
+func (_AWPRegistry *AWPRegistryCaller) MAXACTIVESUBNETS(opts *bind.CallOpts) (*big.Int, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "MAX_ACTIVE_SUBNETS")
+	err := _AWPRegistry.contract.Call(opts, &out, "MAX_ACTIVE_SUBNETS")
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -271,23 +271,23 @@ func (_RootNet *RootNetCaller) MAXACTIVESUBNETS(opts *bind.CallOpts) (*big.Int, 
 // MAXACTIVESUBNETS is a free data retrieval call binding the contract method 0xbe65e4c2.
 //
 // Solidity: function MAX_ACTIVE_SUBNETS() view returns(uint128)
-func (_RootNet *RootNetSession) MAXACTIVESUBNETS() (*big.Int, error) {
-	return _RootNet.Contract.MAXACTIVESUBNETS(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) MAXACTIVESUBNETS() (*big.Int, error) {
+	return _AWPRegistry.Contract.MAXACTIVESUBNETS(&_AWPRegistry.CallOpts)
 }
 
 // MAXACTIVESUBNETS is a free data retrieval call binding the contract method 0xbe65e4c2.
 //
 // Solidity: function MAX_ACTIVE_SUBNETS() view returns(uint128)
-func (_RootNet *RootNetCallerSession) MAXACTIVESUBNETS() (*big.Int, error) {
-	return _RootNet.Contract.MAXACTIVESUBNETS(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) MAXACTIVESUBNETS() (*big.Int, error) {
+	return _AWPRegistry.Contract.MAXACTIVESUBNETS(&_AWPRegistry.CallOpts)
 }
 
 // AccessManager is a free data retrieval call binding the contract method 0xfdcb6068.
 //
 // Solidity: function accessManager() view returns(address)
-func (_RootNet *RootNetCaller) AccessManager(opts *bind.CallOpts) (common.Address, error) {
+func (_AWPRegistry *AWPRegistryCaller) AccessManager(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "accessManager")
+	err := _AWPRegistry.contract.Call(opts, &out, "accessManager")
 
 	if err != nil {
 		return *new(common.Address), err
@@ -302,23 +302,23 @@ func (_RootNet *RootNetCaller) AccessManager(opts *bind.CallOpts) (common.Addres
 // AccessManager is a free data retrieval call binding the contract method 0xfdcb6068.
 //
 // Solidity: function accessManager() view returns(address)
-func (_RootNet *RootNetSession) AccessManager() (common.Address, error) {
-	return _RootNet.Contract.AccessManager(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) AccessManager() (common.Address, error) {
+	return _AWPRegistry.Contract.AccessManager(&_AWPRegistry.CallOpts)
 }
 
 // AccessManager is a free data retrieval call binding the contract method 0xfdcb6068.
 //
 // Solidity: function accessManager() view returns(address)
-func (_RootNet *RootNetCallerSession) AccessManager() (common.Address, error) {
-	return _RootNet.Contract.AccessManager(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) AccessManager() (common.Address, error) {
+	return _AWPRegistry.Contract.AccessManager(&_AWPRegistry.CallOpts)
 }
 
 // AlphaTokenFactory is a free data retrieval call binding the contract method 0xc1e0c9e7.
 //
 // Solidity: function alphaTokenFactory() view returns(address)
-func (_RootNet *RootNetCaller) AlphaTokenFactory(opts *bind.CallOpts) (common.Address, error) {
+func (_AWPRegistry *AWPRegistryCaller) AlphaTokenFactory(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "alphaTokenFactory")
+	err := _AWPRegistry.contract.Call(opts, &out, "alphaTokenFactory")
 
 	if err != nil {
 		return *new(common.Address), err
@@ -333,23 +333,23 @@ func (_RootNet *RootNetCaller) AlphaTokenFactory(opts *bind.CallOpts) (common.Ad
 // AlphaTokenFactory is a free data retrieval call binding the contract method 0xc1e0c9e7.
 //
 // Solidity: function alphaTokenFactory() view returns(address)
-func (_RootNet *RootNetSession) AlphaTokenFactory() (common.Address, error) {
-	return _RootNet.Contract.AlphaTokenFactory(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) AlphaTokenFactory() (common.Address, error) {
+	return _AWPRegistry.Contract.AlphaTokenFactory(&_AWPRegistry.CallOpts)
 }
 
 // AlphaTokenFactory is a free data retrieval call binding the contract method 0xc1e0c9e7.
 //
 // Solidity: function alphaTokenFactory() view returns(address)
-func (_RootNet *RootNetCallerSession) AlphaTokenFactory() (common.Address, error) {
-	return _RootNet.Contract.AlphaTokenFactory(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) AlphaTokenFactory() (common.Address, error) {
+	return _AWPRegistry.Contract.AlphaTokenFactory(&_AWPRegistry.CallOpts)
 }
 
 // AwpEmission is a free data retrieval call binding the contract method 0x67b26ba6.
 //
 // Solidity: function awpEmission() view returns(address)
-func (_RootNet *RootNetCaller) AwpEmission(opts *bind.CallOpts) (common.Address, error) {
+func (_AWPRegistry *AWPRegistryCaller) AwpEmission(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "awpEmission")
+	err := _AWPRegistry.contract.Call(opts, &out, "awpEmission")
 
 	if err != nil {
 		return *new(common.Address), err
@@ -364,23 +364,23 @@ func (_RootNet *RootNetCaller) AwpEmission(opts *bind.CallOpts) (common.Address,
 // AwpEmission is a free data retrieval call binding the contract method 0x67b26ba6.
 //
 // Solidity: function awpEmission() view returns(address)
-func (_RootNet *RootNetSession) AwpEmission() (common.Address, error) {
-	return _RootNet.Contract.AwpEmission(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) AwpEmission() (common.Address, error) {
+	return _AWPRegistry.Contract.AwpEmission(&_AWPRegistry.CallOpts)
 }
 
 // AwpEmission is a free data retrieval call binding the contract method 0x67b26ba6.
 //
 // Solidity: function awpEmission() view returns(address)
-func (_RootNet *RootNetCallerSession) AwpEmission() (common.Address, error) {
-	return _RootNet.Contract.AwpEmission(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) AwpEmission() (common.Address, error) {
+	return _AWPRegistry.Contract.AwpEmission(&_AWPRegistry.CallOpts)
 }
 
 // AwpToken is a free data retrieval call binding the contract method 0x41a578cf.
 //
 // Solidity: function awpToken() view returns(address)
-func (_RootNet *RootNetCaller) AwpToken(opts *bind.CallOpts) (common.Address, error) {
+func (_AWPRegistry *AWPRegistryCaller) AwpToken(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "awpToken")
+	err := _AWPRegistry.contract.Call(opts, &out, "awpToken")
 
 	if err != nil {
 		return *new(common.Address), err
@@ -395,23 +395,23 @@ func (_RootNet *RootNetCaller) AwpToken(opts *bind.CallOpts) (common.Address, er
 // AwpToken is a free data retrieval call binding the contract method 0x41a578cf.
 //
 // Solidity: function awpToken() view returns(address)
-func (_RootNet *RootNetSession) AwpToken() (common.Address, error) {
-	return _RootNet.Contract.AwpToken(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) AwpToken() (common.Address, error) {
+	return _AWPRegistry.Contract.AwpToken(&_AWPRegistry.CallOpts)
 }
 
 // AwpToken is a free data retrieval call binding the contract method 0x41a578cf.
 //
 // Solidity: function awpToken() view returns(address)
-func (_RootNet *RootNetCallerSession) AwpToken() (common.Address, error) {
-	return _RootNet.Contract.AwpToken(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) AwpToken() (common.Address, error) {
+	return _AWPRegistry.Contract.AwpToken(&_AWPRegistry.CallOpts)
 }
 
 // DefaultSubnetManagerImpl is a free data retrieval call binding the contract method 0xf4fda726.
 //
 // Solidity: function defaultSubnetManagerImpl() view returns(address)
-func (_RootNet *RootNetCaller) DefaultSubnetManagerImpl(opts *bind.CallOpts) (common.Address, error) {
+func (_AWPRegistry *AWPRegistryCaller) DefaultSubnetManagerImpl(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "defaultSubnetManagerImpl")
+	err := _AWPRegistry.contract.Call(opts, &out, "defaultSubnetManagerImpl")
 
 	if err != nil {
 		return *new(common.Address), err
@@ -426,21 +426,52 @@ func (_RootNet *RootNetCaller) DefaultSubnetManagerImpl(opts *bind.CallOpts) (co
 // DefaultSubnetManagerImpl is a free data retrieval call binding the contract method 0xf4fda726.
 //
 // Solidity: function defaultSubnetManagerImpl() view returns(address)
-func (_RootNet *RootNetSession) DefaultSubnetManagerImpl() (common.Address, error) {
-	return _RootNet.Contract.DefaultSubnetManagerImpl(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) DefaultSubnetManagerImpl() (common.Address, error) {
+	return _AWPRegistry.Contract.DefaultSubnetManagerImpl(&_AWPRegistry.CallOpts)
 }
 
 // DefaultSubnetManagerImpl is a free data retrieval call binding the contract method 0xf4fda726.
 //
 // Solidity: function defaultSubnetManagerImpl() view returns(address)
-func (_RootNet *RootNetCallerSession) DefaultSubnetManagerImpl() (common.Address, error) {
-	return _RootNet.Contract.DefaultSubnetManagerImpl(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) DefaultSubnetManagerImpl() (common.Address, error) {
+	return _AWPRegistry.Contract.DefaultSubnetManagerImpl(&_AWPRegistry.CallOpts)
+}
+
+// DexConfig is a free data retrieval call binding the contract method 0x38d890d7.
+//
+// Solidity: function dexConfig() view returns(bytes)
+func (_AWPRegistry *AWPRegistryCaller) DexConfig(opts *bind.CallOpts) ([]byte, error) {
+	var out []interface{}
+	err := _AWPRegistry.contract.Call(opts, &out, "dexConfig")
+
+	if err != nil {
+		return *new([]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]byte)).(*[]byte)
+
+	return out0, err
+
+}
+
+// DexConfig is a free data retrieval call binding the contract method 0x38d890d7.
+//
+// Solidity: function dexConfig() view returns(bytes)
+func (_AWPRegistry *AWPRegistrySession) DexConfig() ([]byte, error) {
+	return _AWPRegistry.Contract.DexConfig(&_AWPRegistry.CallOpts)
+}
+
+// DexConfig is a free data retrieval call binding the contract method 0x38d890d7.
+//
+// Solidity: function dexConfig() view returns(bytes)
+func (_AWPRegistry *AWPRegistryCallerSession) DexConfig() ([]byte, error) {
+	return _AWPRegistry.Contract.DexConfig(&_AWPRegistry.CallOpts)
 }
 
 // Eip712Domain is a free data retrieval call binding the contract method 0x84b0196e.
 //
 // Solidity: function eip712Domain() view returns(bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)
-func (_RootNet *RootNetCaller) Eip712Domain(opts *bind.CallOpts) (struct {
+func (_AWPRegistry *AWPRegistryCaller) Eip712Domain(opts *bind.CallOpts) (struct {
 	Fields            [1]byte
 	Name              string
 	Version           string
@@ -450,7 +481,7 @@ func (_RootNet *RootNetCaller) Eip712Domain(opts *bind.CallOpts) (struct {
 	Extensions        []*big.Int
 }, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "eip712Domain")
+	err := _AWPRegistry.contract.Call(opts, &out, "eip712Domain")
 
 	outstruct := new(struct {
 		Fields            [1]byte
@@ -480,7 +511,7 @@ func (_RootNet *RootNetCaller) Eip712Domain(opts *bind.CallOpts) (struct {
 // Eip712Domain is a free data retrieval call binding the contract method 0x84b0196e.
 //
 // Solidity: function eip712Domain() view returns(bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)
-func (_RootNet *RootNetSession) Eip712Domain() (struct {
+func (_AWPRegistry *AWPRegistrySession) Eip712Domain() (struct {
 	Fields            [1]byte
 	Name              string
 	Version           string
@@ -489,13 +520,13 @@ func (_RootNet *RootNetSession) Eip712Domain() (struct {
 	Salt              [32]byte
 	Extensions        []*big.Int
 }, error) {
-	return _RootNet.Contract.Eip712Domain(&_RootNet.CallOpts)
+	return _AWPRegistry.Contract.Eip712Domain(&_AWPRegistry.CallOpts)
 }
 
 // Eip712Domain is a free data retrieval call binding the contract method 0x84b0196e.
 //
 // Solidity: function eip712Domain() view returns(bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)
-func (_RootNet *RootNetCallerSession) Eip712Domain() (struct {
+func (_AWPRegistry *AWPRegistryCallerSession) Eip712Domain() (struct {
 	Fields            [1]byte
 	Name              string
 	Version           string
@@ -504,15 +535,15 @@ func (_RootNet *RootNetCallerSession) Eip712Domain() (struct {
 	Salt              [32]byte
 	Extensions        []*big.Int
 }, error) {
-	return _RootNet.Contract.Eip712Domain(&_RootNet.CallOpts)
+	return _AWPRegistry.Contract.Eip712Domain(&_AWPRegistry.CallOpts)
 }
 
 // GetActiveSubnetCount is a free data retrieval call binding the contract method 0xc6a1a01a.
 //
 // Solidity: function getActiveSubnetCount() view returns(uint256)
-func (_RootNet *RootNetCaller) GetActiveSubnetCount(opts *bind.CallOpts) (*big.Int, error) {
+func (_AWPRegistry *AWPRegistryCaller) GetActiveSubnetCount(opts *bind.CallOpts) (*big.Int, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "getActiveSubnetCount")
+	err := _AWPRegistry.contract.Call(opts, &out, "getActiveSubnetCount")
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -527,23 +558,23 @@ func (_RootNet *RootNetCaller) GetActiveSubnetCount(opts *bind.CallOpts) (*big.I
 // GetActiveSubnetCount is a free data retrieval call binding the contract method 0xc6a1a01a.
 //
 // Solidity: function getActiveSubnetCount() view returns(uint256)
-func (_RootNet *RootNetSession) GetActiveSubnetCount() (*big.Int, error) {
-	return _RootNet.Contract.GetActiveSubnetCount(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) GetActiveSubnetCount() (*big.Int, error) {
+	return _AWPRegistry.Contract.GetActiveSubnetCount(&_AWPRegistry.CallOpts)
 }
 
 // GetActiveSubnetCount is a free data retrieval call binding the contract method 0xc6a1a01a.
 //
 // Solidity: function getActiveSubnetCount() view returns(uint256)
-func (_RootNet *RootNetCallerSession) GetActiveSubnetCount() (*big.Int, error) {
-	return _RootNet.Contract.GetActiveSubnetCount(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) GetActiveSubnetCount() (*big.Int, error) {
+	return _AWPRegistry.Contract.GetActiveSubnetCount(&_AWPRegistry.CallOpts)
 }
 
 // GetActiveSubnetIdAt is a free data retrieval call binding the contract method 0x38f48a89.
 //
 // Solidity: function getActiveSubnetIdAt(uint256 index) view returns(uint256)
-func (_RootNet *RootNetCaller) GetActiveSubnetIdAt(opts *bind.CallOpts, index *big.Int) (*big.Int, error) {
+func (_AWPRegistry *AWPRegistryCaller) GetActiveSubnetIdAt(opts *bind.CallOpts, index *big.Int) (*big.Int, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "getActiveSubnetIdAt", index)
+	err := _AWPRegistry.contract.Call(opts, &out, "getActiveSubnetIdAt", index)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -558,29 +589,29 @@ func (_RootNet *RootNetCaller) GetActiveSubnetIdAt(opts *bind.CallOpts, index *b
 // GetActiveSubnetIdAt is a free data retrieval call binding the contract method 0x38f48a89.
 //
 // Solidity: function getActiveSubnetIdAt(uint256 index) view returns(uint256)
-func (_RootNet *RootNetSession) GetActiveSubnetIdAt(index *big.Int) (*big.Int, error) {
-	return _RootNet.Contract.GetActiveSubnetIdAt(&_RootNet.CallOpts, index)
+func (_AWPRegistry *AWPRegistrySession) GetActiveSubnetIdAt(index *big.Int) (*big.Int, error) {
+	return _AWPRegistry.Contract.GetActiveSubnetIdAt(&_AWPRegistry.CallOpts, index)
 }
 
 // GetActiveSubnetIdAt is a free data retrieval call binding the contract method 0x38f48a89.
 //
 // Solidity: function getActiveSubnetIdAt(uint256 index) view returns(uint256)
-func (_RootNet *RootNetCallerSession) GetActiveSubnetIdAt(index *big.Int) (*big.Int, error) {
-	return _RootNet.Contract.GetActiveSubnetIdAt(&_RootNet.CallOpts, index)
+func (_AWPRegistry *AWPRegistryCallerSession) GetActiveSubnetIdAt(index *big.Int) (*big.Int, error) {
+	return _AWPRegistry.Contract.GetActiveSubnetIdAt(&_AWPRegistry.CallOpts, index)
 }
 
 // GetAgentInfo is a free data retrieval call binding the contract method 0x168f80f5.
 //
 // Solidity: function getAgentInfo(address agent, uint256 subnetId) view returns((address,bool,uint256,address))
-func (_RootNet *RootNetCaller) GetAgentInfo(opts *bind.CallOpts, agent common.Address, subnetId *big.Int) (RootNetAgentInfo, error) {
+func (_AWPRegistry *AWPRegistryCaller) GetAgentInfo(opts *bind.CallOpts, agent common.Address, subnetId *big.Int) (AWPRegistryAgentInfo, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "getAgentInfo", agent, subnetId)
+	err := _AWPRegistry.contract.Call(opts, &out, "getAgentInfo", agent, subnetId)
 
 	if err != nil {
-		return *new(RootNetAgentInfo), err
+		return *new(AWPRegistryAgentInfo), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(RootNetAgentInfo)).(*RootNetAgentInfo)
+	out0 := *abi.ConvertType(out[0], new(AWPRegistryAgentInfo)).(*AWPRegistryAgentInfo)
 
 	return out0, err
 
@@ -589,29 +620,29 @@ func (_RootNet *RootNetCaller) GetAgentInfo(opts *bind.CallOpts, agent common.Ad
 // GetAgentInfo is a free data retrieval call binding the contract method 0x168f80f5.
 //
 // Solidity: function getAgentInfo(address agent, uint256 subnetId) view returns((address,bool,uint256,address))
-func (_RootNet *RootNetSession) GetAgentInfo(agent common.Address, subnetId *big.Int) (RootNetAgentInfo, error) {
-	return _RootNet.Contract.GetAgentInfo(&_RootNet.CallOpts, agent, subnetId)
+func (_AWPRegistry *AWPRegistrySession) GetAgentInfo(agent common.Address, subnetId *big.Int) (AWPRegistryAgentInfo, error) {
+	return _AWPRegistry.Contract.GetAgentInfo(&_AWPRegistry.CallOpts, agent, subnetId)
 }
 
 // GetAgentInfo is a free data retrieval call binding the contract method 0x168f80f5.
 //
 // Solidity: function getAgentInfo(address agent, uint256 subnetId) view returns((address,bool,uint256,address))
-func (_RootNet *RootNetCallerSession) GetAgentInfo(agent common.Address, subnetId *big.Int) (RootNetAgentInfo, error) {
-	return _RootNet.Contract.GetAgentInfo(&_RootNet.CallOpts, agent, subnetId)
+func (_AWPRegistry *AWPRegistryCallerSession) GetAgentInfo(agent common.Address, subnetId *big.Int) (AWPRegistryAgentInfo, error) {
+	return _AWPRegistry.Contract.GetAgentInfo(&_AWPRegistry.CallOpts, agent, subnetId)
 }
 
 // GetAgentsInfo is a free data retrieval call binding the contract method 0x4b6f6d67.
 //
 // Solidity: function getAgentsInfo(address[] agents, uint256 subnetId) view returns((address,bool,uint256,address)[])
-func (_RootNet *RootNetCaller) GetAgentsInfo(opts *bind.CallOpts, agents []common.Address, subnetId *big.Int) ([]RootNetAgentInfo, error) {
+func (_AWPRegistry *AWPRegistryCaller) GetAgentsInfo(opts *bind.CallOpts, agents []common.Address, subnetId *big.Int) ([]AWPRegistryAgentInfo, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "getAgentsInfo", agents, subnetId)
+	err := _AWPRegistry.contract.Call(opts, &out, "getAgentsInfo", agents, subnetId)
 
 	if err != nil {
-		return *new([]RootNetAgentInfo), err
+		return *new([]AWPRegistryAgentInfo), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new([]RootNetAgentInfo)).(*[]RootNetAgentInfo)
+	out0 := *abi.ConvertType(out[0], new([]AWPRegistryAgentInfo)).(*[]AWPRegistryAgentInfo)
 
 	return out0, err
 
@@ -620,23 +651,23 @@ func (_RootNet *RootNetCaller) GetAgentsInfo(opts *bind.CallOpts, agents []commo
 // GetAgentsInfo is a free data retrieval call binding the contract method 0x4b6f6d67.
 //
 // Solidity: function getAgentsInfo(address[] agents, uint256 subnetId) view returns((address,bool,uint256,address)[])
-func (_RootNet *RootNetSession) GetAgentsInfo(agents []common.Address, subnetId *big.Int) ([]RootNetAgentInfo, error) {
-	return _RootNet.Contract.GetAgentsInfo(&_RootNet.CallOpts, agents, subnetId)
+func (_AWPRegistry *AWPRegistrySession) GetAgentsInfo(agents []common.Address, subnetId *big.Int) ([]AWPRegistryAgentInfo, error) {
+	return _AWPRegistry.Contract.GetAgentsInfo(&_AWPRegistry.CallOpts, agents, subnetId)
 }
 
 // GetAgentsInfo is a free data retrieval call binding the contract method 0x4b6f6d67.
 //
 // Solidity: function getAgentsInfo(address[] agents, uint256 subnetId) view returns((address,bool,uint256,address)[])
-func (_RootNet *RootNetCallerSession) GetAgentsInfo(agents []common.Address, subnetId *big.Int) ([]RootNetAgentInfo, error) {
-	return _RootNet.Contract.GetAgentsInfo(&_RootNet.CallOpts, agents, subnetId)
+func (_AWPRegistry *AWPRegistryCallerSession) GetAgentsInfo(agents []common.Address, subnetId *big.Int) ([]AWPRegistryAgentInfo, error) {
+	return _AWPRegistry.Contract.GetAgentsInfo(&_AWPRegistry.CallOpts, agents, subnetId)
 }
 
 // GetRegistry is a free data retrieval call binding the contract method 0x5ab1bd53.
 //
 // Solidity: function getRegistry() view returns(address, address, address, address, address, address, address, address, address, address)
-func (_RootNet *RootNetCaller) GetRegistry(opts *bind.CallOpts) (common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, error) {
+func (_AWPRegistry *AWPRegistryCaller) GetRegistry(opts *bind.CallOpts) (common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "getRegistry")
+	err := _AWPRegistry.contract.Call(opts, &out, "getRegistry")
 
 	if err != nil {
 		return *new(common.Address), *new(common.Address), *new(common.Address), *new(common.Address), *new(common.Address), *new(common.Address), *new(common.Address), *new(common.Address), *new(common.Address), *new(common.Address), err
@@ -660,29 +691,29 @@ func (_RootNet *RootNetCaller) GetRegistry(opts *bind.CallOpts) (common.Address,
 // GetRegistry is a free data retrieval call binding the contract method 0x5ab1bd53.
 //
 // Solidity: function getRegistry() view returns(address, address, address, address, address, address, address, address, address, address)
-func (_RootNet *RootNetSession) GetRegistry() (common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, error) {
-	return _RootNet.Contract.GetRegistry(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) GetRegistry() (common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, error) {
+	return _AWPRegistry.Contract.GetRegistry(&_AWPRegistry.CallOpts)
 }
 
 // GetRegistry is a free data retrieval call binding the contract method 0x5ab1bd53.
 //
 // Solidity: function getRegistry() view returns(address, address, address, address, address, address, address, address, address, address)
-func (_RootNet *RootNetCallerSession) GetRegistry() (common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, error) {
-	return _RootNet.Contract.GetRegistry(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) GetRegistry() (common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, common.Address, error) {
+	return _AWPRegistry.Contract.GetRegistry(&_AWPRegistry.CallOpts)
 }
 
 // GetSubnet is a free data retrieval call binding the contract method 0x58ca7504.
 //
 // Solidity: function getSubnet(uint256 subnetId) view returns((bytes32,uint8,uint64,uint64))
-func (_RootNet *RootNetCaller) GetSubnet(opts *bind.CallOpts, subnetId *big.Int) (IRootNetSubnetInfo, error) {
+func (_AWPRegistry *AWPRegistryCaller) GetSubnet(opts *bind.CallOpts, subnetId *big.Int) (IAWPRegistrySubnetInfo, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "getSubnet", subnetId)
+	err := _AWPRegistry.contract.Call(opts, &out, "getSubnet", subnetId)
 
 	if err != nil {
-		return *new(IRootNetSubnetInfo), err
+		return *new(IAWPRegistrySubnetInfo), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(IRootNetSubnetInfo)).(*IRootNetSubnetInfo)
+	out0 := *abi.ConvertType(out[0], new(IAWPRegistrySubnetInfo)).(*IAWPRegistrySubnetInfo)
 
 	return out0, err
 
@@ -691,29 +722,29 @@ func (_RootNet *RootNetCaller) GetSubnet(opts *bind.CallOpts, subnetId *big.Int)
 // GetSubnet is a free data retrieval call binding the contract method 0x58ca7504.
 //
 // Solidity: function getSubnet(uint256 subnetId) view returns((bytes32,uint8,uint64,uint64))
-func (_RootNet *RootNetSession) GetSubnet(subnetId *big.Int) (IRootNetSubnetInfo, error) {
-	return _RootNet.Contract.GetSubnet(&_RootNet.CallOpts, subnetId)
+func (_AWPRegistry *AWPRegistrySession) GetSubnet(subnetId *big.Int) (IAWPRegistrySubnetInfo, error) {
+	return _AWPRegistry.Contract.GetSubnet(&_AWPRegistry.CallOpts, subnetId)
 }
 
 // GetSubnet is a free data retrieval call binding the contract method 0x58ca7504.
 //
 // Solidity: function getSubnet(uint256 subnetId) view returns((bytes32,uint8,uint64,uint64))
-func (_RootNet *RootNetCallerSession) GetSubnet(subnetId *big.Int) (IRootNetSubnetInfo, error) {
-	return _RootNet.Contract.GetSubnet(&_RootNet.CallOpts, subnetId)
+func (_AWPRegistry *AWPRegistryCallerSession) GetSubnet(subnetId *big.Int) (IAWPRegistrySubnetInfo, error) {
+	return _AWPRegistry.Contract.GetSubnet(&_AWPRegistry.CallOpts, subnetId)
 }
 
 // GetSubnetFull is a free data retrieval call binding the contract method 0x3de3b247.
 //
 // Solidity: function getSubnetFull(uint256 subnetId) view returns((address,address,bytes32,uint8,uint64,uint64,string,string,uint128,address))
-func (_RootNet *RootNetCaller) GetSubnetFull(opts *bind.CallOpts, subnetId *big.Int) (IRootNetSubnetFullInfo, error) {
+func (_AWPRegistry *AWPRegistryCaller) GetSubnetFull(opts *bind.CallOpts, subnetId *big.Int) (IAWPRegistrySubnetFullInfo, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "getSubnetFull", subnetId)
+	err := _AWPRegistry.contract.Call(opts, &out, "getSubnetFull", subnetId)
 
 	if err != nil {
-		return *new(IRootNetSubnetFullInfo), err
+		return *new(IAWPRegistrySubnetFullInfo), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(IRootNetSubnetFullInfo)).(*IRootNetSubnetFullInfo)
+	out0 := *abi.ConvertType(out[0], new(IAWPRegistrySubnetFullInfo)).(*IAWPRegistrySubnetFullInfo)
 
 	return out0, err
 
@@ -722,23 +753,23 @@ func (_RootNet *RootNetCaller) GetSubnetFull(opts *bind.CallOpts, subnetId *big.
 // GetSubnetFull is a free data retrieval call binding the contract method 0x3de3b247.
 //
 // Solidity: function getSubnetFull(uint256 subnetId) view returns((address,address,bytes32,uint8,uint64,uint64,string,string,uint128,address))
-func (_RootNet *RootNetSession) GetSubnetFull(subnetId *big.Int) (IRootNetSubnetFullInfo, error) {
-	return _RootNet.Contract.GetSubnetFull(&_RootNet.CallOpts, subnetId)
+func (_AWPRegistry *AWPRegistrySession) GetSubnetFull(subnetId *big.Int) (IAWPRegistrySubnetFullInfo, error) {
+	return _AWPRegistry.Contract.GetSubnetFull(&_AWPRegistry.CallOpts, subnetId)
 }
 
 // GetSubnetFull is a free data retrieval call binding the contract method 0x3de3b247.
 //
 // Solidity: function getSubnetFull(uint256 subnetId) view returns((address,address,bytes32,uint8,uint64,uint64,string,string,uint128,address))
-func (_RootNet *RootNetCallerSession) GetSubnetFull(subnetId *big.Int) (IRootNetSubnetFullInfo, error) {
-	return _RootNet.Contract.GetSubnetFull(&_RootNet.CallOpts, subnetId)
+func (_AWPRegistry *AWPRegistryCallerSession) GetSubnetFull(subnetId *big.Int) (IAWPRegistrySubnetFullInfo, error) {
+	return _AWPRegistry.Contract.GetSubnetFull(&_AWPRegistry.CallOpts, subnetId)
 }
 
 // Guardian is a free data retrieval call binding the contract method 0x452a9320.
 //
 // Solidity: function guardian() view returns(address)
-func (_RootNet *RootNetCaller) Guardian(opts *bind.CallOpts) (common.Address, error) {
+func (_AWPRegistry *AWPRegistryCaller) Guardian(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "guardian")
+	err := _AWPRegistry.contract.Call(opts, &out, "guardian")
 
 	if err != nil {
 		return *new(common.Address), err
@@ -753,23 +784,23 @@ func (_RootNet *RootNetCaller) Guardian(opts *bind.CallOpts) (common.Address, er
 // Guardian is a free data retrieval call binding the contract method 0x452a9320.
 //
 // Solidity: function guardian() view returns(address)
-func (_RootNet *RootNetSession) Guardian() (common.Address, error) {
-	return _RootNet.Contract.Guardian(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) Guardian() (common.Address, error) {
+	return _AWPRegistry.Contract.Guardian(&_AWPRegistry.CallOpts)
 }
 
 // Guardian is a free data retrieval call binding the contract method 0x452a9320.
 //
 // Solidity: function guardian() view returns(address)
-func (_RootNet *RootNetCallerSession) Guardian() (common.Address, error) {
-	return _RootNet.Contract.Guardian(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) Guardian() (common.Address, error) {
+	return _AWPRegistry.Contract.Guardian(&_AWPRegistry.CallOpts)
 }
 
 // ImmunityPeriod is a free data retrieval call binding the contract method 0x2672e1be.
 //
 // Solidity: function immunityPeriod() view returns(uint256)
-func (_RootNet *RootNetCaller) ImmunityPeriod(opts *bind.CallOpts) (*big.Int, error) {
+func (_AWPRegistry *AWPRegistryCaller) ImmunityPeriod(opts *bind.CallOpts) (*big.Int, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "immunityPeriod")
+	err := _AWPRegistry.contract.Call(opts, &out, "immunityPeriod")
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -784,23 +815,23 @@ func (_RootNet *RootNetCaller) ImmunityPeriod(opts *bind.CallOpts) (*big.Int, er
 // ImmunityPeriod is a free data retrieval call binding the contract method 0x2672e1be.
 //
 // Solidity: function immunityPeriod() view returns(uint256)
-func (_RootNet *RootNetSession) ImmunityPeriod() (*big.Int, error) {
-	return _RootNet.Contract.ImmunityPeriod(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) ImmunityPeriod() (*big.Int, error) {
+	return _AWPRegistry.Contract.ImmunityPeriod(&_AWPRegistry.CallOpts)
 }
 
 // ImmunityPeriod is a free data retrieval call binding the contract method 0x2672e1be.
 //
 // Solidity: function immunityPeriod() view returns(uint256)
-func (_RootNet *RootNetCallerSession) ImmunityPeriod() (*big.Int, error) {
-	return _RootNet.Contract.ImmunityPeriod(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) ImmunityPeriod() (*big.Int, error) {
+	return _AWPRegistry.Contract.ImmunityPeriod(&_AWPRegistry.CallOpts)
 }
 
 // InitialAlphaPrice is a free data retrieval call binding the contract method 0x6d345eea.
 //
 // Solidity: function initialAlphaPrice() view returns(uint256)
-func (_RootNet *RootNetCaller) InitialAlphaPrice(opts *bind.CallOpts) (*big.Int, error) {
+func (_AWPRegistry *AWPRegistryCaller) InitialAlphaPrice(opts *bind.CallOpts) (*big.Int, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "initialAlphaPrice")
+	err := _AWPRegistry.contract.Call(opts, &out, "initialAlphaPrice")
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -815,23 +846,23 @@ func (_RootNet *RootNetCaller) InitialAlphaPrice(opts *bind.CallOpts) (*big.Int,
 // InitialAlphaPrice is a free data retrieval call binding the contract method 0x6d345eea.
 //
 // Solidity: function initialAlphaPrice() view returns(uint256)
-func (_RootNet *RootNetSession) InitialAlphaPrice() (*big.Int, error) {
-	return _RootNet.Contract.InitialAlphaPrice(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) InitialAlphaPrice() (*big.Int, error) {
+	return _AWPRegistry.Contract.InitialAlphaPrice(&_AWPRegistry.CallOpts)
 }
 
 // InitialAlphaPrice is a free data retrieval call binding the contract method 0x6d345eea.
 //
 // Solidity: function initialAlphaPrice() view returns(uint256)
-func (_RootNet *RootNetCallerSession) InitialAlphaPrice() (*big.Int, error) {
-	return _RootNet.Contract.InitialAlphaPrice(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) InitialAlphaPrice() (*big.Int, error) {
+	return _AWPRegistry.Contract.InitialAlphaPrice(&_AWPRegistry.CallOpts)
 }
 
 // IsSubnetActive is a free data retrieval call binding the contract method 0x7ab5e276.
 //
 // Solidity: function isSubnetActive(uint256 subnetId) view returns(bool)
-func (_RootNet *RootNetCaller) IsSubnetActive(opts *bind.CallOpts, subnetId *big.Int) (bool, error) {
+func (_AWPRegistry *AWPRegistryCaller) IsSubnetActive(opts *bind.CallOpts, subnetId *big.Int) (bool, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "isSubnetActive", subnetId)
+	err := _AWPRegistry.contract.Call(opts, &out, "isSubnetActive", subnetId)
 
 	if err != nil {
 		return *new(bool), err
@@ -846,23 +877,23 @@ func (_RootNet *RootNetCaller) IsSubnetActive(opts *bind.CallOpts, subnetId *big
 // IsSubnetActive is a free data retrieval call binding the contract method 0x7ab5e276.
 //
 // Solidity: function isSubnetActive(uint256 subnetId) view returns(bool)
-func (_RootNet *RootNetSession) IsSubnetActive(subnetId *big.Int) (bool, error) {
-	return _RootNet.Contract.IsSubnetActive(&_RootNet.CallOpts, subnetId)
+func (_AWPRegistry *AWPRegistrySession) IsSubnetActive(subnetId *big.Int) (bool, error) {
+	return _AWPRegistry.Contract.IsSubnetActive(&_AWPRegistry.CallOpts, subnetId)
 }
 
 // IsSubnetActive is a free data retrieval call binding the contract method 0x7ab5e276.
 //
 // Solidity: function isSubnetActive(uint256 subnetId) view returns(bool)
-func (_RootNet *RootNetCallerSession) IsSubnetActive(subnetId *big.Int) (bool, error) {
-	return _RootNet.Contract.IsSubnetActive(&_RootNet.CallOpts, subnetId)
+func (_AWPRegistry *AWPRegistryCallerSession) IsSubnetActive(subnetId *big.Int) (bool, error) {
+	return _AWPRegistry.Contract.IsSubnetActive(&_AWPRegistry.CallOpts, subnetId)
 }
 
 // LpManager is a free data retrieval call binding the contract method 0xb906f15a.
 //
 // Solidity: function lpManager() view returns(address)
-func (_RootNet *RootNetCaller) LpManager(opts *bind.CallOpts) (common.Address, error) {
+func (_AWPRegistry *AWPRegistryCaller) LpManager(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "lpManager")
+	err := _AWPRegistry.contract.Call(opts, &out, "lpManager")
 
 	if err != nil {
 		return *new(common.Address), err
@@ -877,23 +908,23 @@ func (_RootNet *RootNetCaller) LpManager(opts *bind.CallOpts) (common.Address, e
 // LpManager is a free data retrieval call binding the contract method 0xb906f15a.
 //
 // Solidity: function lpManager() view returns(address)
-func (_RootNet *RootNetSession) LpManager() (common.Address, error) {
-	return _RootNet.Contract.LpManager(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) LpManager() (common.Address, error) {
+	return _AWPRegistry.Contract.LpManager(&_AWPRegistry.CallOpts)
 }
 
 // LpManager is a free data retrieval call binding the contract method 0xb906f15a.
 //
 // Solidity: function lpManager() view returns(address)
-func (_RootNet *RootNetCallerSession) LpManager() (common.Address, error) {
-	return _RootNet.Contract.LpManager(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) LpManager() (common.Address, error) {
+	return _AWPRegistry.Contract.LpManager(&_AWPRegistry.CallOpts)
 }
 
 // NextSubnetId is a free data retrieval call binding the contract method 0xd929ff05.
 //
 // Solidity: function nextSubnetId() view returns(uint256)
-func (_RootNet *RootNetCaller) NextSubnetId(opts *bind.CallOpts) (*big.Int, error) {
+func (_AWPRegistry *AWPRegistryCaller) NextSubnetId(opts *bind.CallOpts) (*big.Int, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "nextSubnetId")
+	err := _AWPRegistry.contract.Call(opts, &out, "nextSubnetId")
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -908,23 +939,23 @@ func (_RootNet *RootNetCaller) NextSubnetId(opts *bind.CallOpts) (*big.Int, erro
 // NextSubnetId is a free data retrieval call binding the contract method 0xd929ff05.
 //
 // Solidity: function nextSubnetId() view returns(uint256)
-func (_RootNet *RootNetSession) NextSubnetId() (*big.Int, error) {
-	return _RootNet.Contract.NextSubnetId(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) NextSubnetId() (*big.Int, error) {
+	return _AWPRegistry.Contract.NextSubnetId(&_AWPRegistry.CallOpts)
 }
 
 // NextSubnetId is a free data retrieval call binding the contract method 0xd929ff05.
 //
 // Solidity: function nextSubnetId() view returns(uint256)
-func (_RootNet *RootNetCallerSession) NextSubnetId() (*big.Int, error) {
-	return _RootNet.Contract.NextSubnetId(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) NextSubnetId() (*big.Int, error) {
+	return _AWPRegistry.Contract.NextSubnetId(&_AWPRegistry.CallOpts)
 }
 
 // Nonces is a free data retrieval call binding the contract method 0x7ecebe00.
 //
 // Solidity: function nonces(address ) view returns(uint256)
-func (_RootNet *RootNetCaller) Nonces(opts *bind.CallOpts, arg0 common.Address) (*big.Int, error) {
+func (_AWPRegistry *AWPRegistryCaller) Nonces(opts *bind.CallOpts, arg0 common.Address) (*big.Int, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "nonces", arg0)
+	err := _AWPRegistry.contract.Call(opts, &out, "nonces", arg0)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -939,23 +970,23 @@ func (_RootNet *RootNetCaller) Nonces(opts *bind.CallOpts, arg0 common.Address) 
 // Nonces is a free data retrieval call binding the contract method 0x7ecebe00.
 //
 // Solidity: function nonces(address ) view returns(uint256)
-func (_RootNet *RootNetSession) Nonces(arg0 common.Address) (*big.Int, error) {
-	return _RootNet.Contract.Nonces(&_RootNet.CallOpts, arg0)
+func (_AWPRegistry *AWPRegistrySession) Nonces(arg0 common.Address) (*big.Int, error) {
+	return _AWPRegistry.Contract.Nonces(&_AWPRegistry.CallOpts, arg0)
 }
 
 // Nonces is a free data retrieval call binding the contract method 0x7ecebe00.
 //
 // Solidity: function nonces(address ) view returns(uint256)
-func (_RootNet *RootNetCallerSession) Nonces(arg0 common.Address) (*big.Int, error) {
-	return _RootNet.Contract.Nonces(&_RootNet.CallOpts, arg0)
+func (_AWPRegistry *AWPRegistryCallerSession) Nonces(arg0 common.Address) (*big.Int, error) {
+	return _AWPRegistry.Contract.Nonces(&_AWPRegistry.CallOpts, arg0)
 }
 
 // Paused is a free data retrieval call binding the contract method 0x5c975abb.
 //
 // Solidity: function paused() view returns(bool)
-func (_RootNet *RootNetCaller) Paused(opts *bind.CallOpts) (bool, error) {
+func (_AWPRegistry *AWPRegistryCaller) Paused(opts *bind.CallOpts) (bool, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "paused")
+	err := _AWPRegistry.contract.Call(opts, &out, "paused")
 
 	if err != nil {
 		return *new(bool), err
@@ -970,23 +1001,23 @@ func (_RootNet *RootNetCaller) Paused(opts *bind.CallOpts) (bool, error) {
 // Paused is a free data retrieval call binding the contract method 0x5c975abb.
 //
 // Solidity: function paused() view returns(bool)
-func (_RootNet *RootNetSession) Paused() (bool, error) {
-	return _RootNet.Contract.Paused(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) Paused() (bool, error) {
+	return _AWPRegistry.Contract.Paused(&_AWPRegistry.CallOpts)
 }
 
 // Paused is a free data retrieval call binding the contract method 0x5c975abb.
 //
 // Solidity: function paused() view returns(bool)
-func (_RootNet *RootNetCallerSession) Paused() (bool, error) {
-	return _RootNet.Contract.Paused(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) Paused() (bool, error) {
+	return _AWPRegistry.Contract.Paused(&_AWPRegistry.CallOpts)
 }
 
 // RegistryInitialized is a free data retrieval call binding the contract method 0x56354a24.
 //
 // Solidity: function registryInitialized() view returns(bool)
-func (_RootNet *RootNetCaller) RegistryInitialized(opts *bind.CallOpts) (bool, error) {
+func (_AWPRegistry *AWPRegistryCaller) RegistryInitialized(opts *bind.CallOpts) (bool, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "registryInitialized")
+	err := _AWPRegistry.contract.Call(opts, &out, "registryInitialized")
 
 	if err != nil {
 		return *new(bool), err
@@ -1001,23 +1032,23 @@ func (_RootNet *RootNetCaller) RegistryInitialized(opts *bind.CallOpts) (bool, e
 // RegistryInitialized is a free data retrieval call binding the contract method 0x56354a24.
 //
 // Solidity: function registryInitialized() view returns(bool)
-func (_RootNet *RootNetSession) RegistryInitialized() (bool, error) {
-	return _RootNet.Contract.RegistryInitialized(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) RegistryInitialized() (bool, error) {
+	return _AWPRegistry.Contract.RegistryInitialized(&_AWPRegistry.CallOpts)
 }
 
 // RegistryInitialized is a free data retrieval call binding the contract method 0x56354a24.
 //
 // Solidity: function registryInitialized() view returns(bool)
-func (_RootNet *RootNetCallerSession) RegistryInitialized() (bool, error) {
-	return _RootNet.Contract.RegistryInitialized(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) RegistryInitialized() (bool, error) {
+	return _AWPRegistry.Contract.RegistryInitialized(&_AWPRegistry.CallOpts)
 }
 
 // StakeNFT is a free data retrieval call binding the contract method 0xb48509e6.
 //
 // Solidity: function stakeNFT() view returns(address)
-func (_RootNet *RootNetCaller) StakeNFT(opts *bind.CallOpts) (common.Address, error) {
+func (_AWPRegistry *AWPRegistryCaller) StakeNFT(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "stakeNFT")
+	err := _AWPRegistry.contract.Call(opts, &out, "stakeNFT")
 
 	if err != nil {
 		return *new(common.Address), err
@@ -1032,23 +1063,23 @@ func (_RootNet *RootNetCaller) StakeNFT(opts *bind.CallOpts) (common.Address, er
 // StakeNFT is a free data retrieval call binding the contract method 0xb48509e6.
 //
 // Solidity: function stakeNFT() view returns(address)
-func (_RootNet *RootNetSession) StakeNFT() (common.Address, error) {
-	return _RootNet.Contract.StakeNFT(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) StakeNFT() (common.Address, error) {
+	return _AWPRegistry.Contract.StakeNFT(&_AWPRegistry.CallOpts)
 }
 
 // StakeNFT is a free data retrieval call binding the contract method 0xb48509e6.
 //
 // Solidity: function stakeNFT() view returns(address)
-func (_RootNet *RootNetCallerSession) StakeNFT() (common.Address, error) {
-	return _RootNet.Contract.StakeNFT(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) StakeNFT() (common.Address, error) {
+	return _AWPRegistry.Contract.StakeNFT(&_AWPRegistry.CallOpts)
 }
 
 // StakingVault is a free data retrieval call binding the contract method 0x24e7964a.
 //
 // Solidity: function stakingVault() view returns(address)
-func (_RootNet *RootNetCaller) StakingVault(opts *bind.CallOpts) (common.Address, error) {
+func (_AWPRegistry *AWPRegistryCaller) StakingVault(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "stakingVault")
+	err := _AWPRegistry.contract.Call(opts, &out, "stakingVault")
 
 	if err != nil {
 		return *new(common.Address), err
@@ -1063,23 +1094,23 @@ func (_RootNet *RootNetCaller) StakingVault(opts *bind.CallOpts) (common.Address
 // StakingVault is a free data retrieval call binding the contract method 0x24e7964a.
 //
 // Solidity: function stakingVault() view returns(address)
-func (_RootNet *RootNetSession) StakingVault() (common.Address, error) {
-	return _RootNet.Contract.StakingVault(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) StakingVault() (common.Address, error) {
+	return _AWPRegistry.Contract.StakingVault(&_AWPRegistry.CallOpts)
 }
 
 // StakingVault is a free data retrieval call binding the contract method 0x24e7964a.
 //
 // Solidity: function stakingVault() view returns(address)
-func (_RootNet *RootNetCallerSession) StakingVault() (common.Address, error) {
-	return _RootNet.Contract.StakingVault(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) StakingVault() (common.Address, error) {
+	return _AWPRegistry.Contract.StakingVault(&_AWPRegistry.CallOpts)
 }
 
 // SubnetNFT is a free data retrieval call binding the contract method 0x11cba7e9.
 //
 // Solidity: function subnetNFT() view returns(address)
-func (_RootNet *RootNetCaller) SubnetNFT(opts *bind.CallOpts) (common.Address, error) {
+func (_AWPRegistry *AWPRegistryCaller) SubnetNFT(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "subnetNFT")
+	err := _AWPRegistry.contract.Call(opts, &out, "subnetNFT")
 
 	if err != nil {
 		return *new(common.Address), err
@@ -1094,28 +1125,28 @@ func (_RootNet *RootNetCaller) SubnetNFT(opts *bind.CallOpts) (common.Address, e
 // SubnetNFT is a free data retrieval call binding the contract method 0x11cba7e9.
 //
 // Solidity: function subnetNFT() view returns(address)
-func (_RootNet *RootNetSession) SubnetNFT() (common.Address, error) {
-	return _RootNet.Contract.SubnetNFT(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) SubnetNFT() (common.Address, error) {
+	return _AWPRegistry.Contract.SubnetNFT(&_AWPRegistry.CallOpts)
 }
 
 // SubnetNFT is a free data retrieval call binding the contract method 0x11cba7e9.
 //
 // Solidity: function subnetNFT() view returns(address)
-func (_RootNet *RootNetCallerSession) SubnetNFT() (common.Address, error) {
-	return _RootNet.Contract.SubnetNFT(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) SubnetNFT() (common.Address, error) {
+	return _AWPRegistry.Contract.SubnetNFT(&_AWPRegistry.CallOpts)
 }
 
 // Subnets is a free data retrieval call binding the contract method 0x475726f7.
 //
 // Solidity: function subnets(uint256 ) view returns(bytes32 lpPool, uint8 status, uint64 createdAt, uint64 activatedAt)
-func (_RootNet *RootNetCaller) Subnets(opts *bind.CallOpts, arg0 *big.Int) (struct {
+func (_AWPRegistry *AWPRegistryCaller) Subnets(opts *bind.CallOpts, arg0 *big.Int) (struct {
 	LpPool      [32]byte
 	Status      uint8
 	CreatedAt   uint64
 	ActivatedAt uint64
 }, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "subnets", arg0)
+	err := _AWPRegistry.contract.Call(opts, &out, "subnets", arg0)
 
 	outstruct := new(struct {
 		LpPool      [32]byte
@@ -1139,33 +1170,33 @@ func (_RootNet *RootNetCaller) Subnets(opts *bind.CallOpts, arg0 *big.Int) (stru
 // Subnets is a free data retrieval call binding the contract method 0x475726f7.
 //
 // Solidity: function subnets(uint256 ) view returns(bytes32 lpPool, uint8 status, uint64 createdAt, uint64 activatedAt)
-func (_RootNet *RootNetSession) Subnets(arg0 *big.Int) (struct {
+func (_AWPRegistry *AWPRegistrySession) Subnets(arg0 *big.Int) (struct {
 	LpPool      [32]byte
 	Status      uint8
 	CreatedAt   uint64
 	ActivatedAt uint64
 }, error) {
-	return _RootNet.Contract.Subnets(&_RootNet.CallOpts, arg0)
+	return _AWPRegistry.Contract.Subnets(&_AWPRegistry.CallOpts, arg0)
 }
 
 // Subnets is a free data retrieval call binding the contract method 0x475726f7.
 //
 // Solidity: function subnets(uint256 ) view returns(bytes32 lpPool, uint8 status, uint64 createdAt, uint64 activatedAt)
-func (_RootNet *RootNetCallerSession) Subnets(arg0 *big.Int) (struct {
+func (_AWPRegistry *AWPRegistryCallerSession) Subnets(arg0 *big.Int) (struct {
 	LpPool      [32]byte
 	Status      uint8
 	CreatedAt   uint64
 	ActivatedAt uint64
 }, error) {
-	return _RootNet.Contract.Subnets(&_RootNet.CallOpts, arg0)
+	return _AWPRegistry.Contract.Subnets(&_AWPRegistry.CallOpts, arg0)
 }
 
 // Treasury is a free data retrieval call binding the contract method 0x61d027b3.
 //
 // Solidity: function treasury() view returns(address)
-func (_RootNet *RootNetCaller) Treasury(opts *bind.CallOpts) (common.Address, error) {
+func (_AWPRegistry *AWPRegistryCaller) Treasury(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _RootNet.contract.Call(opts, &out, "treasury")
+	err := _AWPRegistry.contract.Call(opts, &out, "treasury")
 
 	if err != nil {
 		return *new(common.Address), err
@@ -1180,734 +1211,755 @@ func (_RootNet *RootNetCaller) Treasury(opts *bind.CallOpts) (common.Address, er
 // Treasury is a free data retrieval call binding the contract method 0x61d027b3.
 //
 // Solidity: function treasury() view returns(address)
-func (_RootNet *RootNetSession) Treasury() (common.Address, error) {
-	return _RootNet.Contract.Treasury(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistrySession) Treasury() (common.Address, error) {
+	return _AWPRegistry.Contract.Treasury(&_AWPRegistry.CallOpts)
 }
 
 // Treasury is a free data retrieval call binding the contract method 0x61d027b3.
 //
 // Solidity: function treasury() view returns(address)
-func (_RootNet *RootNetCallerSession) Treasury() (common.Address, error) {
-	return _RootNet.Contract.Treasury(&_RootNet.CallOpts)
+func (_AWPRegistry *AWPRegistryCallerSession) Treasury() (common.Address, error) {
+	return _AWPRegistry.Contract.Treasury(&_AWPRegistry.CallOpts)
 }
 
 // ActivateSubnet is a paid mutator transaction binding the contract method 0xcead1c96.
 //
 // Solidity: function activateSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetTransactor) ActivateSubnet(opts *bind.TransactOpts, subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "activateSubnet", subnetId)
+func (_AWPRegistry *AWPRegistryTransactor) ActivateSubnet(opts *bind.TransactOpts, subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "activateSubnet", subnetId)
 }
 
 // ActivateSubnet is a paid mutator transaction binding the contract method 0xcead1c96.
 //
 // Solidity: function activateSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetSession) ActivateSubnet(subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.ActivateSubnet(&_RootNet.TransactOpts, subnetId)
+func (_AWPRegistry *AWPRegistrySession) ActivateSubnet(subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.ActivateSubnet(&_AWPRegistry.TransactOpts, subnetId)
 }
 
 // ActivateSubnet is a paid mutator transaction binding the contract method 0xcead1c96.
 //
 // Solidity: function activateSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetTransactorSession) ActivateSubnet(subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.ActivateSubnet(&_RootNet.TransactOpts, subnetId)
+func (_AWPRegistry *AWPRegistryTransactorSession) ActivateSubnet(subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.ActivateSubnet(&_AWPRegistry.TransactOpts, subnetId)
 }
 
 // ActivateSubnetFor is a paid mutator transaction binding the contract method 0x08b55cff.
 //
 // Solidity: function activateSubnetFor(address user, uint256 subnetId, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetTransactor) ActivateSubnetFor(opts *bind.TransactOpts, user common.Address, subnetId *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "activateSubnetFor", user, subnetId, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistryTransactor) ActivateSubnetFor(opts *bind.TransactOpts, user common.Address, subnetId *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "activateSubnetFor", user, subnetId, deadline, v, r, s)
 }
 
 // ActivateSubnetFor is a paid mutator transaction binding the contract method 0x08b55cff.
 //
 // Solidity: function activateSubnetFor(address user, uint256 subnetId, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetSession) ActivateSubnetFor(user common.Address, subnetId *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.ActivateSubnetFor(&_RootNet.TransactOpts, user, subnetId, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistrySession) ActivateSubnetFor(user common.Address, subnetId *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.ActivateSubnetFor(&_AWPRegistry.TransactOpts, user, subnetId, deadline, v, r, s)
 }
 
 // ActivateSubnetFor is a paid mutator transaction binding the contract method 0x08b55cff.
 //
 // Solidity: function activateSubnetFor(address user, uint256 subnetId, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetTransactorSession) ActivateSubnetFor(user common.Address, subnetId *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.ActivateSubnetFor(&_RootNet.TransactOpts, user, subnetId, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistryTransactorSession) ActivateSubnetFor(user common.Address, subnetId *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.ActivateSubnetFor(&_AWPRegistry.TransactOpts, user, subnetId, deadline, v, r, s)
 }
 
 // Allocate is a paid mutator transaction binding the contract method 0xab3f22d5.
 //
 // Solidity: function allocate(address agent, uint256 subnetId, uint256 amount) returns()
-func (_RootNet *RootNetTransactor) Allocate(opts *bind.TransactOpts, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "allocate", agent, subnetId, amount)
+func (_AWPRegistry *AWPRegistryTransactor) Allocate(opts *bind.TransactOpts, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "allocate", agent, subnetId, amount)
 }
 
 // Allocate is a paid mutator transaction binding the contract method 0xab3f22d5.
 //
 // Solidity: function allocate(address agent, uint256 subnetId, uint256 amount) returns()
-func (_RootNet *RootNetSession) Allocate(agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.Allocate(&_RootNet.TransactOpts, agent, subnetId, amount)
+func (_AWPRegistry *AWPRegistrySession) Allocate(agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Allocate(&_AWPRegistry.TransactOpts, agent, subnetId, amount)
 }
 
 // Allocate is a paid mutator transaction binding the contract method 0xab3f22d5.
 //
 // Solidity: function allocate(address agent, uint256 subnetId, uint256 amount) returns()
-func (_RootNet *RootNetTransactorSession) Allocate(agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.Allocate(&_RootNet.TransactOpts, agent, subnetId, amount)
+func (_AWPRegistry *AWPRegistryTransactorSession) Allocate(agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Allocate(&_AWPRegistry.TransactOpts, agent, subnetId, amount)
 }
 
 // AllocateFor is a paid mutator transaction binding the contract method 0x7d66c5c5.
 //
 // Solidity: function allocateFor(address user, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetTransactor) AllocateFor(opts *bind.TransactOpts, user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "allocateFor", user, agent, subnetId, amount, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistryTransactor) AllocateFor(opts *bind.TransactOpts, user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "allocateFor", user, agent, subnetId, amount, deadline, v, r, s)
 }
 
 // AllocateFor is a paid mutator transaction binding the contract method 0x7d66c5c5.
 //
 // Solidity: function allocateFor(address user, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetSession) AllocateFor(user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.AllocateFor(&_RootNet.TransactOpts, user, agent, subnetId, amount, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistrySession) AllocateFor(user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.AllocateFor(&_AWPRegistry.TransactOpts, user, agent, subnetId, amount, deadline, v, r, s)
 }
 
 // AllocateFor is a paid mutator transaction binding the contract method 0x7d66c5c5.
 //
 // Solidity: function allocateFor(address user, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetTransactorSession) AllocateFor(user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.AllocateFor(&_RootNet.TransactOpts, user, agent, subnetId, amount, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistryTransactorSession) AllocateFor(user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.AllocateFor(&_AWPRegistry.TransactOpts, user, agent, subnetId, amount, deadline, v, r, s)
 }
 
 // BanSubnet is a paid mutator transaction binding the contract method 0xb79b7658.
 //
 // Solidity: function banSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetTransactor) BanSubnet(opts *bind.TransactOpts, subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "banSubnet", subnetId)
+func (_AWPRegistry *AWPRegistryTransactor) BanSubnet(opts *bind.TransactOpts, subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "banSubnet", subnetId)
 }
 
 // BanSubnet is a paid mutator transaction binding the contract method 0xb79b7658.
 //
 // Solidity: function banSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetSession) BanSubnet(subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.BanSubnet(&_RootNet.TransactOpts, subnetId)
+func (_AWPRegistry *AWPRegistrySession) BanSubnet(subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.BanSubnet(&_AWPRegistry.TransactOpts, subnetId)
 }
 
 // BanSubnet is a paid mutator transaction binding the contract method 0xb79b7658.
 //
 // Solidity: function banSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetTransactorSession) BanSubnet(subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.BanSubnet(&_RootNet.TransactOpts, subnetId)
+func (_AWPRegistry *AWPRegistryTransactorSession) BanSubnet(subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.BanSubnet(&_AWPRegistry.TransactOpts, subnetId)
 }
 
 // Bind is a paid mutator transaction binding the contract method 0x81bac14f.
 //
 // Solidity: function bind(address principal) returns()
-func (_RootNet *RootNetTransactor) Bind(opts *bind.TransactOpts, principal common.Address) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "bind", principal)
+func (_AWPRegistry *AWPRegistryTransactor) Bind(opts *bind.TransactOpts, principal common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "bind", principal)
 }
 
 // Bind is a paid mutator transaction binding the contract method 0x81bac14f.
 //
 // Solidity: function bind(address principal) returns()
-func (_RootNet *RootNetSession) Bind(principal common.Address) (*types.Transaction, error) {
-	return _RootNet.Contract.Bind(&_RootNet.TransactOpts, principal)
+func (_AWPRegistry *AWPRegistrySession) Bind(principal common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Bind(&_AWPRegistry.TransactOpts, principal)
 }
 
 // Bind is a paid mutator transaction binding the contract method 0x81bac14f.
 //
 // Solidity: function bind(address principal) returns()
-func (_RootNet *RootNetTransactorSession) Bind(principal common.Address) (*types.Transaction, error) {
-	return _RootNet.Contract.Bind(&_RootNet.TransactOpts, principal)
+func (_AWPRegistry *AWPRegistryTransactorSession) Bind(principal common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Bind(&_AWPRegistry.TransactOpts, principal)
 }
 
 // BindFor is a paid mutator transaction binding the contract method 0x7b234b81.
 //
 // Solidity: function bindFor(address agent, address principal, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetTransactor) BindFor(opts *bind.TransactOpts, agent common.Address, principal common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "bindFor", agent, principal, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistryTransactor) BindFor(opts *bind.TransactOpts, agent common.Address, principal common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "bindFor", agent, principal, deadline, v, r, s)
 }
 
 // BindFor is a paid mutator transaction binding the contract method 0x7b234b81.
 //
 // Solidity: function bindFor(address agent, address principal, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetSession) BindFor(agent common.Address, principal common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.BindFor(&_RootNet.TransactOpts, agent, principal, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistrySession) BindFor(agent common.Address, principal common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.BindFor(&_AWPRegistry.TransactOpts, agent, principal, deadline, v, r, s)
 }
 
 // BindFor is a paid mutator transaction binding the contract method 0x7b234b81.
 //
 // Solidity: function bindFor(address agent, address principal, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetTransactorSession) BindFor(agent common.Address, principal common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.BindFor(&_RootNet.TransactOpts, agent, principal, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistryTransactorSession) BindFor(agent common.Address, principal common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.BindFor(&_AWPRegistry.TransactOpts, agent, principal, deadline, v, r, s)
 }
 
 // Deallocate is a paid mutator transaction binding the contract method 0xfe427e95.
 //
 // Solidity: function deallocate(address agent, uint256 subnetId, uint256 amount) returns()
-func (_RootNet *RootNetTransactor) Deallocate(opts *bind.TransactOpts, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "deallocate", agent, subnetId, amount)
+func (_AWPRegistry *AWPRegistryTransactor) Deallocate(opts *bind.TransactOpts, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "deallocate", agent, subnetId, amount)
 }
 
 // Deallocate is a paid mutator transaction binding the contract method 0xfe427e95.
 //
 // Solidity: function deallocate(address agent, uint256 subnetId, uint256 amount) returns()
-func (_RootNet *RootNetSession) Deallocate(agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.Deallocate(&_RootNet.TransactOpts, agent, subnetId, amount)
+func (_AWPRegistry *AWPRegistrySession) Deallocate(agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Deallocate(&_AWPRegistry.TransactOpts, agent, subnetId, amount)
 }
 
 // Deallocate is a paid mutator transaction binding the contract method 0xfe427e95.
 //
 // Solidity: function deallocate(address agent, uint256 subnetId, uint256 amount) returns()
-func (_RootNet *RootNetTransactorSession) Deallocate(agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.Deallocate(&_RootNet.TransactOpts, agent, subnetId, amount)
+func (_AWPRegistry *AWPRegistryTransactorSession) Deallocate(agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Deallocate(&_AWPRegistry.TransactOpts, agent, subnetId, amount)
 }
 
 // DeallocateFor is a paid mutator transaction binding the contract method 0x10fe1208.
 //
 // Solidity: function deallocateFor(address user, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetTransactor) DeallocateFor(opts *bind.TransactOpts, user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "deallocateFor", user, agent, subnetId, amount, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistryTransactor) DeallocateFor(opts *bind.TransactOpts, user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "deallocateFor", user, agent, subnetId, amount, deadline, v, r, s)
 }
 
 // DeallocateFor is a paid mutator transaction binding the contract method 0x10fe1208.
 //
 // Solidity: function deallocateFor(address user, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetSession) DeallocateFor(user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.DeallocateFor(&_RootNet.TransactOpts, user, agent, subnetId, amount, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistrySession) DeallocateFor(user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.DeallocateFor(&_AWPRegistry.TransactOpts, user, agent, subnetId, amount, deadline, v, r, s)
 }
 
 // DeallocateFor is a paid mutator transaction binding the contract method 0x10fe1208.
 //
 // Solidity: function deallocateFor(address user, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetTransactorSession) DeallocateFor(user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.DeallocateFor(&_RootNet.TransactOpts, user, agent, subnetId, amount, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistryTransactorSession) DeallocateFor(user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.DeallocateFor(&_AWPRegistry.TransactOpts, user, agent, subnetId, amount, deadline, v, r, s)
 }
 
 // DeregisterSubnet is a paid mutator transaction binding the contract method 0x0cf02c5e.
 //
 // Solidity: function deregisterSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetTransactor) DeregisterSubnet(opts *bind.TransactOpts, subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "deregisterSubnet", subnetId)
+func (_AWPRegistry *AWPRegistryTransactor) DeregisterSubnet(opts *bind.TransactOpts, subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "deregisterSubnet", subnetId)
 }
 
 // DeregisterSubnet is a paid mutator transaction binding the contract method 0x0cf02c5e.
 //
 // Solidity: function deregisterSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetSession) DeregisterSubnet(subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.DeregisterSubnet(&_RootNet.TransactOpts, subnetId)
+func (_AWPRegistry *AWPRegistrySession) DeregisterSubnet(subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.DeregisterSubnet(&_AWPRegistry.TransactOpts, subnetId)
 }
 
 // DeregisterSubnet is a paid mutator transaction binding the contract method 0x0cf02c5e.
 //
 // Solidity: function deregisterSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetTransactorSession) DeregisterSubnet(subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.DeregisterSubnet(&_RootNet.TransactOpts, subnetId)
+func (_AWPRegistry *AWPRegistryTransactorSession) DeregisterSubnet(subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.DeregisterSubnet(&_AWPRegistry.TransactOpts, subnetId)
 }
 
-// InitializeRegistry is a paid mutator transaction binding the contract method 0x0672c4be.
+// InitializeRegistry is a paid mutator transaction binding the contract method 0xf6c52543.
 //
-// Solidity: function initializeRegistry(address awpToken_, address subnetNFT_, address alphaTokenFactory_, address awpEmission_, address lpManager_, address accessManager_, address stakingVault_, address stakeNFT_, address defaultSubnetManagerImpl_) returns()
-func (_RootNet *RootNetTransactor) InitializeRegistry(opts *bind.TransactOpts, awpToken_ common.Address, subnetNFT_ common.Address, alphaTokenFactory_ common.Address, awpEmission_ common.Address, lpManager_ common.Address, accessManager_ common.Address, stakingVault_ common.Address, stakeNFT_ common.Address, defaultSubnetManagerImpl_ common.Address) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "initializeRegistry", awpToken_, subnetNFT_, alphaTokenFactory_, awpEmission_, lpManager_, accessManager_, stakingVault_, stakeNFT_, defaultSubnetManagerImpl_)
+// Solidity: function initializeRegistry(address awpToken_, address subnetNFT_, address alphaTokenFactory_, address awpEmission_, address lpManager_, address accessManager_, address stakingVault_, address stakeNFT_, address defaultSubnetManagerImpl_, bytes dexConfig_) returns()
+func (_AWPRegistry *AWPRegistryTransactor) InitializeRegistry(opts *bind.TransactOpts, awpToken_ common.Address, subnetNFT_ common.Address, alphaTokenFactory_ common.Address, awpEmission_ common.Address, lpManager_ common.Address, accessManager_ common.Address, stakingVault_ common.Address, stakeNFT_ common.Address, defaultSubnetManagerImpl_ common.Address, dexConfig_ []byte) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "initializeRegistry", awpToken_, subnetNFT_, alphaTokenFactory_, awpEmission_, lpManager_, accessManager_, stakingVault_, stakeNFT_, defaultSubnetManagerImpl_, dexConfig_)
 }
 
-// InitializeRegistry is a paid mutator transaction binding the contract method 0x0672c4be.
+// InitializeRegistry is a paid mutator transaction binding the contract method 0xf6c52543.
 //
-// Solidity: function initializeRegistry(address awpToken_, address subnetNFT_, address alphaTokenFactory_, address awpEmission_, address lpManager_, address accessManager_, address stakingVault_, address stakeNFT_, address defaultSubnetManagerImpl_) returns()
-func (_RootNet *RootNetSession) InitializeRegistry(awpToken_ common.Address, subnetNFT_ common.Address, alphaTokenFactory_ common.Address, awpEmission_ common.Address, lpManager_ common.Address, accessManager_ common.Address, stakingVault_ common.Address, stakeNFT_ common.Address, defaultSubnetManagerImpl_ common.Address) (*types.Transaction, error) {
-	return _RootNet.Contract.InitializeRegistry(&_RootNet.TransactOpts, awpToken_, subnetNFT_, alphaTokenFactory_, awpEmission_, lpManager_, accessManager_, stakingVault_, stakeNFT_, defaultSubnetManagerImpl_)
+// Solidity: function initializeRegistry(address awpToken_, address subnetNFT_, address alphaTokenFactory_, address awpEmission_, address lpManager_, address accessManager_, address stakingVault_, address stakeNFT_, address defaultSubnetManagerImpl_, bytes dexConfig_) returns()
+func (_AWPRegistry *AWPRegistrySession) InitializeRegistry(awpToken_ common.Address, subnetNFT_ common.Address, alphaTokenFactory_ common.Address, awpEmission_ common.Address, lpManager_ common.Address, accessManager_ common.Address, stakingVault_ common.Address, stakeNFT_ common.Address, defaultSubnetManagerImpl_ common.Address, dexConfig_ []byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.InitializeRegistry(&_AWPRegistry.TransactOpts, awpToken_, subnetNFT_, alphaTokenFactory_, awpEmission_, lpManager_, accessManager_, stakingVault_, stakeNFT_, defaultSubnetManagerImpl_, dexConfig_)
 }
 
-// InitializeRegistry is a paid mutator transaction binding the contract method 0x0672c4be.
+// InitializeRegistry is a paid mutator transaction binding the contract method 0xf6c52543.
 //
-// Solidity: function initializeRegistry(address awpToken_, address subnetNFT_, address alphaTokenFactory_, address awpEmission_, address lpManager_, address accessManager_, address stakingVault_, address stakeNFT_, address defaultSubnetManagerImpl_) returns()
-func (_RootNet *RootNetTransactorSession) InitializeRegistry(awpToken_ common.Address, subnetNFT_ common.Address, alphaTokenFactory_ common.Address, awpEmission_ common.Address, lpManager_ common.Address, accessManager_ common.Address, stakingVault_ common.Address, stakeNFT_ common.Address, defaultSubnetManagerImpl_ common.Address) (*types.Transaction, error) {
-	return _RootNet.Contract.InitializeRegistry(&_RootNet.TransactOpts, awpToken_, subnetNFT_, alphaTokenFactory_, awpEmission_, lpManager_, accessManager_, stakingVault_, stakeNFT_, defaultSubnetManagerImpl_)
-}
-
-// Pause is a paid mutator transaction binding the contract method 0x8456cb59.
-//
-// Solidity: function pause() returns()
-func (_RootNet *RootNetTransactor) Pause(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "pause")
+// Solidity: function initializeRegistry(address awpToken_, address subnetNFT_, address alphaTokenFactory_, address awpEmission_, address lpManager_, address accessManager_, address stakingVault_, address stakeNFT_, address defaultSubnetManagerImpl_, bytes dexConfig_) returns()
+func (_AWPRegistry *AWPRegistryTransactorSession) InitializeRegistry(awpToken_ common.Address, subnetNFT_ common.Address, alphaTokenFactory_ common.Address, awpEmission_ common.Address, lpManager_ common.Address, accessManager_ common.Address, stakingVault_ common.Address, stakeNFT_ common.Address, defaultSubnetManagerImpl_ common.Address, dexConfig_ []byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.InitializeRegistry(&_AWPRegistry.TransactOpts, awpToken_, subnetNFT_, alphaTokenFactory_, awpEmission_, lpManager_, accessManager_, stakingVault_, stakeNFT_, defaultSubnetManagerImpl_, dexConfig_)
 }
 
 // Pause is a paid mutator transaction binding the contract method 0x8456cb59.
 //
 // Solidity: function pause() returns()
-func (_RootNet *RootNetSession) Pause() (*types.Transaction, error) {
-	return _RootNet.Contract.Pause(&_RootNet.TransactOpts)
+func (_AWPRegistry *AWPRegistryTransactor) Pause(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "pause")
 }
 
 // Pause is a paid mutator transaction binding the contract method 0x8456cb59.
 //
 // Solidity: function pause() returns()
-func (_RootNet *RootNetTransactorSession) Pause() (*types.Transaction, error) {
-	return _RootNet.Contract.Pause(&_RootNet.TransactOpts)
+func (_AWPRegistry *AWPRegistrySession) Pause() (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Pause(&_AWPRegistry.TransactOpts)
+}
+
+// Pause is a paid mutator transaction binding the contract method 0x8456cb59.
+//
+// Solidity: function pause() returns()
+func (_AWPRegistry *AWPRegistryTransactorSession) Pause() (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Pause(&_AWPRegistry.TransactOpts)
 }
 
 // PauseSubnet is a paid mutator transaction binding the contract method 0x44e047ca.
 //
 // Solidity: function pauseSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetTransactor) PauseSubnet(opts *bind.TransactOpts, subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "pauseSubnet", subnetId)
+func (_AWPRegistry *AWPRegistryTransactor) PauseSubnet(opts *bind.TransactOpts, subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "pauseSubnet", subnetId)
 }
 
 // PauseSubnet is a paid mutator transaction binding the contract method 0x44e047ca.
 //
 // Solidity: function pauseSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetSession) PauseSubnet(subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.PauseSubnet(&_RootNet.TransactOpts, subnetId)
+func (_AWPRegistry *AWPRegistrySession) PauseSubnet(subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.PauseSubnet(&_AWPRegistry.TransactOpts, subnetId)
 }
 
 // PauseSubnet is a paid mutator transaction binding the contract method 0x44e047ca.
 //
 // Solidity: function pauseSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetTransactorSession) PauseSubnet(subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.PauseSubnet(&_RootNet.TransactOpts, subnetId)
+func (_AWPRegistry *AWPRegistryTransactorSession) PauseSubnet(subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.PauseSubnet(&_AWPRegistry.TransactOpts, subnetId)
 }
 
 // Reallocate is a paid mutator transaction binding the contract method 0x1a46f4b8.
 //
 // Solidity: function reallocate(address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) returns()
-func (_RootNet *RootNetTransactor) Reallocate(opts *bind.TransactOpts, fromAgent common.Address, fromSubnetId *big.Int, toAgent common.Address, toSubnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "reallocate", fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
+func (_AWPRegistry *AWPRegistryTransactor) Reallocate(opts *bind.TransactOpts, fromAgent common.Address, fromSubnetId *big.Int, toAgent common.Address, toSubnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "reallocate", fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
 }
 
 // Reallocate is a paid mutator transaction binding the contract method 0x1a46f4b8.
 //
 // Solidity: function reallocate(address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) returns()
-func (_RootNet *RootNetSession) Reallocate(fromAgent common.Address, fromSubnetId *big.Int, toAgent common.Address, toSubnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.Reallocate(&_RootNet.TransactOpts, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
+func (_AWPRegistry *AWPRegistrySession) Reallocate(fromAgent common.Address, fromSubnetId *big.Int, toAgent common.Address, toSubnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Reallocate(&_AWPRegistry.TransactOpts, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
 }
 
 // Reallocate is a paid mutator transaction binding the contract method 0x1a46f4b8.
 //
 // Solidity: function reallocate(address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) returns()
-func (_RootNet *RootNetTransactorSession) Reallocate(fromAgent common.Address, fromSubnetId *big.Int, toAgent common.Address, toSubnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.Reallocate(&_RootNet.TransactOpts, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
+func (_AWPRegistry *AWPRegistryTransactorSession) Reallocate(fromAgent common.Address, fromSubnetId *big.Int, toAgent common.Address, toSubnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Reallocate(&_AWPRegistry.TransactOpts, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
 }
 
 // Register is a paid mutator transaction binding the contract method 0x1aa3a008.
 //
 // Solidity: function register() returns()
-func (_RootNet *RootNetTransactor) Register(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "register")
+func (_AWPRegistry *AWPRegistryTransactor) Register(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "register")
 }
 
 // Register is a paid mutator transaction binding the contract method 0x1aa3a008.
 //
 // Solidity: function register() returns()
-func (_RootNet *RootNetSession) Register() (*types.Transaction, error) {
-	return _RootNet.Contract.Register(&_RootNet.TransactOpts)
+func (_AWPRegistry *AWPRegistrySession) Register() (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Register(&_AWPRegistry.TransactOpts)
 }
 
 // Register is a paid mutator transaction binding the contract method 0x1aa3a008.
 //
 // Solidity: function register() returns()
-func (_RootNet *RootNetTransactorSession) Register() (*types.Transaction, error) {
-	return _RootNet.Contract.Register(&_RootNet.TransactOpts)
+func (_AWPRegistry *AWPRegistryTransactorSession) Register() (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Register(&_AWPRegistry.TransactOpts)
 }
 
 // Register0 is a paid mutator transaction binding the contract method 0x6d23f895.
 //
 // Solidity: function register(address recipient, uint256 depositAmount, uint64 lockDuration) returns()
-func (_RootNet *RootNetTransactor) Register0(opts *bind.TransactOpts, recipient common.Address, depositAmount *big.Int, lockDuration uint64) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "register0", recipient, depositAmount, lockDuration)
+func (_AWPRegistry *AWPRegistryTransactor) Register0(opts *bind.TransactOpts, recipient common.Address, depositAmount *big.Int, lockDuration uint64) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "register0", recipient, depositAmount, lockDuration)
 }
 
 // Register0 is a paid mutator transaction binding the contract method 0x6d23f895.
 //
 // Solidity: function register(address recipient, uint256 depositAmount, uint64 lockDuration) returns()
-func (_RootNet *RootNetSession) Register0(recipient common.Address, depositAmount *big.Int, lockDuration uint64) (*types.Transaction, error) {
-	return _RootNet.Contract.Register0(&_RootNet.TransactOpts, recipient, depositAmount, lockDuration)
+func (_AWPRegistry *AWPRegistrySession) Register0(recipient common.Address, depositAmount *big.Int, lockDuration uint64) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Register0(&_AWPRegistry.TransactOpts, recipient, depositAmount, lockDuration)
 }
 
 // Register0 is a paid mutator transaction binding the contract method 0x6d23f895.
 //
 // Solidity: function register(address recipient, uint256 depositAmount, uint64 lockDuration) returns()
-func (_RootNet *RootNetTransactorSession) Register0(recipient common.Address, depositAmount *big.Int, lockDuration uint64) (*types.Transaction, error) {
-	return _RootNet.Contract.Register0(&_RootNet.TransactOpts, recipient, depositAmount, lockDuration)
+func (_AWPRegistry *AWPRegistryTransactorSession) Register0(recipient common.Address, depositAmount *big.Int, lockDuration uint64) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Register0(&_AWPRegistry.TransactOpts, recipient, depositAmount, lockDuration)
 }
 
 // RegisterAndStake is a paid mutator transaction binding the contract method 0x34426564.
 //
 // Solidity: function registerAndStake(uint256 depositAmount, uint64 lockDuration, address agent, uint256 subnetId, uint256 allocateAmount) returns()
-func (_RootNet *RootNetTransactor) RegisterAndStake(opts *bind.TransactOpts, depositAmount *big.Int, lockDuration uint64, agent common.Address, subnetId *big.Int, allocateAmount *big.Int) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "registerAndStake", depositAmount, lockDuration, agent, subnetId, allocateAmount)
+func (_AWPRegistry *AWPRegistryTransactor) RegisterAndStake(opts *bind.TransactOpts, depositAmount *big.Int, lockDuration uint64, agent common.Address, subnetId *big.Int, allocateAmount *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "registerAndStake", depositAmount, lockDuration, agent, subnetId, allocateAmount)
 }
 
 // RegisterAndStake is a paid mutator transaction binding the contract method 0x34426564.
 //
 // Solidity: function registerAndStake(uint256 depositAmount, uint64 lockDuration, address agent, uint256 subnetId, uint256 allocateAmount) returns()
-func (_RootNet *RootNetSession) RegisterAndStake(depositAmount *big.Int, lockDuration uint64, agent common.Address, subnetId *big.Int, allocateAmount *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.RegisterAndStake(&_RootNet.TransactOpts, depositAmount, lockDuration, agent, subnetId, allocateAmount)
+func (_AWPRegistry *AWPRegistrySession) RegisterAndStake(depositAmount *big.Int, lockDuration uint64, agent common.Address, subnetId *big.Int, allocateAmount *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.RegisterAndStake(&_AWPRegistry.TransactOpts, depositAmount, lockDuration, agent, subnetId, allocateAmount)
 }
 
 // RegisterAndStake is a paid mutator transaction binding the contract method 0x34426564.
 //
 // Solidity: function registerAndStake(uint256 depositAmount, uint64 lockDuration, address agent, uint256 subnetId, uint256 allocateAmount) returns()
-func (_RootNet *RootNetTransactorSession) RegisterAndStake(depositAmount *big.Int, lockDuration uint64, agent common.Address, subnetId *big.Int, allocateAmount *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.RegisterAndStake(&_RootNet.TransactOpts, depositAmount, lockDuration, agent, subnetId, allocateAmount)
+func (_AWPRegistry *AWPRegistryTransactorSession) RegisterAndStake(depositAmount *big.Int, lockDuration uint64, agent common.Address, subnetId *big.Int, allocateAmount *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.RegisterAndStake(&_AWPRegistry.TransactOpts, depositAmount, lockDuration, agent, subnetId, allocateAmount)
 }
 
 // RegisterFor is a paid mutator transaction binding the contract method 0x671a2a8a.
 //
 // Solidity: function registerFor(address user, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetTransactor) RegisterFor(opts *bind.TransactOpts, user common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "registerFor", user, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistryTransactor) RegisterFor(opts *bind.TransactOpts, user common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "registerFor", user, deadline, v, r, s)
 }
 
 // RegisterFor is a paid mutator transaction binding the contract method 0x671a2a8a.
 //
 // Solidity: function registerFor(address user, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetSession) RegisterFor(user common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.RegisterFor(&_RootNet.TransactOpts, user, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistrySession) RegisterFor(user common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.RegisterFor(&_AWPRegistry.TransactOpts, user, deadline, v, r, s)
 }
 
 // RegisterFor is a paid mutator transaction binding the contract method 0x671a2a8a.
 //
 // Solidity: function registerFor(address user, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetTransactorSession) RegisterFor(user common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.RegisterFor(&_RootNet.TransactOpts, user, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistryTransactorSession) RegisterFor(user common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.RegisterFor(&_AWPRegistry.TransactOpts, user, deadline, v, r, s)
 }
 
 // RegisterSubnet is a paid mutator transaction binding the contract method 0x5f24898d.
 //
 // Solidity: function registerSubnet((string,string,address,bytes32,uint128,string) params) returns(uint256)
-func (_RootNet *RootNetTransactor) RegisterSubnet(opts *bind.TransactOpts, params IRootNetSubnetParams) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "registerSubnet", params)
+func (_AWPRegistry *AWPRegistryTransactor) RegisterSubnet(opts *bind.TransactOpts, params IAWPRegistrySubnetParams) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "registerSubnet", params)
 }
 
 // RegisterSubnet is a paid mutator transaction binding the contract method 0x5f24898d.
 //
 // Solidity: function registerSubnet((string,string,address,bytes32,uint128,string) params) returns(uint256)
-func (_RootNet *RootNetSession) RegisterSubnet(params IRootNetSubnetParams) (*types.Transaction, error) {
-	return _RootNet.Contract.RegisterSubnet(&_RootNet.TransactOpts, params)
+func (_AWPRegistry *AWPRegistrySession) RegisterSubnet(params IAWPRegistrySubnetParams) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.RegisterSubnet(&_AWPRegistry.TransactOpts, params)
 }
 
 // RegisterSubnet is a paid mutator transaction binding the contract method 0x5f24898d.
 //
 // Solidity: function registerSubnet((string,string,address,bytes32,uint128,string) params) returns(uint256)
-func (_RootNet *RootNetTransactorSession) RegisterSubnet(params IRootNetSubnetParams) (*types.Transaction, error) {
-	return _RootNet.Contract.RegisterSubnet(&_RootNet.TransactOpts, params)
+func (_AWPRegistry *AWPRegistryTransactorSession) RegisterSubnet(params IAWPRegistrySubnetParams) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.RegisterSubnet(&_AWPRegistry.TransactOpts, params)
 }
 
 // RegisterSubnetFor is a paid mutator transaction binding the contract method 0x1aa3ff5a.
 //
 // Solidity: function registerSubnetFor(address user, (string,string,address,bytes32,uint128,string) params, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns(uint256)
-func (_RootNet *RootNetTransactor) RegisterSubnetFor(opts *bind.TransactOpts, user common.Address, params IRootNetSubnetParams, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "registerSubnetFor", user, params, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistryTransactor) RegisterSubnetFor(opts *bind.TransactOpts, user common.Address, params IAWPRegistrySubnetParams, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "registerSubnetFor", user, params, deadline, v, r, s)
 }
 
 // RegisterSubnetFor is a paid mutator transaction binding the contract method 0x1aa3ff5a.
 //
 // Solidity: function registerSubnetFor(address user, (string,string,address,bytes32,uint128,string) params, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns(uint256)
-func (_RootNet *RootNetSession) RegisterSubnetFor(user common.Address, params IRootNetSubnetParams, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.RegisterSubnetFor(&_RootNet.TransactOpts, user, params, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistrySession) RegisterSubnetFor(user common.Address, params IAWPRegistrySubnetParams, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.RegisterSubnetFor(&_AWPRegistry.TransactOpts, user, params, deadline, v, r, s)
 }
 
 // RegisterSubnetFor is a paid mutator transaction binding the contract method 0x1aa3ff5a.
 //
 // Solidity: function registerSubnetFor(address user, (string,string,address,bytes32,uint128,string) params, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns(uint256)
-func (_RootNet *RootNetTransactorSession) RegisterSubnetFor(user common.Address, params IRootNetSubnetParams, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.RegisterSubnetFor(&_RootNet.TransactOpts, user, params, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistryTransactorSession) RegisterSubnetFor(user common.Address, params IAWPRegistrySubnetParams, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.RegisterSubnetFor(&_AWPRegistry.TransactOpts, user, params, deadline, v, r, s)
 }
 
 // RegisterSubnetForWithPermit is a paid mutator transaction binding the contract method 0xedf12231.
 //
 // Solidity: function registerSubnetForWithPermit(address user, (string,string,address,bytes32,uint128,string) params, uint256 deadline, uint8 permitV, bytes32 permitR, bytes32 permitS, uint8 registerV, bytes32 registerR, bytes32 registerS) returns(uint256)
-func (_RootNet *RootNetTransactor) RegisterSubnetForWithPermit(opts *bind.TransactOpts, user common.Address, params IRootNetSubnetParams, deadline *big.Int, permitV uint8, permitR [32]byte, permitS [32]byte, registerV uint8, registerR [32]byte, registerS [32]byte) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "registerSubnetForWithPermit", user, params, deadline, permitV, permitR, permitS, registerV, registerR, registerS)
+func (_AWPRegistry *AWPRegistryTransactor) RegisterSubnetForWithPermit(opts *bind.TransactOpts, user common.Address, params IAWPRegistrySubnetParams, deadline *big.Int, permitV uint8, permitR [32]byte, permitS [32]byte, registerV uint8, registerR [32]byte, registerS [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "registerSubnetForWithPermit", user, params, deadline, permitV, permitR, permitS, registerV, registerR, registerS)
 }
 
 // RegisterSubnetForWithPermit is a paid mutator transaction binding the contract method 0xedf12231.
 //
 // Solidity: function registerSubnetForWithPermit(address user, (string,string,address,bytes32,uint128,string) params, uint256 deadline, uint8 permitV, bytes32 permitR, bytes32 permitS, uint8 registerV, bytes32 registerR, bytes32 registerS) returns(uint256)
-func (_RootNet *RootNetSession) RegisterSubnetForWithPermit(user common.Address, params IRootNetSubnetParams, deadline *big.Int, permitV uint8, permitR [32]byte, permitS [32]byte, registerV uint8, registerR [32]byte, registerS [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.RegisterSubnetForWithPermit(&_RootNet.TransactOpts, user, params, deadline, permitV, permitR, permitS, registerV, registerR, registerS)
+func (_AWPRegistry *AWPRegistrySession) RegisterSubnetForWithPermit(user common.Address, params IAWPRegistrySubnetParams, deadline *big.Int, permitV uint8, permitR [32]byte, permitS [32]byte, registerV uint8, registerR [32]byte, registerS [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.RegisterSubnetForWithPermit(&_AWPRegistry.TransactOpts, user, params, deadline, permitV, permitR, permitS, registerV, registerR, registerS)
 }
 
 // RegisterSubnetForWithPermit is a paid mutator transaction binding the contract method 0xedf12231.
 //
 // Solidity: function registerSubnetForWithPermit(address user, (string,string,address,bytes32,uint128,string) params, uint256 deadline, uint8 permitV, bytes32 permitR, bytes32 permitS, uint8 registerV, bytes32 registerR, bytes32 registerS) returns(uint256)
-func (_RootNet *RootNetTransactorSession) RegisterSubnetForWithPermit(user common.Address, params IRootNetSubnetParams, deadline *big.Int, permitV uint8, permitR [32]byte, permitS [32]byte, registerV uint8, registerR [32]byte, registerS [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.RegisterSubnetForWithPermit(&_RootNet.TransactOpts, user, params, deadline, permitV, permitR, permitS, registerV, registerR, registerS)
+func (_AWPRegistry *AWPRegistryTransactorSession) RegisterSubnetForWithPermit(user common.Address, params IAWPRegistrySubnetParams, deadline *big.Int, permitV uint8, permitR [32]byte, permitS [32]byte, registerV uint8, registerR [32]byte, registerS [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.RegisterSubnetForWithPermit(&_AWPRegistry.TransactOpts, user, params, deadline, permitV, permitR, permitS, registerV, registerR, registerS)
 }
 
 // RemoveAgent is a paid mutator transaction binding the contract method 0x97a6278e.
 //
 // Solidity: function removeAgent(address agent) returns()
-func (_RootNet *RootNetTransactor) RemoveAgent(opts *bind.TransactOpts, agent common.Address) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "removeAgent", agent)
+func (_AWPRegistry *AWPRegistryTransactor) RemoveAgent(opts *bind.TransactOpts, agent common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "removeAgent", agent)
 }
 
 // RemoveAgent is a paid mutator transaction binding the contract method 0x97a6278e.
 //
 // Solidity: function removeAgent(address agent) returns()
-func (_RootNet *RootNetSession) RemoveAgent(agent common.Address) (*types.Transaction, error) {
-	return _RootNet.Contract.RemoveAgent(&_RootNet.TransactOpts, agent)
+func (_AWPRegistry *AWPRegistrySession) RemoveAgent(agent common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.RemoveAgent(&_AWPRegistry.TransactOpts, agent)
 }
 
 // RemoveAgent is a paid mutator transaction binding the contract method 0x97a6278e.
 //
 // Solidity: function removeAgent(address agent) returns()
-func (_RootNet *RootNetTransactorSession) RemoveAgent(agent common.Address) (*types.Transaction, error) {
-	return _RootNet.Contract.RemoveAgent(&_RootNet.TransactOpts, agent)
+func (_AWPRegistry *AWPRegistryTransactorSession) RemoveAgent(agent common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.RemoveAgent(&_AWPRegistry.TransactOpts, agent)
 }
 
 // ResumeSubnet is a paid mutator transaction binding the contract method 0x5364944c.
 //
 // Solidity: function resumeSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetTransactor) ResumeSubnet(opts *bind.TransactOpts, subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "resumeSubnet", subnetId)
+func (_AWPRegistry *AWPRegistryTransactor) ResumeSubnet(opts *bind.TransactOpts, subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "resumeSubnet", subnetId)
 }
 
 // ResumeSubnet is a paid mutator transaction binding the contract method 0x5364944c.
 //
 // Solidity: function resumeSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetSession) ResumeSubnet(subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.ResumeSubnet(&_RootNet.TransactOpts, subnetId)
+func (_AWPRegistry *AWPRegistrySession) ResumeSubnet(subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.ResumeSubnet(&_AWPRegistry.TransactOpts, subnetId)
 }
 
 // ResumeSubnet is a paid mutator transaction binding the contract method 0x5364944c.
 //
 // Solidity: function resumeSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetTransactorSession) ResumeSubnet(subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.ResumeSubnet(&_RootNet.TransactOpts, subnetId)
+func (_AWPRegistry *AWPRegistryTransactorSession) ResumeSubnet(subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.ResumeSubnet(&_AWPRegistry.TransactOpts, subnetId)
 }
 
 // SetAlphaTokenFactory is a paid mutator transaction binding the contract method 0x901a71e4.
 //
 // Solidity: function setAlphaTokenFactory(address factory) returns()
-func (_RootNet *RootNetTransactor) SetAlphaTokenFactory(opts *bind.TransactOpts, factory common.Address) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "setAlphaTokenFactory", factory)
+func (_AWPRegistry *AWPRegistryTransactor) SetAlphaTokenFactory(opts *bind.TransactOpts, factory common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "setAlphaTokenFactory", factory)
 }
 
 // SetAlphaTokenFactory is a paid mutator transaction binding the contract method 0x901a71e4.
 //
 // Solidity: function setAlphaTokenFactory(address factory) returns()
-func (_RootNet *RootNetSession) SetAlphaTokenFactory(factory common.Address) (*types.Transaction, error) {
-	return _RootNet.Contract.SetAlphaTokenFactory(&_RootNet.TransactOpts, factory)
+func (_AWPRegistry *AWPRegistrySession) SetAlphaTokenFactory(factory common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetAlphaTokenFactory(&_AWPRegistry.TransactOpts, factory)
 }
 
 // SetAlphaTokenFactory is a paid mutator transaction binding the contract method 0x901a71e4.
 //
 // Solidity: function setAlphaTokenFactory(address factory) returns()
-func (_RootNet *RootNetTransactorSession) SetAlphaTokenFactory(factory common.Address) (*types.Transaction, error) {
-	return _RootNet.Contract.SetAlphaTokenFactory(&_RootNet.TransactOpts, factory)
+func (_AWPRegistry *AWPRegistryTransactorSession) SetAlphaTokenFactory(factory common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetAlphaTokenFactory(&_AWPRegistry.TransactOpts, factory)
 }
 
 // SetDelegation is a paid mutator transaction binding the contract method 0x1ddc304a.
 //
 // Solidity: function setDelegation(address agent, bool _isManager) returns()
-func (_RootNet *RootNetTransactor) SetDelegation(opts *bind.TransactOpts, agent common.Address, _isManager bool) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "setDelegation", agent, _isManager)
+func (_AWPRegistry *AWPRegistryTransactor) SetDelegation(opts *bind.TransactOpts, agent common.Address, _isManager bool) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "setDelegation", agent, _isManager)
 }
 
 // SetDelegation is a paid mutator transaction binding the contract method 0x1ddc304a.
 //
 // Solidity: function setDelegation(address agent, bool _isManager) returns()
-func (_RootNet *RootNetSession) SetDelegation(agent common.Address, _isManager bool) (*types.Transaction, error) {
-	return _RootNet.Contract.SetDelegation(&_RootNet.TransactOpts, agent, _isManager)
+func (_AWPRegistry *AWPRegistrySession) SetDelegation(agent common.Address, _isManager bool) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetDelegation(&_AWPRegistry.TransactOpts, agent, _isManager)
 }
 
 // SetDelegation is a paid mutator transaction binding the contract method 0x1ddc304a.
 //
 // Solidity: function setDelegation(address agent, bool _isManager) returns()
-func (_RootNet *RootNetTransactorSession) SetDelegation(agent common.Address, _isManager bool) (*types.Transaction, error) {
-	return _RootNet.Contract.SetDelegation(&_RootNet.TransactOpts, agent, _isManager)
+func (_AWPRegistry *AWPRegistryTransactorSession) SetDelegation(agent common.Address, _isManager bool) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetDelegation(&_AWPRegistry.TransactOpts, agent, _isManager)
+}
+
+// SetDexConfig is a paid mutator transaction binding the contract method 0x042fce70.
+//
+// Solidity: function setDexConfig(bytes dexConfig_) returns()
+func (_AWPRegistry *AWPRegistryTransactor) SetDexConfig(opts *bind.TransactOpts, dexConfig_ []byte) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "setDexConfig", dexConfig_)
+}
+
+// SetDexConfig is a paid mutator transaction binding the contract method 0x042fce70.
+//
+// Solidity: function setDexConfig(bytes dexConfig_) returns()
+func (_AWPRegistry *AWPRegistrySession) SetDexConfig(dexConfig_ []byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetDexConfig(&_AWPRegistry.TransactOpts, dexConfig_)
+}
+
+// SetDexConfig is a paid mutator transaction binding the contract method 0x042fce70.
+//
+// Solidity: function setDexConfig(bytes dexConfig_) returns()
+func (_AWPRegistry *AWPRegistryTransactorSession) SetDexConfig(dexConfig_ []byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetDexConfig(&_AWPRegistry.TransactOpts, dexConfig_)
 }
 
 // SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
 //
 // Solidity: function setGuardian(address g) returns()
-func (_RootNet *RootNetTransactor) SetGuardian(opts *bind.TransactOpts, g common.Address) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "setGuardian", g)
+func (_AWPRegistry *AWPRegistryTransactor) SetGuardian(opts *bind.TransactOpts, g common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "setGuardian", g)
 }
 
 // SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
 //
 // Solidity: function setGuardian(address g) returns()
-func (_RootNet *RootNetSession) SetGuardian(g common.Address) (*types.Transaction, error) {
-	return _RootNet.Contract.SetGuardian(&_RootNet.TransactOpts, g)
+func (_AWPRegistry *AWPRegistrySession) SetGuardian(g common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetGuardian(&_AWPRegistry.TransactOpts, g)
 }
 
 // SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
 //
 // Solidity: function setGuardian(address g) returns()
-func (_RootNet *RootNetTransactorSession) SetGuardian(g common.Address) (*types.Transaction, error) {
-	return _RootNet.Contract.SetGuardian(&_RootNet.TransactOpts, g)
+func (_AWPRegistry *AWPRegistryTransactorSession) SetGuardian(g common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetGuardian(&_AWPRegistry.TransactOpts, g)
 }
 
 // SetImmunityPeriod is a paid mutator transaction binding the contract method 0x33bbf030.
 //
 // Solidity: function setImmunityPeriod(uint256 p) returns()
-func (_RootNet *RootNetTransactor) SetImmunityPeriod(opts *bind.TransactOpts, p *big.Int) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "setImmunityPeriod", p)
+func (_AWPRegistry *AWPRegistryTransactor) SetImmunityPeriod(opts *bind.TransactOpts, p *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "setImmunityPeriod", p)
 }
 
 // SetImmunityPeriod is a paid mutator transaction binding the contract method 0x33bbf030.
 //
 // Solidity: function setImmunityPeriod(uint256 p) returns()
-func (_RootNet *RootNetSession) SetImmunityPeriod(p *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.SetImmunityPeriod(&_RootNet.TransactOpts, p)
+func (_AWPRegistry *AWPRegistrySession) SetImmunityPeriod(p *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetImmunityPeriod(&_AWPRegistry.TransactOpts, p)
 }
 
 // SetImmunityPeriod is a paid mutator transaction binding the contract method 0x33bbf030.
 //
 // Solidity: function setImmunityPeriod(uint256 p) returns()
-func (_RootNet *RootNetTransactorSession) SetImmunityPeriod(p *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.SetImmunityPeriod(&_RootNet.TransactOpts, p)
+func (_AWPRegistry *AWPRegistryTransactorSession) SetImmunityPeriod(p *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetImmunityPeriod(&_AWPRegistry.TransactOpts, p)
 }
 
 // SetInitialAlphaPrice is a paid mutator transaction binding the contract method 0xe7d89b71.
 //
 // Solidity: function setInitialAlphaPrice(uint256 price) returns()
-func (_RootNet *RootNetTransactor) SetInitialAlphaPrice(opts *bind.TransactOpts, price *big.Int) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "setInitialAlphaPrice", price)
+func (_AWPRegistry *AWPRegistryTransactor) SetInitialAlphaPrice(opts *bind.TransactOpts, price *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "setInitialAlphaPrice", price)
 }
 
 // SetInitialAlphaPrice is a paid mutator transaction binding the contract method 0xe7d89b71.
 //
 // Solidity: function setInitialAlphaPrice(uint256 price) returns()
-func (_RootNet *RootNetSession) SetInitialAlphaPrice(price *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.SetInitialAlphaPrice(&_RootNet.TransactOpts, price)
+func (_AWPRegistry *AWPRegistrySession) SetInitialAlphaPrice(price *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetInitialAlphaPrice(&_AWPRegistry.TransactOpts, price)
 }
 
 // SetInitialAlphaPrice is a paid mutator transaction binding the contract method 0xe7d89b71.
 //
 // Solidity: function setInitialAlphaPrice(uint256 price) returns()
-func (_RootNet *RootNetTransactorSession) SetInitialAlphaPrice(price *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.SetInitialAlphaPrice(&_RootNet.TransactOpts, price)
+func (_AWPRegistry *AWPRegistryTransactorSession) SetInitialAlphaPrice(price *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetInitialAlphaPrice(&_AWPRegistry.TransactOpts, price)
 }
 
 // SetRewardRecipient is a paid mutator transaction binding the contract method 0xe521136f.
 //
 // Solidity: function setRewardRecipient(address recipient) returns()
-func (_RootNet *RootNetTransactor) SetRewardRecipient(opts *bind.TransactOpts, recipient common.Address) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "setRewardRecipient", recipient)
+func (_AWPRegistry *AWPRegistryTransactor) SetRewardRecipient(opts *bind.TransactOpts, recipient common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "setRewardRecipient", recipient)
 }
 
 // SetRewardRecipient is a paid mutator transaction binding the contract method 0xe521136f.
 //
 // Solidity: function setRewardRecipient(address recipient) returns()
-func (_RootNet *RootNetSession) SetRewardRecipient(recipient common.Address) (*types.Transaction, error) {
-	return _RootNet.Contract.SetRewardRecipient(&_RootNet.TransactOpts, recipient)
+func (_AWPRegistry *AWPRegistrySession) SetRewardRecipient(recipient common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetRewardRecipient(&_AWPRegistry.TransactOpts, recipient)
 }
 
 // SetRewardRecipient is a paid mutator transaction binding the contract method 0xe521136f.
 //
 // Solidity: function setRewardRecipient(address recipient) returns()
-func (_RootNet *RootNetTransactorSession) SetRewardRecipient(recipient common.Address) (*types.Transaction, error) {
-	return _RootNet.Contract.SetRewardRecipient(&_RootNet.TransactOpts, recipient)
+func (_AWPRegistry *AWPRegistryTransactorSession) SetRewardRecipient(recipient common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetRewardRecipient(&_AWPRegistry.TransactOpts, recipient)
 }
 
 // SetRewardRecipientFor is a paid mutator transaction binding the contract method 0xce1297db.
 //
 // Solidity: function setRewardRecipientFor(address user, address recipient, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetTransactor) SetRewardRecipientFor(opts *bind.TransactOpts, user common.Address, recipient common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "setRewardRecipientFor", user, recipient, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistryTransactor) SetRewardRecipientFor(opts *bind.TransactOpts, user common.Address, recipient common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "setRewardRecipientFor", user, recipient, deadline, v, r, s)
 }
 
 // SetRewardRecipientFor is a paid mutator transaction binding the contract method 0xce1297db.
 //
 // Solidity: function setRewardRecipientFor(address user, address recipient, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetSession) SetRewardRecipientFor(user common.Address, recipient common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.SetRewardRecipientFor(&_RootNet.TransactOpts, user, recipient, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistrySession) SetRewardRecipientFor(user common.Address, recipient common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetRewardRecipientFor(&_AWPRegistry.TransactOpts, user, recipient, deadline, v, r, s)
 }
 
 // SetRewardRecipientFor is a paid mutator transaction binding the contract method 0xce1297db.
 //
 // Solidity: function setRewardRecipientFor(address user, address recipient, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_RootNet *RootNetTransactorSession) SetRewardRecipientFor(user common.Address, recipient common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _RootNet.Contract.SetRewardRecipientFor(&_RootNet.TransactOpts, user, recipient, deadline, v, r, s)
+func (_AWPRegistry *AWPRegistryTransactorSession) SetRewardRecipientFor(user common.Address, recipient common.Address, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetRewardRecipientFor(&_AWPRegistry.TransactOpts, user, recipient, deadline, v, r, s)
 }
 
 // SetSubnetManagerImpl is a paid mutator transaction binding the contract method 0xe7c17212.
 //
 // Solidity: function setSubnetManagerImpl(address impl) returns()
-func (_RootNet *RootNetTransactor) SetSubnetManagerImpl(opts *bind.TransactOpts, impl common.Address) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "setSubnetManagerImpl", impl)
+func (_AWPRegistry *AWPRegistryTransactor) SetSubnetManagerImpl(opts *bind.TransactOpts, impl common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "setSubnetManagerImpl", impl)
 }
 
 // SetSubnetManagerImpl is a paid mutator transaction binding the contract method 0xe7c17212.
 //
 // Solidity: function setSubnetManagerImpl(address impl) returns()
-func (_RootNet *RootNetSession) SetSubnetManagerImpl(impl common.Address) (*types.Transaction, error) {
-	return _RootNet.Contract.SetSubnetManagerImpl(&_RootNet.TransactOpts, impl)
+func (_AWPRegistry *AWPRegistrySession) SetSubnetManagerImpl(impl common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetSubnetManagerImpl(&_AWPRegistry.TransactOpts, impl)
 }
 
 // SetSubnetManagerImpl is a paid mutator transaction binding the contract method 0xe7c17212.
 //
 // Solidity: function setSubnetManagerImpl(address impl) returns()
-func (_RootNet *RootNetTransactorSession) SetSubnetManagerImpl(impl common.Address) (*types.Transaction, error) {
-	return _RootNet.Contract.SetSubnetManagerImpl(&_RootNet.TransactOpts, impl)
+func (_AWPRegistry *AWPRegistryTransactorSession) SetSubnetManagerImpl(impl common.Address) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.SetSubnetManagerImpl(&_AWPRegistry.TransactOpts, impl)
 }
 
 // UnbanSubnet is a paid mutator transaction binding the contract method 0x2bf1c05d.
 //
 // Solidity: function unbanSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetTransactor) UnbanSubnet(opts *bind.TransactOpts, subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "unbanSubnet", subnetId)
+func (_AWPRegistry *AWPRegistryTransactor) UnbanSubnet(opts *bind.TransactOpts, subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "unbanSubnet", subnetId)
 }
 
 // UnbanSubnet is a paid mutator transaction binding the contract method 0x2bf1c05d.
 //
 // Solidity: function unbanSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetSession) UnbanSubnet(subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.UnbanSubnet(&_RootNet.TransactOpts, subnetId)
+func (_AWPRegistry *AWPRegistrySession) UnbanSubnet(subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.UnbanSubnet(&_AWPRegistry.TransactOpts, subnetId)
 }
 
 // UnbanSubnet is a paid mutator transaction binding the contract method 0x2bf1c05d.
 //
 // Solidity: function unbanSubnet(uint256 subnetId) returns()
-func (_RootNet *RootNetTransactorSession) UnbanSubnet(subnetId *big.Int) (*types.Transaction, error) {
-	return _RootNet.Contract.UnbanSubnet(&_RootNet.TransactOpts, subnetId)
+func (_AWPRegistry *AWPRegistryTransactorSession) UnbanSubnet(subnetId *big.Int) (*types.Transaction, error) {
+	return _AWPRegistry.Contract.UnbanSubnet(&_AWPRegistry.TransactOpts, subnetId)
 }
 
 // Unbind is a paid mutator transaction binding the contract method 0xb6b25742.
 //
 // Solidity: function unbind() returns()
-func (_RootNet *RootNetTransactor) Unbind(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "unbind")
+func (_AWPRegistry *AWPRegistryTransactor) Unbind(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "unbind")
 }
 
 // Unbind is a paid mutator transaction binding the contract method 0xb6b25742.
 //
 // Solidity: function unbind() returns()
-func (_RootNet *RootNetSession) Unbind() (*types.Transaction, error) {
-	return _RootNet.Contract.Unbind(&_RootNet.TransactOpts)
+func (_AWPRegistry *AWPRegistrySession) Unbind() (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Unbind(&_AWPRegistry.TransactOpts)
 }
 
 // Unbind is a paid mutator transaction binding the contract method 0xb6b25742.
 //
 // Solidity: function unbind() returns()
-func (_RootNet *RootNetTransactorSession) Unbind() (*types.Transaction, error) {
-	return _RootNet.Contract.Unbind(&_RootNet.TransactOpts)
+func (_AWPRegistry *AWPRegistryTransactorSession) Unbind() (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Unbind(&_AWPRegistry.TransactOpts)
 }
 
 // Unpause is a paid mutator transaction binding the contract method 0x3f4ba83a.
 //
 // Solidity: function unpause() returns()
-func (_RootNet *RootNetTransactor) Unpause(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _RootNet.contract.Transact(opts, "unpause")
+func (_AWPRegistry *AWPRegistryTransactor) Unpause(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _AWPRegistry.contract.Transact(opts, "unpause")
 }
 
 // Unpause is a paid mutator transaction binding the contract method 0x3f4ba83a.
 //
 // Solidity: function unpause() returns()
-func (_RootNet *RootNetSession) Unpause() (*types.Transaction, error) {
-	return _RootNet.Contract.Unpause(&_RootNet.TransactOpts)
+func (_AWPRegistry *AWPRegistrySession) Unpause() (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Unpause(&_AWPRegistry.TransactOpts)
 }
 
 // Unpause is a paid mutator transaction binding the contract method 0x3f4ba83a.
 //
 // Solidity: function unpause() returns()
-func (_RootNet *RootNetTransactorSession) Unpause() (*types.Transaction, error) {
-	return _RootNet.Contract.Unpause(&_RootNet.TransactOpts)
+func (_AWPRegistry *AWPRegistryTransactorSession) Unpause() (*types.Transaction, error) {
+	return _AWPRegistry.Contract.Unpause(&_AWPRegistry.TransactOpts)
 }
 
-// RootNetAgentBoundIterator is returned from FilterAgentBound and is used to iterate over the raw logs and unpacked data for AgentBound events raised by the RootNet contract.
-type RootNetAgentBoundIterator struct {
-	Event *RootNetAgentBound // Event containing the contract specifics and raw log
+// AWPRegistryAgentBoundIterator is returned from FilterAgentBound and is used to iterate over the raw logs and unpacked data for AgentBound events raised by the AWPRegistry contract.
+type AWPRegistryAgentBoundIterator struct {
+	Event *AWPRegistryAgentBound // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -1921,7 +1973,7 @@ type RootNetAgentBoundIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetAgentBoundIterator) Next() bool {
+func (it *AWPRegistryAgentBoundIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -1930,7 +1982,7 @@ func (it *RootNetAgentBoundIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetAgentBound)
+			it.Event = new(AWPRegistryAgentBound)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -1945,7 +1997,7 @@ func (it *RootNetAgentBoundIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetAgentBound)
+		it.Event = new(AWPRegistryAgentBound)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -1961,19 +2013,19 @@ func (it *RootNetAgentBoundIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetAgentBoundIterator) Error() error {
+func (it *AWPRegistryAgentBoundIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetAgentBoundIterator) Close() error {
+func (it *AWPRegistryAgentBoundIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetAgentBound represents a AgentBound event raised by the RootNet contract.
-type RootNetAgentBound struct {
+// AWPRegistryAgentBound represents a AgentBound event raised by the AWPRegistry contract.
+type AWPRegistryAgentBound struct {
 	Principal    common.Address
 	Agent        common.Address
 	OldPrincipal common.Address
@@ -1983,7 +2035,7 @@ type RootNetAgentBound struct {
 // FilterAgentBound is a free log retrieval operation binding the contract event 0x4ee4aa1bbc31e8b57dad2c2cffa4627ad65ac133b3cea2acb4870c44b5ea6b17.
 //
 // Solidity: event AgentBound(address indexed principal, address indexed agent, address oldPrincipal)
-func (_RootNet *RootNetFilterer) FilterAgentBound(opts *bind.FilterOpts, principal []common.Address, agent []common.Address) (*RootNetAgentBoundIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterAgentBound(opts *bind.FilterOpts, principal []common.Address, agent []common.Address) (*AWPRegistryAgentBoundIterator, error) {
 
 	var principalRule []interface{}
 	for _, principalItem := range principal {
@@ -1994,17 +2046,17 @@ func (_RootNet *RootNetFilterer) FilterAgentBound(opts *bind.FilterOpts, princip
 		agentRule = append(agentRule, agentItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "AgentBound", principalRule, agentRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "AgentBound", principalRule, agentRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetAgentBoundIterator{contract: _RootNet.contract, event: "AgentBound", logs: logs, sub: sub}, nil
+	return &AWPRegistryAgentBoundIterator{contract: _AWPRegistry.contract, event: "AgentBound", logs: logs, sub: sub}, nil
 }
 
 // WatchAgentBound is a free log subscription operation binding the contract event 0x4ee4aa1bbc31e8b57dad2c2cffa4627ad65ac133b3cea2acb4870c44b5ea6b17.
 //
 // Solidity: event AgentBound(address indexed principal, address indexed agent, address oldPrincipal)
-func (_RootNet *RootNetFilterer) WatchAgentBound(opts *bind.WatchOpts, sink chan<- *RootNetAgentBound, principal []common.Address, agent []common.Address) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchAgentBound(opts *bind.WatchOpts, sink chan<- *AWPRegistryAgentBound, principal []common.Address, agent []common.Address) (event.Subscription, error) {
 
 	var principalRule []interface{}
 	for _, principalItem := range principal {
@@ -2015,7 +2067,7 @@ func (_RootNet *RootNetFilterer) WatchAgentBound(opts *bind.WatchOpts, sink chan
 		agentRule = append(agentRule, agentItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "AgentBound", principalRule, agentRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "AgentBound", principalRule, agentRule)
 	if err != nil {
 		return nil, err
 	}
@@ -2025,8 +2077,8 @@ func (_RootNet *RootNetFilterer) WatchAgentBound(opts *bind.WatchOpts, sink chan
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetAgentBound)
-				if err := _RootNet.contract.UnpackLog(event, "AgentBound", log); err != nil {
+				event := new(AWPRegistryAgentBound)
+				if err := _AWPRegistry.contract.UnpackLog(event, "AgentBound", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -2050,18 +2102,18 @@ func (_RootNet *RootNetFilterer) WatchAgentBound(opts *bind.WatchOpts, sink chan
 // ParseAgentBound is a log parse operation binding the contract event 0x4ee4aa1bbc31e8b57dad2c2cffa4627ad65ac133b3cea2acb4870c44b5ea6b17.
 //
 // Solidity: event AgentBound(address indexed principal, address indexed agent, address oldPrincipal)
-func (_RootNet *RootNetFilterer) ParseAgentBound(log types.Log) (*RootNetAgentBound, error) {
-	event := new(RootNetAgentBound)
-	if err := _RootNet.contract.UnpackLog(event, "AgentBound", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseAgentBound(log types.Log) (*AWPRegistryAgentBound, error) {
+	event := new(AWPRegistryAgentBound)
+	if err := _AWPRegistry.contract.UnpackLog(event, "AgentBound", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetAgentRemovedIterator is returned from FilterAgentRemoved and is used to iterate over the raw logs and unpacked data for AgentRemoved events raised by the RootNet contract.
-type RootNetAgentRemovedIterator struct {
-	Event *RootNetAgentRemoved // Event containing the contract specifics and raw log
+// AWPRegistryAgentRemovedIterator is returned from FilterAgentRemoved and is used to iterate over the raw logs and unpacked data for AgentRemoved events raised by the AWPRegistry contract.
+type AWPRegistryAgentRemovedIterator struct {
+	Event *AWPRegistryAgentRemoved // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -2075,7 +2127,7 @@ type RootNetAgentRemovedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetAgentRemovedIterator) Next() bool {
+func (it *AWPRegistryAgentRemovedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -2084,7 +2136,7 @@ func (it *RootNetAgentRemovedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetAgentRemoved)
+			it.Event = new(AWPRegistryAgentRemoved)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -2099,7 +2151,7 @@ func (it *RootNetAgentRemovedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetAgentRemoved)
+		it.Event = new(AWPRegistryAgentRemoved)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -2115,19 +2167,19 @@ func (it *RootNetAgentRemovedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetAgentRemovedIterator) Error() error {
+func (it *AWPRegistryAgentRemovedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetAgentRemovedIterator) Close() error {
+func (it *AWPRegistryAgentRemovedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetAgentRemoved represents a AgentRemoved event raised by the RootNet contract.
-type RootNetAgentRemoved struct {
+// AWPRegistryAgentRemoved represents a AgentRemoved event raised by the AWPRegistry contract.
+type AWPRegistryAgentRemoved struct {
 	User     common.Address
 	Agent    common.Address
 	Operator common.Address
@@ -2137,7 +2189,7 @@ type RootNetAgentRemoved struct {
 // FilterAgentRemoved is a free log retrieval operation binding the contract event 0x877ef5b4e3b78ab10b445521d0724510a2c3e98f0812879447b7e08785ca866e.
 //
 // Solidity: event AgentRemoved(address indexed user, address indexed agent, address operator)
-func (_RootNet *RootNetFilterer) FilterAgentRemoved(opts *bind.FilterOpts, user []common.Address, agent []common.Address) (*RootNetAgentRemovedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterAgentRemoved(opts *bind.FilterOpts, user []common.Address, agent []common.Address) (*AWPRegistryAgentRemovedIterator, error) {
 
 	var userRule []interface{}
 	for _, userItem := range user {
@@ -2148,17 +2200,17 @@ func (_RootNet *RootNetFilterer) FilterAgentRemoved(opts *bind.FilterOpts, user 
 		agentRule = append(agentRule, agentItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "AgentRemoved", userRule, agentRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "AgentRemoved", userRule, agentRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetAgentRemovedIterator{contract: _RootNet.contract, event: "AgentRemoved", logs: logs, sub: sub}, nil
+	return &AWPRegistryAgentRemovedIterator{contract: _AWPRegistry.contract, event: "AgentRemoved", logs: logs, sub: sub}, nil
 }
 
 // WatchAgentRemoved is a free log subscription operation binding the contract event 0x877ef5b4e3b78ab10b445521d0724510a2c3e98f0812879447b7e08785ca866e.
 //
 // Solidity: event AgentRemoved(address indexed user, address indexed agent, address operator)
-func (_RootNet *RootNetFilterer) WatchAgentRemoved(opts *bind.WatchOpts, sink chan<- *RootNetAgentRemoved, user []common.Address, agent []common.Address) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchAgentRemoved(opts *bind.WatchOpts, sink chan<- *AWPRegistryAgentRemoved, user []common.Address, agent []common.Address) (event.Subscription, error) {
 
 	var userRule []interface{}
 	for _, userItem := range user {
@@ -2169,7 +2221,7 @@ func (_RootNet *RootNetFilterer) WatchAgentRemoved(opts *bind.WatchOpts, sink ch
 		agentRule = append(agentRule, agentItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "AgentRemoved", userRule, agentRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "AgentRemoved", userRule, agentRule)
 	if err != nil {
 		return nil, err
 	}
@@ -2179,8 +2231,8 @@ func (_RootNet *RootNetFilterer) WatchAgentRemoved(opts *bind.WatchOpts, sink ch
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetAgentRemoved)
-				if err := _RootNet.contract.UnpackLog(event, "AgentRemoved", log); err != nil {
+				event := new(AWPRegistryAgentRemoved)
+				if err := _AWPRegistry.contract.UnpackLog(event, "AgentRemoved", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -2204,18 +2256,18 @@ func (_RootNet *RootNetFilterer) WatchAgentRemoved(opts *bind.WatchOpts, sink ch
 // ParseAgentRemoved is a log parse operation binding the contract event 0x877ef5b4e3b78ab10b445521d0724510a2c3e98f0812879447b7e08785ca866e.
 //
 // Solidity: event AgentRemoved(address indexed user, address indexed agent, address operator)
-func (_RootNet *RootNetFilterer) ParseAgentRemoved(log types.Log) (*RootNetAgentRemoved, error) {
-	event := new(RootNetAgentRemoved)
-	if err := _RootNet.contract.UnpackLog(event, "AgentRemoved", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseAgentRemoved(log types.Log) (*AWPRegistryAgentRemoved, error) {
+	event := new(AWPRegistryAgentRemoved)
+	if err := _AWPRegistry.contract.UnpackLog(event, "AgentRemoved", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetAgentUnboundIterator is returned from FilterAgentUnbound and is used to iterate over the raw logs and unpacked data for AgentUnbound events raised by the RootNet contract.
-type RootNetAgentUnboundIterator struct {
-	Event *RootNetAgentUnbound // Event containing the contract specifics and raw log
+// AWPRegistryAgentUnboundIterator is returned from FilterAgentUnbound and is used to iterate over the raw logs and unpacked data for AgentUnbound events raised by the AWPRegistry contract.
+type AWPRegistryAgentUnboundIterator struct {
+	Event *AWPRegistryAgentUnbound // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -2229,7 +2281,7 @@ type RootNetAgentUnboundIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetAgentUnboundIterator) Next() bool {
+func (it *AWPRegistryAgentUnboundIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -2238,7 +2290,7 @@ func (it *RootNetAgentUnboundIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetAgentUnbound)
+			it.Event = new(AWPRegistryAgentUnbound)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -2253,7 +2305,7 @@ func (it *RootNetAgentUnboundIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetAgentUnbound)
+		it.Event = new(AWPRegistryAgentUnbound)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -2269,19 +2321,19 @@ func (it *RootNetAgentUnboundIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetAgentUnboundIterator) Error() error {
+func (it *AWPRegistryAgentUnboundIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetAgentUnboundIterator) Close() error {
+func (it *AWPRegistryAgentUnboundIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetAgentUnbound represents a AgentUnbound event raised by the RootNet contract.
-type RootNetAgentUnbound struct {
+// AWPRegistryAgentUnbound represents a AgentUnbound event raised by the AWPRegistry contract.
+type AWPRegistryAgentUnbound struct {
 	Principal common.Address
 	Agent     common.Address
 	Raw       types.Log // Blockchain specific contextual infos
@@ -2290,7 +2342,7 @@ type RootNetAgentUnbound struct {
 // FilterAgentUnbound is a free log retrieval operation binding the contract event 0x3e2d9d696fa5ddd5b13727a43861bb914938ca9d534d942f5c33725656c469b1.
 //
 // Solidity: event AgentUnbound(address indexed principal, address indexed agent)
-func (_RootNet *RootNetFilterer) FilterAgentUnbound(opts *bind.FilterOpts, principal []common.Address, agent []common.Address) (*RootNetAgentUnboundIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterAgentUnbound(opts *bind.FilterOpts, principal []common.Address, agent []common.Address) (*AWPRegistryAgentUnboundIterator, error) {
 
 	var principalRule []interface{}
 	for _, principalItem := range principal {
@@ -2301,17 +2353,17 @@ func (_RootNet *RootNetFilterer) FilterAgentUnbound(opts *bind.FilterOpts, princ
 		agentRule = append(agentRule, agentItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "AgentUnbound", principalRule, agentRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "AgentUnbound", principalRule, agentRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetAgentUnboundIterator{contract: _RootNet.contract, event: "AgentUnbound", logs: logs, sub: sub}, nil
+	return &AWPRegistryAgentUnboundIterator{contract: _AWPRegistry.contract, event: "AgentUnbound", logs: logs, sub: sub}, nil
 }
 
 // WatchAgentUnbound is a free log subscription operation binding the contract event 0x3e2d9d696fa5ddd5b13727a43861bb914938ca9d534d942f5c33725656c469b1.
 //
 // Solidity: event AgentUnbound(address indexed principal, address indexed agent)
-func (_RootNet *RootNetFilterer) WatchAgentUnbound(opts *bind.WatchOpts, sink chan<- *RootNetAgentUnbound, principal []common.Address, agent []common.Address) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchAgentUnbound(opts *bind.WatchOpts, sink chan<- *AWPRegistryAgentUnbound, principal []common.Address, agent []common.Address) (event.Subscription, error) {
 
 	var principalRule []interface{}
 	for _, principalItem := range principal {
@@ -2322,7 +2374,7 @@ func (_RootNet *RootNetFilterer) WatchAgentUnbound(opts *bind.WatchOpts, sink ch
 		agentRule = append(agentRule, agentItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "AgentUnbound", principalRule, agentRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "AgentUnbound", principalRule, agentRule)
 	if err != nil {
 		return nil, err
 	}
@@ -2332,8 +2384,8 @@ func (_RootNet *RootNetFilterer) WatchAgentUnbound(opts *bind.WatchOpts, sink ch
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetAgentUnbound)
-				if err := _RootNet.contract.UnpackLog(event, "AgentUnbound", log); err != nil {
+				event := new(AWPRegistryAgentUnbound)
+				if err := _AWPRegistry.contract.UnpackLog(event, "AgentUnbound", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -2357,18 +2409,18 @@ func (_RootNet *RootNetFilterer) WatchAgentUnbound(opts *bind.WatchOpts, sink ch
 // ParseAgentUnbound is a log parse operation binding the contract event 0x3e2d9d696fa5ddd5b13727a43861bb914938ca9d534d942f5c33725656c469b1.
 //
 // Solidity: event AgentUnbound(address indexed principal, address indexed agent)
-func (_RootNet *RootNetFilterer) ParseAgentUnbound(log types.Log) (*RootNetAgentUnbound, error) {
-	event := new(RootNetAgentUnbound)
-	if err := _RootNet.contract.UnpackLog(event, "AgentUnbound", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseAgentUnbound(log types.Log) (*AWPRegistryAgentUnbound, error) {
+	event := new(AWPRegistryAgentUnbound)
+	if err := _AWPRegistry.contract.UnpackLog(event, "AgentUnbound", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetAllocatedIterator is returned from FilterAllocated and is used to iterate over the raw logs and unpacked data for Allocated events raised by the RootNet contract.
-type RootNetAllocatedIterator struct {
-	Event *RootNetAllocated // Event containing the contract specifics and raw log
+// AWPRegistryAllocatedIterator is returned from FilterAllocated and is used to iterate over the raw logs and unpacked data for Allocated events raised by the AWPRegistry contract.
+type AWPRegistryAllocatedIterator struct {
+	Event *AWPRegistryAllocated // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -2382,7 +2434,7 @@ type RootNetAllocatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetAllocatedIterator) Next() bool {
+func (it *AWPRegistryAllocatedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -2391,7 +2443,7 @@ func (it *RootNetAllocatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetAllocated)
+			it.Event = new(AWPRegistryAllocated)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -2406,7 +2458,7 @@ func (it *RootNetAllocatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetAllocated)
+		it.Event = new(AWPRegistryAllocated)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -2422,19 +2474,19 @@ func (it *RootNetAllocatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetAllocatedIterator) Error() error {
+func (it *AWPRegistryAllocatedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetAllocatedIterator) Close() error {
+func (it *AWPRegistryAllocatedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetAllocated represents a Allocated event raised by the RootNet contract.
-type RootNetAllocated struct {
+// AWPRegistryAllocated represents a Allocated event raised by the AWPRegistry contract.
+type AWPRegistryAllocated struct {
 	User     common.Address
 	Agent    common.Address
 	SubnetId *big.Int
@@ -2446,7 +2498,7 @@ type RootNetAllocated struct {
 // FilterAllocated is a free log retrieval operation binding the contract event 0x655f98c7dae1bab3e2db10cdb4407717b9d219cf2e585adc1edba92d48af2b15.
 //
 // Solidity: event Allocated(address indexed user, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator)
-func (_RootNet *RootNetFilterer) FilterAllocated(opts *bind.FilterOpts, user []common.Address, agent []common.Address, subnetId []*big.Int) (*RootNetAllocatedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterAllocated(opts *bind.FilterOpts, user []common.Address, agent []common.Address, subnetId []*big.Int) (*AWPRegistryAllocatedIterator, error) {
 
 	var userRule []interface{}
 	for _, userItem := range user {
@@ -2461,17 +2513,17 @@ func (_RootNet *RootNetFilterer) FilterAllocated(opts *bind.FilterOpts, user []c
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "Allocated", userRule, agentRule, subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "Allocated", userRule, agentRule, subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetAllocatedIterator{contract: _RootNet.contract, event: "Allocated", logs: logs, sub: sub}, nil
+	return &AWPRegistryAllocatedIterator{contract: _AWPRegistry.contract, event: "Allocated", logs: logs, sub: sub}, nil
 }
 
 // WatchAllocated is a free log subscription operation binding the contract event 0x655f98c7dae1bab3e2db10cdb4407717b9d219cf2e585adc1edba92d48af2b15.
 //
 // Solidity: event Allocated(address indexed user, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator)
-func (_RootNet *RootNetFilterer) WatchAllocated(opts *bind.WatchOpts, sink chan<- *RootNetAllocated, user []common.Address, agent []common.Address, subnetId []*big.Int) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchAllocated(opts *bind.WatchOpts, sink chan<- *AWPRegistryAllocated, user []common.Address, agent []common.Address, subnetId []*big.Int) (event.Subscription, error) {
 
 	var userRule []interface{}
 	for _, userItem := range user {
@@ -2486,7 +2538,7 @@ func (_RootNet *RootNetFilterer) WatchAllocated(opts *bind.WatchOpts, sink chan<
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "Allocated", userRule, agentRule, subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "Allocated", userRule, agentRule, subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
@@ -2496,8 +2548,8 @@ func (_RootNet *RootNetFilterer) WatchAllocated(opts *bind.WatchOpts, sink chan<
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetAllocated)
-				if err := _RootNet.contract.UnpackLog(event, "Allocated", log); err != nil {
+				event := new(AWPRegistryAllocated)
+				if err := _AWPRegistry.contract.UnpackLog(event, "Allocated", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -2521,18 +2573,18 @@ func (_RootNet *RootNetFilterer) WatchAllocated(opts *bind.WatchOpts, sink chan<
 // ParseAllocated is a log parse operation binding the contract event 0x655f98c7dae1bab3e2db10cdb4407717b9d219cf2e585adc1edba92d48af2b15.
 //
 // Solidity: event Allocated(address indexed user, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator)
-func (_RootNet *RootNetFilterer) ParseAllocated(log types.Log) (*RootNetAllocated, error) {
-	event := new(RootNetAllocated)
-	if err := _RootNet.contract.UnpackLog(event, "Allocated", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseAllocated(log types.Log) (*AWPRegistryAllocated, error) {
+	event := new(AWPRegistryAllocated)
+	if err := _AWPRegistry.contract.UnpackLog(event, "Allocated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetAlphaTokenFactoryUpdatedIterator is returned from FilterAlphaTokenFactoryUpdated and is used to iterate over the raw logs and unpacked data for AlphaTokenFactoryUpdated events raised by the RootNet contract.
-type RootNetAlphaTokenFactoryUpdatedIterator struct {
-	Event *RootNetAlphaTokenFactoryUpdated // Event containing the contract specifics and raw log
+// AWPRegistryAlphaTokenFactoryUpdatedIterator is returned from FilterAlphaTokenFactoryUpdated and is used to iterate over the raw logs and unpacked data for AlphaTokenFactoryUpdated events raised by the AWPRegistry contract.
+type AWPRegistryAlphaTokenFactoryUpdatedIterator struct {
+	Event *AWPRegistryAlphaTokenFactoryUpdated // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -2546,7 +2598,7 @@ type RootNetAlphaTokenFactoryUpdatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetAlphaTokenFactoryUpdatedIterator) Next() bool {
+func (it *AWPRegistryAlphaTokenFactoryUpdatedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -2555,7 +2607,7 @@ func (it *RootNetAlphaTokenFactoryUpdatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetAlphaTokenFactoryUpdated)
+			it.Event = new(AWPRegistryAlphaTokenFactoryUpdated)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -2570,7 +2622,7 @@ func (it *RootNetAlphaTokenFactoryUpdatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetAlphaTokenFactoryUpdated)
+		it.Event = new(AWPRegistryAlphaTokenFactoryUpdated)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -2586,19 +2638,19 @@ func (it *RootNetAlphaTokenFactoryUpdatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetAlphaTokenFactoryUpdatedIterator) Error() error {
+func (it *AWPRegistryAlphaTokenFactoryUpdatedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetAlphaTokenFactoryUpdatedIterator) Close() error {
+func (it *AWPRegistryAlphaTokenFactoryUpdatedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetAlphaTokenFactoryUpdated represents a AlphaTokenFactoryUpdated event raised by the RootNet contract.
-type RootNetAlphaTokenFactoryUpdated struct {
+// AWPRegistryAlphaTokenFactoryUpdated represents a AlphaTokenFactoryUpdated event raised by the AWPRegistry contract.
+type AWPRegistryAlphaTokenFactoryUpdated struct {
 	NewFactory common.Address
 	Raw        types.Log // Blockchain specific contextual infos
 }
@@ -2606,31 +2658,31 @@ type RootNetAlphaTokenFactoryUpdated struct {
 // FilterAlphaTokenFactoryUpdated is a free log retrieval operation binding the contract event 0xca3b5054bdfbf81973dd36029b7ef8c5479d0739433700df6b2e6d690ead4a3e.
 //
 // Solidity: event AlphaTokenFactoryUpdated(address indexed newFactory)
-func (_RootNet *RootNetFilterer) FilterAlphaTokenFactoryUpdated(opts *bind.FilterOpts, newFactory []common.Address) (*RootNetAlphaTokenFactoryUpdatedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterAlphaTokenFactoryUpdated(opts *bind.FilterOpts, newFactory []common.Address) (*AWPRegistryAlphaTokenFactoryUpdatedIterator, error) {
 
 	var newFactoryRule []interface{}
 	for _, newFactoryItem := range newFactory {
 		newFactoryRule = append(newFactoryRule, newFactoryItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "AlphaTokenFactoryUpdated", newFactoryRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "AlphaTokenFactoryUpdated", newFactoryRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetAlphaTokenFactoryUpdatedIterator{contract: _RootNet.contract, event: "AlphaTokenFactoryUpdated", logs: logs, sub: sub}, nil
+	return &AWPRegistryAlphaTokenFactoryUpdatedIterator{contract: _AWPRegistry.contract, event: "AlphaTokenFactoryUpdated", logs: logs, sub: sub}, nil
 }
 
 // WatchAlphaTokenFactoryUpdated is a free log subscription operation binding the contract event 0xca3b5054bdfbf81973dd36029b7ef8c5479d0739433700df6b2e6d690ead4a3e.
 //
 // Solidity: event AlphaTokenFactoryUpdated(address indexed newFactory)
-func (_RootNet *RootNetFilterer) WatchAlphaTokenFactoryUpdated(opts *bind.WatchOpts, sink chan<- *RootNetAlphaTokenFactoryUpdated, newFactory []common.Address) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchAlphaTokenFactoryUpdated(opts *bind.WatchOpts, sink chan<- *AWPRegistryAlphaTokenFactoryUpdated, newFactory []common.Address) (event.Subscription, error) {
 
 	var newFactoryRule []interface{}
 	for _, newFactoryItem := range newFactory {
 		newFactoryRule = append(newFactoryRule, newFactoryItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "AlphaTokenFactoryUpdated", newFactoryRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "AlphaTokenFactoryUpdated", newFactoryRule)
 	if err != nil {
 		return nil, err
 	}
@@ -2640,8 +2692,8 @@ func (_RootNet *RootNetFilterer) WatchAlphaTokenFactoryUpdated(opts *bind.WatchO
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetAlphaTokenFactoryUpdated)
-				if err := _RootNet.contract.UnpackLog(event, "AlphaTokenFactoryUpdated", log); err != nil {
+				event := new(AWPRegistryAlphaTokenFactoryUpdated)
+				if err := _AWPRegistry.contract.UnpackLog(event, "AlphaTokenFactoryUpdated", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -2665,18 +2717,18 @@ func (_RootNet *RootNetFilterer) WatchAlphaTokenFactoryUpdated(opts *bind.WatchO
 // ParseAlphaTokenFactoryUpdated is a log parse operation binding the contract event 0xca3b5054bdfbf81973dd36029b7ef8c5479d0739433700df6b2e6d690ead4a3e.
 //
 // Solidity: event AlphaTokenFactoryUpdated(address indexed newFactory)
-func (_RootNet *RootNetFilterer) ParseAlphaTokenFactoryUpdated(log types.Log) (*RootNetAlphaTokenFactoryUpdated, error) {
-	event := new(RootNetAlphaTokenFactoryUpdated)
-	if err := _RootNet.contract.UnpackLog(event, "AlphaTokenFactoryUpdated", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseAlphaTokenFactoryUpdated(log types.Log) (*AWPRegistryAlphaTokenFactoryUpdated, error) {
+	event := new(AWPRegistryAlphaTokenFactoryUpdated)
+	if err := _AWPRegistry.contract.UnpackLog(event, "AlphaTokenFactoryUpdated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetDeallocatedIterator is returned from FilterDeallocated and is used to iterate over the raw logs and unpacked data for Deallocated events raised by the RootNet contract.
-type RootNetDeallocatedIterator struct {
-	Event *RootNetDeallocated // Event containing the contract specifics and raw log
+// AWPRegistryDeallocatedIterator is returned from FilterDeallocated and is used to iterate over the raw logs and unpacked data for Deallocated events raised by the AWPRegistry contract.
+type AWPRegistryDeallocatedIterator struct {
+	Event *AWPRegistryDeallocated // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -2690,7 +2742,7 @@ type RootNetDeallocatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetDeallocatedIterator) Next() bool {
+func (it *AWPRegistryDeallocatedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -2699,7 +2751,7 @@ func (it *RootNetDeallocatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetDeallocated)
+			it.Event = new(AWPRegistryDeallocated)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -2714,7 +2766,7 @@ func (it *RootNetDeallocatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetDeallocated)
+		it.Event = new(AWPRegistryDeallocated)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -2730,19 +2782,19 @@ func (it *RootNetDeallocatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetDeallocatedIterator) Error() error {
+func (it *AWPRegistryDeallocatedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetDeallocatedIterator) Close() error {
+func (it *AWPRegistryDeallocatedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetDeallocated represents a Deallocated event raised by the RootNet contract.
-type RootNetDeallocated struct {
+// AWPRegistryDeallocated represents a Deallocated event raised by the AWPRegistry contract.
+type AWPRegistryDeallocated struct {
 	User     common.Address
 	Agent    common.Address
 	SubnetId *big.Int
@@ -2754,7 +2806,7 @@ type RootNetDeallocated struct {
 // FilterDeallocated is a free log retrieval operation binding the contract event 0xd55bd7964253d1d9ce9187c8187b1c904274a3f374c9074f6de6fa77746bf345.
 //
 // Solidity: event Deallocated(address indexed user, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator)
-func (_RootNet *RootNetFilterer) FilterDeallocated(opts *bind.FilterOpts, user []common.Address, agent []common.Address, subnetId []*big.Int) (*RootNetDeallocatedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterDeallocated(opts *bind.FilterOpts, user []common.Address, agent []common.Address, subnetId []*big.Int) (*AWPRegistryDeallocatedIterator, error) {
 
 	var userRule []interface{}
 	for _, userItem := range user {
@@ -2769,17 +2821,17 @@ func (_RootNet *RootNetFilterer) FilterDeallocated(opts *bind.FilterOpts, user [
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "Deallocated", userRule, agentRule, subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "Deallocated", userRule, agentRule, subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetDeallocatedIterator{contract: _RootNet.contract, event: "Deallocated", logs: logs, sub: sub}, nil
+	return &AWPRegistryDeallocatedIterator{contract: _AWPRegistry.contract, event: "Deallocated", logs: logs, sub: sub}, nil
 }
 
 // WatchDeallocated is a free log subscription operation binding the contract event 0xd55bd7964253d1d9ce9187c8187b1c904274a3f374c9074f6de6fa77746bf345.
 //
 // Solidity: event Deallocated(address indexed user, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator)
-func (_RootNet *RootNetFilterer) WatchDeallocated(opts *bind.WatchOpts, sink chan<- *RootNetDeallocated, user []common.Address, agent []common.Address, subnetId []*big.Int) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchDeallocated(opts *bind.WatchOpts, sink chan<- *AWPRegistryDeallocated, user []common.Address, agent []common.Address, subnetId []*big.Int) (event.Subscription, error) {
 
 	var userRule []interface{}
 	for _, userItem := range user {
@@ -2794,7 +2846,7 @@ func (_RootNet *RootNetFilterer) WatchDeallocated(opts *bind.WatchOpts, sink cha
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "Deallocated", userRule, agentRule, subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "Deallocated", userRule, agentRule, subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
@@ -2804,8 +2856,8 @@ func (_RootNet *RootNetFilterer) WatchDeallocated(opts *bind.WatchOpts, sink cha
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetDeallocated)
-				if err := _RootNet.contract.UnpackLog(event, "Deallocated", log); err != nil {
+				event := new(AWPRegistryDeallocated)
+				if err := _AWPRegistry.contract.UnpackLog(event, "Deallocated", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -2829,18 +2881,18 @@ func (_RootNet *RootNetFilterer) WatchDeallocated(opts *bind.WatchOpts, sink cha
 // ParseDeallocated is a log parse operation binding the contract event 0xd55bd7964253d1d9ce9187c8187b1c904274a3f374c9074f6de6fa77746bf345.
 //
 // Solidity: event Deallocated(address indexed user, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator)
-func (_RootNet *RootNetFilterer) ParseDeallocated(log types.Log) (*RootNetDeallocated, error) {
-	event := new(RootNetDeallocated)
-	if err := _RootNet.contract.UnpackLog(event, "Deallocated", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseDeallocated(log types.Log) (*AWPRegistryDeallocated, error) {
+	event := new(AWPRegistryDeallocated)
+	if err := _AWPRegistry.contract.UnpackLog(event, "Deallocated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetDefaultSubnetManagerImplUpdatedIterator is returned from FilterDefaultSubnetManagerImplUpdated and is used to iterate over the raw logs and unpacked data for DefaultSubnetManagerImplUpdated events raised by the RootNet contract.
-type RootNetDefaultSubnetManagerImplUpdatedIterator struct {
-	Event *RootNetDefaultSubnetManagerImplUpdated // Event containing the contract specifics and raw log
+// AWPRegistryDefaultSubnetManagerImplUpdatedIterator is returned from FilterDefaultSubnetManagerImplUpdated and is used to iterate over the raw logs and unpacked data for DefaultSubnetManagerImplUpdated events raised by the AWPRegistry contract.
+type AWPRegistryDefaultSubnetManagerImplUpdatedIterator struct {
+	Event *AWPRegistryDefaultSubnetManagerImplUpdated // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -2854,7 +2906,7 @@ type RootNetDefaultSubnetManagerImplUpdatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetDefaultSubnetManagerImplUpdatedIterator) Next() bool {
+func (it *AWPRegistryDefaultSubnetManagerImplUpdatedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -2863,7 +2915,7 @@ func (it *RootNetDefaultSubnetManagerImplUpdatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetDefaultSubnetManagerImplUpdated)
+			it.Event = new(AWPRegistryDefaultSubnetManagerImplUpdated)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -2878,7 +2930,7 @@ func (it *RootNetDefaultSubnetManagerImplUpdatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetDefaultSubnetManagerImplUpdated)
+		it.Event = new(AWPRegistryDefaultSubnetManagerImplUpdated)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -2894,19 +2946,19 @@ func (it *RootNetDefaultSubnetManagerImplUpdatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetDefaultSubnetManagerImplUpdatedIterator) Error() error {
+func (it *AWPRegistryDefaultSubnetManagerImplUpdatedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetDefaultSubnetManagerImplUpdatedIterator) Close() error {
+func (it *AWPRegistryDefaultSubnetManagerImplUpdatedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetDefaultSubnetManagerImplUpdated represents a DefaultSubnetManagerImplUpdated event raised by the RootNet contract.
-type RootNetDefaultSubnetManagerImplUpdated struct {
+// AWPRegistryDefaultSubnetManagerImplUpdated represents a DefaultSubnetManagerImplUpdated event raised by the AWPRegistry contract.
+type AWPRegistryDefaultSubnetManagerImplUpdated struct {
 	NewImpl common.Address
 	Raw     types.Log // Blockchain specific contextual infos
 }
@@ -2914,31 +2966,31 @@ type RootNetDefaultSubnetManagerImplUpdated struct {
 // FilterDefaultSubnetManagerImplUpdated is a free log retrieval operation binding the contract event 0xa37cb79f631c6bb2a11d965d06cce40e3c936eba1649879b8ffa233c0219f949.
 //
 // Solidity: event DefaultSubnetManagerImplUpdated(address indexed newImpl)
-func (_RootNet *RootNetFilterer) FilterDefaultSubnetManagerImplUpdated(opts *bind.FilterOpts, newImpl []common.Address) (*RootNetDefaultSubnetManagerImplUpdatedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterDefaultSubnetManagerImplUpdated(opts *bind.FilterOpts, newImpl []common.Address) (*AWPRegistryDefaultSubnetManagerImplUpdatedIterator, error) {
 
 	var newImplRule []interface{}
 	for _, newImplItem := range newImpl {
 		newImplRule = append(newImplRule, newImplItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "DefaultSubnetManagerImplUpdated", newImplRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "DefaultSubnetManagerImplUpdated", newImplRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetDefaultSubnetManagerImplUpdatedIterator{contract: _RootNet.contract, event: "DefaultSubnetManagerImplUpdated", logs: logs, sub: sub}, nil
+	return &AWPRegistryDefaultSubnetManagerImplUpdatedIterator{contract: _AWPRegistry.contract, event: "DefaultSubnetManagerImplUpdated", logs: logs, sub: sub}, nil
 }
 
 // WatchDefaultSubnetManagerImplUpdated is a free log subscription operation binding the contract event 0xa37cb79f631c6bb2a11d965d06cce40e3c936eba1649879b8ffa233c0219f949.
 //
 // Solidity: event DefaultSubnetManagerImplUpdated(address indexed newImpl)
-func (_RootNet *RootNetFilterer) WatchDefaultSubnetManagerImplUpdated(opts *bind.WatchOpts, sink chan<- *RootNetDefaultSubnetManagerImplUpdated, newImpl []common.Address) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchDefaultSubnetManagerImplUpdated(opts *bind.WatchOpts, sink chan<- *AWPRegistryDefaultSubnetManagerImplUpdated, newImpl []common.Address) (event.Subscription, error) {
 
 	var newImplRule []interface{}
 	for _, newImplItem := range newImpl {
 		newImplRule = append(newImplRule, newImplItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "DefaultSubnetManagerImplUpdated", newImplRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "DefaultSubnetManagerImplUpdated", newImplRule)
 	if err != nil {
 		return nil, err
 	}
@@ -2948,8 +3000,8 @@ func (_RootNet *RootNetFilterer) WatchDefaultSubnetManagerImplUpdated(opts *bind
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetDefaultSubnetManagerImplUpdated)
-				if err := _RootNet.contract.UnpackLog(event, "DefaultSubnetManagerImplUpdated", log); err != nil {
+				event := new(AWPRegistryDefaultSubnetManagerImplUpdated)
+				if err := _AWPRegistry.contract.UnpackLog(event, "DefaultSubnetManagerImplUpdated", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -2973,18 +3025,18 @@ func (_RootNet *RootNetFilterer) WatchDefaultSubnetManagerImplUpdated(opts *bind
 // ParseDefaultSubnetManagerImplUpdated is a log parse operation binding the contract event 0xa37cb79f631c6bb2a11d965d06cce40e3c936eba1649879b8ffa233c0219f949.
 //
 // Solidity: event DefaultSubnetManagerImplUpdated(address indexed newImpl)
-func (_RootNet *RootNetFilterer) ParseDefaultSubnetManagerImplUpdated(log types.Log) (*RootNetDefaultSubnetManagerImplUpdated, error) {
-	event := new(RootNetDefaultSubnetManagerImplUpdated)
-	if err := _RootNet.contract.UnpackLog(event, "DefaultSubnetManagerImplUpdated", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseDefaultSubnetManagerImplUpdated(log types.Log) (*AWPRegistryDefaultSubnetManagerImplUpdated, error) {
+	event := new(AWPRegistryDefaultSubnetManagerImplUpdated)
+	if err := _AWPRegistry.contract.UnpackLog(event, "DefaultSubnetManagerImplUpdated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetDelegationUpdatedIterator is returned from FilterDelegationUpdated and is used to iterate over the raw logs and unpacked data for DelegationUpdated events raised by the RootNet contract.
-type RootNetDelegationUpdatedIterator struct {
-	Event *RootNetDelegationUpdated // Event containing the contract specifics and raw log
+// AWPRegistryDelegationUpdatedIterator is returned from FilterDelegationUpdated and is used to iterate over the raw logs and unpacked data for DelegationUpdated events raised by the AWPRegistry contract.
+type AWPRegistryDelegationUpdatedIterator struct {
+	Event *AWPRegistryDelegationUpdated // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -2998,7 +3050,7 @@ type RootNetDelegationUpdatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetDelegationUpdatedIterator) Next() bool {
+func (it *AWPRegistryDelegationUpdatedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -3007,7 +3059,7 @@ func (it *RootNetDelegationUpdatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetDelegationUpdated)
+			it.Event = new(AWPRegistryDelegationUpdated)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -3022,7 +3074,7 @@ func (it *RootNetDelegationUpdatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetDelegationUpdated)
+		it.Event = new(AWPRegistryDelegationUpdated)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -3038,19 +3090,19 @@ func (it *RootNetDelegationUpdatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetDelegationUpdatedIterator) Error() error {
+func (it *AWPRegistryDelegationUpdatedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetDelegationUpdatedIterator) Close() error {
+func (it *AWPRegistryDelegationUpdatedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetDelegationUpdated represents a DelegationUpdated event raised by the RootNet contract.
-type RootNetDelegationUpdated struct {
+// AWPRegistryDelegationUpdated represents a DelegationUpdated event raised by the AWPRegistry contract.
+type AWPRegistryDelegationUpdated struct {
 	User      common.Address
 	Agent     common.Address
 	IsManager bool
@@ -3061,7 +3113,7 @@ type RootNetDelegationUpdated struct {
 // FilterDelegationUpdated is a free log retrieval operation binding the contract event 0x34dbef79b9de038294b4a8f1789ad62e1b9ebaa23af56a3b75f375ce1185a9b1.
 //
 // Solidity: event DelegationUpdated(address indexed user, address indexed agent, bool isManager, address operator)
-func (_RootNet *RootNetFilterer) FilterDelegationUpdated(opts *bind.FilterOpts, user []common.Address, agent []common.Address) (*RootNetDelegationUpdatedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterDelegationUpdated(opts *bind.FilterOpts, user []common.Address, agent []common.Address) (*AWPRegistryDelegationUpdatedIterator, error) {
 
 	var userRule []interface{}
 	for _, userItem := range user {
@@ -3072,17 +3124,17 @@ func (_RootNet *RootNetFilterer) FilterDelegationUpdated(opts *bind.FilterOpts, 
 		agentRule = append(agentRule, agentItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "DelegationUpdated", userRule, agentRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "DelegationUpdated", userRule, agentRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetDelegationUpdatedIterator{contract: _RootNet.contract, event: "DelegationUpdated", logs: logs, sub: sub}, nil
+	return &AWPRegistryDelegationUpdatedIterator{contract: _AWPRegistry.contract, event: "DelegationUpdated", logs: logs, sub: sub}, nil
 }
 
 // WatchDelegationUpdated is a free log subscription operation binding the contract event 0x34dbef79b9de038294b4a8f1789ad62e1b9ebaa23af56a3b75f375ce1185a9b1.
 //
 // Solidity: event DelegationUpdated(address indexed user, address indexed agent, bool isManager, address operator)
-func (_RootNet *RootNetFilterer) WatchDelegationUpdated(opts *bind.WatchOpts, sink chan<- *RootNetDelegationUpdated, user []common.Address, agent []common.Address) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchDelegationUpdated(opts *bind.WatchOpts, sink chan<- *AWPRegistryDelegationUpdated, user []common.Address, agent []common.Address) (event.Subscription, error) {
 
 	var userRule []interface{}
 	for _, userItem := range user {
@@ -3093,7 +3145,7 @@ func (_RootNet *RootNetFilterer) WatchDelegationUpdated(opts *bind.WatchOpts, si
 		agentRule = append(agentRule, agentItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "DelegationUpdated", userRule, agentRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "DelegationUpdated", userRule, agentRule)
 	if err != nil {
 		return nil, err
 	}
@@ -3103,8 +3155,8 @@ func (_RootNet *RootNetFilterer) WatchDelegationUpdated(opts *bind.WatchOpts, si
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetDelegationUpdated)
-				if err := _RootNet.contract.UnpackLog(event, "DelegationUpdated", log); err != nil {
+				event := new(AWPRegistryDelegationUpdated)
+				if err := _AWPRegistry.contract.UnpackLog(event, "DelegationUpdated", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -3128,18 +3180,18 @@ func (_RootNet *RootNetFilterer) WatchDelegationUpdated(opts *bind.WatchOpts, si
 // ParseDelegationUpdated is a log parse operation binding the contract event 0x34dbef79b9de038294b4a8f1789ad62e1b9ebaa23af56a3b75f375ce1185a9b1.
 //
 // Solidity: event DelegationUpdated(address indexed user, address indexed agent, bool isManager, address operator)
-func (_RootNet *RootNetFilterer) ParseDelegationUpdated(log types.Log) (*RootNetDelegationUpdated, error) {
-	event := new(RootNetDelegationUpdated)
-	if err := _RootNet.contract.UnpackLog(event, "DelegationUpdated", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseDelegationUpdated(log types.Log) (*AWPRegistryDelegationUpdated, error) {
+	event := new(AWPRegistryDelegationUpdated)
+	if err := _AWPRegistry.contract.UnpackLog(event, "DelegationUpdated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetEIP712DomainChangedIterator is returned from FilterEIP712DomainChanged and is used to iterate over the raw logs and unpacked data for EIP712DomainChanged events raised by the RootNet contract.
-type RootNetEIP712DomainChangedIterator struct {
-	Event *RootNetEIP712DomainChanged // Event containing the contract specifics and raw log
+// AWPRegistryEIP712DomainChangedIterator is returned from FilterEIP712DomainChanged and is used to iterate over the raw logs and unpacked data for EIP712DomainChanged events raised by the AWPRegistry contract.
+type AWPRegistryEIP712DomainChangedIterator struct {
+	Event *AWPRegistryEIP712DomainChanged // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -3153,7 +3205,7 @@ type RootNetEIP712DomainChangedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetEIP712DomainChangedIterator) Next() bool {
+func (it *AWPRegistryEIP712DomainChangedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -3162,7 +3214,7 @@ func (it *RootNetEIP712DomainChangedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetEIP712DomainChanged)
+			it.Event = new(AWPRegistryEIP712DomainChanged)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -3177,7 +3229,7 @@ func (it *RootNetEIP712DomainChangedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetEIP712DomainChanged)
+		it.Event = new(AWPRegistryEIP712DomainChanged)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -3193,40 +3245,40 @@ func (it *RootNetEIP712DomainChangedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetEIP712DomainChangedIterator) Error() error {
+func (it *AWPRegistryEIP712DomainChangedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetEIP712DomainChangedIterator) Close() error {
+func (it *AWPRegistryEIP712DomainChangedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetEIP712DomainChanged represents a EIP712DomainChanged event raised by the RootNet contract.
-type RootNetEIP712DomainChanged struct {
+// AWPRegistryEIP712DomainChanged represents a EIP712DomainChanged event raised by the AWPRegistry contract.
+type AWPRegistryEIP712DomainChanged struct {
 	Raw types.Log // Blockchain specific contextual infos
 }
 
 // FilterEIP712DomainChanged is a free log retrieval operation binding the contract event 0x0a6387c9ea3628b88a633bb4f3b151770f70085117a15f9bf3787cda53f13d31.
 //
 // Solidity: event EIP712DomainChanged()
-func (_RootNet *RootNetFilterer) FilterEIP712DomainChanged(opts *bind.FilterOpts) (*RootNetEIP712DomainChangedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterEIP712DomainChanged(opts *bind.FilterOpts) (*AWPRegistryEIP712DomainChangedIterator, error) {
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "EIP712DomainChanged")
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "EIP712DomainChanged")
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetEIP712DomainChangedIterator{contract: _RootNet.contract, event: "EIP712DomainChanged", logs: logs, sub: sub}, nil
+	return &AWPRegistryEIP712DomainChangedIterator{contract: _AWPRegistry.contract, event: "EIP712DomainChanged", logs: logs, sub: sub}, nil
 }
 
 // WatchEIP712DomainChanged is a free log subscription operation binding the contract event 0x0a6387c9ea3628b88a633bb4f3b151770f70085117a15f9bf3787cda53f13d31.
 //
 // Solidity: event EIP712DomainChanged()
-func (_RootNet *RootNetFilterer) WatchEIP712DomainChanged(opts *bind.WatchOpts, sink chan<- *RootNetEIP712DomainChanged) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchEIP712DomainChanged(opts *bind.WatchOpts, sink chan<- *AWPRegistryEIP712DomainChanged) (event.Subscription, error) {
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "EIP712DomainChanged")
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "EIP712DomainChanged")
 	if err != nil {
 		return nil, err
 	}
@@ -3236,8 +3288,8 @@ func (_RootNet *RootNetFilterer) WatchEIP712DomainChanged(opts *bind.WatchOpts, 
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetEIP712DomainChanged)
-				if err := _RootNet.contract.UnpackLog(event, "EIP712DomainChanged", log); err != nil {
+				event := new(AWPRegistryEIP712DomainChanged)
+				if err := _AWPRegistry.contract.UnpackLog(event, "EIP712DomainChanged", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -3261,18 +3313,18 @@ func (_RootNet *RootNetFilterer) WatchEIP712DomainChanged(opts *bind.WatchOpts, 
 // ParseEIP712DomainChanged is a log parse operation binding the contract event 0x0a6387c9ea3628b88a633bb4f3b151770f70085117a15f9bf3787cda53f13d31.
 //
 // Solidity: event EIP712DomainChanged()
-func (_RootNet *RootNetFilterer) ParseEIP712DomainChanged(log types.Log) (*RootNetEIP712DomainChanged, error) {
-	event := new(RootNetEIP712DomainChanged)
-	if err := _RootNet.contract.UnpackLog(event, "EIP712DomainChanged", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseEIP712DomainChanged(log types.Log) (*AWPRegistryEIP712DomainChanged, error) {
+	event := new(AWPRegistryEIP712DomainChanged)
+	if err := _AWPRegistry.contract.UnpackLog(event, "EIP712DomainChanged", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetGuardianUpdatedIterator is returned from FilterGuardianUpdated and is used to iterate over the raw logs and unpacked data for GuardianUpdated events raised by the RootNet contract.
-type RootNetGuardianUpdatedIterator struct {
-	Event *RootNetGuardianUpdated // Event containing the contract specifics and raw log
+// AWPRegistryGuardianUpdatedIterator is returned from FilterGuardianUpdated and is used to iterate over the raw logs and unpacked data for GuardianUpdated events raised by the AWPRegistry contract.
+type AWPRegistryGuardianUpdatedIterator struct {
+	Event *AWPRegistryGuardianUpdated // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -3286,7 +3338,7 @@ type RootNetGuardianUpdatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetGuardianUpdatedIterator) Next() bool {
+func (it *AWPRegistryGuardianUpdatedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -3295,7 +3347,7 @@ func (it *RootNetGuardianUpdatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetGuardianUpdated)
+			it.Event = new(AWPRegistryGuardianUpdated)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -3310,7 +3362,7 @@ func (it *RootNetGuardianUpdatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetGuardianUpdated)
+		it.Event = new(AWPRegistryGuardianUpdated)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -3326,19 +3378,19 @@ func (it *RootNetGuardianUpdatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetGuardianUpdatedIterator) Error() error {
+func (it *AWPRegistryGuardianUpdatedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetGuardianUpdatedIterator) Close() error {
+func (it *AWPRegistryGuardianUpdatedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetGuardianUpdated represents a GuardianUpdated event raised by the RootNet contract.
-type RootNetGuardianUpdated struct {
+// AWPRegistryGuardianUpdated represents a GuardianUpdated event raised by the AWPRegistry contract.
+type AWPRegistryGuardianUpdated struct {
 	NewGuardian common.Address
 	Raw         types.Log // Blockchain specific contextual infos
 }
@@ -3346,31 +3398,31 @@ type RootNetGuardianUpdated struct {
 // FilterGuardianUpdated is a free log retrieval operation binding the contract event 0x6bb7ff33e730289800c62ad882105a144a74010d2bdbb9a942544a3005ad55bf.
 //
 // Solidity: event GuardianUpdated(address indexed newGuardian)
-func (_RootNet *RootNetFilterer) FilterGuardianUpdated(opts *bind.FilterOpts, newGuardian []common.Address) (*RootNetGuardianUpdatedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterGuardianUpdated(opts *bind.FilterOpts, newGuardian []common.Address) (*AWPRegistryGuardianUpdatedIterator, error) {
 
 	var newGuardianRule []interface{}
 	for _, newGuardianItem := range newGuardian {
 		newGuardianRule = append(newGuardianRule, newGuardianItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "GuardianUpdated", newGuardianRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "GuardianUpdated", newGuardianRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetGuardianUpdatedIterator{contract: _RootNet.contract, event: "GuardianUpdated", logs: logs, sub: sub}, nil
+	return &AWPRegistryGuardianUpdatedIterator{contract: _AWPRegistry.contract, event: "GuardianUpdated", logs: logs, sub: sub}, nil
 }
 
 // WatchGuardianUpdated is a free log subscription operation binding the contract event 0x6bb7ff33e730289800c62ad882105a144a74010d2bdbb9a942544a3005ad55bf.
 //
 // Solidity: event GuardianUpdated(address indexed newGuardian)
-func (_RootNet *RootNetFilterer) WatchGuardianUpdated(opts *bind.WatchOpts, sink chan<- *RootNetGuardianUpdated, newGuardian []common.Address) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchGuardianUpdated(opts *bind.WatchOpts, sink chan<- *AWPRegistryGuardianUpdated, newGuardian []common.Address) (event.Subscription, error) {
 
 	var newGuardianRule []interface{}
 	for _, newGuardianItem := range newGuardian {
 		newGuardianRule = append(newGuardianRule, newGuardianItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "GuardianUpdated", newGuardianRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "GuardianUpdated", newGuardianRule)
 	if err != nil {
 		return nil, err
 	}
@@ -3380,8 +3432,8 @@ func (_RootNet *RootNetFilterer) WatchGuardianUpdated(opts *bind.WatchOpts, sink
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetGuardianUpdated)
-				if err := _RootNet.contract.UnpackLog(event, "GuardianUpdated", log); err != nil {
+				event := new(AWPRegistryGuardianUpdated)
+				if err := _AWPRegistry.contract.UnpackLog(event, "GuardianUpdated", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -3405,18 +3457,18 @@ func (_RootNet *RootNetFilterer) WatchGuardianUpdated(opts *bind.WatchOpts, sink
 // ParseGuardianUpdated is a log parse operation binding the contract event 0x6bb7ff33e730289800c62ad882105a144a74010d2bdbb9a942544a3005ad55bf.
 //
 // Solidity: event GuardianUpdated(address indexed newGuardian)
-func (_RootNet *RootNetFilterer) ParseGuardianUpdated(log types.Log) (*RootNetGuardianUpdated, error) {
-	event := new(RootNetGuardianUpdated)
-	if err := _RootNet.contract.UnpackLog(event, "GuardianUpdated", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseGuardianUpdated(log types.Log) (*AWPRegistryGuardianUpdated, error) {
+	event := new(AWPRegistryGuardianUpdated)
+	if err := _AWPRegistry.contract.UnpackLog(event, "GuardianUpdated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetImmunityPeriodUpdatedIterator is returned from FilterImmunityPeriodUpdated and is used to iterate over the raw logs and unpacked data for ImmunityPeriodUpdated events raised by the RootNet contract.
-type RootNetImmunityPeriodUpdatedIterator struct {
-	Event *RootNetImmunityPeriodUpdated // Event containing the contract specifics and raw log
+// AWPRegistryImmunityPeriodUpdatedIterator is returned from FilterImmunityPeriodUpdated and is used to iterate over the raw logs and unpacked data for ImmunityPeriodUpdated events raised by the AWPRegistry contract.
+type AWPRegistryImmunityPeriodUpdatedIterator struct {
+	Event *AWPRegistryImmunityPeriodUpdated // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -3430,7 +3482,7 @@ type RootNetImmunityPeriodUpdatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetImmunityPeriodUpdatedIterator) Next() bool {
+func (it *AWPRegistryImmunityPeriodUpdatedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -3439,7 +3491,7 @@ func (it *RootNetImmunityPeriodUpdatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetImmunityPeriodUpdated)
+			it.Event = new(AWPRegistryImmunityPeriodUpdated)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -3454,7 +3506,7 @@ func (it *RootNetImmunityPeriodUpdatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetImmunityPeriodUpdated)
+		it.Event = new(AWPRegistryImmunityPeriodUpdated)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -3470,19 +3522,19 @@ func (it *RootNetImmunityPeriodUpdatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetImmunityPeriodUpdatedIterator) Error() error {
+func (it *AWPRegistryImmunityPeriodUpdatedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetImmunityPeriodUpdatedIterator) Close() error {
+func (it *AWPRegistryImmunityPeriodUpdatedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetImmunityPeriodUpdated represents a ImmunityPeriodUpdated event raised by the RootNet contract.
-type RootNetImmunityPeriodUpdated struct {
+// AWPRegistryImmunityPeriodUpdated represents a ImmunityPeriodUpdated event raised by the AWPRegistry contract.
+type AWPRegistryImmunityPeriodUpdated struct {
 	NewPeriod *big.Int
 	Raw       types.Log // Blockchain specific contextual infos
 }
@@ -3490,21 +3542,21 @@ type RootNetImmunityPeriodUpdated struct {
 // FilterImmunityPeriodUpdated is a free log retrieval operation binding the contract event 0x49b186851943e5bbcefec9411c3238262c6e102e4000142f8f060143d1b8724c.
 //
 // Solidity: event ImmunityPeriodUpdated(uint256 newPeriod)
-func (_RootNet *RootNetFilterer) FilterImmunityPeriodUpdated(opts *bind.FilterOpts) (*RootNetImmunityPeriodUpdatedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterImmunityPeriodUpdated(opts *bind.FilterOpts) (*AWPRegistryImmunityPeriodUpdatedIterator, error) {
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "ImmunityPeriodUpdated")
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "ImmunityPeriodUpdated")
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetImmunityPeriodUpdatedIterator{contract: _RootNet.contract, event: "ImmunityPeriodUpdated", logs: logs, sub: sub}, nil
+	return &AWPRegistryImmunityPeriodUpdatedIterator{contract: _AWPRegistry.contract, event: "ImmunityPeriodUpdated", logs: logs, sub: sub}, nil
 }
 
 // WatchImmunityPeriodUpdated is a free log subscription operation binding the contract event 0x49b186851943e5bbcefec9411c3238262c6e102e4000142f8f060143d1b8724c.
 //
 // Solidity: event ImmunityPeriodUpdated(uint256 newPeriod)
-func (_RootNet *RootNetFilterer) WatchImmunityPeriodUpdated(opts *bind.WatchOpts, sink chan<- *RootNetImmunityPeriodUpdated) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchImmunityPeriodUpdated(opts *bind.WatchOpts, sink chan<- *AWPRegistryImmunityPeriodUpdated) (event.Subscription, error) {
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "ImmunityPeriodUpdated")
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "ImmunityPeriodUpdated")
 	if err != nil {
 		return nil, err
 	}
@@ -3514,8 +3566,8 @@ func (_RootNet *RootNetFilterer) WatchImmunityPeriodUpdated(opts *bind.WatchOpts
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetImmunityPeriodUpdated)
-				if err := _RootNet.contract.UnpackLog(event, "ImmunityPeriodUpdated", log); err != nil {
+				event := new(AWPRegistryImmunityPeriodUpdated)
+				if err := _AWPRegistry.contract.UnpackLog(event, "ImmunityPeriodUpdated", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -3539,18 +3591,18 @@ func (_RootNet *RootNetFilterer) WatchImmunityPeriodUpdated(opts *bind.WatchOpts
 // ParseImmunityPeriodUpdated is a log parse operation binding the contract event 0x49b186851943e5bbcefec9411c3238262c6e102e4000142f8f060143d1b8724c.
 //
 // Solidity: event ImmunityPeriodUpdated(uint256 newPeriod)
-func (_RootNet *RootNetFilterer) ParseImmunityPeriodUpdated(log types.Log) (*RootNetImmunityPeriodUpdated, error) {
-	event := new(RootNetImmunityPeriodUpdated)
-	if err := _RootNet.contract.UnpackLog(event, "ImmunityPeriodUpdated", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseImmunityPeriodUpdated(log types.Log) (*AWPRegistryImmunityPeriodUpdated, error) {
+	event := new(AWPRegistryImmunityPeriodUpdated)
+	if err := _AWPRegistry.contract.UnpackLog(event, "ImmunityPeriodUpdated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetInitialAlphaPriceUpdatedIterator is returned from FilterInitialAlphaPriceUpdated and is used to iterate over the raw logs and unpacked data for InitialAlphaPriceUpdated events raised by the RootNet contract.
-type RootNetInitialAlphaPriceUpdatedIterator struct {
-	Event *RootNetInitialAlphaPriceUpdated // Event containing the contract specifics and raw log
+// AWPRegistryInitialAlphaPriceUpdatedIterator is returned from FilterInitialAlphaPriceUpdated and is used to iterate over the raw logs and unpacked data for InitialAlphaPriceUpdated events raised by the AWPRegistry contract.
+type AWPRegistryInitialAlphaPriceUpdatedIterator struct {
+	Event *AWPRegistryInitialAlphaPriceUpdated // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -3564,7 +3616,7 @@ type RootNetInitialAlphaPriceUpdatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetInitialAlphaPriceUpdatedIterator) Next() bool {
+func (it *AWPRegistryInitialAlphaPriceUpdatedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -3573,7 +3625,7 @@ func (it *RootNetInitialAlphaPriceUpdatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetInitialAlphaPriceUpdated)
+			it.Event = new(AWPRegistryInitialAlphaPriceUpdated)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -3588,7 +3640,7 @@ func (it *RootNetInitialAlphaPriceUpdatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetInitialAlphaPriceUpdated)
+		it.Event = new(AWPRegistryInitialAlphaPriceUpdated)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -3604,19 +3656,19 @@ func (it *RootNetInitialAlphaPriceUpdatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetInitialAlphaPriceUpdatedIterator) Error() error {
+func (it *AWPRegistryInitialAlphaPriceUpdatedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetInitialAlphaPriceUpdatedIterator) Close() error {
+func (it *AWPRegistryInitialAlphaPriceUpdatedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetInitialAlphaPriceUpdated represents a InitialAlphaPriceUpdated event raised by the RootNet contract.
-type RootNetInitialAlphaPriceUpdated struct {
+// AWPRegistryInitialAlphaPriceUpdated represents a InitialAlphaPriceUpdated event raised by the AWPRegistry contract.
+type AWPRegistryInitialAlphaPriceUpdated struct {
 	NewPrice *big.Int
 	Raw      types.Log // Blockchain specific contextual infos
 }
@@ -3624,21 +3676,21 @@ type RootNetInitialAlphaPriceUpdated struct {
 // FilterInitialAlphaPriceUpdated is a free log retrieval operation binding the contract event 0xab7ee876750d22d253d0b38988caea5f6285a832697e4889d9beb36515dde34e.
 //
 // Solidity: event InitialAlphaPriceUpdated(uint256 newPrice)
-func (_RootNet *RootNetFilterer) FilterInitialAlphaPriceUpdated(opts *bind.FilterOpts) (*RootNetInitialAlphaPriceUpdatedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterInitialAlphaPriceUpdated(opts *bind.FilterOpts) (*AWPRegistryInitialAlphaPriceUpdatedIterator, error) {
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "InitialAlphaPriceUpdated")
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "InitialAlphaPriceUpdated")
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetInitialAlphaPriceUpdatedIterator{contract: _RootNet.contract, event: "InitialAlphaPriceUpdated", logs: logs, sub: sub}, nil
+	return &AWPRegistryInitialAlphaPriceUpdatedIterator{contract: _AWPRegistry.contract, event: "InitialAlphaPriceUpdated", logs: logs, sub: sub}, nil
 }
 
 // WatchInitialAlphaPriceUpdated is a free log subscription operation binding the contract event 0xab7ee876750d22d253d0b38988caea5f6285a832697e4889d9beb36515dde34e.
 //
 // Solidity: event InitialAlphaPriceUpdated(uint256 newPrice)
-func (_RootNet *RootNetFilterer) WatchInitialAlphaPriceUpdated(opts *bind.WatchOpts, sink chan<- *RootNetInitialAlphaPriceUpdated) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchInitialAlphaPriceUpdated(opts *bind.WatchOpts, sink chan<- *AWPRegistryInitialAlphaPriceUpdated) (event.Subscription, error) {
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "InitialAlphaPriceUpdated")
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "InitialAlphaPriceUpdated")
 	if err != nil {
 		return nil, err
 	}
@@ -3648,8 +3700,8 @@ func (_RootNet *RootNetFilterer) WatchInitialAlphaPriceUpdated(opts *bind.WatchO
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetInitialAlphaPriceUpdated)
-				if err := _RootNet.contract.UnpackLog(event, "InitialAlphaPriceUpdated", log); err != nil {
+				event := new(AWPRegistryInitialAlphaPriceUpdated)
+				if err := _AWPRegistry.contract.UnpackLog(event, "InitialAlphaPriceUpdated", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -3673,18 +3725,18 @@ func (_RootNet *RootNetFilterer) WatchInitialAlphaPriceUpdated(opts *bind.WatchO
 // ParseInitialAlphaPriceUpdated is a log parse operation binding the contract event 0xab7ee876750d22d253d0b38988caea5f6285a832697e4889d9beb36515dde34e.
 //
 // Solidity: event InitialAlphaPriceUpdated(uint256 newPrice)
-func (_RootNet *RootNetFilterer) ParseInitialAlphaPriceUpdated(log types.Log) (*RootNetInitialAlphaPriceUpdated, error) {
-	event := new(RootNetInitialAlphaPriceUpdated)
-	if err := _RootNet.contract.UnpackLog(event, "InitialAlphaPriceUpdated", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseInitialAlphaPriceUpdated(log types.Log) (*AWPRegistryInitialAlphaPriceUpdated, error) {
+	event := new(AWPRegistryInitialAlphaPriceUpdated)
+	if err := _AWPRegistry.contract.UnpackLog(event, "InitialAlphaPriceUpdated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetLPCreatedIterator is returned from FilterLPCreated and is used to iterate over the raw logs and unpacked data for LPCreated events raised by the RootNet contract.
-type RootNetLPCreatedIterator struct {
-	Event *RootNetLPCreated // Event containing the contract specifics and raw log
+// AWPRegistryLPCreatedIterator is returned from FilterLPCreated and is used to iterate over the raw logs and unpacked data for LPCreated events raised by the AWPRegistry contract.
+type AWPRegistryLPCreatedIterator struct {
+	Event *AWPRegistryLPCreated // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -3698,7 +3750,7 @@ type RootNetLPCreatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetLPCreatedIterator) Next() bool {
+func (it *AWPRegistryLPCreatedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -3707,7 +3759,7 @@ func (it *RootNetLPCreatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetLPCreated)
+			it.Event = new(AWPRegistryLPCreated)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -3722,7 +3774,7 @@ func (it *RootNetLPCreatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetLPCreated)
+		it.Event = new(AWPRegistryLPCreated)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -3738,19 +3790,19 @@ func (it *RootNetLPCreatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetLPCreatedIterator) Error() error {
+func (it *AWPRegistryLPCreatedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetLPCreatedIterator) Close() error {
+func (it *AWPRegistryLPCreatedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetLPCreated represents a LPCreated event raised by the RootNet contract.
-type RootNetLPCreated struct {
+// AWPRegistryLPCreated represents a LPCreated event raised by the AWPRegistry contract.
+type AWPRegistryLPCreated struct {
 	SubnetId    *big.Int
 	PoolId      [32]byte
 	AwpAmount   *big.Int
@@ -3761,31 +3813,31 @@ type RootNetLPCreated struct {
 // FilterLPCreated is a free log retrieval operation binding the contract event 0x0a28a1fd5e0909199ee082834df66cfaae2125e3503bf16d2dc46214278fc7ab.
 //
 // Solidity: event LPCreated(uint256 indexed subnetId, bytes32 poolId, uint256 awpAmount, uint256 alphaAmount)
-func (_RootNet *RootNetFilterer) FilterLPCreated(opts *bind.FilterOpts, subnetId []*big.Int) (*RootNetLPCreatedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterLPCreated(opts *bind.FilterOpts, subnetId []*big.Int) (*AWPRegistryLPCreatedIterator, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "LPCreated", subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "LPCreated", subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetLPCreatedIterator{contract: _RootNet.contract, event: "LPCreated", logs: logs, sub: sub}, nil
+	return &AWPRegistryLPCreatedIterator{contract: _AWPRegistry.contract, event: "LPCreated", logs: logs, sub: sub}, nil
 }
 
 // WatchLPCreated is a free log subscription operation binding the contract event 0x0a28a1fd5e0909199ee082834df66cfaae2125e3503bf16d2dc46214278fc7ab.
 //
 // Solidity: event LPCreated(uint256 indexed subnetId, bytes32 poolId, uint256 awpAmount, uint256 alphaAmount)
-func (_RootNet *RootNetFilterer) WatchLPCreated(opts *bind.WatchOpts, sink chan<- *RootNetLPCreated, subnetId []*big.Int) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchLPCreated(opts *bind.WatchOpts, sink chan<- *AWPRegistryLPCreated, subnetId []*big.Int) (event.Subscription, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "LPCreated", subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "LPCreated", subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
@@ -3795,8 +3847,8 @@ func (_RootNet *RootNetFilterer) WatchLPCreated(opts *bind.WatchOpts, sink chan<
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetLPCreated)
-				if err := _RootNet.contract.UnpackLog(event, "LPCreated", log); err != nil {
+				event := new(AWPRegistryLPCreated)
+				if err := _AWPRegistry.contract.UnpackLog(event, "LPCreated", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -3820,18 +3872,18 @@ func (_RootNet *RootNetFilterer) WatchLPCreated(opts *bind.WatchOpts, sink chan<
 // ParseLPCreated is a log parse operation binding the contract event 0x0a28a1fd5e0909199ee082834df66cfaae2125e3503bf16d2dc46214278fc7ab.
 //
 // Solidity: event LPCreated(uint256 indexed subnetId, bytes32 poolId, uint256 awpAmount, uint256 alphaAmount)
-func (_RootNet *RootNetFilterer) ParseLPCreated(log types.Log) (*RootNetLPCreated, error) {
-	event := new(RootNetLPCreated)
-	if err := _RootNet.contract.UnpackLog(event, "LPCreated", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseLPCreated(log types.Log) (*AWPRegistryLPCreated, error) {
+	event := new(AWPRegistryLPCreated)
+	if err := _AWPRegistry.contract.UnpackLog(event, "LPCreated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetPausedIterator is returned from FilterPaused and is used to iterate over the raw logs and unpacked data for Paused events raised by the RootNet contract.
-type RootNetPausedIterator struct {
-	Event *RootNetPaused // Event containing the contract specifics and raw log
+// AWPRegistryPausedIterator is returned from FilterPaused and is used to iterate over the raw logs and unpacked data for Paused events raised by the AWPRegistry contract.
+type AWPRegistryPausedIterator struct {
+	Event *AWPRegistryPaused // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -3845,7 +3897,7 @@ type RootNetPausedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetPausedIterator) Next() bool {
+func (it *AWPRegistryPausedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -3854,7 +3906,7 @@ func (it *RootNetPausedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetPaused)
+			it.Event = new(AWPRegistryPaused)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -3869,7 +3921,7 @@ func (it *RootNetPausedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetPaused)
+		it.Event = new(AWPRegistryPaused)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -3885,19 +3937,19 @@ func (it *RootNetPausedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetPausedIterator) Error() error {
+func (it *AWPRegistryPausedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetPausedIterator) Close() error {
+func (it *AWPRegistryPausedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetPaused represents a Paused event raised by the RootNet contract.
-type RootNetPaused struct {
+// AWPRegistryPaused represents a Paused event raised by the AWPRegistry contract.
+type AWPRegistryPaused struct {
 	Account common.Address
 	Raw     types.Log // Blockchain specific contextual infos
 }
@@ -3905,21 +3957,21 @@ type RootNetPaused struct {
 // FilterPaused is a free log retrieval operation binding the contract event 0x62e78cea01bee320cd4e420270b5ea74000d11b0c9f74754ebdbfc544b05a258.
 //
 // Solidity: event Paused(address account)
-func (_RootNet *RootNetFilterer) FilterPaused(opts *bind.FilterOpts) (*RootNetPausedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterPaused(opts *bind.FilterOpts) (*AWPRegistryPausedIterator, error) {
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "Paused")
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "Paused")
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetPausedIterator{contract: _RootNet.contract, event: "Paused", logs: logs, sub: sub}, nil
+	return &AWPRegistryPausedIterator{contract: _AWPRegistry.contract, event: "Paused", logs: logs, sub: sub}, nil
 }
 
 // WatchPaused is a free log subscription operation binding the contract event 0x62e78cea01bee320cd4e420270b5ea74000d11b0c9f74754ebdbfc544b05a258.
 //
 // Solidity: event Paused(address account)
-func (_RootNet *RootNetFilterer) WatchPaused(opts *bind.WatchOpts, sink chan<- *RootNetPaused) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchPaused(opts *bind.WatchOpts, sink chan<- *AWPRegistryPaused) (event.Subscription, error) {
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "Paused")
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "Paused")
 	if err != nil {
 		return nil, err
 	}
@@ -3929,8 +3981,8 @@ func (_RootNet *RootNetFilterer) WatchPaused(opts *bind.WatchOpts, sink chan<- *
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetPaused)
-				if err := _RootNet.contract.UnpackLog(event, "Paused", log); err != nil {
+				event := new(AWPRegistryPaused)
+				if err := _AWPRegistry.contract.UnpackLog(event, "Paused", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -3954,18 +4006,18 @@ func (_RootNet *RootNetFilterer) WatchPaused(opts *bind.WatchOpts, sink chan<- *
 // ParsePaused is a log parse operation binding the contract event 0x62e78cea01bee320cd4e420270b5ea74000d11b0c9f74754ebdbfc544b05a258.
 //
 // Solidity: event Paused(address account)
-func (_RootNet *RootNetFilterer) ParsePaused(log types.Log) (*RootNetPaused, error) {
-	event := new(RootNetPaused)
-	if err := _RootNet.contract.UnpackLog(event, "Paused", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParsePaused(log types.Log) (*AWPRegistryPaused, error) {
+	event := new(AWPRegistryPaused)
+	if err := _AWPRegistry.contract.UnpackLog(event, "Paused", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetReallocatedIterator is returned from FilterReallocated and is used to iterate over the raw logs and unpacked data for Reallocated events raised by the RootNet contract.
-type RootNetReallocatedIterator struct {
-	Event *RootNetReallocated // Event containing the contract specifics and raw log
+// AWPRegistryReallocatedIterator is returned from FilterReallocated and is used to iterate over the raw logs and unpacked data for Reallocated events raised by the AWPRegistry contract.
+type AWPRegistryReallocatedIterator struct {
+	Event *AWPRegistryReallocated // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -3979,7 +4031,7 @@ type RootNetReallocatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetReallocatedIterator) Next() bool {
+func (it *AWPRegistryReallocatedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -3988,7 +4040,7 @@ func (it *RootNetReallocatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetReallocated)
+			it.Event = new(AWPRegistryReallocated)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -4003,7 +4055,7 @@ func (it *RootNetReallocatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetReallocated)
+		it.Event = new(AWPRegistryReallocated)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -4019,19 +4071,19 @@ func (it *RootNetReallocatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetReallocatedIterator) Error() error {
+func (it *AWPRegistryReallocatedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetReallocatedIterator) Close() error {
+func (it *AWPRegistryReallocatedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetReallocated represents a Reallocated event raised by the RootNet contract.
-type RootNetReallocated struct {
+// AWPRegistryReallocated represents a Reallocated event raised by the AWPRegistry contract.
+type AWPRegistryReallocated struct {
 	User       common.Address
 	FromAgent  common.Address
 	FromSubnet *big.Int
@@ -4045,31 +4097,31 @@ type RootNetReallocated struct {
 // FilterReallocated is a free log retrieval operation binding the contract event 0x726c93ba67bfe4c677e37114279f0ad9aab5ee9ffbd1158923be5d0fec3b1b45.
 //
 // Solidity: event Reallocated(address indexed user, address fromAgent, uint256 fromSubnet, address toAgent, uint256 toSubnet, uint256 amount, address operator)
-func (_RootNet *RootNetFilterer) FilterReallocated(opts *bind.FilterOpts, user []common.Address) (*RootNetReallocatedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterReallocated(opts *bind.FilterOpts, user []common.Address) (*AWPRegistryReallocatedIterator, error) {
 
 	var userRule []interface{}
 	for _, userItem := range user {
 		userRule = append(userRule, userItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "Reallocated", userRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "Reallocated", userRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetReallocatedIterator{contract: _RootNet.contract, event: "Reallocated", logs: logs, sub: sub}, nil
+	return &AWPRegistryReallocatedIterator{contract: _AWPRegistry.contract, event: "Reallocated", logs: logs, sub: sub}, nil
 }
 
 // WatchReallocated is a free log subscription operation binding the contract event 0x726c93ba67bfe4c677e37114279f0ad9aab5ee9ffbd1158923be5d0fec3b1b45.
 //
 // Solidity: event Reallocated(address indexed user, address fromAgent, uint256 fromSubnet, address toAgent, uint256 toSubnet, uint256 amount, address operator)
-func (_RootNet *RootNetFilterer) WatchReallocated(opts *bind.WatchOpts, sink chan<- *RootNetReallocated, user []common.Address) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchReallocated(opts *bind.WatchOpts, sink chan<- *AWPRegistryReallocated, user []common.Address) (event.Subscription, error) {
 
 	var userRule []interface{}
 	for _, userItem := range user {
 		userRule = append(userRule, userItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "Reallocated", userRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "Reallocated", userRule)
 	if err != nil {
 		return nil, err
 	}
@@ -4079,8 +4131,8 @@ func (_RootNet *RootNetFilterer) WatchReallocated(opts *bind.WatchOpts, sink cha
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetReallocated)
-				if err := _RootNet.contract.UnpackLog(event, "Reallocated", log); err != nil {
+				event := new(AWPRegistryReallocated)
+				if err := _AWPRegistry.contract.UnpackLog(event, "Reallocated", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -4104,18 +4156,18 @@ func (_RootNet *RootNetFilterer) WatchReallocated(opts *bind.WatchOpts, sink cha
 // ParseReallocated is a log parse operation binding the contract event 0x726c93ba67bfe4c677e37114279f0ad9aab5ee9ffbd1158923be5d0fec3b1b45.
 //
 // Solidity: event Reallocated(address indexed user, address fromAgent, uint256 fromSubnet, address toAgent, uint256 toSubnet, uint256 amount, address operator)
-func (_RootNet *RootNetFilterer) ParseReallocated(log types.Log) (*RootNetReallocated, error) {
-	event := new(RootNetReallocated)
-	if err := _RootNet.contract.UnpackLog(event, "Reallocated", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseReallocated(log types.Log) (*AWPRegistryReallocated, error) {
+	event := new(AWPRegistryReallocated)
+	if err := _AWPRegistry.contract.UnpackLog(event, "Reallocated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetRewardRecipientUpdatedIterator is returned from FilterRewardRecipientUpdated and is used to iterate over the raw logs and unpacked data for RewardRecipientUpdated events raised by the RootNet contract.
-type RootNetRewardRecipientUpdatedIterator struct {
-	Event *RootNetRewardRecipientUpdated // Event containing the contract specifics and raw log
+// AWPRegistryRewardRecipientUpdatedIterator is returned from FilterRewardRecipientUpdated and is used to iterate over the raw logs and unpacked data for RewardRecipientUpdated events raised by the AWPRegistry contract.
+type AWPRegistryRewardRecipientUpdatedIterator struct {
+	Event *AWPRegistryRewardRecipientUpdated // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -4129,7 +4181,7 @@ type RootNetRewardRecipientUpdatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetRewardRecipientUpdatedIterator) Next() bool {
+func (it *AWPRegistryRewardRecipientUpdatedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -4138,7 +4190,7 @@ func (it *RootNetRewardRecipientUpdatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetRewardRecipientUpdated)
+			it.Event = new(AWPRegistryRewardRecipientUpdated)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -4153,7 +4205,7 @@ func (it *RootNetRewardRecipientUpdatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetRewardRecipientUpdated)
+		it.Event = new(AWPRegistryRewardRecipientUpdated)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -4169,19 +4221,19 @@ func (it *RootNetRewardRecipientUpdatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetRewardRecipientUpdatedIterator) Error() error {
+func (it *AWPRegistryRewardRecipientUpdatedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetRewardRecipientUpdatedIterator) Close() error {
+func (it *AWPRegistryRewardRecipientUpdatedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetRewardRecipientUpdated represents a RewardRecipientUpdated event raised by the RootNet contract.
-type RootNetRewardRecipientUpdated struct {
+// AWPRegistryRewardRecipientUpdated represents a RewardRecipientUpdated event raised by the AWPRegistry contract.
+type AWPRegistryRewardRecipientUpdated struct {
 	User      common.Address
 	Recipient common.Address
 	Raw       types.Log // Blockchain specific contextual infos
@@ -4190,31 +4242,31 @@ type RootNetRewardRecipientUpdated struct {
 // FilterRewardRecipientUpdated is a free log retrieval operation binding the contract event 0xc8c11bb97ac2ffa10ce2e2a98f4c1fd8df84cfa2e1a15e013ed2383ab1f527ad.
 //
 // Solidity: event RewardRecipientUpdated(address indexed user, address recipient)
-func (_RootNet *RootNetFilterer) FilterRewardRecipientUpdated(opts *bind.FilterOpts, user []common.Address) (*RootNetRewardRecipientUpdatedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterRewardRecipientUpdated(opts *bind.FilterOpts, user []common.Address) (*AWPRegistryRewardRecipientUpdatedIterator, error) {
 
 	var userRule []interface{}
 	for _, userItem := range user {
 		userRule = append(userRule, userItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "RewardRecipientUpdated", userRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "RewardRecipientUpdated", userRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetRewardRecipientUpdatedIterator{contract: _RootNet.contract, event: "RewardRecipientUpdated", logs: logs, sub: sub}, nil
+	return &AWPRegistryRewardRecipientUpdatedIterator{contract: _AWPRegistry.contract, event: "RewardRecipientUpdated", logs: logs, sub: sub}, nil
 }
 
 // WatchRewardRecipientUpdated is a free log subscription operation binding the contract event 0xc8c11bb97ac2ffa10ce2e2a98f4c1fd8df84cfa2e1a15e013ed2383ab1f527ad.
 //
 // Solidity: event RewardRecipientUpdated(address indexed user, address recipient)
-func (_RootNet *RootNetFilterer) WatchRewardRecipientUpdated(opts *bind.WatchOpts, sink chan<- *RootNetRewardRecipientUpdated, user []common.Address) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchRewardRecipientUpdated(opts *bind.WatchOpts, sink chan<- *AWPRegistryRewardRecipientUpdated, user []common.Address) (event.Subscription, error) {
 
 	var userRule []interface{}
 	for _, userItem := range user {
 		userRule = append(userRule, userItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "RewardRecipientUpdated", userRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "RewardRecipientUpdated", userRule)
 	if err != nil {
 		return nil, err
 	}
@@ -4224,8 +4276,8 @@ func (_RootNet *RootNetFilterer) WatchRewardRecipientUpdated(opts *bind.WatchOpt
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetRewardRecipientUpdated)
-				if err := _RootNet.contract.UnpackLog(event, "RewardRecipientUpdated", log); err != nil {
+				event := new(AWPRegistryRewardRecipientUpdated)
+				if err := _AWPRegistry.contract.UnpackLog(event, "RewardRecipientUpdated", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -4249,18 +4301,18 @@ func (_RootNet *RootNetFilterer) WatchRewardRecipientUpdated(opts *bind.WatchOpt
 // ParseRewardRecipientUpdated is a log parse operation binding the contract event 0xc8c11bb97ac2ffa10ce2e2a98f4c1fd8df84cfa2e1a15e013ed2383ab1f527ad.
 //
 // Solidity: event RewardRecipientUpdated(address indexed user, address recipient)
-func (_RootNet *RootNetFilterer) ParseRewardRecipientUpdated(log types.Log) (*RootNetRewardRecipientUpdated, error) {
-	event := new(RootNetRewardRecipientUpdated)
-	if err := _RootNet.contract.UnpackLog(event, "RewardRecipientUpdated", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseRewardRecipientUpdated(log types.Log) (*AWPRegistryRewardRecipientUpdated, error) {
+	event := new(AWPRegistryRewardRecipientUpdated)
+	if err := _AWPRegistry.contract.UnpackLog(event, "RewardRecipientUpdated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetSubnetActivatedIterator is returned from FilterSubnetActivated and is used to iterate over the raw logs and unpacked data for SubnetActivated events raised by the RootNet contract.
-type RootNetSubnetActivatedIterator struct {
-	Event *RootNetSubnetActivated // Event containing the contract specifics and raw log
+// AWPRegistrySubnetActivatedIterator is returned from FilterSubnetActivated and is used to iterate over the raw logs and unpacked data for SubnetActivated events raised by the AWPRegistry contract.
+type AWPRegistrySubnetActivatedIterator struct {
+	Event *AWPRegistrySubnetActivated // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -4274,7 +4326,7 @@ type RootNetSubnetActivatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetSubnetActivatedIterator) Next() bool {
+func (it *AWPRegistrySubnetActivatedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -4283,7 +4335,7 @@ func (it *RootNetSubnetActivatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetSubnetActivated)
+			it.Event = new(AWPRegistrySubnetActivated)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -4298,7 +4350,7 @@ func (it *RootNetSubnetActivatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetSubnetActivated)
+		it.Event = new(AWPRegistrySubnetActivated)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -4314,19 +4366,19 @@ func (it *RootNetSubnetActivatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetSubnetActivatedIterator) Error() error {
+func (it *AWPRegistrySubnetActivatedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetSubnetActivatedIterator) Close() error {
+func (it *AWPRegistrySubnetActivatedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetSubnetActivated represents a SubnetActivated event raised by the RootNet contract.
-type RootNetSubnetActivated struct {
+// AWPRegistrySubnetActivated represents a SubnetActivated event raised by the AWPRegistry contract.
+type AWPRegistrySubnetActivated struct {
 	SubnetId *big.Int
 	Raw      types.Log // Blockchain specific contextual infos
 }
@@ -4334,31 +4386,31 @@ type RootNetSubnetActivated struct {
 // FilterSubnetActivated is a free log retrieval operation binding the contract event 0x034804b969efac7a0df7757ada640ffdcc09f25dbcd4582c390f25d5622255c4.
 //
 // Solidity: event SubnetActivated(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) FilterSubnetActivated(opts *bind.FilterOpts, subnetId []*big.Int) (*RootNetSubnetActivatedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterSubnetActivated(opts *bind.FilterOpts, subnetId []*big.Int) (*AWPRegistrySubnetActivatedIterator, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "SubnetActivated", subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "SubnetActivated", subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetSubnetActivatedIterator{contract: _RootNet.contract, event: "SubnetActivated", logs: logs, sub: sub}, nil
+	return &AWPRegistrySubnetActivatedIterator{contract: _AWPRegistry.contract, event: "SubnetActivated", logs: logs, sub: sub}, nil
 }
 
 // WatchSubnetActivated is a free log subscription operation binding the contract event 0x034804b969efac7a0df7757ada640ffdcc09f25dbcd4582c390f25d5622255c4.
 //
 // Solidity: event SubnetActivated(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) WatchSubnetActivated(opts *bind.WatchOpts, sink chan<- *RootNetSubnetActivated, subnetId []*big.Int) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchSubnetActivated(opts *bind.WatchOpts, sink chan<- *AWPRegistrySubnetActivated, subnetId []*big.Int) (event.Subscription, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "SubnetActivated", subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "SubnetActivated", subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
@@ -4368,8 +4420,8 @@ func (_RootNet *RootNetFilterer) WatchSubnetActivated(opts *bind.WatchOpts, sink
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetSubnetActivated)
-				if err := _RootNet.contract.UnpackLog(event, "SubnetActivated", log); err != nil {
+				event := new(AWPRegistrySubnetActivated)
+				if err := _AWPRegistry.contract.UnpackLog(event, "SubnetActivated", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -4393,18 +4445,18 @@ func (_RootNet *RootNetFilterer) WatchSubnetActivated(opts *bind.WatchOpts, sink
 // ParseSubnetActivated is a log parse operation binding the contract event 0x034804b969efac7a0df7757ada640ffdcc09f25dbcd4582c390f25d5622255c4.
 //
 // Solidity: event SubnetActivated(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) ParseSubnetActivated(log types.Log) (*RootNetSubnetActivated, error) {
-	event := new(RootNetSubnetActivated)
-	if err := _RootNet.contract.UnpackLog(event, "SubnetActivated", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseSubnetActivated(log types.Log) (*AWPRegistrySubnetActivated, error) {
+	event := new(AWPRegistrySubnetActivated)
+	if err := _AWPRegistry.contract.UnpackLog(event, "SubnetActivated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetSubnetBannedIterator is returned from FilterSubnetBanned and is used to iterate over the raw logs and unpacked data for SubnetBanned events raised by the RootNet contract.
-type RootNetSubnetBannedIterator struct {
-	Event *RootNetSubnetBanned // Event containing the contract specifics and raw log
+// AWPRegistrySubnetBannedIterator is returned from FilterSubnetBanned and is used to iterate over the raw logs and unpacked data for SubnetBanned events raised by the AWPRegistry contract.
+type AWPRegistrySubnetBannedIterator struct {
+	Event *AWPRegistrySubnetBanned // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -4418,7 +4470,7 @@ type RootNetSubnetBannedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetSubnetBannedIterator) Next() bool {
+func (it *AWPRegistrySubnetBannedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -4427,7 +4479,7 @@ func (it *RootNetSubnetBannedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetSubnetBanned)
+			it.Event = new(AWPRegistrySubnetBanned)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -4442,7 +4494,7 @@ func (it *RootNetSubnetBannedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetSubnetBanned)
+		it.Event = new(AWPRegistrySubnetBanned)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -4458,19 +4510,19 @@ func (it *RootNetSubnetBannedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetSubnetBannedIterator) Error() error {
+func (it *AWPRegistrySubnetBannedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetSubnetBannedIterator) Close() error {
+func (it *AWPRegistrySubnetBannedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetSubnetBanned represents a SubnetBanned event raised by the RootNet contract.
-type RootNetSubnetBanned struct {
+// AWPRegistrySubnetBanned represents a SubnetBanned event raised by the AWPRegistry contract.
+type AWPRegistrySubnetBanned struct {
 	SubnetId *big.Int
 	Raw      types.Log // Blockchain specific contextual infos
 }
@@ -4478,31 +4530,31 @@ type RootNetSubnetBanned struct {
 // FilterSubnetBanned is a free log retrieval operation binding the contract event 0xb887f21153957bddcf7211314cf42794076ccf98c6ae5cf8e2d065ec717c681b.
 //
 // Solidity: event SubnetBanned(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) FilterSubnetBanned(opts *bind.FilterOpts, subnetId []*big.Int) (*RootNetSubnetBannedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterSubnetBanned(opts *bind.FilterOpts, subnetId []*big.Int) (*AWPRegistrySubnetBannedIterator, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "SubnetBanned", subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "SubnetBanned", subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetSubnetBannedIterator{contract: _RootNet.contract, event: "SubnetBanned", logs: logs, sub: sub}, nil
+	return &AWPRegistrySubnetBannedIterator{contract: _AWPRegistry.contract, event: "SubnetBanned", logs: logs, sub: sub}, nil
 }
 
 // WatchSubnetBanned is a free log subscription operation binding the contract event 0xb887f21153957bddcf7211314cf42794076ccf98c6ae5cf8e2d065ec717c681b.
 //
 // Solidity: event SubnetBanned(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) WatchSubnetBanned(opts *bind.WatchOpts, sink chan<- *RootNetSubnetBanned, subnetId []*big.Int) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchSubnetBanned(opts *bind.WatchOpts, sink chan<- *AWPRegistrySubnetBanned, subnetId []*big.Int) (event.Subscription, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "SubnetBanned", subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "SubnetBanned", subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
@@ -4512,8 +4564,8 @@ func (_RootNet *RootNetFilterer) WatchSubnetBanned(opts *bind.WatchOpts, sink ch
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetSubnetBanned)
-				if err := _RootNet.contract.UnpackLog(event, "SubnetBanned", log); err != nil {
+				event := new(AWPRegistrySubnetBanned)
+				if err := _AWPRegistry.contract.UnpackLog(event, "SubnetBanned", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -4537,18 +4589,18 @@ func (_RootNet *RootNetFilterer) WatchSubnetBanned(opts *bind.WatchOpts, sink ch
 // ParseSubnetBanned is a log parse operation binding the contract event 0xb887f21153957bddcf7211314cf42794076ccf98c6ae5cf8e2d065ec717c681b.
 //
 // Solidity: event SubnetBanned(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) ParseSubnetBanned(log types.Log) (*RootNetSubnetBanned, error) {
-	event := new(RootNetSubnetBanned)
-	if err := _RootNet.contract.UnpackLog(event, "SubnetBanned", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseSubnetBanned(log types.Log) (*AWPRegistrySubnetBanned, error) {
+	event := new(AWPRegistrySubnetBanned)
+	if err := _AWPRegistry.contract.UnpackLog(event, "SubnetBanned", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetSubnetDeregisteredIterator is returned from FilterSubnetDeregistered and is used to iterate over the raw logs and unpacked data for SubnetDeregistered events raised by the RootNet contract.
-type RootNetSubnetDeregisteredIterator struct {
-	Event *RootNetSubnetDeregistered // Event containing the contract specifics and raw log
+// AWPRegistrySubnetDeregisteredIterator is returned from FilterSubnetDeregistered and is used to iterate over the raw logs and unpacked data for SubnetDeregistered events raised by the AWPRegistry contract.
+type AWPRegistrySubnetDeregisteredIterator struct {
+	Event *AWPRegistrySubnetDeregistered // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -4562,7 +4614,7 @@ type RootNetSubnetDeregisteredIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetSubnetDeregisteredIterator) Next() bool {
+func (it *AWPRegistrySubnetDeregisteredIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -4571,7 +4623,7 @@ func (it *RootNetSubnetDeregisteredIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetSubnetDeregistered)
+			it.Event = new(AWPRegistrySubnetDeregistered)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -4586,7 +4638,7 @@ func (it *RootNetSubnetDeregisteredIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetSubnetDeregistered)
+		it.Event = new(AWPRegistrySubnetDeregistered)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -4602,19 +4654,19 @@ func (it *RootNetSubnetDeregisteredIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetSubnetDeregisteredIterator) Error() error {
+func (it *AWPRegistrySubnetDeregisteredIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetSubnetDeregisteredIterator) Close() error {
+func (it *AWPRegistrySubnetDeregisteredIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetSubnetDeregistered represents a SubnetDeregistered event raised by the RootNet contract.
-type RootNetSubnetDeregistered struct {
+// AWPRegistrySubnetDeregistered represents a SubnetDeregistered event raised by the AWPRegistry contract.
+type AWPRegistrySubnetDeregistered struct {
 	SubnetId *big.Int
 	Raw      types.Log // Blockchain specific contextual infos
 }
@@ -4622,31 +4674,31 @@ type RootNetSubnetDeregistered struct {
 // FilterSubnetDeregistered is a free log retrieval operation binding the contract event 0x960c7566f4c9bb6958ff6e37a02b5ae69fa39dd75651fcc9b9a1029c01d0ff32.
 //
 // Solidity: event SubnetDeregistered(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) FilterSubnetDeregistered(opts *bind.FilterOpts, subnetId []*big.Int) (*RootNetSubnetDeregisteredIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterSubnetDeregistered(opts *bind.FilterOpts, subnetId []*big.Int) (*AWPRegistrySubnetDeregisteredIterator, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "SubnetDeregistered", subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "SubnetDeregistered", subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetSubnetDeregisteredIterator{contract: _RootNet.contract, event: "SubnetDeregistered", logs: logs, sub: sub}, nil
+	return &AWPRegistrySubnetDeregisteredIterator{contract: _AWPRegistry.contract, event: "SubnetDeregistered", logs: logs, sub: sub}, nil
 }
 
 // WatchSubnetDeregistered is a free log subscription operation binding the contract event 0x960c7566f4c9bb6958ff6e37a02b5ae69fa39dd75651fcc9b9a1029c01d0ff32.
 //
 // Solidity: event SubnetDeregistered(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) WatchSubnetDeregistered(opts *bind.WatchOpts, sink chan<- *RootNetSubnetDeregistered, subnetId []*big.Int) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchSubnetDeregistered(opts *bind.WatchOpts, sink chan<- *AWPRegistrySubnetDeregistered, subnetId []*big.Int) (event.Subscription, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "SubnetDeregistered", subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "SubnetDeregistered", subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
@@ -4656,8 +4708,8 @@ func (_RootNet *RootNetFilterer) WatchSubnetDeregistered(opts *bind.WatchOpts, s
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetSubnetDeregistered)
-				if err := _RootNet.contract.UnpackLog(event, "SubnetDeregistered", log); err != nil {
+				event := new(AWPRegistrySubnetDeregistered)
+				if err := _AWPRegistry.contract.UnpackLog(event, "SubnetDeregistered", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -4681,18 +4733,18 @@ func (_RootNet *RootNetFilterer) WatchSubnetDeregistered(opts *bind.WatchOpts, s
 // ParseSubnetDeregistered is a log parse operation binding the contract event 0x960c7566f4c9bb6958ff6e37a02b5ae69fa39dd75651fcc9b9a1029c01d0ff32.
 //
 // Solidity: event SubnetDeregistered(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) ParseSubnetDeregistered(log types.Log) (*RootNetSubnetDeregistered, error) {
-	event := new(RootNetSubnetDeregistered)
-	if err := _RootNet.contract.UnpackLog(event, "SubnetDeregistered", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseSubnetDeregistered(log types.Log) (*AWPRegistrySubnetDeregistered, error) {
+	event := new(AWPRegistrySubnetDeregistered)
+	if err := _AWPRegistry.contract.UnpackLog(event, "SubnetDeregistered", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetSubnetPausedIterator is returned from FilterSubnetPaused and is used to iterate over the raw logs and unpacked data for SubnetPaused events raised by the RootNet contract.
-type RootNetSubnetPausedIterator struct {
-	Event *RootNetSubnetPaused // Event containing the contract specifics and raw log
+// AWPRegistrySubnetPausedIterator is returned from FilterSubnetPaused and is used to iterate over the raw logs and unpacked data for SubnetPaused events raised by the AWPRegistry contract.
+type AWPRegistrySubnetPausedIterator struct {
+	Event *AWPRegistrySubnetPaused // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -4706,7 +4758,7 @@ type RootNetSubnetPausedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetSubnetPausedIterator) Next() bool {
+func (it *AWPRegistrySubnetPausedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -4715,7 +4767,7 @@ func (it *RootNetSubnetPausedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetSubnetPaused)
+			it.Event = new(AWPRegistrySubnetPaused)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -4730,7 +4782,7 @@ func (it *RootNetSubnetPausedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetSubnetPaused)
+		it.Event = new(AWPRegistrySubnetPaused)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -4746,19 +4798,19 @@ func (it *RootNetSubnetPausedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetSubnetPausedIterator) Error() error {
+func (it *AWPRegistrySubnetPausedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetSubnetPausedIterator) Close() error {
+func (it *AWPRegistrySubnetPausedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetSubnetPaused represents a SubnetPaused event raised by the RootNet contract.
-type RootNetSubnetPaused struct {
+// AWPRegistrySubnetPaused represents a SubnetPaused event raised by the AWPRegistry contract.
+type AWPRegistrySubnetPaused struct {
 	SubnetId *big.Int
 	Raw      types.Log // Blockchain specific contextual infos
 }
@@ -4766,31 +4818,31 @@ type RootNetSubnetPaused struct {
 // FilterSubnetPaused is a free log retrieval operation binding the contract event 0x789ca96cb827d1dcb6bfc7d9d084d0a574dadff90700e3602acedefb10f69afc.
 //
 // Solidity: event SubnetPaused(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) FilterSubnetPaused(opts *bind.FilterOpts, subnetId []*big.Int) (*RootNetSubnetPausedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterSubnetPaused(opts *bind.FilterOpts, subnetId []*big.Int) (*AWPRegistrySubnetPausedIterator, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "SubnetPaused", subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "SubnetPaused", subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetSubnetPausedIterator{contract: _RootNet.contract, event: "SubnetPaused", logs: logs, sub: sub}, nil
+	return &AWPRegistrySubnetPausedIterator{contract: _AWPRegistry.contract, event: "SubnetPaused", logs: logs, sub: sub}, nil
 }
 
 // WatchSubnetPaused is a free log subscription operation binding the contract event 0x789ca96cb827d1dcb6bfc7d9d084d0a574dadff90700e3602acedefb10f69afc.
 //
 // Solidity: event SubnetPaused(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) WatchSubnetPaused(opts *bind.WatchOpts, sink chan<- *RootNetSubnetPaused, subnetId []*big.Int) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchSubnetPaused(opts *bind.WatchOpts, sink chan<- *AWPRegistrySubnetPaused, subnetId []*big.Int) (event.Subscription, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "SubnetPaused", subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "SubnetPaused", subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
@@ -4800,8 +4852,8 @@ func (_RootNet *RootNetFilterer) WatchSubnetPaused(opts *bind.WatchOpts, sink ch
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetSubnetPaused)
-				if err := _RootNet.contract.UnpackLog(event, "SubnetPaused", log); err != nil {
+				event := new(AWPRegistrySubnetPaused)
+				if err := _AWPRegistry.contract.UnpackLog(event, "SubnetPaused", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -4825,18 +4877,18 @@ func (_RootNet *RootNetFilterer) WatchSubnetPaused(opts *bind.WatchOpts, sink ch
 // ParseSubnetPaused is a log parse operation binding the contract event 0x789ca96cb827d1dcb6bfc7d9d084d0a574dadff90700e3602acedefb10f69afc.
 //
 // Solidity: event SubnetPaused(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) ParseSubnetPaused(log types.Log) (*RootNetSubnetPaused, error) {
-	event := new(RootNetSubnetPaused)
-	if err := _RootNet.contract.UnpackLog(event, "SubnetPaused", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseSubnetPaused(log types.Log) (*AWPRegistrySubnetPaused, error) {
+	event := new(AWPRegistrySubnetPaused)
+	if err := _AWPRegistry.contract.UnpackLog(event, "SubnetPaused", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetSubnetRegisteredIterator is returned from FilterSubnetRegistered and is used to iterate over the raw logs and unpacked data for SubnetRegistered events raised by the RootNet contract.
-type RootNetSubnetRegisteredIterator struct {
-	Event *RootNetSubnetRegistered // Event containing the contract specifics and raw log
+// AWPRegistrySubnetRegisteredIterator is returned from FilterSubnetRegistered and is used to iterate over the raw logs and unpacked data for SubnetRegistered events raised by the AWPRegistry contract.
+type AWPRegistrySubnetRegisteredIterator struct {
+	Event *AWPRegistrySubnetRegistered // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -4850,7 +4902,7 @@ type RootNetSubnetRegisteredIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetSubnetRegisteredIterator) Next() bool {
+func (it *AWPRegistrySubnetRegisteredIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -4859,7 +4911,7 @@ func (it *RootNetSubnetRegisteredIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetSubnetRegistered)
+			it.Event = new(AWPRegistrySubnetRegistered)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -4874,7 +4926,7 @@ func (it *RootNetSubnetRegisteredIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetSubnetRegistered)
+		it.Event = new(AWPRegistrySubnetRegistered)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -4890,19 +4942,19 @@ func (it *RootNetSubnetRegisteredIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetSubnetRegisteredIterator) Error() error {
+func (it *AWPRegistrySubnetRegisteredIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetSubnetRegisteredIterator) Close() error {
+func (it *AWPRegistrySubnetRegisteredIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetSubnetRegistered represents a SubnetRegistered event raised by the RootNet contract.
-type RootNetSubnetRegistered struct {
+// AWPRegistrySubnetRegistered represents a SubnetRegistered event raised by the AWPRegistry contract.
+type AWPRegistrySubnetRegistered struct {
 	SubnetId      *big.Int
 	Owner         common.Address
 	Name          string
@@ -4915,7 +4967,7 @@ type RootNetSubnetRegistered struct {
 // FilterSubnetRegistered is a free log retrieval operation binding the contract event 0x8bf2da7b4bb5b09423a8727058489d29da8c78ca3d15f540facdf1ad5dbd09d1.
 //
 // Solidity: event SubnetRegistered(uint256 indexed subnetId, address indexed owner, string name, string symbol, address subnetManager, address alphaToken)
-func (_RootNet *RootNetFilterer) FilterSubnetRegistered(opts *bind.FilterOpts, subnetId []*big.Int, owner []common.Address) (*RootNetSubnetRegisteredIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterSubnetRegistered(opts *bind.FilterOpts, subnetId []*big.Int, owner []common.Address) (*AWPRegistrySubnetRegisteredIterator, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
@@ -4926,17 +4978,17 @@ func (_RootNet *RootNetFilterer) FilterSubnetRegistered(opts *bind.FilterOpts, s
 		ownerRule = append(ownerRule, ownerItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "SubnetRegistered", subnetIdRule, ownerRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "SubnetRegistered", subnetIdRule, ownerRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetSubnetRegisteredIterator{contract: _RootNet.contract, event: "SubnetRegistered", logs: logs, sub: sub}, nil
+	return &AWPRegistrySubnetRegisteredIterator{contract: _AWPRegistry.contract, event: "SubnetRegistered", logs: logs, sub: sub}, nil
 }
 
 // WatchSubnetRegistered is a free log subscription operation binding the contract event 0x8bf2da7b4bb5b09423a8727058489d29da8c78ca3d15f540facdf1ad5dbd09d1.
 //
 // Solidity: event SubnetRegistered(uint256 indexed subnetId, address indexed owner, string name, string symbol, address subnetManager, address alphaToken)
-func (_RootNet *RootNetFilterer) WatchSubnetRegistered(opts *bind.WatchOpts, sink chan<- *RootNetSubnetRegistered, subnetId []*big.Int, owner []common.Address) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchSubnetRegistered(opts *bind.WatchOpts, sink chan<- *AWPRegistrySubnetRegistered, subnetId []*big.Int, owner []common.Address) (event.Subscription, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
@@ -4947,7 +4999,7 @@ func (_RootNet *RootNetFilterer) WatchSubnetRegistered(opts *bind.WatchOpts, sin
 		ownerRule = append(ownerRule, ownerItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "SubnetRegistered", subnetIdRule, ownerRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "SubnetRegistered", subnetIdRule, ownerRule)
 	if err != nil {
 		return nil, err
 	}
@@ -4957,8 +5009,8 @@ func (_RootNet *RootNetFilterer) WatchSubnetRegistered(opts *bind.WatchOpts, sin
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetSubnetRegistered)
-				if err := _RootNet.contract.UnpackLog(event, "SubnetRegistered", log); err != nil {
+				event := new(AWPRegistrySubnetRegistered)
+				if err := _AWPRegistry.contract.UnpackLog(event, "SubnetRegistered", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -4982,18 +5034,18 @@ func (_RootNet *RootNetFilterer) WatchSubnetRegistered(opts *bind.WatchOpts, sin
 // ParseSubnetRegistered is a log parse operation binding the contract event 0x8bf2da7b4bb5b09423a8727058489d29da8c78ca3d15f540facdf1ad5dbd09d1.
 //
 // Solidity: event SubnetRegistered(uint256 indexed subnetId, address indexed owner, string name, string symbol, address subnetManager, address alphaToken)
-func (_RootNet *RootNetFilterer) ParseSubnetRegistered(log types.Log) (*RootNetSubnetRegistered, error) {
-	event := new(RootNetSubnetRegistered)
-	if err := _RootNet.contract.UnpackLog(event, "SubnetRegistered", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseSubnetRegistered(log types.Log) (*AWPRegistrySubnetRegistered, error) {
+	event := new(AWPRegistrySubnetRegistered)
+	if err := _AWPRegistry.contract.UnpackLog(event, "SubnetRegistered", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetSubnetResumedIterator is returned from FilterSubnetResumed and is used to iterate over the raw logs and unpacked data for SubnetResumed events raised by the RootNet contract.
-type RootNetSubnetResumedIterator struct {
-	Event *RootNetSubnetResumed // Event containing the contract specifics and raw log
+// AWPRegistrySubnetResumedIterator is returned from FilterSubnetResumed and is used to iterate over the raw logs and unpacked data for SubnetResumed events raised by the AWPRegistry contract.
+type AWPRegistrySubnetResumedIterator struct {
+	Event *AWPRegistrySubnetResumed // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -5007,7 +5059,7 @@ type RootNetSubnetResumedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetSubnetResumedIterator) Next() bool {
+func (it *AWPRegistrySubnetResumedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -5016,7 +5068,7 @@ func (it *RootNetSubnetResumedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetSubnetResumed)
+			it.Event = new(AWPRegistrySubnetResumed)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -5031,7 +5083,7 @@ func (it *RootNetSubnetResumedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetSubnetResumed)
+		it.Event = new(AWPRegistrySubnetResumed)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -5047,19 +5099,19 @@ func (it *RootNetSubnetResumedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetSubnetResumedIterator) Error() error {
+func (it *AWPRegistrySubnetResumedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetSubnetResumedIterator) Close() error {
+func (it *AWPRegistrySubnetResumedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetSubnetResumed represents a SubnetResumed event raised by the RootNet contract.
-type RootNetSubnetResumed struct {
+// AWPRegistrySubnetResumed represents a SubnetResumed event raised by the AWPRegistry contract.
+type AWPRegistrySubnetResumed struct {
 	SubnetId *big.Int
 	Raw      types.Log // Blockchain specific contextual infos
 }
@@ -5067,31 +5119,31 @@ type RootNetSubnetResumed struct {
 // FilterSubnetResumed is a free log retrieval operation binding the contract event 0xf1693a0767c0183c95caf97ea0be785bece8e3578b49ef89c9669b754c1ba9a0.
 //
 // Solidity: event SubnetResumed(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) FilterSubnetResumed(opts *bind.FilterOpts, subnetId []*big.Int) (*RootNetSubnetResumedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterSubnetResumed(opts *bind.FilterOpts, subnetId []*big.Int) (*AWPRegistrySubnetResumedIterator, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "SubnetResumed", subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "SubnetResumed", subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetSubnetResumedIterator{contract: _RootNet.contract, event: "SubnetResumed", logs: logs, sub: sub}, nil
+	return &AWPRegistrySubnetResumedIterator{contract: _AWPRegistry.contract, event: "SubnetResumed", logs: logs, sub: sub}, nil
 }
 
 // WatchSubnetResumed is a free log subscription operation binding the contract event 0xf1693a0767c0183c95caf97ea0be785bece8e3578b49ef89c9669b754c1ba9a0.
 //
 // Solidity: event SubnetResumed(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) WatchSubnetResumed(opts *bind.WatchOpts, sink chan<- *RootNetSubnetResumed, subnetId []*big.Int) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchSubnetResumed(opts *bind.WatchOpts, sink chan<- *AWPRegistrySubnetResumed, subnetId []*big.Int) (event.Subscription, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "SubnetResumed", subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "SubnetResumed", subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
@@ -5101,8 +5153,8 @@ func (_RootNet *RootNetFilterer) WatchSubnetResumed(opts *bind.WatchOpts, sink c
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetSubnetResumed)
-				if err := _RootNet.contract.UnpackLog(event, "SubnetResumed", log); err != nil {
+				event := new(AWPRegistrySubnetResumed)
+				if err := _AWPRegistry.contract.UnpackLog(event, "SubnetResumed", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -5126,18 +5178,18 @@ func (_RootNet *RootNetFilterer) WatchSubnetResumed(opts *bind.WatchOpts, sink c
 // ParseSubnetResumed is a log parse operation binding the contract event 0xf1693a0767c0183c95caf97ea0be785bece8e3578b49ef89c9669b754c1ba9a0.
 //
 // Solidity: event SubnetResumed(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) ParseSubnetResumed(log types.Log) (*RootNetSubnetResumed, error) {
-	event := new(RootNetSubnetResumed)
-	if err := _RootNet.contract.UnpackLog(event, "SubnetResumed", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseSubnetResumed(log types.Log) (*AWPRegistrySubnetResumed, error) {
+	event := new(AWPRegistrySubnetResumed)
+	if err := _AWPRegistry.contract.UnpackLog(event, "SubnetResumed", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetSubnetUnbannedIterator is returned from FilterSubnetUnbanned and is used to iterate over the raw logs and unpacked data for SubnetUnbanned events raised by the RootNet contract.
-type RootNetSubnetUnbannedIterator struct {
-	Event *RootNetSubnetUnbanned // Event containing the contract specifics and raw log
+// AWPRegistrySubnetUnbannedIterator is returned from FilterSubnetUnbanned and is used to iterate over the raw logs and unpacked data for SubnetUnbanned events raised by the AWPRegistry contract.
+type AWPRegistrySubnetUnbannedIterator struct {
+	Event *AWPRegistrySubnetUnbanned // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -5151,7 +5203,7 @@ type RootNetSubnetUnbannedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetSubnetUnbannedIterator) Next() bool {
+func (it *AWPRegistrySubnetUnbannedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -5160,7 +5212,7 @@ func (it *RootNetSubnetUnbannedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetSubnetUnbanned)
+			it.Event = new(AWPRegistrySubnetUnbanned)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -5175,7 +5227,7 @@ func (it *RootNetSubnetUnbannedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetSubnetUnbanned)
+		it.Event = new(AWPRegistrySubnetUnbanned)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -5191,19 +5243,19 @@ func (it *RootNetSubnetUnbannedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetSubnetUnbannedIterator) Error() error {
+func (it *AWPRegistrySubnetUnbannedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetSubnetUnbannedIterator) Close() error {
+func (it *AWPRegistrySubnetUnbannedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetSubnetUnbanned represents a SubnetUnbanned event raised by the RootNet contract.
-type RootNetSubnetUnbanned struct {
+// AWPRegistrySubnetUnbanned represents a SubnetUnbanned event raised by the AWPRegistry contract.
+type AWPRegistrySubnetUnbanned struct {
 	SubnetId *big.Int
 	Raw      types.Log // Blockchain specific contextual infos
 }
@@ -5211,31 +5263,31 @@ type RootNetSubnetUnbanned struct {
 // FilterSubnetUnbanned is a free log retrieval operation binding the contract event 0xa04fe0f9f3200108443db1507380606e909a0f81c9eb84c0707c265152668466.
 //
 // Solidity: event SubnetUnbanned(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) FilterSubnetUnbanned(opts *bind.FilterOpts, subnetId []*big.Int) (*RootNetSubnetUnbannedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterSubnetUnbanned(opts *bind.FilterOpts, subnetId []*big.Int) (*AWPRegistrySubnetUnbannedIterator, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "SubnetUnbanned", subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "SubnetUnbanned", subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetSubnetUnbannedIterator{contract: _RootNet.contract, event: "SubnetUnbanned", logs: logs, sub: sub}, nil
+	return &AWPRegistrySubnetUnbannedIterator{contract: _AWPRegistry.contract, event: "SubnetUnbanned", logs: logs, sub: sub}, nil
 }
 
 // WatchSubnetUnbanned is a free log subscription operation binding the contract event 0xa04fe0f9f3200108443db1507380606e909a0f81c9eb84c0707c265152668466.
 //
 // Solidity: event SubnetUnbanned(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) WatchSubnetUnbanned(opts *bind.WatchOpts, sink chan<- *RootNetSubnetUnbanned, subnetId []*big.Int) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchSubnetUnbanned(opts *bind.WatchOpts, sink chan<- *AWPRegistrySubnetUnbanned, subnetId []*big.Int) (event.Subscription, error) {
 
 	var subnetIdRule []interface{}
 	for _, subnetIdItem := range subnetId {
 		subnetIdRule = append(subnetIdRule, subnetIdItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "SubnetUnbanned", subnetIdRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "SubnetUnbanned", subnetIdRule)
 	if err != nil {
 		return nil, err
 	}
@@ -5245,8 +5297,8 @@ func (_RootNet *RootNetFilterer) WatchSubnetUnbanned(opts *bind.WatchOpts, sink 
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetSubnetUnbanned)
-				if err := _RootNet.contract.UnpackLog(event, "SubnetUnbanned", log); err != nil {
+				event := new(AWPRegistrySubnetUnbanned)
+				if err := _AWPRegistry.contract.UnpackLog(event, "SubnetUnbanned", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -5270,18 +5322,18 @@ func (_RootNet *RootNetFilterer) WatchSubnetUnbanned(opts *bind.WatchOpts, sink 
 // ParseSubnetUnbanned is a log parse operation binding the contract event 0xa04fe0f9f3200108443db1507380606e909a0f81c9eb84c0707c265152668466.
 //
 // Solidity: event SubnetUnbanned(uint256 indexed subnetId)
-func (_RootNet *RootNetFilterer) ParseSubnetUnbanned(log types.Log) (*RootNetSubnetUnbanned, error) {
-	event := new(RootNetSubnetUnbanned)
-	if err := _RootNet.contract.UnpackLog(event, "SubnetUnbanned", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseSubnetUnbanned(log types.Log) (*AWPRegistrySubnetUnbanned, error) {
+	event := new(AWPRegistrySubnetUnbanned)
+	if err := _AWPRegistry.contract.UnpackLog(event, "SubnetUnbanned", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetUnpausedIterator is returned from FilterUnpaused and is used to iterate over the raw logs and unpacked data for Unpaused events raised by the RootNet contract.
-type RootNetUnpausedIterator struct {
-	Event *RootNetUnpaused // Event containing the contract specifics and raw log
+// AWPRegistryUnpausedIterator is returned from FilterUnpaused and is used to iterate over the raw logs and unpacked data for Unpaused events raised by the AWPRegistry contract.
+type AWPRegistryUnpausedIterator struct {
+	Event *AWPRegistryUnpaused // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -5295,7 +5347,7 @@ type RootNetUnpausedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetUnpausedIterator) Next() bool {
+func (it *AWPRegistryUnpausedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -5304,7 +5356,7 @@ func (it *RootNetUnpausedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetUnpaused)
+			it.Event = new(AWPRegistryUnpaused)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -5319,7 +5371,7 @@ func (it *RootNetUnpausedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetUnpaused)
+		it.Event = new(AWPRegistryUnpaused)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -5335,19 +5387,19 @@ func (it *RootNetUnpausedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetUnpausedIterator) Error() error {
+func (it *AWPRegistryUnpausedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetUnpausedIterator) Close() error {
+func (it *AWPRegistryUnpausedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetUnpaused represents a Unpaused event raised by the RootNet contract.
-type RootNetUnpaused struct {
+// AWPRegistryUnpaused represents a Unpaused event raised by the AWPRegistry contract.
+type AWPRegistryUnpaused struct {
 	Account common.Address
 	Raw     types.Log // Blockchain specific contextual infos
 }
@@ -5355,21 +5407,21 @@ type RootNetUnpaused struct {
 // FilterUnpaused is a free log retrieval operation binding the contract event 0x5db9ee0a495bf2e6ff9c91a7834c1ba4fdd244a5e8aa4e537bd38aeae4b073aa.
 //
 // Solidity: event Unpaused(address account)
-func (_RootNet *RootNetFilterer) FilterUnpaused(opts *bind.FilterOpts) (*RootNetUnpausedIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterUnpaused(opts *bind.FilterOpts) (*AWPRegistryUnpausedIterator, error) {
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "Unpaused")
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "Unpaused")
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetUnpausedIterator{contract: _RootNet.contract, event: "Unpaused", logs: logs, sub: sub}, nil
+	return &AWPRegistryUnpausedIterator{contract: _AWPRegistry.contract, event: "Unpaused", logs: logs, sub: sub}, nil
 }
 
 // WatchUnpaused is a free log subscription operation binding the contract event 0x5db9ee0a495bf2e6ff9c91a7834c1ba4fdd244a5e8aa4e537bd38aeae4b073aa.
 //
 // Solidity: event Unpaused(address account)
-func (_RootNet *RootNetFilterer) WatchUnpaused(opts *bind.WatchOpts, sink chan<- *RootNetUnpaused) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchUnpaused(opts *bind.WatchOpts, sink chan<- *AWPRegistryUnpaused) (event.Subscription, error) {
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "Unpaused")
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "Unpaused")
 	if err != nil {
 		return nil, err
 	}
@@ -5379,8 +5431,8 @@ func (_RootNet *RootNetFilterer) WatchUnpaused(opts *bind.WatchOpts, sink chan<-
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetUnpaused)
-				if err := _RootNet.contract.UnpackLog(event, "Unpaused", log); err != nil {
+				event := new(AWPRegistryUnpaused)
+				if err := _AWPRegistry.contract.UnpackLog(event, "Unpaused", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -5404,18 +5456,18 @@ func (_RootNet *RootNetFilterer) WatchUnpaused(opts *bind.WatchOpts, sink chan<-
 // ParseUnpaused is a log parse operation binding the contract event 0x5db9ee0a495bf2e6ff9c91a7834c1ba4fdd244a5e8aa4e537bd38aeae4b073aa.
 //
 // Solidity: event Unpaused(address account)
-func (_RootNet *RootNetFilterer) ParseUnpaused(log types.Log) (*RootNetUnpaused, error) {
-	event := new(RootNetUnpaused)
-	if err := _RootNet.contract.UnpackLog(event, "Unpaused", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseUnpaused(log types.Log) (*AWPRegistryUnpaused, error) {
+	event := new(AWPRegistryUnpaused)
+	if err := _AWPRegistry.contract.UnpackLog(event, "Unpaused", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// RootNetUserRegisteredIterator is returned from FilterUserRegistered and is used to iterate over the raw logs and unpacked data for UserRegistered events raised by the RootNet contract.
-type RootNetUserRegisteredIterator struct {
-	Event *RootNetUserRegistered // Event containing the contract specifics and raw log
+// AWPRegistryUserRegisteredIterator is returned from FilterUserRegistered and is used to iterate over the raw logs and unpacked data for UserRegistered events raised by the AWPRegistry contract.
+type AWPRegistryUserRegisteredIterator struct {
+	Event *AWPRegistryUserRegistered // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -5429,7 +5481,7 @@ type RootNetUserRegisteredIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RootNetUserRegisteredIterator) Next() bool {
+func (it *AWPRegistryUserRegisteredIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -5438,7 +5490,7 @@ func (it *RootNetUserRegisteredIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RootNetUserRegistered)
+			it.Event = new(AWPRegistryUserRegistered)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -5453,7 +5505,7 @@ func (it *RootNetUserRegisteredIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RootNetUserRegistered)
+		it.Event = new(AWPRegistryUserRegistered)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -5469,19 +5521,19 @@ func (it *RootNetUserRegisteredIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RootNetUserRegisteredIterator) Error() error {
+func (it *AWPRegistryUserRegisteredIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RootNetUserRegisteredIterator) Close() error {
+func (it *AWPRegistryUserRegisteredIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RootNetUserRegistered represents a UserRegistered event raised by the RootNet contract.
-type RootNetUserRegistered struct {
+// AWPRegistryUserRegistered represents a UserRegistered event raised by the AWPRegistry contract.
+type AWPRegistryUserRegistered struct {
 	User common.Address
 	Raw  types.Log // Blockchain specific contextual infos
 }
@@ -5489,31 +5541,31 @@ type RootNetUserRegistered struct {
 // FilterUserRegistered is a free log retrieval operation binding the contract event 0x54db7a5cb4735e1aac1f53db512d3390390bb6637bd30ad4bf9fc98667d9b9b9.
 //
 // Solidity: event UserRegistered(address indexed user)
-func (_RootNet *RootNetFilterer) FilterUserRegistered(opts *bind.FilterOpts, user []common.Address) (*RootNetUserRegisteredIterator, error) {
+func (_AWPRegistry *AWPRegistryFilterer) FilterUserRegistered(opts *bind.FilterOpts, user []common.Address) (*AWPRegistryUserRegisteredIterator, error) {
 
 	var userRule []interface{}
 	for _, userItem := range user {
 		userRule = append(userRule, userItem)
 	}
 
-	logs, sub, err := _RootNet.contract.FilterLogs(opts, "UserRegistered", userRule)
+	logs, sub, err := _AWPRegistry.contract.FilterLogs(opts, "UserRegistered", userRule)
 	if err != nil {
 		return nil, err
 	}
-	return &RootNetUserRegisteredIterator{contract: _RootNet.contract, event: "UserRegistered", logs: logs, sub: sub}, nil
+	return &AWPRegistryUserRegisteredIterator{contract: _AWPRegistry.contract, event: "UserRegistered", logs: logs, sub: sub}, nil
 }
 
 // WatchUserRegistered is a free log subscription operation binding the contract event 0x54db7a5cb4735e1aac1f53db512d3390390bb6637bd30ad4bf9fc98667d9b9b9.
 //
 // Solidity: event UserRegistered(address indexed user)
-func (_RootNet *RootNetFilterer) WatchUserRegistered(opts *bind.WatchOpts, sink chan<- *RootNetUserRegistered, user []common.Address) (event.Subscription, error) {
+func (_AWPRegistry *AWPRegistryFilterer) WatchUserRegistered(opts *bind.WatchOpts, sink chan<- *AWPRegistryUserRegistered, user []common.Address) (event.Subscription, error) {
 
 	var userRule []interface{}
 	for _, userItem := range user {
 		userRule = append(userRule, userItem)
 	}
 
-	logs, sub, err := _RootNet.contract.WatchLogs(opts, "UserRegistered", userRule)
+	logs, sub, err := _AWPRegistry.contract.WatchLogs(opts, "UserRegistered", userRule)
 	if err != nil {
 		return nil, err
 	}
@@ -5523,8 +5575,8 @@ func (_RootNet *RootNetFilterer) WatchUserRegistered(opts *bind.WatchOpts, sink 
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RootNetUserRegistered)
-				if err := _RootNet.contract.UnpackLog(event, "UserRegistered", log); err != nil {
+				event := new(AWPRegistryUserRegistered)
+				if err := _AWPRegistry.contract.UnpackLog(event, "UserRegistered", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -5548,9 +5600,9 @@ func (_RootNet *RootNetFilterer) WatchUserRegistered(opts *bind.WatchOpts, sink 
 // ParseUserRegistered is a log parse operation binding the contract event 0x54db7a5cb4735e1aac1f53db512d3390390bb6637bd30ad4bf9fc98667d9b9b9.
 //
 // Solidity: event UserRegistered(address indexed user)
-func (_RootNet *RootNetFilterer) ParseUserRegistered(log types.Log) (*RootNetUserRegistered, error) {
-	event := new(RootNetUserRegistered)
-	if err := _RootNet.contract.UnpackLog(event, "UserRegistered", log); err != nil {
+func (_AWPRegistry *AWPRegistryFilterer) ParseUserRegistered(log types.Log) (*AWPRegistryUserRegistered, error) {
+	event := new(AWPRegistryUserRegistered)
+	if err := _AWPRegistry.contract.UnpackLog(event, "UserRegistered", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log

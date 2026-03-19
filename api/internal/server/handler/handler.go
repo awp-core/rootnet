@@ -84,7 +84,7 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 // registryResponse is the response type for the contract address registry
 type registryResponse struct {
 	ChainID           int64  `json:"chainId"`
-	RootNet           string `json:"rootNet"`
+	AWPRegistry       string `json:"awpRegistry"`
 	AWPToken          string `json:"awpToken"`
 	AWPEmission       string `json:"awpEmission"`
 	StakingVault      string `json:"stakingVault"`
@@ -101,7 +101,7 @@ type registryResponse struct {
 func (h *Handler) GetRegistry(w http.ResponseWriter, r *http.Request) {
 	resp := registryResponse{
 		ChainID:           h.cfg.ChainID,
-		RootNet:           h.cfg.RootNetAddress,
+		AWPRegistry:       h.cfg.AWPRegistryAddress,
 		AWPToken:          h.cfg.AWPTokenAddress,
 		AWPEmission:       h.cfg.AWPEmissionAddress,
 		StakingVault:      h.cfg.StakingVaultAddress,

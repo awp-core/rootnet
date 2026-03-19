@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AWP RootNet — Admin CLI
+# AWP — Admin CLI
 #
 # Hot-update rate limits, view system status, manage salt pool, and more.
 # All rate limits are stored in Redis and take effect instantly (no restart).

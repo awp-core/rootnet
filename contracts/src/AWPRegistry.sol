@@ -17,18 +17,18 @@ import {IStakingVault} from "./interfaces/IStakingVault.sol";
 import {IStakeNFT} from "./interfaces/IStakeNFT.sol";
 import {ISubnetNFT} from "./interfaces/ISubnetNFT.sol";
 import {ILPManager} from "./interfaces/ILPManager.sol";
-import {IRootNet} from "./interfaces/IRootNet.sol";
+import {IAWPRegistry} from "./interfaces/IAWPRegistry.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-/// @title RootNet — Unified entry point for the AWP protocol (subnet management + staking management)
+/// @title AWPRegistry — Unified entry point for the AWP protocol (subnet management + staking management)
 /// @author AWP Team
-/// @notice This contract is the core control layer of the entire AWP RootNet Agent Mining protocol.
+/// @notice This contract is the core control layer of the entire AWP Registry Agent Mining protocol.
 ///         All user interactions (registration, staking, subnet management) go through this contract.
 ///         Emission logic has been migrated to the AWPEmission contract.
-/// @dev Inheritance: IRootNet (interface defining enums/structs/events), Pausable (emergency pause),
-///      ReentrancyGuard (reentrancy protection), EIP712 (EIP-712 signing domain, domain name "AWPRootNet" v1).
+/// @dev Inheritance: IAWPRegistry (interface defining enums/structs/events), Pausable (emergency pause),
+///      ReentrancyGuard (reentrancy protection), EIP712 (EIP-712 signing domain, domain name "AWPRegistry" v1).
 ///      10 external module addresses are injected once via initializeRegistry; the deployer is then zeroed and cannot call it again.
-contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
+contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
 
@@ -196,7 +196,7 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     // ══════════════════════════════════════════════
 
     /// @notice Deploy the RootNet contract
-    /// @dev EIP-712 domain name is "AWPRootNet", version "1".
+    /// @dev EIP-712 domain name is "AWPRegistry", version "1".
     ///      deployer_ is used only for the subsequent initializeRegistry call; zeroed immediately after.
     /// @param deployer_ Deployer address (holds initializeRegistry rights, self-destructs after call)
     /// @param treasury_ Treasury (Timelock) address, holds governance rights
@@ -205,7 +205,7 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
         address deployer_,
         address treasury_,
         address guardian_
-    ) EIP712("AWPRootNet", "1") {
+    ) EIP712("AWPRegistry", "1") {
         _deployer = deployer_;
         treasury = treasury_;
         guardian = guardian_;

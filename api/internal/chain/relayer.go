@@ -19,7 +19,7 @@ import (
 // Uses mutex to serialize tx submissions, preventing nonce collisions
 type Relayer struct {
 	client  *ethclient.Client
-	rootNet *bindings.RootNet
+	awpRegistry *bindings.AWPRegistry
 	key     *ecdsa.PrivateKey
 	chainID *big.Int
 	logger  *slog.Logger
@@ -29,21 +29,21 @@ type Relayer struct {
 // NewRelayer creates a Relayer instance
 func NewRelayer(
 	client *ethclient.Client,
-	rootNetAddr common.Address,
+	awpRegistryAddr common.Address,
 	key *ecdsa.PrivateKey,
 	chainID *big.Int,
 	logger *slog.Logger,
 ) (*Relayer, error) {
-	rootNet, err := bindings.NewRootNet(rootNetAddr, client)
+	awpRegistry, err := bindings.NewAWPRegistry(awpRegistryAddr, client)
 	if err != nil {
-		return nil, fmt.Errorf("bind RootNet: %w", err)
+		return nil, fmt.Errorf("bind AWPRegistry: %w", err)
 	}
 	return &Relayer{
-		client:  client,
-		rootNet: rootNet,
-		key:     key,
-		chainID: chainID,
-		logger:  logger,
+		client:      client,
+		awpRegistry: awpRegistry,
+		key:         key,
+		chainID:     chainID,
+		logger:      logger,
 	}, nil
 }
 
@@ -69,7 +69,7 @@ func (r *Relayer) RelayRegister(ctx context.Context, user common.Address, deadli
 		return "", err
 	}
 
-	tx, err := r.rootNet.RegisterFor(auth, user, deadline, v, rs, ss)
+	tx, err := r.awpRegistry.RegisterFor(auth, user, deadline, v, rs, ss)
 	if err != nil {
 		return "", fmt.Errorf("RegisterFor tx: %w", err)
 	}
@@ -91,7 +91,7 @@ func (r *Relayer) RelayBind(ctx context.Context, agent common.Address, principal
 		return "", err
 	}
 
-	tx, err := r.rootNet.BindFor(auth, agent, principal, deadline, v, rs, ss)
+	tx, err := r.awpRegistry.BindFor(auth, agent, principal, deadline, v, rs, ss)
 	if err != nil {
 		return "", fmt.Errorf("BindFor tx: %w", err)
 	}
@@ -113,7 +113,7 @@ func (r *Relayer) RelaySetRewardRecipient(ctx context.Context, user common.Addre
 		return "", err
 	}
 
-	tx, err := r.rootNet.SetRewardRecipientFor(auth, user, recipient, deadline, v, rs, ss)
+	tx, err := r.awpRegistry.SetRewardRecipientFor(auth, user, recipient, deadline, v, rs, ss)
 	if err != nil {
 		return "", fmt.Errorf("SetRewardRecipientFor tx: %w", err)
 	}
@@ -135,7 +135,7 @@ func (r *Relayer) RelayAllocate(ctx context.Context, user common.Address, agent 
 		return "", err
 	}
 
-	tx, err := r.rootNet.AllocateFor(auth, user, agent, subnetId, amount, deadline, v, rs, ss)
+	tx, err := r.awpRegistry.AllocateFor(auth, user, agent, subnetId, amount, deadline, v, rs, ss)
 	if err != nil {
 		return "", fmt.Errorf("AllocateFor tx: %w", err)
 	}
@@ -157,7 +157,7 @@ func (r *Relayer) RelayDeallocate(ctx context.Context, user common.Address, agen
 		return "", err
 	}
 
-	tx, err := r.rootNet.DeallocateFor(auth, user, agent, subnetId, amount, deadline, v, rs, ss)
+	tx, err := r.awpRegistry.DeallocateFor(auth, user, agent, subnetId, amount, deadline, v, rs, ss)
 	if err != nil {
 		return "", fmt.Errorf("DeallocateFor tx: %w", err)
 	}
@@ -179,7 +179,7 @@ func (r *Relayer) RelayActivateSubnet(ctx context.Context, user common.Address, 
 		return "", err
 	}
 
-	tx, err := r.rootNet.ActivateSubnetFor(auth, user, subnetId, deadline, v, rs, ss)
+	tx, err := r.awpRegistry.ActivateSubnetFor(auth, user, subnetId, deadline, v, rs, ss)
 	if err != nil {
 		return "", fmt.Errorf("ActivateSubnetFor tx: %w", err)
 	}
@@ -193,7 +193,7 @@ func (r *Relayer) RelayActivateSubnet(ctx context.Context, user common.Address, 
 func (r *Relayer) RelayRegisterSubnet(
 	ctx context.Context,
 	user common.Address,
-	params bindings.IRootNetSubnetParams,
+	params bindings.IAWPRegistrySubnetParams,
 	deadline *big.Int,
 	permitV uint8, permitR [32]byte, permitS [32]byte,
 	registerV uint8, registerR [32]byte, registerS [32]byte,
@@ -209,7 +209,7 @@ func (r *Relayer) RelayRegisterSubnet(
 		return "", err
 	}
 
-	tx, err := r.rootNet.RegisterSubnetForWithPermit(
+	tx, err := r.awpRegistry.RegisterSubnetForWithPermit(
 		auth, user, params, deadline,
 		permitV, permitR, permitS,
 		registerV, registerR, registerS,

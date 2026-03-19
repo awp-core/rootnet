@@ -8,7 +8,7 @@
 
 ---
 
-## RootNet — Unified Entry Point
+## AWPRegistry — Unified Entry Point
 
 ### User Registration
 ```
@@ -64,7 +64,7 @@ setSubnetManagerImpl(address impl)                              // Set/update au
 ### View Functions
 ```
 getSubnet(uint256 subnetId) → SubnetInfo                       // Lifecycle state only (lpPool, status, timestamps)
-getSubnetFull(uint256 subnetId) → SubnetFullInfo               // Combined: RootNet state + SubnetNFT identity
+getSubnetFull(uint256 subnetId) → SubnetFullInfo               // Combined: AWPRegistry state + SubnetNFT identity
 getActiveSubnetCount() → uint256
 getActiveSubnetIdAt(uint256 index) → uint256
 isSubnetActive(uint256 subnetId) → bool
@@ -125,7 +125,7 @@ epochEmissionLocked() → uint256
 oracleThreshold() → uint256
 allocationNonce() → uint256
 maxRecipients() → uint256
-rootNet() → address
+awpRegistry() → address
 getOracleCount() → uint256
 getRecipientCount() → uint256
 getRecipient(uint256 index) → address
@@ -144,7 +144,7 @@ oracles(uint256 index) → address
 ```solidity
 enum SubnetStatus { Pending, Active, Paused, Banned }
 
-// RootNet lifecycle state only — identity data in SubnetNFT
+// AWPRegistry lifecycle state only — identity data in SubnetNFT
 struct SubnetInfo {
     bytes32 lpPool;            // PancakeSwap V4 PoolId
     SubnetStatus status;
@@ -152,7 +152,7 @@ struct SubnetInfo {
     uint64 activatedAt;
 }
 
-// Combined view from getSubnetFull()
+// Combined: AWPRegistry state + SubnetNFT identity
 struct SubnetFullInfo {
     address subnetManager;     // Subnet manager contract (Alpha minter)
     address alphaToken;        // Alpha token address
@@ -189,7 +189,7 @@ struct AgentInfo {
 
 ```
 deposit(uint256 amount, uint64 lockDuration) → uint256 tokenId   // Deposit AWP + mint position NFT; lockDuration in seconds
-depositFor(address user, uint256 amount, uint64 lockDuration) → uint256 tokenId // onlyRootNet
+depositFor(address user, uint256 amount, uint64 lockDuration) → uint256 tokenId // onlyAWPRegistry
 addToPosition(uint256 tokenId, uint256 amount, uint64 newLockEndTime) // Add AWP and/or extend lock; reverts PositionExpired if lock expired
 withdraw(uint256 tokenId)                                        // Withdraw after lock expires (burns NFT)
 ```
@@ -210,11 +210,11 @@ remainingTime(uint256 tokenId) → uint64                          // Remaining 
 ## StakingVault — Pure Allocation Logic
 
 ```
-setStakeNFT(address stakeNFT_)                                            // onlyRootNet, one-time (called by initializeRegistry)
-allocate(address user, address agent, uint256 subnetId, uint256 amount)    // onlyRootNet
-deallocate(address user, address agent, uint256 subnetId, uint256 amount)  // onlyRootNet
-reallocate(address user, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) // onlyRootNet
-freezeAgentAllocations(address user, address agent)                        // onlyRootNet; auto-enumerates subnets
+setStakeNFT(address stakeNFT_)                                            // onlyAWPRegistry, one-time (called by initializeRegistry)
+allocate(address user, address agent, uint256 subnetId, uint256 amount)    // onlyAWPRegistry
+deallocate(address user, address agent, uint256 subnetId, uint256 amount)  // onlyAWPRegistry
+reallocate(address user, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) // onlyAWPRegistry
+freezeAgentAllocations(address user, address agent)                        // onlyAWPRegistry; auto-enumerates subnets
 ```
 
 ### View Functions
@@ -231,10 +231,10 @@ getAgentSubnets(address user, address agent) → uint256[]
 ## SubnetNFT — ERC721 with On-Chain Identity
 
 ```
-// RootNet-only writes
-mint(address to, uint256 tokenId, string name_, address subnetManager_, address alphaToken_, uint128 minStake_, string skillsURI_) // onlyRootNet
-burn(uint256 tokenId)                                          // onlyRootNet
-setBaseURI(string uri)                                         // onlyRootNet
+// AWPRegistry-only writes
+mint(address to, uint256 tokenId, string name_, address subnetManager_, address alphaToken_, uint128 minStake_, string skillsURI_) // onlyAWPRegistry
+burn(uint256 tokenId)                                          // onlyAWPRegistry
+setBaseURI(string uri)                                         // onlyAWPRegistry
 
 // Owner-updatable
 setSkillsURI(uint256 tokenId, string skillsURI_)               // NFT owner only
@@ -273,7 +273,7 @@ burn(uint256 amount)
 
 ## SubnetManager — Default Subnet Contract (Proxy)
 
-> Auto-deployed by RootNet when `subnetManager = address(0)`. Uses AccessControl (OZ).
+> Auto-deployed by AWPRegistry when `subnetManager = address(0)`. Uses AccessControl (OZ).
 
 ### Roles
 ```

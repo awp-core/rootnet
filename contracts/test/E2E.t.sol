@@ -13,8 +13,8 @@ import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {SubnetNFT} from "../src/core/SubnetNFT.sol";
 import {MockLPManager} from "./helpers/MockLPManager.sol";
-import {RootNet} from "../src/RootNet.sol";
-import {IRootNet} from "../src/interfaces/IRootNet.sol";
+import {AWPRegistry} from "../src/AWPRegistry.sol";
+import {IAWPRegistry} from "../src/interfaces/IAWPRegistry.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
@@ -31,7 +31,7 @@ contract E2ETest is EmissionSigningHelper {
     StakeNFT stakeNFT;
     SubnetNFT nft;
     MockLPManager lp;
-    RootNet rootNet;
+    AWPRegistry rootNet;
     Treasury treasury;
     AWPDAO dao;
 
@@ -77,7 +77,7 @@ contract E2ETest is EmissionSigningHelper {
         e[0] = address(0);
         treasury = new Treasury(1, p, e, deployer);
 
-        rootNet = new RootNet(deployer, address(treasury), guardian);
+        rootNet = new AWPRegistry(deployer, address(treasury), guardian);
         nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(rootNet));
         access = new AccessManager(address(rootNet));
         lp = new MockLPManager(address(rootNet), address(awp));
@@ -162,7 +162,7 @@ contract E2ETest is EmissionSigningHelper {
         vm.startPrank(owner);
         awp.approve(address(rootNet), LP_COST);
         uint256 id = rootNet.registerSubnet(
-            IRootNet.SubnetParams("Subnet", "SUB", sc, bytes32(0), 0, "")
+            IAWPRegistry.SubnetParams("Subnet", "SUB", sc, bytes32(0), 0, "")
         );
         vm.stopPrank();
         return id;
@@ -233,7 +233,7 @@ contract E2ETest is EmissionSigningHelper {
 
         // Alice can no longer pause
         vm.prank(alice);
-        vm.expectRevert(RootNet.NotOwner.selector);
+        vm.expectRevert(AWPRegistry.NotOwner.selector);
         rootNet.pauseSubnet(sid);
 
         // Bob can pause and resume
@@ -283,22 +283,22 @@ contract E2ETest is EmissionSigningHelper {
         // Pending -> Active
         vm.prank(alice);
         rootNet.activateSubnet(sid);
-        assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IRootNet.SubnetStatus.Active));
+        assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
 
         // Active -> Paused
         vm.prank(alice);
         rootNet.pauseSubnet(sid);
-        assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IRootNet.SubnetStatus.Paused));
+        assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Paused));
 
         // Paused -> Active
         vm.prank(alice);
         rootNet.resumeSubnet(sid);
-        assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IRootNet.SubnetStatus.Active));
+        assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
 
         // Active -> Banned
         vm.prank(address(treasury));
         rootNet.banSubnet(sid);
-        assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IRootNet.SubnetStatus.Banned));
+        assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Banned));
 
         AlphaToken alpha = AlphaToken(rootNet.getSubnetFull(sid).alphaToken);
         assertTrue(alpha.minterPaused(subnetC1));
@@ -306,7 +306,7 @@ contract E2ETest is EmissionSigningHelper {
         // Banned -> Active
         vm.prank(address(treasury));
         rootNet.unbanSubnet(sid);
-        assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IRootNet.SubnetStatus.Active));
+        assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
         assertFalse(alpha.minterPaused(subnetC1));
 
         // Deregister
@@ -605,7 +605,7 @@ contract E2ETest is EmissionSigningHelper {
         assertEq(access.getRewardRecipient(alice), bob);
 
         _depositAndAllocate(alice, agentA, sid, 1_000 * 1e18, 500 * 1e18);
-        RootNet.AgentInfo memory info = rootNet.getAgentInfo(agentA, sid);
+        AWPRegistry.AgentInfo memory info = rootNet.getAgentInfo(agentA, sid);
         assertEq(info.rewardRecipient, bob);
     }
 
@@ -812,7 +812,7 @@ contract E2ETest is EmissionSigningHelper {
         agents[1] = agentB;
         agents[2] = address(0x9999);
 
-        RootNet.AgentInfo[] memory infos = rootNet.getAgentsInfo(agents, sid);
+        AWPRegistry.AgentInfo[] memory infos = rootNet.getAgentsInfo(agents, sid);
 
         assertEq(infos.length, 3);
         assertEq(infos[0].owner, alice);
@@ -895,7 +895,7 @@ contract E2ETest is EmissionSigningHelper {
         bytes32 digest = _getDigest(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, digest);
 
-        vm.expectRevert(RootNet.ExpiredSignature.selector);
+        vm.expectRevert(AWPRegistry.ExpiredSignature.selector);
         rootNet.registerFor(user, deadline, v, r, s);
     }
 
@@ -915,7 +915,7 @@ contract E2ETest is EmissionSigningHelper {
         bytes32 digest = _getDigest(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongPk, digest);
 
-        vm.expectRevert(RootNet.InvalidSignature.selector);
+        vm.expectRevert(AWPRegistry.InvalidSignature.selector);
         rootNet.registerFor(user, deadline, v, r, s);
     }
 
@@ -1239,7 +1239,7 @@ contract E2ETest is EmissionSigningHelper {
 
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, digest);
 
-        vm.expectRevert(RootNet.ExpiredSignature.selector);
+        vm.expectRevert(AWPRegistry.ExpiredSignature.selector);
         rootNet.registerFor(userAddr, deadline, v, r, s);
     }
 
@@ -1285,7 +1285,7 @@ contract E2ETest is EmissionSigningHelper {
     function _getDigest(bytes32 structHash) internal view returns (bytes32) {
         bytes32 domainSeparator = keccak256(abi.encode(
             keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-            keccak256("AWPRootNet"),
+            keccak256("AWPRegistry"),
             keccak256("1"),
             block.chainid,
             address(rootNet)

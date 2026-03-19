@@ -265,7 +265,7 @@ function _checkProposal(address proposer) internal view {
 }
 ```
 
-## RootNet Changes
+## AWPRegistry Changes
 
 ### Deleted:
 - `deposit()`, `requestWithdraw()`, `cancelWithdraw()`, `withdraw()` — users call StakeNFT directly
@@ -297,7 +297,7 @@ function registerAndStake(
 }
 ```
 
-Note: StakeNFT needs a `depositFor(address user, uint256 amount, uint64 lockEpochs)` function callable by RootNet to support `registerAndStake`. AWP is transferred from `user` (not RootNet).
+Note: StakeNFT needs a `depositFor(address user, uint256 amount, uint64 lockEpochs)` function callable by AWPRegistry to support `registerAndStake`. AWP is transferred from `user` (not AWPRegistry).
 
 ### Modified:
 - `allocate()` — StakingVault reads StakeNFT for balance (O(1) via accumulator)
@@ -327,7 +327,7 @@ event Withdrawn(address indexed user, uint256 indexed tokenId, uint256 amount)
 event Transfer(address indexed from, address indexed to, uint256 indexed tokenId) // ERC721 standard
 ```
 
-### RootNet events (updated):
+### AWPRegistry events (updated):
 ```
 event Reallocated(address indexed user, address fromAgent, uint256 fromSubnet, address toAgent, uint256 toSubnet, uint256 amount, address operator)
 ```
@@ -365,7 +365,7 @@ CREATE INDEX idx_sp_owner ON stake_positions(owner);
 | `contracts/src/core/StakingVault.sol` | **Major refactor** — remove deposit/withdraw/STP/pending, simplify to pure allocation |
 | `contracts/src/interfaces/IStakeNFT.sol` | **Create** |
 | `contracts/src/interfaces/IStakingVault.sol` | **Update** — remove deleted functions |
-| `contracts/src/RootNet.sol` | **Refactor** — remove deposit/withdraw, simplify allocate/reallocate |
+| `contracts/src/AWPRegistry.sol` | **Refactor** — remove deposit/withdraw, simplify allocate/reallocate |
 | `contracts/src/governance/AWPDAO.sol` | **Rewrite** — custom counting module with tokenId[] voting |
 | `contracts/script/Deploy.s.sol` | **Update** — deploy StakeNFT, epoch=7 days |
 | `contracts/script/TestDeploy.s.sol` | **Update** |

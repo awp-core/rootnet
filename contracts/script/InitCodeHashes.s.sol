@@ -11,7 +11,7 @@ import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {SubnetNFT} from "../src/core/SubnetNFT.sol";
 import {LPManager} from "../src/core/LPManager.sol";
-import {RootNet} from "../src/RootNet.sol";
+import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
 import {SubnetManager} from "../src/subnets/SubnetManager.sol";
@@ -67,14 +67,14 @@ contract InitCodeHashes is Script {
             _logHash("Treasury", abi.encodePacked(type(Treasury).creationCode, abi.encode(TIMELOCK_DELAY, proposers, executors, deployer)));
         }
 
-        // Tier 3: RootNet (depends on Treasury)
+        // Tier 3: AWPRegistry (depends on Treasury)
         console.log("");
         console.log("--- Tier 3 (depends on Treasury) ---");
-        _logHash("RootNet", abi.encodePacked(type(RootNet).creationCode, abi.encode(deployer, treasury, guardian)));
+        _logHash("AWPRegistry", abi.encodePacked(type(AWPRegistry).creationCode, abi.encode(deployer, treasury, guardian)));
 
-        // Tier 4: Depends on RootNet + AWP
+        // Tier 4: Depends on AWPRegistry + AWP
         console.log("");
-        console.log("--- Tier 4 (depends on RootNet + AWP) ---");
+        console.log("--- Tier 4 (depends on AWPRegistry + AWP) ---");
         _logHash("SubnetNFT", abi.encodePacked(type(SubnetNFT).creationCode, abi.encode("AWP Subnet", "AWPSUB", rootNet)));
         _logHash("AccessManager", abi.encodePacked(type(AccessManager).creationCode, abi.encode(rootNet)));
         _logHash("LPManager", abi.encodePacked(type(LPManager).creationCode, abi.encode(rootNet, poolManager, positionManager, permit2Addr, awp)));
@@ -89,7 +89,7 @@ contract InitCodeHashes is Script {
         bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, treasury, INITIAL_DAILY_EMISSION, uint256(0), EPOCH_DURATION));
         _logHash("AWPEmission_proxy", abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(emissionImpl, initData)));
 
-        // Tier 5: StakeNFT (depends on StakingVault + RootNet + AWP)
+        // Tier 5: StakeNFT (depends on StakingVault + AWPRegistry + AWP)
         console.log("");
         console.log("--- Tier 5 (depends on StakingVault) ---");
         _logHash("StakeNFT", abi.encodePacked(type(StakeNFT).creationCode, abi.encode(awp, vault, rootNet)));

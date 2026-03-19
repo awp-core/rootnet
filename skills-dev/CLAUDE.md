@@ -1,19 +1,19 @@
-# AWP RootNet — Skills Development Context
+# AWP — Skills Development Context
 
-You are developing **OpenClaw skills** for interacting with the AWP RootNet protocol. Skills should enable users to query protocol state, manage subnets, stake tokens, and monitor emissions — all via natural language.
+You are developing **OpenClaw skills** for interacting with the AWP protocol. Skills should enable users to query protocol state, manage subnets, stake tokens, and monitor emissions — all via natural language.
 
 ## Protocol Overview
 
-AWP RootNet is an **Agent Working protocol on BSC** (13 Solidity contracts) with these core components:
+AWP is an **Agent Working protocol on BSC** (13 Solidity contracts) with these core components:
 
-- **RootNet** — Unified entry: subnet management + staking allocation + gasless relay (registerFor, bindFor, registerSubnetFor). No deposit/withdraw (handled by StakeNFT).
+- **AWPRegistry** — Unified entry: subnet management + staking allocation + gasless relay (registerFor, bindFor, registerSubnetFor). No deposit/withdraw (handled by StakeNFT).
 - **StakeNFT** — ERC721 position NFT. Deposit AWP with lock period (timestamp-based, seconds). addToPosition blocked on expired locks (PositionExpired).
 - **AWPEmission** — **[DRAFT]** UUPS proxy emission engine. settleEpoch(limit) uses mintAndCall to auto-trigger SubnetManager strategies.
 - **StakingVault** — Pure allocation logic. Auto-enumerates agent subnets. allocate/reallocate reject subnetId=0.
 - **LPManager** — PancakeSwap V4 CL pool (permanently locked LP).
 - **AWPToken** — ERC20+ERC1363+Votes, 10B max. mintAndCall(to, amount, data) triggers ERC1363 callback.
 - **AlphaToken** — Per-subnet ERC20 via CREATE2 (standalone). Factory replaceable via setAlphaTokenFactory (Timelock).
-- **SubnetNFT** — ERC721 with on-chain identity (name, subnetManager, alphaToken) + owner-updatable (skillsURI via setSkillsURI, minStake via setMinStake). Status/lifecycle in RootNet.
+- **SubnetNFT** — ERC721 with on-chain identity (name, subnetManager, alphaToken) + owner-updatable (skillsURI via setSkillsURI, minStake via setMinStake). Status/lifecycle in AWPRegistry.
 - **SubnetManager** — Default subnet contract (auto-deployed via ERC1967Proxy). AccessControl + Merkle distribution + AWP strategies (Reserve/AddLiquidity/BuybackBurn) + IERC1363Receiver (auto-executes on mintAndCall).
 - **AWPDAO** — NFT-based voting. createdAt >= propCreatedAt blocks same-block voting. totalVotingPower > 0 required. Two proposal types: proposeWithTokens + signalPropose.
 - **Treasury** — TimelockController governance.
@@ -42,7 +42,7 @@ AWP RootNet is an **Agent Working protocol on BSC** (13 Solidity contracts) with
 7. **query-epoch-history** — Get epoch settlement history with emission amounts
 
 ### Write Skills (require wallet/signer)
-8. **register-user** — Register as a user on RootNet
+8. **register-user** — Register as a user on AWPRegistry
 9. **register-subnet** — Register a new subnet (deploy Alpha + LP)
 10. **deposit-stake** — Deposit AWP via StakeNFT (mint position NFT with lock period)
 11. **allocate-stake** — Allocate stake to (agent, subnet)

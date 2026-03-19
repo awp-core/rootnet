@@ -14,10 +14,10 @@
 
 ## Chunk 1: Core Contract Changes
 
-### Task 1: Update IRootNet.sol — lpPool type + LPCreated event
+### Task 1: Update IAWPRegistry.sol — lpPool type + LPCreated event
 
 **Files:**
-- Modify: `contracts/src/interfaces/IRootNet.sol`
+- Modify: `contracts/src/interfaces/IAWPRegistry.sol`
 
 - [ ] **Step 1: Change SubnetInfo.lpPool from address to bytes32**
 
@@ -54,10 +54,10 @@ function createPoolAndAddLiquidity(address alphaToken, uint256 awpAmount, uint25
     external returns (bytes32 poolId, uint256 lpTokenId);
 ```
 
-### Task 3: Update RootNet.sol — adapt to new return types
+### Task 3: Update AWPRegistry.sol — adapt to new return types
 
 **Files:**
-- Modify: `contracts/src/RootNet.sol`
+- Modify: `contracts/src/AWPRegistry.sol`
 
 - [ ] **Step 1: Update _deployAlphaAndLP return type**
 
@@ -105,11 +105,11 @@ contract MockLPManager {
     IERC20 public immutable awpToken;
     mapping(address => bytes32) public alphaTokenToPool;
 
-    error NotRootNet();
+    error NotAWPRegistry();
     error PoolAlreadyExists();
 
-    modifier onlyRootNet() {
-        if (msg.sender != rootNet) revert NotRootNet();
+    modifier onlyAWPRegistry() {
+        if (msg.sender != rootNet) revert NotAWPRegistry();
         _;
     }
 
@@ -119,7 +119,7 @@ contract MockLPManager {
     }
 
     function createPoolAndAddLiquidity(address alphaToken, uint256, uint256)
-        external onlyRootNet returns (bytes32 poolId, uint256 lpTokenId)
+        external onlyAWPRegistry returns (bytes32 poolId, uint256 lpTokenId)
     {
         if (alphaTokenToPool[alphaToken] != bytes32(0)) revert PoolAlreadyExists();
         poolId = keccak256(abi.encodePacked(alphaToken, address(awpToken)));
@@ -195,11 +195,11 @@ git commit -m "feat: LPManager PancakeSwap V4 integration + MockLPManager for te
 ### Task 8: Update non-fork tests to use MockLPManager
 
 **Files:**
-- Modify: `contracts/test/RootNet.t.sol`
+- Modify: `contracts/test/AWPRegistry.t.sol`
 - Modify: `contracts/test/E2E.t.sol`
 - Modify: `contracts/test/Integration.t.sol`
 
-- [ ] **Step 1: Update RootNet.t.sol**
+- [ ] **Step 1: Update AWPRegistry.t.sol**
 
 Replace `LPManager` import with `MockLPManager`. Change setUp:
 ```solidity
@@ -210,7 +210,7 @@ lp = new MockLPManager(address(rootNet), address(awp));
 
 Update any assertions that reference `lpPool` as `address` to `bytes32`.
 
-Note: RootNet.initializeRegistry still accepts `address(lp)` since `lpManager` is stored as `address`.
+Note: AWPRegistry.initializeRegistry still accepts `address(lp)` since `lpManager` is stored as `address`.
 
 - [ ] **Step 2: Update E2E.t.sol**
 
@@ -272,7 +272,7 @@ contract LPManagerForkTest is Test {
         // Deploy real LPManager
         lp = new LPManager(rootNet, CL_POOL_MANAGER, CL_POSITION_MANAGER, PERMIT2, address(awp));
 
-        // Transfer tokens to LPManager (simulating RootNet.registerSubnet flow)
+        // Transfer tokens to LPManager (simulating AWPRegistry.registerSubnet flow)
         uint256 awpAmount = 1_000_000 * 1e18;
         uint256 alphaAmount = 100_000_000 * 1e18;
 
@@ -288,7 +288,7 @@ contract LPManagerForkTest is Test {
 Tests to implement:
 - `test_createPoolAndAddLiquidity`: Call from rootNet, verify poolId != 0, tokenId > 0, tokens transferred out of LPManager
 - `test_createPool_revertsDoubleCreate`: Create same Alpha pool twice → PoolAlreadyExists
-- `test_createPool_revertsNonRootNet`: User calls → NotRootNet
+- `test_createPool_revertsNonAWPRegistry`: User calls → NotAWPRegistry
 - `test_tokenOrdering`: Verify works regardless of AWP vs Alpha address ordering
 - `test_swapAfterPoolCreation`: After creating pool, verify swap works via CLPoolManager
 
@@ -317,13 +317,13 @@ git commit -m "test: MockLPManager for unit tests, fork tests for PancakeSwap V4
 **Files:**
 - Regenerate: `api/internal/chain/bindings/root_net.go`
 
-- [ ] **Step 1: Regenerate RootNet binding**
+- [ ] **Step 1: Regenerate AWPRegistry binding**
 
 The SubnetInfo struct changed (lpPool: address → bytes32), LPCreated event changed. Regenerate:
 ```bash
 cd /home/ubuntu/code/Cortexia/contracts
-/home/ubuntu/.foundry/bin/forge inspect RootNet abi --json > /tmp/rootnet_abi.json
-/home/ubuntu/go/bin/abigen --abi /tmp/rootnet_abi.json --pkg bindings --type RootNet --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/root_net.go
+/home/ubuntu/.foundry/bin/forge inspect AWPRegistry abi --json > /tmp/rootnet_abi.json
+/home/ubuntu/go/bin/abigen --abi /tmp/rootnet_abi.json --pkg bindings --type AWPRegistry --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/root_net.go
 ```
 
 - [ ] **Step 2: Update indexer if LPCreated parsing needs changes**

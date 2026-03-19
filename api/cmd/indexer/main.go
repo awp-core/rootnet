@@ -68,7 +68,7 @@ func newRedis(lc fx.Lifecycle, cfg *config.Config) (*redis.Client, error) {
 
 func newChainClient(cfg *config.Config) (*chain.Client, error) {
 	addrs := map[string]string{
-		"RootNet":      cfg.RootNetAddress,
+		"AWPRegistry":  cfg.AWPRegistryAddress,
 		"AWPToken":     cfg.AWPTokenAddress,
 		"AWPEmission":  cfg.AWPEmissionAddress,
 		"StakingVault": cfg.StakingVaultAddress,

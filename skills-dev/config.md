@@ -14,7 +14,7 @@
 
 | Contract | Address | Description |
 |----------|---------|-------------|
-| RootNet | `0x190E0E3128764913D54aD570993b21a38D1411F7` | Unified entry point |
+| AWPRegistry | `0x190E0E3128764913D54aD570993b21a38D1411F7` | Unified entry point |
 | AWPToken | `0x0000969dDC625E1c084ECE9079055Fbc50F400a1` | Main token (ERC20+Votes) |
 | AWPEmission (Proxy) | `0xcc4fA866c0c49FE4763977C5302a6052C3f0d742` | Emission engine (UUPS proxy) |
 | SubnetNFT | `0xbdfd26f499bd7972242bb765d8C3262d6d89fE63` | Subnet NFT (ERC721) |
@@ -42,7 +42,7 @@
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `REDIS_URL` | Yes | Redis connection string |
 | `RPC_URL` | Yes | BSC RPC endpoint |
-| `ROOTNET_ADDRESS` | Yes | RootNet contract address |
+| `AWP_REGISTRY_ADDRESS` | Yes | AWPRegistry contract address |
 | `AWP_TOKEN_ADDRESS` | Yes | AWPToken contract address |
 | `AWP_EMISSION_ADDRESS` | Yes | AWPEmission proxy address |
 | `STAKING_VAULT_ADDRESS` | Yes | StakingVault contract address |
@@ -77,7 +77,7 @@
 | EPOCH_DURATION | 1 day (86400s) | **[DRAFT]** | Time between settlements (daily epochs, AWPEmission only) |
 | DECAY_FACTOR | 0.996844 per epoch | **[DRAFT]** | ~0.3156% decay each epoch |
 | EMISSION_SPLIT | 50/50 | **[DRAFT]** | Recipients vs DAO |
-| MAX_ACTIVE_SUBNETS | 10,000 | RootNet active subnet limit |
+| MAX_ACTIVE_SUBNETS | 10,000 | AWPRegistry active subnet limit |
 | maxRecipients | 10,000 | AWPEmission recipient limit |
 | MAX_WEIGHT_SECONDS | 54 weeks (32,659,200s) | Max time for voting power sqrt |
 | Immunity Period | 30 days | Deregister protection |

@@ -118,8 +118,8 @@ func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, limiter *ratelimit.Lim
 		return nil, fmt.Errorf("relay get chainID: %w", err)
 	}
 
-	rootNetAddr := common.HexToAddress(cfg.RootNetAddress)
-	relayer, err := chain.NewRelayer(client, rootNetAddr, key, chainID, logger)
+	awpRegistryAddr := common.HexToAddress(cfg.AWPRegistryAddress)
+	relayer, err := chain.NewRelayer(client, awpRegistryAddr, key, chainID, logger)
 	if err != nil {
 		client.Close()
 		return nil, fmt.Errorf("create relayer: %w", err)

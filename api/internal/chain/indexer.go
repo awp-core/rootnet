@@ -144,7 +144,7 @@ func (idx *Indexer) poll(ctx context.Context) error {
 	logs, err := idx.chain.Eth.FilterLogs(ctx, ethereum.FilterQuery{
 		FromBlock: new(big.Int).SetUint64(fromBlock),
 		ToBlock:   new(big.Int).SetUint64(toBlock),
-		Addresses: []common.Address{idx.chain.RootNetAddr, idx.chain.AWPEmissionAddr, idx.chain.StakeNFTAddr, idx.chain.SubnetNFTAddr, idx.chain.AWPDAOAddr},
+		Addresses: []common.Address{idx.chain.AWPRegistryAddr, idx.chain.AWPEmissionAddr, idx.chain.StakeNFTAddr, idx.chain.SubnetNFTAddr, idx.chain.AWPDAOAddr},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to filter logs: %w", err)
@@ -297,13 +297,13 @@ func (idx *Indexer) recordBlockHashes(ctx context.Context, q *gen.Queries, fromB
 
 // processLog parses a single log entry and performs the corresponding database writes, returning Redis events to publish
 func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log) ([]redisEvent, error) {
-	rootNet := idx.chain.RootNet
+	awpRegistry := idx.chain.AWPRegistry
 	awpEmission := idx.chain.AWPEmission
 	stakeNFT := idx.chain.StakeNFT
 
 	// Attempt to match each event signature
 	// UserRegistered
-	if evt, err := rootNet.ParseUserRegistered(lg); err == nil {
+	if evt, err := awpRegistry.ParseUserRegistered(lg); err == nil {
 		if err := q.InsertUser(ctx, gen.InsertUserParams{
 			Address:      strings.ToLower(evt.User.Hex()),
 			RegisteredAt: int64(lg.BlockNumber),
@@ -319,7 +319,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// AgentBound (covers both first bind and rebind)
-	if evt, err := rootNet.ParseAgentBound(lg); err == nil {
+	if evt, err := awpRegistry.ParseAgentBound(lg); err == nil {
 		if err := q.UpsertAgent(ctx, gen.UpsertAgentParams{
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
 			OwnerAddress: strings.ToLower(evt.Principal.Hex()),
@@ -334,7 +334,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// AgentRemoved
-	if evt, err := rootNet.ParseAgentRemoved(lg); err == nil {
+	if evt, err := awpRegistry.ParseAgentRemoved(lg); err == nil {
 		if err := q.UpdateAgentRemoved(ctx, gen.UpdateAgentRemovedParams{
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
 			RemovedAt:    pgtype.Int8{Int64: int64(lg.BlockNumber), Valid: true},
@@ -355,7 +355,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// AgentUnbound (agent voluntarily unbinds from principal — freeze allocations same as AgentRemoved)
-	if evt, err := rootNet.ParseAgentUnbound(lg); err == nil {
+	if evt, err := awpRegistry.ParseAgentUnbound(lg); err == nil {
 		if err := q.UpdateAgentRemoved(ctx, gen.UpdateAgentRemovedParams{
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
 			RemovedAt:    pgtype.Int8{Int64: int64(lg.BlockNumber), Valid: true},
@@ -375,7 +375,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// DelegationUpdated
-	if evt, err := rootNet.ParseDelegationUpdated(lg); err == nil {
+	if evt, err := awpRegistry.ParseDelegationUpdated(lg); err == nil {
 		if err := q.UpdateAgentManager(ctx, gen.UpdateAgentManagerParams{
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
 			IsManager:    evt.IsManager,
@@ -391,7 +391,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// RewardRecipientUpdated
-	if evt, err := rootNet.ParseRewardRecipientUpdated(lg); err == nil {
+	if evt, err := awpRegistry.ParseRewardRecipientUpdated(lg); err == nil {
 		if err := q.UpsertRewardRecipient(ctx, gen.UpsertRewardRecipientParams{
 			UserAddress:      strings.ToLower(evt.User.Hex()),
 			RecipientAddress: strings.ToLower(evt.Recipient.Hex()),
@@ -485,7 +485,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// Allocated
-	if evt, err := rootNet.ParseAllocated(lg); err == nil {
+	if evt, err := awpRegistry.ParseAllocated(lg); err == nil {
 		if err := q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 			UserAddress:  strings.ToLower(evt.User.Hex()),
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
@@ -510,7 +510,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// Deallocated
-	if evt, err := rootNet.ParseDeallocated(lg); err == nil {
+	if evt, err := awpRegistry.ParseDeallocated(lg); err == nil {
 		if err := q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
 			UserAddress:  strings.ToLower(evt.User.Hex()),
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
@@ -535,7 +535,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// Reallocated — replaces the old ReallocationQueued; update DB allocations and publish event
-	if evt, err := rootNet.ParseReallocated(lg); err == nil {
+	if evt, err := awpRegistry.ParseReallocated(lg); err == nil {
 		// Subtract from source allocation
 		if err := q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
 			UserAddress:  strings.ToLower(evt.User.Hex()),
@@ -566,7 +566,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// SubnetRegistered
-	if evt, err := rootNet.ParseSubnetRegistered(lg); err == nil {
+	if evt, err := awpRegistry.ParseSubnetRegistered(lg); err == nil {
 		if err := q.InsertSubnet(ctx, gen.InsertSubnetParams{
 			SubnetID:       evt.SubnetId.Int64(),
 			Owner:          strings.ToLower(evt.Owner.Hex()),
@@ -600,7 +600,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// LPCreated
-	if evt, err := rootNet.ParseLPCreated(lg); err == nil {
+	if evt, err := awpRegistry.ParseLPCreated(lg); err == nil {
 		poolIdHex := "0x" + hex.EncodeToString(evt.PoolId[:])
 		if err := q.UpdateSubnetLP(ctx, gen.UpdateSubnetLPParams{
 			SubnetID: evt.SubnetId.Int64(),
@@ -617,7 +617,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// SubnetActivated
-	if evt, err := rootNet.ParseSubnetActivated(lg); err == nil {
+	if evt, err := awpRegistry.ParseSubnetActivated(lg); err == nil {
 		if err := q.UpdateSubnetActivated(ctx, gen.UpdateSubnetActivatedParams{
 			SubnetID:    evt.SubnetId.Int64(),
 			ActivatedAt: pgtype.Int8{Int64: int64(lg.BlockNumber), Valid: true},
@@ -630,7 +630,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// SubnetPaused
-	if evt, err := rootNet.ParseSubnetPaused(lg); err == nil {
+	if evt, err := awpRegistry.ParseSubnetPaused(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
 			SubnetID: evt.SubnetId.Int64(),
 			Status:   "Paused",
@@ -643,7 +643,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// SubnetResumed
-	if evt, err := rootNet.ParseSubnetResumed(lg); err == nil {
+	if evt, err := awpRegistry.ParseSubnetResumed(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
 			SubnetID: evt.SubnetId.Int64(),
 			Status:   "Active",
@@ -656,7 +656,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// SubnetBanned
-	if evt, err := rootNet.ParseSubnetBanned(lg); err == nil {
+	if evt, err := awpRegistry.ParseSubnetBanned(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
 			SubnetID: evt.SubnetId.Int64(),
 			Status:   "Banned",
@@ -669,7 +669,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// SubnetUnbanned
-	if evt, err := rootNet.ParseSubnetUnbanned(lg); err == nil {
+	if evt, err := awpRegistry.ParseSubnetUnbanned(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
 			SubnetID: evt.SubnetId.Int64(),
 			Status:   "Active",
@@ -682,7 +682,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// SubnetDeregistered
-	if evt, err := rootNet.ParseSubnetDeregistered(lg); err == nil {
+	if evt, err := awpRegistry.ParseSubnetDeregistered(lg); err == nil {
 		if err := q.UpdateSubnetBurned(ctx, evt.SubnetId.Int64()); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetBurned: %w", err)
 		}
@@ -834,10 +834,10 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// ── RootNet governance events (notification-only, no DB writes) ──
-	// These events are not in the current RootNet binding; match by topic hash.
-	// TODO: regenerate RootNet binding to include these events and use typed parsing.
-	if lg.Address == idx.chain.RootNetAddr {
+	// ── AWPRegistry governance events (notification-only, no DB writes) ──
+	// These events are not in the current AWPRegistry binding; match by topic hash.
+	// TODO: regenerate AWPRegistry binding to include these events and use typed parsing.
+	if lg.Address == idx.chain.AWPRegistryAddr {
 		topic := lg.Topics[0]
 		switch topic {
 		// GuardianUpdated(address indexed newGuardian)

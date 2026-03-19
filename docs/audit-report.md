@@ -1,4 +1,4 @@
-# AWP RootNet — Security Audit Report
+# AWP — Security Audit Report
 
 > Generated: 2026-03-19
 > Auditor: Claude Opus 4
@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-This audit covered the full AWP RootNet protocol: 13 deployed Solidity contracts (plus interfaces and test files), the Go backend (API server, indexer, keeper), and all developer-facing documentation. The audit was conducted over 9 rounds, progressing from logic and interface correctness through security-critical checks (reentrancy, access control, integer safety) to economic model validation and documentation consistency. A total of 58 issues were identified, 54 fixed, and 4 accepted as known risks.
+This audit covered the full AWP protocol: 13 deployed Solidity contracts (plus interfaces and test files), the Go backend (API server, indexer, keeper), and all developer-facing documentation. The audit was conducted over 9 rounds, progressing from logic and interface correctness through security-critical checks (reentrancy, access control, integer safety) to economic model validation and documentation consistency. A total of 58 issues were identified, 54 fixed, and 4 accepted as known risks.
 
 ## Audit Rounds
 
@@ -35,13 +35,13 @@ This audit covered the full AWP RootNet protocol: 13 deployed Solidity contracts
 17. **Front-running registerSubnet for vanity salt**: Salt is tied to subnetId via CREATE2; front-running changes the deployer address. **Verified safe.**
 18. **AlphaToken dual-minter race condition**: mintersLocked flag is set atomically in setSubnetMinter. **Verified safe.**
 19. **StakeNFT addToPosition on expired lock**: PositionExpired error correctly blocks adding to expired positions. **Verified safe.**
-20. **RootNet.allocate minStake enforcement**: InsufficientMinStake check prevents allocation below subnet minimum. **Verified safe.**
+20. **AWPRegistry.allocate minStake enforcement**: InsufficientMinStake check prevents allocation below subnet minimum. **Verified safe.**
 
 ### Contract Round 3 — Economic Model, Upgrades, Gas, Events, Boundaries
 
 21. **AWPEmission epoch 0 warmup**: Epoch 0 has no recipient allocations; all emission goes to DAO. Oracle must submit for effectiveEpoch >= 1. **Verified correct.**
 22. **Exponential decay precision**: decayFactor 996844/1000000 per epoch maintains sufficient precision over 10+ years. **Verified safe.**
-23. **MAX_ACTIVE_SUBNETS boundary check on unban**: RootNet.unbanSubnet checks `activeSubnetIds.length() < MAX_ACTIVE_SUBNETS` before re-adding. **Verified safe.**
+23. **MAX_ACTIVE_SUBNETS boundary check on unban**: AWPRegistry.unbanSubnet checks `activeSubnetIds.length() < MAX_ACTIVE_SUBNETS` before re-adding. **Verified safe.**
 24. **AWPEmission UUPS upgrade safety**: Only Timelock can upgrade; initializer properly guards against re-initialization. **Verified safe.**
 25. **SubnetManager proxy initialization**: Initializable + AccessControlUpgradeable properly configured. **Verified safe.**
 26. **Gas: settleEpoch batch limit parameter**: `limit` parameter allows bounded gas consumption per transaction. **Verified safe.**
@@ -64,7 +64,7 @@ This audit covered the full AWP RootNet protocol: 13 deployed Solidity contracts
 37. **Relay rate limiting**: Atomic Lua INCR+EXPIRE prevents race conditions. Rate limit keys updated to `rl:relay:{ip}` pattern. **Fixed.**
 38. **WebSocket connection limits**: Server-side connection limits prevent DoS. **Verified safe.**
 39. **Input validation on address parameters**: Go handlers validate address format before DB queries. **Verified safe.**
-40. **Gasless relay EIP-712 signature verification**: Signatures verified on-chain by RootNet (registerFor, bindFor, registerSubnetFor). **Verified safe.**
+40. **Gasless relay EIP-712 signature verification**: Signatures verified on-chain by AWPRegistry (registerFor, bindFor, registerSubnetFor). **Verified safe.**
 41. **Rate limit env vars removed**: RELAY_RATE_LIMIT/RELAY_RATE_WINDOW removed; rate limits now configurable via Redis hash `ratelimit:config`. **Fixed.**
 42. **Vanity upload salt verification**: CREATE2 + vanityRule verification on upload prevents invalid salts. **Verified safe.**
 

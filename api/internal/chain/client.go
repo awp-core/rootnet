@@ -14,7 +14,7 @@ type Client struct {
 	Eth *ethclient.Client
 
 	// Contract addresses
-	RootNetAddr      common.Address
+	AWPRegistryAddr  common.Address
 	AWPTokenAddr     common.Address
 	AWPEmissionAddr  common.Address
 	StakingVaultAddr common.Address
@@ -24,7 +24,7 @@ type Client struct {
 	StakeNFTAddr     common.Address
 
 	// Contract binding instances
-	RootNet      *bindings.RootNet
+	AWPRegistry  *bindings.AWPRegistry
 	AWPToken     *bindings.AWPToken
 	AWPEmission  *bindings.AWPEmission
 	StakingVault *bindings.StakingVault
@@ -35,7 +35,7 @@ type Client struct {
 }
 
 // NewClient creates a chain client, connects to RPC, and initializes all contract binding instances.
-// The addresses map uses contract names (e.g. "RootNet", "AWPToken") as keys and hex addresses as values.
+// The addresses map uses contract names (e.g. "AWPRegistry", "AWPToken") as keys and hex addresses as values.
 func NewClient(ctx context.Context, rpcURL string, addresses map[string]string) (*Client, error) {
 	eth, err := ethclient.DialContext(ctx, rpcURL)
 	if err != nil {
@@ -56,14 +56,14 @@ func NewClient(ctx context.Context, rpcURL string, addresses map[string]string) 
 		return common.HexToAddress(raw), nil
 	}
 
-	// RootNet (required)
-	c.RootNetAddr, err = parseAddr("RootNet")
+	// AWPRegistry (required)
+	c.AWPRegistryAddr, err = parseAddr("AWPRegistry")
 	if err != nil {
 		return nil, err
 	}
-	c.RootNet, err = bindings.NewRootNet(c.RootNetAddr, eth)
+	c.AWPRegistry, err = bindings.NewAWPRegistry(c.AWPRegistryAddr, eth)
 	if err != nil {
-		return nil, fmt.Errorf("failed to bind RootNet: %w", err)
+		return nil, fmt.Errorf("failed to bind AWPRegistry: %w", err)
 	}
 
 	// AWPToken

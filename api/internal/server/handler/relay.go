@@ -588,7 +588,7 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 		minStake = big.NewInt(0)
 	}
 
-	params := bindings.IRootNetSubnetParams{
+	params := bindings.IAWPRegistrySubnetParams{
 		Name:          req.Name,
 		Symbol:        req.Symbol,
 		SubnetManager: subnetMgr,

@@ -4,7 +4,7 @@
 
 ## Overview
 
-All 10 Solidity contracts for the AWP RootNet Agent Mining protocol have been implemented, tested, and verified. The contracts follow the architecture document (docs/architecture.md v9.0) and target Solidity 0.8.20 with OpenZeppelin 5.x.
+All 10 Solidity contracts for the AWP Agent Mining protocol have been implemented, tested, and verified. The contracts follow the architecture document (docs/architecture.md v9.0) and target Solidity 0.8.20 with OpenZeppelin 5.x.
 
 ## Contracts Implemented
 
@@ -18,7 +18,7 @@ All 10 Solidity contracts for the AWP RootNet Agent Mining protocol have been im
 | StakingVault | src/core/StakingVault.sol | 275 | Deposit/withdraw/allocate/reallocate/STP |
 | SubnetNFT | src/core/SubnetNFT.sol | 45 | Pure ERC721 with baseURI template |
 | LPManager | src/core/LPManager.sol | 57 | PancakeSwap V4 LP wrapper (simplified) |
-| RootNet | src/RootNet.sol | ~450 | Unified entry: subnet management + staking management |
+| AWPRegistry | src/AWPRegistry.sol | ~450 | Unified entry: subnet management + staking management |
 | AWPDAO | src/governance/AWPDAO.sol | 95 | OZ Governor suite |
 | Treasury | src/governance/Treasury.sol | 11 | OZ TimelockController |
 
@@ -37,7 +37,7 @@ All 10 Solidity contracts for the AWP RootNet Agent Mining protocol have been im
 | SubnetNFT.t.sol | 17 tests | ✅ All pass |
 | StakingVault.t.sol | 31 tests | ✅ All pass |
 | LPManager.t.sol | 5 tests | ✅ All pass |
-| RootNet.t.sol | 26 tests | ✅ All pass |
+| AWPRegistry.t.sol | 26 tests | ✅ All pass |
 | AWPDAO.t.sol | 9 tests | ✅ All pass |
 | Integration.t.sol | 46 tests (est.) | ✅ All pass |
 
@@ -73,13 +73,13 @@ Test categories covered:
 4. Treasury (TimelockController)
 5. AWPDAO (Governor)
 6-7. Treasury role setup + admin renounce
-8. RootNet
+8. AWPRegistry
 9-12. SubnetNFT, AccessManager, StakingVault, LPManager
 13a. AWPEmission implementation deploy
 13b. ERC1967Proxy(impl, initData) — proxy address is permanent minter
 14-15. Add minter + renounce admin (permanently locks minter list)
 16. AlphaTokenFactory.setAddresses
-17. RootNet.initializeRegistry
+17. AWPRegistry.initializeRegistry
 18-22. AWP distribution (Treasury 90M, LP 10M, Airdrop 100M)
 
 ## Design Decisions
@@ -92,7 +92,7 @@ The LPManager uses a simplified implementation that generates deterministic pool
 - Production deployment will need to replace with real PancakeSwap V4 calls
 
 ### 2. via_ir Compilation
-The `via_ir = true` flag is enabled in foundry.toml because RootNet.sol's `registerSubnet` function has too many local variables for the legacy code generator. This is a standard Foundry approach for complex contracts and has no functional impact.
+The `via_ir = true` flag is enabled in foundry.toml because AWPRegistry.sol's `registerSubnet` function has too many local variables for the legacy code generator. This is a standard Foundry approach for complex contracts and has no functional impact.
 
 ### 3. Treasury with Zero Delay in Tests
 Integration tests use `minDelay=0` for the Treasury to simplify testing governance flows. The Deploy script uses `172800` (2 days) for production.
@@ -119,4 +119,4 @@ AlphaToken uses OpenZeppelin's upgradeable contracts (`ERC20Upgradeable`, `ERC20
 
 7. **Backend Bindings**: `abigen` needs to be run to generate Go contract bindings for the indexer/keeper.
 
-8. **Upgradability Strategy**: RootNet itself is not upgradeable. The `updateAddress` mechanism via DAO timelock provides limited flexibility. Consider whether a proxy pattern is needed for RootNet.
+8. **Upgradability Strategy**: AWPRegistry itself is not upgradeable. The `updateAddress` mechanism via DAO timelock provides limited flexibility. Consider whether a proxy pattern is needed for AWPRegistry.

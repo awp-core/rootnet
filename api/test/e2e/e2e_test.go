@@ -38,12 +38,12 @@ type e2eEnv struct {
 	chainID  *big.Int
 
 	// Contract bindings (created from addresses)
-	rootNet  *bindings.RootNet
+	awpRegistry *bindings.AWPRegistry
 	awpToken *bindings.AWPToken
 	stakeNFT *bindings.StakeNFT
 
 	// Contract addresses
-	rootNetAddr  common.Address
+	awpRegistryAddr  common.Address
 	awpAddr      common.Address
 	svAddr       common.Address
 	emAddr       common.Address
@@ -91,7 +91,7 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 	// Read contract addresses from broadcast file
 	addresses := readDeployedAddresses(t, "/home/ubuntu/code/Cortexia/contracts")
 
-	rootNetAddr := common.HexToAddress(addresses["RootNet"])
+	awpRegistryAddr := common.HexToAddress(addresses["AWPRegistry"])
 	awpAddr := common.HexToAddress(addresses["AWPToken"])
 	svAddr := common.HexToAddress(addresses["StakingVault"])
 	emAddr := common.HexToAddress(addresses["AWPEmission"])
@@ -101,7 +101,7 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 
 	stakeNFTAddr := common.HexToAddress(addresses["StakeNFT"])
 
-	rootNet, _ := bindings.NewRootNet(rootNetAddr, client)
+	awpRegistry, _ := bindings.NewAWPRegistry(awpRegistryAddr, client)
 	awpToken, _ := bindings.NewAWPToken(awpAddr, client)
 	stakeNFT, _ := bindings.NewStakeNFT(stakeNFTAddr, client)
 
@@ -127,10 +127,10 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 		client:      client,
 		deployer:    deployerKey,
 		chainID:     chainID,
-		rootNet:      rootNet,
+		awpRegistry:  awpRegistry,
 		awpToken:     awpToken,
 		stakeNFT:     stakeNFT,
-		rootNetAddr:  rootNetAddr,
+		awpRegistryAddr:  awpRegistryAddr,
 		awpAddr:      awpAddr,
 		svAddr:       svAddr,
 		emAddr:       emAddr,
@@ -187,7 +187,7 @@ func readDeployedAddresses(t *testing.T, contractsDir string) map[string]string 
 		}
 	}
 
-	required := []string{"RootNet", "AWPToken", "StakingVault", "AWPEmission", "SubnetNFT", "AccessManager", "Treasury", "StakeNFT"}
+	required := []string{"AWPRegistry", "AWPToken", "StakingVault", "AWPEmission", "SubnetNFT", "AccessManager", "Treasury", "StakeNFT"}
 	for _, name := range required {
 		if addrs[name] == "" {
 			t.Fatalf("deployment result missing contract: %s (found: %v)", name, addrs)
@@ -213,7 +213,7 @@ func (e *e2eEnv) auth() *bind.TransactOpts {
 
 func (e *e2eEnv) setupIndexer() {
 	addrs := map[string]string{
-		"RootNet":      e.rootNetAddr.Hex(),
+		"AWPRegistry":  e.awpRegistryAddr.Hex(),
 		"AWPToken":     e.awpAddr.Hex(),
 		"AWPEmission":  e.emAddr.Hex(),
 		"StakingVault": e.svAddr.Hex(),
@@ -231,7 +231,7 @@ func (e *e2eEnv) setupIndexer() {
 func (e *e2eEnv) setupRouter() {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := &config.Config{
-		RootNetAddress:      e.rootNetAddr.Hex(),
+		AWPRegistryAddress:  e.awpRegistryAddr.Hex(),
 		AWPTokenAddress:     e.awpAddr.Hex(),
 		StakingVaultAddress: e.svAddr.Hex(),
 		AWPEmissionAddress:  e.emAddr.Hex(),
@@ -274,7 +274,7 @@ func TestE2E_Chain_RegisterUser(t *testing.T) {
 	deployer := crypto.PubkeyToAddress(env.deployer.PublicKey)
 
 	// Register on-chain
-	_, err := env.rootNet.Register(env.auth())
+	_, err := env.awpRegistry.Register(env.auth())
 	if err != nil {
 		t.Fatalf("register failed: %v", err)
 	}
@@ -318,7 +318,7 @@ func TestE2E_Chain_DepositAWP(t *testing.T) {
 	addr := strings.ToLower(deployer.Hex())
 
 	// Register
-	_, _ = env.rootNet.Register(env.auth())
+	_, _ = env.awpRegistry.Register(env.auth())
 	time.Sleep(300 * time.Millisecond)
 
 	// Approve + Deposit via StakeNFT
@@ -352,7 +352,7 @@ func TestE2E_Chain_RegisterAgent(t *testing.T) {
 	deployer := crypto.PubkeyToAddress(env.deployer.PublicKey)
 
 	// Register user
-	_, _ = env.rootNet.Register(env.auth())
+	_, _ = env.awpRegistry.Register(env.auth())
 	time.Sleep(300 * time.Millisecond)
 
 	// Use Anvil's 2nd account as Agent
@@ -360,7 +360,7 @@ func TestE2E_Chain_RegisterAgent(t *testing.T) {
 	agentAddr := crypto.PubkeyToAddress(agentKey.PublicKey)
 	agentAuth, _ := bind.NewKeyedTransactorWithChainID(agentKey, env.chainID)
 
-	_, err := env.rootNet.Bind(agentAuth, deployer)
+	_, err := env.awpRegistry.Bind(agentAuth, deployer)
 	if err != nil {
 		t.Fatalf("bind (registerAgent) failed: %v", err)
 	}

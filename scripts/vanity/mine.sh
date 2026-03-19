@@ -140,7 +140,7 @@ name_to_env_key() {
         AWPEmission_impl)   echo "EMISSION_IMPL" ;;
         AWPEmission_proxy)  echo "EMISSION_PROXY" ;;
         Treasury)           echo "TREASURY" ;;
-        RootNet)            echo "ROOTNET" ;;
+        AWPRegistry)        echo "AWP_REGISTRY" ;;
         SubnetNFT)          echo "SUBNET_NFT" ;;
         AccessManager)      echo "ACCESS_MANAGER" ;;
         LPManager)          echo "LP_MANAGER" ;;

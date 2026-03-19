@@ -59,11 +59,11 @@ Key elements:
 - Storage: `Position` struct (amount, lockEndEpoch, createdEpoch), `_userTotalStaked` mapping (O(1) accumulator), `_nextTokenId`
 - Immutables: `awpToken`, `stakingVault`, `awpEmission`
 - Constants: `MAX_WEIGHT_EPOCHS = 54`, `MIN_LOCK_EPOCHS = 1`
-- `onlyRootNet` modifier for `depositFor`
+- `onlyAWPRegistry` modifier for `depositFor`
 
 Functions:
 - `deposit(amount, lockEpochs)`: transfer AWP, mint NFT, `lockEndEpoch = currentEpoch + 1 + lockEpochs`, update `_userTotalStaked`
-- `depositFor(user, amount, lockEpochs)`: onlyRootNet, transfers AWP from `user` (not msg.sender), mints NFT to `user`
+- `depositFor(user, amount, lockEpochs)`: onlyAWPRegistry, transfers AWP from `user` (not msg.sender), mints NFT to `user`
 - `addToPosition(tokenId, amount, newLockEndEpoch)`: ownerOf check, extend only (>= current lockEnd, > currentEpoch), update accumulator
 - `withdraw(tokenId)`: ownerOf check, `currentEpoch >= lockEndEpoch`, check `_userTotalStaked - amount >= userTotalAllocated`, update accumulator BEFORE burn
 - `getUserTotalStaked(user)`: O(1) read from `_userTotalStaked`
@@ -114,7 +114,7 @@ address public immutable rootNet;
 address public stakeNFT;
 ```
 
-Functions (all `onlyRootNet`):
+Functions (all `onlyAWPRegistry`):
 - `allocate(user, agent, subnetId, amount)`: check `amount > 0 && amount <= type(uint128).max`, check `StakeNFT.getUserTotalStaked(user) - userTotalAllocated[user] >= amount`, add to allocation + totals, add to agentSubnets
 - `deallocate(user, agent, subnetId, amount)`: check amount, subtract from allocation + totals
 - `reallocate(user, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)`: immediate atomic: subtract from source, add to destination, adjust subnetTotalStake, no change to userTotalAllocated
@@ -122,10 +122,10 @@ Functions (all `onlyRootNet`):
 - `getAgentStake(user, agent, subnetId)`: direct `_allocations` read (no epoch, no resolve)
 - `getUnallocated(user)`: `StakeNFT.getUserTotalStaked(user) - userTotalAllocated[user]`
 
-### Task 5: Update RootNet
+### Task 5: Update AWPRegistry
 
 **Files:**
-- Modify: `contracts/src/RootNet.sol`
+- Modify: `contracts/src/AWPRegistry.sol`
 
 - [ ] **Step 1: Remove deposit/withdraw functions**
 
@@ -158,7 +158,7 @@ Remove old event: `ReallocationQueued`
 - [ ] **Step 6: Remove stale events and imports**
 
 Remove events: `Deposited`, `WithdrawRequested`, `Withdrawn`, `WithdrawCancelled`, `ReallocationQueued`
-Update IRootNet.sol if these events are defined there.
+Update IAWPRegistry.sol if these events are defined there.
 
 ### Task 6: Rewrite AWPDAO
 
@@ -243,10 +243,10 @@ Simplified tests (no pending, no STP, no cooldown):
 - `test_allocate_revertExceedsAvailable`: cannot allocate more than staked
 - `test_getAgentStake`: direct read, no epoch
 
-### Task 9: Rewrite RootNet Tests
+### Task 9: Rewrite AWPRegistry Tests
 
 **Files:**
-- Rewrite: `contracts/test/RootNet.t.sol`
+- Rewrite: `contracts/test/AWPRegistry.t.sol`
 
 - [ ] **Step 1: Update setUp with StakeNFT**
 
@@ -361,8 +361,8 @@ cd /home/ubuntu/code/Cortexia/api && /home/ubuntu/go/bin/sqlc generate
 cd /home/ubuntu/code/Cortexia/contracts
 /home/ubuntu/.foundry/bin/forge inspect StakeNFT abi --json > /tmp/stake_nft_abi.json
 /home/ubuntu/go/bin/abigen --abi /tmp/stake_nft_abi.json --pkg bindings --type StakeNFT --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/stake_n_f_t.go
-/home/ubuntu/.foundry/bin/forge inspect RootNet abi --json > /tmp/rootnet_abi.json
-/home/ubuntu/go/bin/abigen --abi /tmp/rootnet_abi.json --pkg bindings --type RootNet --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/root_net.go
+/home/ubuntu/.foundry/bin/forge inspect AWPRegistry abi --json > /tmp/rootnet_abi.json
+/home/ubuntu/go/bin/abigen --abi /tmp/rootnet_abi.json --pkg bindings --type AWPRegistry --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/root_net.go
 /home/ubuntu/.foundry/bin/forge inspect AWPDAO abi --json > /tmp/awpdao_abi.json
 /home/ubuntu/go/bin/abigen --abi /tmp/awpdao_abi.json --pkg bindings --type AWPDAO --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/a_w_p_d_a_o.go
 ```
@@ -371,7 +371,7 @@ cd /home/ubuntu/code/Cortexia/contracts
 
 Add StakeNFT event parsing: `Deposited` (new format with tokenId), `PositionIncreased`, `Withdrawn` (new format with tokenId).
 Update `Reallocated` event parsing (replaces `ReallocationQueued`).
-Remove handlers for old events: `WithdrawRequested`, `WithdrawCancelled`, `Withdrawn` (old format), `Deposited` (old format from RootNet).
+Remove handlers for old events: `WithdrawRequested`, `WithdrawCancelled`, `Withdrawn` (old format), `Deposited` (old format from AWPRegistry).
 Add StakeNFT contract address to filter list.
 
 - [ ] **Step 3: Update client.go**

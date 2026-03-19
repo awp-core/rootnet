@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AWP RootNet — API Service one-click deploy
+# AWP — API Service one-click deploy
 #
 # Reads contract addresses from deploy.sh output (api/.env) + extra config from api/.env.local,
 # builds Go binaries, initializes DB, and starts all 3 services (api / indexer / keeper).
@@ -61,7 +61,7 @@ load_env() {
 validate_env() {
     local required=(
         DATABASE_URL REDIS_URL RPC_URL
-        ROOTNET_ADDRESS AWP_TOKEN_ADDRESS AWP_EMISSION_ADDRESS
+        AWP_REGISTRY_ADDRESS AWP_TOKEN_ADDRESS AWP_EMISSION_ADDRESS
         STAKING_VAULT_ADDRESS STAKE_NFT_ADDRESS SUBNETNFT_ADDRESS
         DAO_ADDRESS TREASURY_ADDRESS DEPLOY_BLOCK
     )
@@ -215,7 +215,7 @@ print_summary() {
     local port="${addr##*:}"
     echo ""
     echo "════════════════════════════════════════════════"
-    echo "  AWP RootNet API Deployment Complete"
+    echo "  AWP API Deployment Complete"
     echo "════════════════════════════════════════════════"
     echo ""
     echo "  Endpoints:"

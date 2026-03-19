@@ -1,4 +1,4 @@
-# RootNet Implementation Guide — Claude Code Development Document
+# AWPRegistry Implementation Guide — Claude Code Development Document
 
 > **Version**: 9.0  
 > **Project**: awp-rootnet  
@@ -18,7 +18,7 @@ awp-rootnet/
 │
 ├── contracts/
 │   ├── src/
-│   │   ├── RootNet.sol                    # Main contract: unified entry + subnet/staking management
+│   │   ├── AWPRegistry.sol                    # Main contract: unified entry + subnet/staking management
 │   │   ├── token/
 │   │   │   ├── AWPToken.sol               # ERC20Votes + minter (10B)
 │   │   │   ├── AlphaToken.sol             # Dual minter (10B/subnet)
@@ -27,14 +27,14 @@ awp-rootnet/
 │   │   ├── core/
 │   │   │   ├── SubnetNFT.sol              # Pure ERC721
 │   │   │   ├── AccessManager.sol          # User registration + Agent permissions
-│   │   │   ├── StakingVault.sol           # Pure allocation logic (onlyRootNet)
+│   │   │   ├── StakingVault.sol           # Pure allocation logic (onlyAWPRegistry)
 │   │   │   ├── StakeNFT.sol               # ERC721 position NFT (deposit/withdraw AWP)
 │   │   │   └── LPManager.sol              # PancakeSwap V4
 │   │   ├── governance/
 │   │   │   ├── AWPDAO.sol            # OZ Governor + StakeNFT-based voting
 │   │   │   └── Treasury.sol              # OZ TimelockController
 │   │   └── interfaces/
-│   │       ├── IRootNet.sol
+│   │       ├── IAWPRegistry.sol
 │   │       ├── IAWPToken.sol
 │   │       ├── IAlphaToken.sol
 │   │       ├── IAWPEmission.sol
@@ -47,7 +47,7 @@ awp-rootnet/
 │   │   ├── AWPToken.t.sol
 │   │   ├── AWPEmission.t.sol
 │   │   ├── AlphaTokenFactory.t.sol
-│   │   ├── RootNet.t.sol
+│   │   ├── AWPRegistry.t.sol
 │   │   ├── SubnetNFT.t.sol
 │   │   ├── AccessManager.t.sol
 │   │   ├── StakingVault.t.sol
@@ -134,7 +134,7 @@ awp-rootnet/
                           └──────┬───────┘
                                  │ onlyTimelock
   User / Agent ─────────► ┌─────▼──────┐
-                          │  RootNet   │
+                          │ AWPRegistry │
                           │ Unified    │
                           │  Entry     │
                           └─┬──┬──┬──┬──┬─┘
@@ -152,13 +152,13 @@ Contracts: 13
 
 Emission Model:
   → AWPEmission is a generic address→weight distribution engine (weight management, epoch settlement, batch minting, decay)
-  → AWPEmission has no subnet concepts; RootNet manages activeSubnetIds locally and does NOT notify AWPEmission on lifecycle changes
+  → AWPEmission has no subnet concepts; AWPRegistry manages activeSubnetIds locally and does NOT notify AWPEmission on lifecycle changes
   → Exponential decay: emission *= 0.996844/epoch, ~99% released in 4 years
   → Per-epoch AWP: 50% → subnets (by weight), 50% → DAO Treasury
   → settleEpoch() on AWPEmission, callable by anyone (Keeper calls it)
   → Subnet contracts decide how to use AWP (add LP, distribute to miners, buy back Alpha, etc.)
   → Alpha emission managed by subnet contracts (they have mint permission)
-  → RootNet holds no AWP, holds no Alpha (pure control layer)
+  → AWPRegistry holds no AWP, holds no Alpha (pure control layer)
 ```
 
 ### OZ Reuse
@@ -168,7 +168,7 @@ AWPToken           → ERC20, ERC20Permit, ERC20Votes, ERC20Burnable
 AlphaToken         → ERC20Upgradeable, ERC20BurnableUpgradeable, Initializable
 AlphaTokenFactory  → Ownable (no Clones; uses CREATE2 full deployment)
 AWPEmission        → Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable
-RootNet            → Pausable, ReentrancyGuard, EnumerableSet
+AWPRegistry         → Pausable, ReentrancyGuard, EnumerableSet
 SubnetNFT          → ERC721
 AccessManager      → EnumerableSet
 StakingVault       → EnumerableSet (pure allocation, no deposit/withdraw)
@@ -181,13 +181,13 @@ Treasury           → TimelockController
 
 ```
 Three Key Types:
-  Owner:           Stake AWP via StakeNFT + allocate via RootNet + manage Agents + transfer NFT + vote with tokenId[]
+  Owner:           Stake AWP via StakeNFT + allocate via AWPRegistry + manage Agents + transfer NFT + vote with tokenId[]
   Agent (default): Mining authentication only
   Agent (Manager): Mining + remove Agents + set Manager + allocate stake
 
 Inter-contract Permissions:
-  onlyRootNet   → AccessManager / StakingVault / SubnetNFT / LPManager
-  onlyTimelock  → RootNet admin functions / AWPEmission governance (setWeight, setOracleConfig, etc.)
+  onlyAWPRegistry   → AccessManager / StakingVault / SubnetNFT / LPManager
+  onlyTimelock  → AWPRegistry admin functions / AWPEmission governance (setWeight, setOracleConfig, etc.)
   onlyGuardian  → Can only pause the contract
 ```
 
@@ -304,8 +304,8 @@ Implements: IERC1363 (transferAndCall / approveAndCall)
 
 Storage:
   subnetId: uint256
-  admin: address                                  // RootNet (admin permission permanently retained)
-  mapping(address => bool) public minters;        // Only { RootNet (temporary), subnetContract }
+  admin: address                                  // AWPRegistry (admin permission permanently retained)
+  mapping(address => bool) public minters;        // Only { AWPRegistry (temporary), subnetContract }
   mapping(address => bool) public minterPaused;   // Admin can pause/resume minter (for ban)
   bool public mintersLocked;                      // Once true, no new minters can be added
   MAX_SUPPLY = 10_000_000_000 * 1e18
@@ -314,15 +314,15 @@ Functions:
   initialize(name, symbol, subnetId, admin)
     → initializer
     → admin = _admin
-    → minters[_admin] = true                      // RootNet initially has mint permission
+    → minters[_admin] = true                      // AWPRegistry initially has mint permission
 
-  /// @notice Set subnet contract as sole minter, RootNet gives up mint, permanently locked
+  /// @notice Set subnet contract as sole minter, AWPRegistry gives up mint, permanently locked
   setSubnetMinter(address subnetContract) external
     → require(msg.sender == admin)
     → require(!mintersLocked, "Minters locked")
     → if (subnetContract != address(0)):
         minters[subnetContract] = true
-    → minters[admin] = false                      // RootNet gives up mint
+    → minters[admin] = false                      // AWPRegistry gives up mint
     → mintersLocked = true                         // Permanently locked, no more minters
 
   /// @notice Admin can pause/resume minter (for ban/unban, does not change minters list)
@@ -394,7 +394,7 @@ Purpose: UUPS 可升级代理。通用 address→weight 分发引擎。不感知
          oracle 多签共识提交权重（submitAllocations），结算 epoch（settleEpoch(limit)），
          批量铸造 AWP，指数衰减。唯一 AWP minter。
          DAO Timelock 管理 oracle 配置和参数；Timelock 可紧急覆盖权重（emergencySetWeight）。
-         RootNet 不通知 AWPEmission 任何子网生命周期事件。
+         AWPRegistry 不通知 AWPEmission 任何子网生命周期事件。
 Inherits: Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable
 
 Storage:
@@ -546,7 +546,7 @@ Events:
 ### 4.5 AccessManager.sol — Internal Contract
 
 ```
-RootNet-only callable (onlyRootNet)
+AWPRegistry-only callable (onlyAWPRegistry)
 
 Storage:
   rootNet: address
@@ -566,7 +566,7 @@ Storage:
 Functions:
 
   // ── User Registration ──
-  register(address user) external onlyRootNet
+  register(address user) external onlyAWPRegistry
     → require(!isRegistered[user])
     → require(agentOwner[user] == address(0), "Address is agent")
     → isRegistered[user] = true
@@ -574,7 +574,7 @@ Functions:
     → totalUsers++
 
   // ── Agent Registration (Agent calls itself, proving private key ownership) ──
-  registerAgent(address agent, address user) external onlyRootNet
+  registerAgent(address agent, address user) external onlyAWPRegistry
     → require(!isRegistered[agent], "Agent is a registered user")
     → require(isRegistered[user], "User not registered")
     → require(agentOwner[agent] == address(0), "Already bound")
@@ -584,19 +584,19 @@ Functions:
     → userAgents[user].add(agent)
 
   // ── Agent Management ──
-  removeAgent(address user, address agent, address operator) external onlyRootNet
+  removeAgent(address user, address agent, address operator) external onlyAWPRegistry
     → require(agentOwner[agent] == user)
     → require(agent != operator, "Cannot remove self")
     → delete agentOwner[agent]
     → delete isManager[agent]
     → userAgents[user].remove(agent)
 
-  setManager(address user, address agent, bool _isManager, address operator) external onlyRootNet
+  setManager(address user, address agent, bool _isManager, address operator) external onlyAWPRegistry
     → require(agentOwner[agent] == user)
     → if (!_isManager) require(agent != operator, "Cannot revoke self")
     → isManager[agent] = _isManager
 
-  setRewardRecipient(address user, address recipient) external onlyRootNet
+  setRewardRecipient(address user, address recipient) external onlyAWPRegistry
     → require(recipient != address(0))
     → rewardRecipients[user] = recipient
 
@@ -621,7 +621,7 @@ Functions:
 ### 4.6 StakingVault.sol — Internal Contract (Pure Allocation)
 
 ```
-Write functions RootNet-only (onlyRootNet)
+Write functions AWPRegistry-only (onlyAWPRegistry)
 
 Core Design:
   → Pure allocation logic only. No deposit/withdraw/cooldown/STP/pending/freeze.
@@ -646,20 +646,20 @@ Storage:
 Functions:
 
   // Allocate (immediate)
-  allocate(address user, address agent, uint256 subnetId, uint128 amount) external onlyRootNet
+  allocate(address user, address agent, uint256 subnetId, uint128 amount) external onlyAWPRegistry
     → require(amount > 0 && getUnallocated(user) >= amount)
     → allocations[user][agent][subnetId] += amount
     → userTotalAllocated[user] += amount
     → subnetTotalStake[subnetId] += amount
 
-  deallocate(address user, address agent, uint256 subnetId, uint128 amount) external onlyRootNet
+  deallocate(address user, address agent, uint256 subnetId, uint128 amount) external onlyAWPRegistry
     → require(allocations[user][agent][subnetId] >= amount)
     → allocations[user][agent][subnetId] -= amount
     → userTotalAllocated[user] -= amount
     → subnetTotalStake[subnetId] -= amount
 
   // Reallocate (immediate, no pending mechanism)
-  reallocate(user, fromAgent, fromSubnetId, toAgent, toSubnetId, amount) external onlyRootNet
+  reallocate(user, fromAgent, fromSubnetId, toAgent, toSubnetId, amount) external onlyAWPRegistry
     → require(allocations[user][fromAgent][fromSubnetId] >= amount)
     → allocations[user][fromAgent][fromSubnetId] -= amount
     → allocations[user][toAgent][toSubnetId] += amount
@@ -667,7 +667,7 @@ Functions:
     → subnetTotalStake[toSubnetId] += amount
 
   // Freeze all agent allocations immediately (on removeAgent); auto-enumerates via _agentSubnets
-  freezeAgentAllocations(address user, address agent) external onlyRootNet
+  freezeAgentAllocations(address user, address agent) external onlyAWPRegistry
     → for each subnetId in _agentSubnets[agent]:
         amt = allocations[user][agent][subnetId]
         if amt > 0:
@@ -696,7 +696,7 @@ Core Design:
 
 Storage:
   awpToken: IERC20
-  rootNet: IRootNet
+  rootNet: IAWPRegistry
 
   struct Position {
     uint128 amount;
@@ -776,19 +776,19 @@ Events:
 
 ```
 Inherits: ERC721 (~50 lines)
-modifier onlyRootNet()
+modifier onlyAWPRegistry()
 
 Storage:
   string public baseURI;                     // e.g. "https://tapi.awp.sh/subnets/"
 
-mint(to, tokenId, name, subnetManager, alphaToken, skillsURI, minStake) external onlyRootNet
+mint(to, tokenId, name, subnetManager, alphaToken, skillsURI, minStake) external onlyAWPRegistry
   → stores immutable: name, subnetManager, alphaToken
   → stores owner-updatable: skillsURI, minStake
   → if minStake > 0: emit MinStakeUpdated(tokenId, 0, minStake)
-burn(tokenId) external onlyRootNet
+burn(tokenId) external onlyAWPRegistry
 setSkillsURI(tokenId, uri) external → onlyOwner; emit SkillsURIUpdated
 setMinStake(tokenId, minStake) external → onlyOwner; emit MinStakeUpdated
-setBaseURI(string uri) external onlyRootNet
+setBaseURI(string uri) external onlyAWPRegistry
 tokenURI(tokenId) → string.concat(baseURI, Strings.toString(tokenId))
 Overrides: _update, supportsInterface
 ```
@@ -796,7 +796,7 @@ Overrides: _update, supportsInterface
 ### 4.8 LPManager.sol — PancakeSwap V4
 
 ```
-modifier onlyRootNet()
+modifier onlyAWPRegistry()
 
 Storage:
   rootNet, poolManager, positionManager, awpToken: address
@@ -812,7 +812,7 @@ Functions:
   // No collectFees — fees auto-compound
 ```
 
-### 4.9 RootNet.sol — Main Contract
+### 4.9 AWPRegistry.sol — Main Contract
 
 ```
 Inherits: Pausable, ReentrancyGuard, EnumerableSet
@@ -825,7 +825,7 @@ Storage:
   _deployer: address                                     // Temporary; zeroed after initializeRegistry
   registryInitialized: bool
 
-  // Note: Epoch logic has been moved to AWPEmission. RootNet no longer has genesisTime/epochDuration/currentEpoch().
+  // Note: Epoch logic has been moved to AWPEmission. AWPRegistry no longer has genesisTime/epochDuration/currentEpoch().
 
   // Subnet data (on-chain stores only essential data)
   struct SubnetInfo {
@@ -851,13 +851,13 @@ Storage:
   uint256 public constant INITIAL_ALPHA_MINT = 100_000_000 * 1e18;  // 100M
   uint256 public immunityPeriod = 30 days;
 
-  // Active subnet tracking (local to RootNet; AWPEmission is not notified)
+  // Active subnet tracking (local to AWPRegistry; AWPEmission is not notified)
   EnumerableSet.UintSet private activeSubnetIds;
   uint256 public constant MAX_ACTIVE_SUBNETS = 10000;
 
   // Note: Epoch logic lives entirely in AWPEmission (genesisTime, epochDuration, currentEpoch()).
   // Emission state (settledEpoch, totalWeight, etc.) lives in AWPEmission.
-  // RootNet does NOT call any lifecycle functions on AWPEmission.
+  // AWPRegistry does NOT call any lifecycle functions on AWPEmission.
 
   // Permissions
   modifier onlyTimelock() { require(msg.sender == treasury); _; }
@@ -950,7 +950,7 @@ Functions:
   // ═══════════════
   //  Staking: Allocation (Owner or Manager)
   // ═══════════════
-  // Note: Deposit/withdraw is handled by StakeNFT directly. RootNet only manages allocations.
+  // Note: Deposit/withdraw is handled by StakeNFT directly. AWPRegistry only manages allocations.
 
   allocate(address agent, uint256 subnetId, uint128 amount) external
     → user = _resolveOwnerOrManager()
@@ -983,7 +983,7 @@ Functions:
     → // 1. Calculate LP creation cost
     → uint256 lpAWPAmount = INITIAL_ALPHA_MINT * initialAlphaPrice / 1e18  // 100M × 0.01 = 1M AWP
     →
-    → // 2. AWP transferred directly from user to LPManager (does not pass through RootNet)
+    → // 2. AWP transferred directly from user to LPManager (does not pass through AWPRegistry)
     → IERC20(awpToken).transferFrom(msg.sender, lpManager, lpAWPAmount)
     →
     → // 3. Mint NFT (stores identity + initial minStake on-chain)
@@ -991,20 +991,20 @@ Functions:
     → ISubnetNFT(subnetNFT).mint(msg.sender, subnetId, params.name, params.subnetManager, alphaToken, params.skillsURI, params.minStake)
     →   // If params.minStake > 0, emits MinStakeUpdated(subnetId, 0, params.minStake)
     →
-    → // 4. Deploy Alpha Token (admin = RootNet)
+    → // 4. Deploy Alpha Token (admin = AWPRegistry)
     → address alphaToken = IAlphaTokenFactory(alphaTokenFactory)
         .deploy(subnetId, params.name, params.symbol, address(this), params.salt)
     →
-    → // 5. RootNet mints Alpha directly to LPManager (RootNet is initial minter)
+    → // 5. AWPRegistry mints Alpha directly to LPManager (AWPRegistry is initial minter)
     → IAlphaToken(alphaToken).mint(lpManager, INITIAL_ALPHA_MINT)
     →
     → // 6. LPManager creates LP (AWP + Alpha already in place)
     → (address pool, ) = ILPManager(lpManager)
         .createPoolAndAddLiquidity(alphaToken, lpAWPAmount, INITIAL_ALPHA_MINT)
     →
-    → // 7. Set subnet contract as sole minter + RootNet gives up mint (permanently locked)
+    → // 7. Set subnet contract as sole minter + AWPRegistry gives up mint (permanently locked)
     → IAlphaToken(alphaToken).setSubnetMinter(params.subnetManager)
-    →   // Internal: minters[subnetManager] = true, minters[RootNet] = false, mintersLocked = true
+    →   // Internal: minters[subnetManager] = true, minters[AWPRegistry] = false, mintersLocked = true
     →
     → // 8. Store lifecycle state (identity data stored in SubnetNFT)
     → subnets[subnetId] = SubnetInfo(
@@ -1160,7 +1160,7 @@ AWPDAO: Inherits OZ Governor, GovernorSettings, GovernorTimelockControl.
   → Signal proposals: Pending → Active → Succeeded/Defeated (no queue/execute)
 
 Treasury: OZ TimelockController with zero custom code (no changes)
-RootNet holds no AWP and no Alpha.
+AWPRegistry holds no AWP and no Alpha.
 AWP emission minted on demand by AWPEmission.
 DAO-matched AWP minted by AWPEmission to Treasury.
 ```
@@ -1173,14 +1173,14 @@ DAO-matched AWP minted by AWPEmission to Treasury.
 Coordinator is the off-chain operations service for a subnet, deployed by the subnet Owner.
 
 Responsibilities:
-  1. Identity Verification — Listen to RootNet events to maintain Agent cache, verify Agent heartbeat signatures
+  1. Identity Verification — Listen to AWPRegistry events to maintain Agent cache, verify Agent heartbeat signatures
   2. Task Management — Assign tasks, collect results, evaluate quality, compute contribution scores
   3. Reward Distribution — Subnet contract mints Alpha + receives AWP → distributes to miners' rewardRecipient
      → Subnet contract receives AWP each epoch (minted by AWPEmission on demand)
      → Subnet contract mints Alpha independently (has minter permission)
      → Distribution logic is entirely subnet-autonomous
 
-How subnets query RootNet:
+How subnets query AWPRegistry:
   Cold start: getAgentsInfo() full pull
   Running: Listen to events for incremental cache updates (AgentRegistered, Allocated, Deallocated, ...)
 
@@ -1203,7 +1203,7 @@ Step 4:  Treasury(172800, [], [address(0)], deployer)
 Step 5:  AWPDAO(awpToken, treasury, stakeNFT, ...)  // 6 params, no rootNet
 Step 6:  Treasury.grantRole(PROPOSER+CANCELLER, awpDAO)
 Step 7:  Treasury.renounceRole(ADMIN, deployer)
-Step 8:  RootNet(deployer, treasury, guardian)  // No epochDuration (epoch moved to AWPEmission)
+Step 8:  AWPRegistry(deployer, treasury, guardian)  // No epochDuration (epoch moved to AWPEmission)
 Step 9:  SubnetNFT("AWP Subnet", "AWPSUB", rootNet)
 Step 10: AccessManager(rootNet)
 Step 11: StakingVault(rootNet, stakeNFT)
@@ -1217,7 +1217,7 @@ Step 13b: initData = AWPEmission.initialize.selector(awpToken, treasury,
 Step 14: AWPToken.addMinter(awpEmission)                         // 代理地址获得铸币权                        // Emission contract gets mint permission
 Step 15: AWPToken.renounceAdmin()                               // Permanently lock minter list
 Step 16: AlphaTokenFactory.setAddresses(rootNet)
-Step 17: RootNet.initializeRegistry(all addresses, including awpEmission and stakeNFT — 9 addresses total)
+Step 17: AWPRegistry.initializeRegistry(all addresses, including awpEmission and stakeNFT — 9 addresses total)
 
 // After all contracts deployed, deployer distributes non-mining portion via transfer:
 Step 18: AWPToken.transfer(treasury, 90_000_000e18)             // 0.9% DAO Treasury
@@ -1500,7 +1500,7 @@ func NewRouter(h *handler.Handler, ws *ws.Hub) chi.Router {
 
 type Indexer struct {
     client   *ethclient.Client
-    rootNet  *bindings.RootNet
+    awpRegistry *bindings.AWPRegistry
     nft      *bindings.SubnetNFT
     dao      *bindings.AWPDAO
     queries  *gen.Queries
@@ -1537,7 +1537,7 @@ func (idx *Indexer) Run(ctx context.Context) error {
 //   Reallocated          → UPDATE stake_allocations for both from/to triples + UPDATE user_balances
 //   (PendingOperationsExecuted removed — no freeze/pending mechanism)
 //   SubnetRegistered     → INSERT subnets (+ name, symbol, alpha_token from event)
-//                          immunity_ends_at = block.timestamp + RootNet.immunityPeriod()
+//                          immunity_ends_at = block.timestamp + AWPRegistry.immunityPeriod()
 //   LPCreated            → UPDATE subnets SET lp_pool
 //   SubnetActivated      → UPDATE subnets SET status='Active', activated_at
 //   SubnetPaused/Resumed → UPDATE subnets SET status
@@ -1560,7 +1560,7 @@ func (idx *Indexer) Run(ctx context.Context) error {
 
 type Keeper struct {
     client      *ethclient.Client
-    rootNet     *bindings.RootNet
+    awpRegistry  *bindings.AWPRegistry
     awpEmission *bindings.AWPEmission
     key         *ecdsa.PrivateKey
     cron     *cron.Cron
@@ -1631,7 +1631,7 @@ Pub/Sub (Indexer publishes, API subscribes):
 generate:
 	sqlc generate
 	cd ../contracts && forge build
-	abigen --abi out/RootNet.sol/RootNet.json --pkg bindings --out internal/chain/bindings/rootnet.go
+	abigen --abi out/AWPRegistry.sol/AWPRegistry.json --pkg bindings --out internal/chain/bindings/rootnet.go
 	abigen --abi out/AWPToken.sol/AWPToken.json --pkg bindings --out internal/chain/bindings/awptoken.go
 	# ... other contracts
 
@@ -1661,8 +1661,8 @@ Phase 1 — Contracts (Week 1-2):
   Day 3:  SubnetNFT + AccessManager(registration+Agent+Manager)
   Day 4:  StakingVault(allocate/deallocate) + StakeNFT(deposit/withdraw/positions)
   Day 5:  LPManager(V4 LP creation)
-  Day 6:  RootNet(registration+Agent+staking forwarding+subnet registration)
-  Day 7:  RootNet(lifecycle+ban+settleEpoch+emission)
+  Day 6:  AWPRegistry(registration+Agent+staking forwarding+subnet registration)
+  Day 7:  AWPRegistry(lifecycle+ban+settleEpoch+emission)
   Day 8:  Treasury + AWPDAO
   Day 9:  Integration.t.sol
   Day 10: Deploy.s.sol + BSC Testnet
@@ -1690,20 +1690,20 @@ Phase 3 — Frontend (Week 5)
 | Alpha 10B/subnet, dual minter | AlphaToken | ✅ |
 | Alpha Token factory | AlphaTokenFactory (CREATE2) | ✅ |
 | Subnet NFT | SubnetNFT (ERC721) | ✅ |
-| User registration | AccessManager → RootNet | ✅ |
-| Agent self-registration | AccessManager → RootNet | ✅ |
+| User registration | AccessManager → AWPRegistry | ✅ |
+| Agent self-registration | AccessManager → AWPRegistry | ✅ |
 | User/Agent address mutual exclusion | AccessManager | ✅ |
-| Manager manages Agents + allocation | RootNet + AccessManager | ✅ |
+| Manager manages Agents + allocation | AWPRegistry + AccessManager | ✅ |
 | Agent removal freezes stake | StakingVault freezeAgentAllocations | ✅ |
 | Staking deposit/withdraw (NFT positions) | StakeNFT (ERC721) | ✅ |
-| Staking allocate/deallocate (immediate) | StakingVault → RootNet | ✅ |
-| Staking reallocate (immediate) | StakingVault → RootNet | ✅ |
+| Staking allocate/deallocate (immediate) | StakingVault → AWPRegistry | ✅ |
+| Staking reallocate (immediate) | StakingVault → AWPRegistry | ✅ |
 | Staking (user,agent,subnet) triple | StakingVault | ✅ |
 | NFT-based voting power | StakeNFT + AWPDAO | ✅ |
-| Subnet registration (AWP + auto LP) | RootNet + LPManager | ✅ |
+| Subnet registration (AWP + auto LP) | AWPRegistry + LPManager | ✅ |
 | LP permanently locked | LPManager | ✅ |
 | Subnet Alpha minter permanently locked | AlphaToken (setSubnetMinter + mintersLocked) | ✅ |
-| Subnet lifecycle + ban + deregister | RootNet | ✅ |
+| Subnet lifecycle + ban + deregister | AWPRegistry | ✅ |
 | governanceWeight | AWPEmission (oracle submitAllocations / Timelock emergencySetWeight) | ✅ |
 | AWP emission (direct to subnet contracts) | AWPEmission | ✅ |
 | AWP 50/50 split (subnet+DAO match) | AWPEmission | ✅ |
@@ -1715,7 +1715,7 @@ Phase 3 — Frontend (Week 5)
 | ERC20Burnable (AWP+Alpha) | AWPToken + AlphaToken | ✅ |
 | DAO governance | AWPDAO (Governor) | ✅ |
 | DAO treasury + Timelock | Treasury (TimelockController) | ✅ |
-| Guardian emergency pause | RootNet | ✅ |
-| Subnet query (getAgentInfo) | RootNet | ✅ |
+| Guardian emergency pause | AWPRegistry | ✅ |
+| Subnet query (getAgentInfo) | AWPRegistry | ✅ |
 | Reward recipient address | AccessManager | ✅ |
-| RootNet unified entry | RootNet | ✅ |
+| AWPRegistry unified entry | AWPRegistry | ✅ |

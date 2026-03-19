@@ -4,7 +4,7 @@
 
 **Goal:** Refactor AWPEmission to a generic address→weight distribution engine, removing all subnet concepts and simplifying settlement with a call-parameter batch limit.
 
-**Architecture:** AWPEmission V3 is a UUPS proxy that manages `(address → weight)` pairs via oracle multi-sig full-replacement submissions. Settlement uses `settleEpoch(limit)` with progress tracked by a single counter. RootNet self-maintains `activeSubnetIds` and no longer calls AWPEmission for lifecycle events.
+**Architecture:** AWPEmission V3 is a UUPS proxy that manages `(address → weight)` pairs via oracle multi-sig full-replacement submissions. Settlement uses `settleEpoch(limit)` with progress tracked by a single counter. AWPRegistry self-maintains `activeSubnetIds` and no longer calls AWPEmission for lifecycle events.
 
 **Tech Stack:** Solidity 0.8.24, OpenZeppelin 5.x (Upgradeable), Foundry, Go 1.26, abigen
 
@@ -48,7 +48,7 @@ Storage (spec section 1, slots 0-19 + gap):
 
 Functions removed:
 - `registerSubnet`, `activateSubnet`, `deactivateSubnet`, `reactivateSubnet`, `removeSubnet`
-- `onlyRootNet` modifier
+- `onlyAWPRegistry` modifier
 - `setBatchSize`, `setMaxActiveSubnets`
 
 Functions modified:
@@ -81,12 +81,12 @@ Functions modified:
 
 - `initialize()`: add `maxRecipients = 10000` initialization
 
-Errors: Replace `CurrentlySettling` with `SettlementInProgress`, remove `NotRootNet`, `MaxActiveSubnetsReached`, `SubnetNotRegistered`. Add `DuplicateRecipient`, `RecipientNotFound`.
+Errors: Replace `CurrentlySettling` with `SettlementInProgress`, remove `NotAWPRegistry`, `MaxActiveSubnetsReached`, `SubnetNotRegistered`. Add `DuplicateRecipient`, `RecipientNotFound`.
 
-### Task 3: Update RootNet.sol
+### Task 3: Update AWPRegistry.sol
 
 **Files:**
-- Modify: `contracts/src/RootNet.sol`
+- Modify: `contracts/src/AWPRegistry.sol`
 
 - [ ] **Step 1: Restore activeSubnetIds and remove AWPEmission lifecycle calls**
 
@@ -225,20 +225,20 @@ Required tests:
 
 Run: `/home/ubuntu/.foundry/bin/forge test --match-contract AWPEmissionTest -v`
 
-### Task 6: Update RootNet.t.sol
+### Task 6: Update AWPRegistry.t.sol
 
 **Files:**
-- Modify: `contracts/test/RootNet.t.sol`
+- Modify: `contracts/test/AWPRegistry.t.sol`
 
 - [ ] **Step 1: Verify lifecycle tests work with restored activeSubnetIds**
 
-The setUp already deploys AWPEmission via proxy. After removing AWPEmission lifecycle calls from RootNet, the existing lifecycle tests (test_activateSubnet, test_pauseAndResumeSubnet, test_banAndUnbanSubnet, test_deregisterSubnet) should still work since they only check RootNet state. Verify `getActiveSubnetCount` returns correct values.
+The setUp already deploys AWPEmission via proxy. After removing AWPEmission lifecycle calls from AWPRegistry, the existing lifecycle tests (test_activateSubnet, test_pauseAndResumeSubnet, test_banAndUnbanSubnet, test_deregisterSubnet) should still work since they only check AWPRegistry state. Verify `getActiveSubnetCount` returns correct values.
 
 The `test_reallocate` test calls `emission.settleEpoch()` — update to `emission.settleEpoch(200)`.
 
 - [ ] **Step 2: Run tests**
 
-Run: `/home/ubuntu/.foundry/bin/forge test --match-contract RootNetTest -v`
+Run: `/home/ubuntu/.foundry/bin/forge test --match-contract AWPRegistryTest -v`
 
 ### Task 7: Update E2E.t.sol
 
@@ -295,8 +295,8 @@ git commit -m "test: update all tests for AWPEmission V3 address-based distribut
 cd /home/ubuntu/code/Cortexia/contracts
 /home/ubuntu/.foundry/bin/forge inspect AWPEmission abi --json > /tmp/awp_emission_abi.json
 /home/ubuntu/go/bin/abigen --abi /tmp/awp_emission_abi.json --pkg bindings --type AWPEmission --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/a_w_p_emission.go
-/home/ubuntu/.foundry/bin/forge inspect RootNet abi --json > /tmp/rootnet_abi.json
-/home/ubuntu/go/bin/abigen --abi /tmp/rootnet_abi.json --pkg bindings --type RootNet --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/root_net.go
+/home/ubuntu/.foundry/bin/forge inspect AWPRegistry abi --json > /tmp/rootnet_abi.json
+/home/ubuntu/go/bin/abigen --abi /tmp/rootnet_abi.json --pkg bindings --type AWPRegistry --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/root_net.go
 ```
 
 - [ ] **Step 2: Update keeper.go**

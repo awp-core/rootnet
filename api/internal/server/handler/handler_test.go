@@ -68,7 +68,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := &config.Config{
 		TreasuryAddress:     "0x1234567890abcdef1234567890abcdef12345678",
-		RootNetAddress:      "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		AWPRegistryAddress:  "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		SubnetNFTAddress:    "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		DAOAddress:          "0xcccccccccccccccccccccccccccccccccccccccc",
 		AWPTokenAddress:     "0xdddddddddddddddddddddddddddddddddddddd",

@@ -11,7 +11,7 @@ import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {SubnetNFT} from "../src/core/SubnetNFT.sol";
 import {LPManager} from "../src/core/LPManager.sol";
-import {RootNet} from "../src/RootNet.sol";
+import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 
 /// @title TestDeploy — Simplified deployment (used for E2E tests)
@@ -28,7 +28,7 @@ contract TestDeploy is Script {
         e[0] = address(0);
         Treasury treasury = new Treasury(0, p, e, deployer);
 
-        RootNet rootNet = new RootNet(deployer, address(treasury), address(0x99));
+        AWPRegistry rootNet = new AWPRegistry(deployer, address(treasury), address(0x99));
         SubnetNFT nft = new SubnetNFT("AWPSUB", "AWPSUB", address(rootNet));
         AccessManager am = new AccessManager(address(rootNet));
         LPManager lp = new LPManager(address(rootNet), address(0), address(0), address(0), address(awp));
@@ -53,7 +53,7 @@ contract TestDeploy is Script {
 
         // Output addresses to console
         console.log("AWPToken", address(awp));
-        console.log("RootNet", address(rootNet));
+        console.log("AWPRegistry", address(rootNet));
         console.log("SubnetNFT", address(nft));
         console.log("AccessManager", address(am));
         console.log("StakingVault", address(sv));

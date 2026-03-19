@@ -2,7 +2,7 @@
 
 ## Overview
 
-The complete Go backend for AWP RootNet has been implemented, consisting of three independent processes (API server, Chain Indexer, Keeper Bot) sharing PostgreSQL and Redis for data and inter-process communication.
+The complete Go backend for AWP has been implemented, consisting of three independent processes (API server, Chain Indexer, Keeper Bot) sharing PostgreSQL and Redis for data and inter-process communication.
 
 ## Go Packages Implemented
 
@@ -104,7 +104,7 @@ GET /staking/user/{address}/balance returns `{"totalBalance":"0","totalAllocated
 The POST /agents/batch-info endpoint accepts a JSON body `{"agents":["0x..."],"subnetId":1}` and queries allocations for each agent, suitable for Coordinator cold-start data fetching.
 
 ### 6. Abigen Bindings
-Generated Go bindings for 7 contracts (RootNet, AWPToken, AlphaToken, SubnetNFT, StakingVault, AWPEmission, AWPDAO) directly from Foundry compiled ABI output.
+Generated Go bindings for 7 contracts (AWPRegistry, AWPToken, AlphaToken, SubnetNFT, StakingVault, AWPEmission, AWPDAO) directly from Foundry compiled ABI output.
 
 ### 7. Indexer Transaction Model
 Each batch of events from a range of blocks is processed within a single PostgreSQL transaction. If any event handler fails, the entire batch is rolled back, ensuring atomicity. After successful commit, events are published to Redis Pub/Sub for WebSocket distribution.

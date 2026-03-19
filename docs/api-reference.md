@@ -1,9 +1,9 @@
-# AWP RootNet — API Reference
+# AWP — API Reference
 
 ## Table of Contents
 
 1. [Smart Contract API](#1-smart-contract-api)
-   - [RootNet](#11-rootnet)
+   - [AWPRegistry](#11-rootnet)
    - [AWPEmission](#12-awpemission)
    - [StakingVault](#13-stakingvault)
    - [StakeNFT](#13b-stakenft)
@@ -33,9 +33,9 @@
 
 ## 1. Smart Contract API
 
-### 1.1 RootNet
+### 1.1 AWPRegistry
 
-> Unified entry point for subnet management and staking. All user-facing write operations go through RootNet.
+> Unified entry point for subnet management and staking. All user-facing write operations go through AWPRegistry.
 
 #### User Registration
 
@@ -70,7 +70,7 @@
 | `deallocate(address agent, uint256 subnetId, uint256 amount)` | Owner / Manager | Release stake allocation |
 | `reallocate(address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount)` | Owner / Manager | Move stake between triples (immediate) |
 
-> **Note:** Deposit/withdraw is handled by StakeNFT directly. RootNet only manages allocations.
+> **Note:** Deposit/withdraw is handled by StakeNFT directly. AWPRegistry only manages allocations.
 
 #### Subnet Lifecycle
 
@@ -97,7 +97,7 @@
 
 | Function | Returns | Description |
 |----------|---------|-------------|
-| ~~`currentEpoch()`~~ | — | Removed from RootNet. Epoch logic now lives in AWPEmission. |
+| ~~`currentEpoch()`~~ | — | Removed from AWPRegistry. Epoch logic now lives in AWPEmission. |
 | `getSubnet(uint256 subnetId)` | `SubnetInfo` | Full subnet on-chain data |
 | `getActiveSubnetCount()` | `uint256` | Number of active subnets |
 | `getActiveSubnetIdAt(uint256 index)` | `uint256` | Active subnet ID by index |
@@ -152,7 +152,7 @@
 | `oracleThreshold()` | `uint256` | Required signature count |
 | `allocationNonce()` | `uint256` | Replay protection counter |
 | `maxRecipients()` | `uint256` | Maximum recipients allowed |
-| `rootNet()` | `address` | RootNet contract address |
+| `awpRegistry()` | `address` | AWPRegistry contract address |
 | `getOracleCount()` | `uint256` | Number of registered oracles |
 | `getRecipientCount()` | `uint256` | Number of active-epoch recipients |
 | `getRecipient(uint256 index)` | `address` | Recipient by index |
@@ -167,14 +167,14 @@
 
 ### 1.3 StakingVault
 
-> Pure allocation logic. No deposit/withdraw/cooldown/STP. Only callable by RootNet.
+> Pure allocation logic. No deposit/withdraw/cooldown/STP. Only callable by AWPRegistry.
 
 | Function | Description |
 |----------|-------------|
-| `allocate(user, agent, subnetId, amount)` | Allocate stake (onlyRootNet) |
-| `deallocate(user, agent, subnetId, amount)` | Release allocation (onlyRootNet) |
-| `reallocate(user, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)` | Move allocation (onlyRootNet) |
-| `freezeAgentAllocations(user, agent)` | Freeze on agent removal — auto-enumerates subnets (onlyRootNet) |
+| `allocate(user, agent, subnetId, amount)` | Allocate stake (onlyAWPRegistry) |
+| `deallocate(user, agent, subnetId, amount)` | Release allocation (onlyAWPRegistry) |
+| `reallocate(user, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)` | Move allocation (onlyAWPRegistry) |
+| `freezeAgentAllocations(user, agent)` | Freeze on agent removal — auto-enumerates subnets (onlyAWPRegistry) |
 
 **View functions:** `userTotalAllocated`, `getAgentStake`, `subnetTotalStake`, `getSubnetTotalStake`, `getAgentSubnets(user, agent) → uint256[]`
 
@@ -189,7 +189,7 @@
 | Function | Access | Description |
 |----------|--------|-------------|
 | `deposit(uint256 amount, uint64 lockDuration)` → `uint256 tokenId` | Anyone | Deposit AWP + mint position NFT (lockDuration in seconds) |
-| `depositFor(address user, uint256 amount, uint64 lockDuration)` → `uint256 tokenId` | onlyRootNet | Deposit AWP for another address |
+| `depositFor(address user, uint256 amount, uint64 lockDuration)` → `uint256 tokenId` | onlyAWPRegistry | Deposit AWP for another address |
 | `addToPosition(uint256 tokenId, uint256 amount, uint64 newLockEndTime)` | NFT Owner | Add more AWP to existing position |
 | `withdraw(uint256 tokenId)` | NFT Owner | Withdraw after lock expires (burns NFT) |
 
@@ -217,7 +217,7 @@
 
 ### 1.4 AccessManager
 
-> User/Agent registration with address mutual exclusion. Only callable by RootNet.
+> User/Agent registration with address mutual exclusion. Only callable by AWPRegistry.
 
 | Function | Description |
 |----------|-------------|
@@ -251,7 +251,7 @@
 
 ### 1.6 AlphaToken
 
-> Standalone ERC20 deployed via CREATE2. 10B MAX_SUPPLY per subnet. Dual minter: admin (RootNet) + subnetMinter. No proxy pattern — no `_disableInitializers()` needed.
+> Standalone ERC20 deployed via CREATE2. 10B MAX_SUPPLY per subnet. Dual minter: admin (AWPRegistry) + subnetMinter. No proxy pattern — no `_disableInitializers()` needed.
 
 | Function | Access | Description |
 |----------|--------|-------------|
@@ -269,8 +269,8 @@
 | Function | Access | Description |
 |----------|--------|-------------|
 | `constructor(deployer, vanityRule)` | — | Deploy factory with packed vanity rule (0 = no validation) |
-| `setAddresses(rootNet)` | Owner | Link to RootNet and renounce ownership (one-time) |
-| `deploy(subnetId, name, symbol, admin, salt)` | RootNet | CREATE2-deploy AlphaToken; salt=0 uses subnetId |
+| `setAddresses(awpRegistry)` | Owner | Link to AWPRegistry and renounce ownership (one-time) |
+| `deploy(subnetId, name, symbol, admin, salt)` | AWPRegistry | CREATE2-deploy AlphaToken; salt=0 uses subnetId |
 | `predictDeployAddress(bytes32 salt)` | View | Predict address for a given salt (standard CREATE2 formula) |
 
 **Vanity rule encoding** (`uint64`, 8 positions packed):
@@ -292,7 +292,7 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 
 | Function | Access | Description |
 |----------|--------|-------------|
-| `createPoolAndAddLiquidity(address alphaToken, uint256 awpAmount, uint256 alphaAmount)` → `(bytes32 poolId, uint256 lpTokenId)` | RootNet | Create CL pool + mint full-range LP |
+| `createPoolAndAddLiquidity(address alphaToken, uint256 awpAmount, uint256 alphaAmount)` → `(bytes32 poolId, uint256 lpTokenId)` | AWPRegistry | Create CL pool + mint full-range LP |
 
 ---
 
@@ -302,8 +302,8 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 
 | Function | Access | Description |
 |----------|--------|-------------|
-| `mint(address to, uint256 tokenId, string name_, address subnetManager_, address alphaToken_, uint128 minStake_, string skillsURI_)` | RootNet | Mint on subnet registration |
-| `burn(uint256 tokenId)` | RootNet | Burn on deregister |
+| `mint(address to, uint256 tokenId, string name_, address subnetManager_, address alphaToken_, uint128 minStake_, string skillsURI_)` | AWPRegistry | Mint on subnet registration |
+| `burn(uint256 tokenId)` | AWPRegistry | Burn on deregister |
 | Standard ERC721 | Anyone | `transferFrom`, `approve`, `ownerOf`, etc. |
 
 ---
@@ -539,7 +539,7 @@ struct AgentInfo {
 
 ## 4. Events
 
-### RootNet Events
+### AWPRegistry Events
 
 | Event | Parameters |
 |-------|-----------|
@@ -595,7 +595,7 @@ struct AgentInfo {
 
 ## 5. Error Codes
 
-### RootNet
+### AWPRegistry
 
 | Error | Trigger |
 |-------|---------|
@@ -657,7 +657,7 @@ struct AgentInfo {
 | `NothingToUpdate()` | No changes to apply to position |
 | `LockCannotShorten()` | New lock end time is earlier than current |
 | `LockMustExceedCurrentTime()` | Lock end time must be in the future |
-| `NotRootNet()` | Caller is not the RootNet contract |
+| `NotRootNet()` | Caller is not the AWPRegistry contract |
 
 ### API HTTP Codes
 
@@ -677,15 +677,15 @@ struct AgentInfo {
 |----------|-------|----------|
 | AWP MAX_SUPPLY | 10,000,000,000 × 10^18 | AWPToken |
 | Alpha MAX_SUPPLY | 10,000,000,000 × 10^18 | AlphaToken (per subnet) |
-| INITIAL_ALPHA_MINT | 100,000,000 × 10^18 | RootNet |
+| INITIAL_ALPHA_MINT | 100,000,000 × 10^18 | AWPRegistry |
 | INITIAL_DAILY_EMISSION | 15,800,000 × 10^18 | Deploy.s.sol |
 | EPOCH_DURATION | 86,400 (1 day) | AWPEmission (initialized via Deploy.s.sol) |
 | DECAY_FACTOR | 996844 / 1000000 | AWPEmission |
 | EMISSION_SPLIT_BPS | 5000 (50%) | AWPEmission |
-| MAX_ACTIVE_SUBNETS | 10,000 | RootNet |
+| MAX_ACTIVE_SUBNETS | 10,000 | AWPRegistry |
 | maxRecipients | 10,000 | AWPEmission |
 | MAX_WEIGHT_SECONDS | 54 weeks (32,659,200s) | StakeNFT / AWPDAO |
 | POOL_FEE | 10,000 (1%) | LPManager |
 | TICK_SPACING | 200 | LPManager |
-| Default immunity | 30 days | RootNet |
+| Default immunity | 30 days | AWPRegistry |
 | TIMELOCK_DELAY | 172,800 (2 days) | Deploy.s.sol |
