@@ -112,7 +112,8 @@ func (vh *VanityHandler) ComputeSalt(w http.ResponseWriter, r *http.Request) {
 			vh.writeError(w, http.StatusRequestTimeout, "salt pool empty and mining timed out")
 			return
 		}
-		vh.writeError(w, http.StatusInternalServerError, err.Error())
+		vh.logger.Error("vanity salt mining failed", "error", err)
+		vh.writeError(w, http.StatusInternalServerError, "salt mining failed")
 		return
 	}
 

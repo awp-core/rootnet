@@ -700,7 +700,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     }
 
     /// @notice Pause a subnet: Active → Paused (only the NFT Owner may call)
-    function pauseSubnet(uint256 subnetId) external nonReentrant {
+    function pauseSubnet(uint256 subnetId) external nonReentrant whenNotPaused {
         if (ISubnetNFT(subnetNFT).ownerOf(subnetId) != msg.sender) revert NotOwner();
         SubnetInfo storage info = subnets[subnetId];
         if (info.status != SubnetStatus.Active) revert InvalidSubnetStatus();

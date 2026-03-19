@@ -91,7 +91,11 @@ func (idx *Indexer) Run(ctx context.Context) error {
 
 // poll executes one complete scan cycle using optimistic indexing with parent hash verification.
 // No fixed confirmation depth — processes up to chain tip, detects reorgs via block hash chain.
-func (idx *Indexer) poll(ctx context.Context) error {
+func (idx *Indexer) poll(parentCtx context.Context) error {
+	// Per-poll timeout to prevent indefinite hangs on RPC failures
+	ctx, cancel := context.WithTimeout(parentCtx, 60*time.Second)
+	defer cancel()
+
 	// 1. Read the last synced block
 	q := gen.New(idx.pool)
 	state, err := q.GetSyncState(ctx, syncKey)

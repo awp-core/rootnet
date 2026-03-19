@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/cortexia/rootnet/api/internal/db/gen"
+	"github.com/cortexia/rootnet/api/internal/ratelimit"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 )
@@ -93,6 +94,13 @@ func (h *Handler) LookupAgent(w http.ResponseWriter, r *http.Request) {
 
 // BatchAgentInfo returns batch agent info along with each agent's stake in the specified subnet
 func (h *Handler) BatchAgentInfo(w http.ResponseWriter, r *http.Request) {
+	// Rate limit: reuse compute_salt bucket (20/hr/IP) to prevent DB exhaustion
+	ip := ratelimit.GetClientIP(r)
+	if exceeded, _ := h.limiter.CheckAndIncrement(r.Context(), "compute_salt", ip); exceeded {
+		h.writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
+		return
+	}
+
 	r.Body = http.MaxBytesReader(w, r.Body, 65536) // max ~100 addresses
 	var req batchAgentInfoRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -147,9 +155,9 @@ func parseSubnetID(r *http.Request) (int64, error) {
 	if raw == "" {
 		return 0, errors.New("missing subnetId parameter")
 	}
-	id, err := strconv.Atoi(raw)
+	id, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
 		return 0, errors.New("subnetId must be an integer")
 	}
-	return int64(id), nil
+	return id, nil
 }
