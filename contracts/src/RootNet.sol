@@ -105,6 +105,22 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     bytes32 private constant BIND_TYPEHASH =
         keccak256("Bind(address agent,address principal,uint256 nonce,uint256 deadline)");
 
+    /// @dev EIP-712 type hash: SetRewardRecipient(address user, address recipient, uint256 nonce, uint256 deadline)
+    bytes32 private constant SET_REWARD_RECIPIENT_TYPEHASH =
+        keccak256("SetRewardRecipient(address user,address recipient,uint256 nonce,uint256 deadline)");
+
+    /// @dev EIP-712 type hash: Allocate(address user, address agent, uint256 subnetId, uint256 amount, uint256 nonce, uint256 deadline)
+    bytes32 private constant ALLOCATE_TYPEHASH =
+        keccak256("Allocate(address user,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)");
+
+    /// @dev EIP-712 type hash: Deallocate(address user, address agent, uint256 subnetId, uint256 amount, uint256 nonce, uint256 deadline)
+    bytes32 private constant DEALLOCATE_TYPEHASH =
+        keccak256("Deallocate(address user,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)");
+
+    /// @dev EIP-712 type hash: ActivateSubnet(address user, uint256 subnetId, uint256 nonce, uint256 deadline)
+    bytes32 private constant ACTIVATE_SUBNET_TYPEHASH =
+        keccak256("ActivateSubnet(address user,uint256 subnetId,uint256 nonce,uint256 deadline)");
+
     /// @dev EIP-712 type hash for SubnetParams nested struct
     bytes32 private constant SUBNET_PARAMS_TYPEHASH =
         keccak256("SubnetParams(string name,string symbol,address subnetManager,bytes32 salt,uint128 minStake,string skillsURI)");
@@ -524,6 +540,29 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
         emit RewardRecipientUpdated(user, recipient);
     }
 
+    /// @notice Gasless set reward recipient: relayer pays gas, user signs EIP-712
+    /// @param user User address (signer, must be the Principal owner)
+    /// @param recipient New reward recipient address
+    /// @param deadline Signature expiry time (unix timestamp)
+    /// @param v EIP-712 signature v value
+    /// @param r EIP-712 signature r value
+    /// @param s EIP-712 signature s value
+    function setRewardRecipientFor(
+        address user, address recipient, uint256 deadline,
+        uint8 v, bytes32 r, bytes32 s
+    ) external nonReentrant whenNotPaused {
+        if (block.timestamp > deadline) revert ExpiredSignature();
+        bytes32 structHash = keccak256(abi.encode(
+            SET_REWARD_RECIPIENT_TYPEHASH, user, recipient, nonces[user]++, deadline
+        ));
+        bytes32 digest = _hashTypedDataV4(structHash);
+        address signer = ECDSA.recover(digest, v, r, s);
+        if (signer != user) revert InvalidSignature();
+
+        IAccessManager(accessManager).setRewardRecipient(user, recipient);
+        emit RewardRecipientUpdated(user, recipient);
+    }
+
     // ═══════════════════════════════════════════════
     //  Staking: Allocation
     // ═══════════════════════════════════════════════
@@ -555,6 +594,46 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     /// @param amount AWP amount to deallocate
     function deallocate(address agent, uint256 subnetId, uint256 amount) external nonReentrant whenNotPaused {
         address user = _resolvePrincipalOrDelegated();
+        _validateAgent(user, agent);
+        IStakingVault(stakingVault).deallocate(user, agent, subnetId, amount);
+        emit Deallocated(user, agent, subnetId, amount, msg.sender);
+    }
+
+    /// @notice Gasless allocate: relayer pays gas, user signs EIP-712
+    function allocateFor(
+        address user, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
+        uint8 v, bytes32 r, bytes32 s
+    ) external nonReentrant whenNotPaused {
+        if (block.timestamp > deadline) revert ExpiredSignature();
+        bytes32 structHash = keccak256(abi.encode(
+            ALLOCATE_TYPEHASH, user, agent, subnetId, amount, nonces[user]++, deadline
+        ));
+        bytes32 digest = _hashTypedDataV4(structHash);
+        if (ECDSA.recover(digest, v, r, s) != user) revert InvalidSignature();
+
+        if (subnets[subnetId].status != SubnetStatus.Active) revert InvalidSubnetStatus();
+        _validateAgent(user, agent);
+        IStakingVault(stakingVault).allocate(user, agent, subnetId, amount);
+        uint128 minStake = ISubnetNFT(subnetNFT).getMinStake(subnetId);
+        if (minStake > 0) {
+            uint256 totalStake = IStakingVault(stakingVault).getAgentStake(user, agent, subnetId);
+            if (totalStake < minStake) revert InsufficientMinStake();
+        }
+        emit Allocated(user, agent, subnetId, amount, msg.sender);
+    }
+
+    /// @notice Gasless deallocate: relayer pays gas, user signs EIP-712
+    function deallocateFor(
+        address user, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
+        uint8 v, bytes32 r, bytes32 s
+    ) external nonReentrant whenNotPaused {
+        if (block.timestamp > deadline) revert ExpiredSignature();
+        bytes32 structHash = keccak256(abi.encode(
+            DEALLOCATE_TYPEHASH, user, agent, subnetId, amount, nonces[user]++, deadline
+        ));
+        bytes32 digest = _hashTypedDataV4(structHash);
+        if (ECDSA.recover(digest, v, r, s) != user) revert InvalidSignature();
+
         _validateAgent(user, agent);
         IStakingVault(stakingVault).deallocate(user, agent, subnetId, amount);
         emit Deallocated(user, agent, subnetId, amount, msg.sender);
@@ -748,6 +827,30 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     /// @param subnetId Subnet ID to activate
     function activateSubnet(uint256 subnetId) external whenNotPaused {
         if (ISubnetNFT(subnetNFT).ownerOf(subnetId) != msg.sender) revert NotOwner();
+        SubnetInfo storage info = subnets[subnetId];
+        if (info.status != SubnetStatus.Pending) revert InvalidSubnetStatus();
+
+        if (activeSubnetIds.length() >= MAX_ACTIVE_SUBNETS) revert MaxActiveSubnetsReached();
+        info.status = SubnetStatus.Active;
+        info.activatedAt = uint64(block.timestamp);
+        activeSubnetIds.add(subnetId);
+
+        emit SubnetActivated(subnetId);
+    }
+
+    /// @notice Gasless activate subnet: relayer pays gas, NFT owner signs EIP-712
+    function activateSubnetFor(
+        address user, uint256 subnetId, uint256 deadline,
+        uint8 v, bytes32 r, bytes32 s
+    ) external nonReentrant whenNotPaused {
+        if (block.timestamp > deadline) revert ExpiredSignature();
+        bytes32 structHash = keccak256(abi.encode(
+            ACTIVATE_SUBNET_TYPEHASH, user, subnetId, nonces[user]++, deadline
+        ));
+        bytes32 digest = _hashTypedDataV4(structHash);
+        if (ECDSA.recover(digest, v, r, s) != user) revert InvalidSignature();
+
+        if (ISubnetNFT(subnetNFT).ownerOf(subnetId) != user) revert NotOwner();
         SubnetInfo storage info = subnets[subnetId];
         if (info.status != SubnetStatus.Pending) revert InvalidSubnetStatus();
 

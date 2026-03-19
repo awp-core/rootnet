@@ -114,6 +114,10 @@ func NewRouter(p RouterParams) chi.Router {
 		r.Route("/api/relay", func(r chi.Router) {
 			r.Post("/register", p.RelayHandler.RelayRegister)
 			r.Post("/bind", p.RelayHandler.RelayBind)
+			r.Post("/set-reward-recipient", p.RelayHandler.RelaySetRewardRecipient)
+			r.Post("/allocate", p.RelayHandler.RelayAllocate)
+			r.Post("/deallocate", p.RelayHandler.RelayDeallocate)
+			r.Post("/activate-subnet", p.RelayHandler.RelayActivateSubnet)
 			r.Post("/register-subnet", p.RelayHandler.RelayRegisterSubnet)
 		})
 	}
