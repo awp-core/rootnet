@@ -11,8 +11,8 @@ generate: generate-bindings generate-sqlc
 generate-bindings:
 	cd $(CONTRACTS) && $(FORGE) build
 	@mkdir -p internal/chain/bindings
-	jq '.abi' $(OUT)/RootNet.sol/RootNet.json > /tmp/RootNet_abi.json
-	$(ABIGEN) --abi /tmp/RootNet_abi.json --pkg bindings --type RootNet --out internal/chain/bindings/root_net.go
+	jq '.abi' $(OUT)/AWPRegistry.sol/AWPRegistry.json > /tmp/AWPRegistry_abi.json
+	$(ABIGEN) --abi /tmp/AWPRegistry_abi.json --pkg bindings --type AWPRegistry --out internal/chain/bindings/awp_registry.go
 	jq '.abi' $(OUT)/AWPToken.sol/AWPToken.json > /tmp/AWPToken_abi.json
 	$(ABIGEN) --abi /tmp/AWPToken_abi.json --pkg bindings --type AWPToken --out internal/chain/bindings/a_w_p_token.go
 	jq '.abi' $(OUT)/AlphaToken.sol/AlphaToken.json > /tmp/AlphaToken_abi.json

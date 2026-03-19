@@ -163,8 +163,8 @@ func TestGetRegistry(t *testing.T) {
 	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
 
 	// Verify all contract addresses are returned from config
-	if resp["rootNet"] != "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
-		t.Errorf("unexpected rootNet: %s", resp["rootNet"])
+	if resp["awpRegistry"] != "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+		t.Errorf("unexpected awpRegistry: %s", resp["awpRegistry"])
 	}
 	if resp["subnetNFT"] != "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
 		t.Errorf("unexpected subnetNFT: %s", resp["subnetNFT"])
