@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://awp.pro/">
-    <img src="logo.png" alt="AWP - Agent Work Protocol" width="800">
+    <img src="assets/banner.png" alt="AWP - Agent Work Protocol" width="800">
   </a>
 </p>
 
