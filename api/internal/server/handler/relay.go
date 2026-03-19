@@ -40,17 +40,13 @@ var revertErrors = map[string]string{
 	// ERC20 errors
 	"0xfb8f41b2": "insufficient AWP allowance",
 	"0xe450d38c": "insufficient AWP balance",
-	// AccessManager errors
+	// Account system V2 errors
 	"0xf48904b2": "cannot bind to self",
-	"0x05d14037": "not owner or manager",
-	"0x27f5ce6b": "unknown address",
-	"0x5e03d55f": "cannot remove self",
-	"0x9cba1f30": "address is already a registered user (cannot bind as agent)",
-	"0x425b78ae": "address is already an agent (cannot register as user)",
+	"0x9cba1f30": "already bound",
 	"0xcd69fa68": "cannot bind to yourself",
-	"0x390772fc": "not the agent owner",
+	"0x390772fc": "not the owner",
 	"0x373d7529": "cannot revoke own delegation",
-	"0x9c8d2cd2": "invalid reward recipient",
+	"0x9c8d2cd2": "invalid recipient",
 	// StakeNFT errors
 	"0x6855a802": "lock not expired",
 	"0x2bff29a6": "position expired",
@@ -176,7 +172,7 @@ type relayRegisterRequest struct {
 	Signature string `json:"signature"`
 }
 
-type relaySetRewardRecipientRequest struct {
+type relaySetRecipientRequest struct {
 	User      string `json:"user"`
 	Recipient string `json:"recipient"`
 	Deadline  uint64 `json:"deadline"`
@@ -185,25 +181,25 @@ type relaySetRewardRecipientRequest struct {
 
 type relayBindRequest struct {
 	Agent     string `json:"agent"`
-	Principal string `json:"principal"`
+	Target    string `json:"target"`
 	Deadline  uint64 `json:"deadline"`
 	Signature string `json:"signature"`
 }
 
 type relayAllocateRequest struct {
-	User      string `json:"user"`
+	Staker    string `json:"staker"`
 	Agent     string `json:"agent"`
 	SubnetID  uint64 `json:"subnetId"`
-	Amount    string `json:"amount"`    // wei string
+	Amount    string `json:"amount"` // wei string
 	Deadline  uint64 `json:"deadline"`
 	Signature string `json:"signature"`
 }
 
 type relayDeallocateRequest struct {
-	User      string `json:"user"`
+	Staker    string `json:"staker"`
 	Agent     string `json:"agent"`
 	SubnetID  uint64 `json:"subnetId"`
-	Amount    string `json:"amount"`    // wei string
+	Amount    string `json:"amount"` // wei string
 	Deadline  uint64 `json:"deadline"`
 	Signature string `json:"signature"`
 }
@@ -219,20 +215,20 @@ type relayRegisterSubnetRequest struct {
 	User              string `json:"user"`
 	Name              string `json:"name"`
 	Symbol            string `json:"symbol"`
-	SubnetManager     string `json:"subnetManager"`     // "0x0...0" or "" = auto-deploy SubnetManager
-	Salt              string `json:"salt"`               // bytes32 hex, "0x00...00" = use subnetId
-	MinStake          string `json:"minStake"`           // minimum stake wei string (0 = no minimum)
-	SkillsURI         string `json:"skillsUri"`          // skills description URI
+	SubnetManager     string `json:"subnetManager"`    // "0x0...0" or "" = auto-deploy SubnetManager
+	Salt              string `json:"salt"`              // bytes32 hex, "0x00...00" = use subnetId
+	MinStake          string `json:"minStake"`          // minimum stake wei string (0 = no minimum)
+	SkillsURI         string `json:"skillsUri"`         // skills description URI
 	Deadline          uint64 `json:"deadline"`
-	PermitSignature   string `json:"permitSignature"`    // ERC-2612 permit signature (AWP approval)
-	RegisterSignature string `json:"registerSignature"`  // EIP-712 registerSubnet signature
+	PermitSignature   string `json:"permitSignature"`   // ERC-2612 permit signature (AWP approval)
+	RegisterSignature string `json:"registerSignature"` // EIP-712 registerSubnet signature
 }
 
 type relayResponse struct {
 	TxHash string `json:"txHash"`
 }
 
-// RelayRegister POST /api/relay/register — relay registerFor transaction
+// RelayRegister POST /api/relay/register — gasless registration (calls setRecipientFor(user, user))
 func (rh *RelayHandler) RelayRegister(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 
@@ -241,7 +237,6 @@ func (rh *RelayHandler) RelayRegister(w http.ResponseWriter, r *http.Request) {
 		rh.writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-
 	if !common.IsHexAddress(req.User) {
 		rh.writeError(w, http.StatusBadRequest, "invalid user address")
 		return
@@ -261,7 +256,6 @@ func (rh *RelayHandler) RelayRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Rate limit check (after validation to avoid invalid requests consuming quota)
 	exceeded, rateLimitErr := rh.checkRateLimit(r)
 	if rateLimitErr != nil {
 		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
@@ -275,9 +269,10 @@ func (rh *RelayHandler) RelayRegister(w http.ResponseWriter, r *http.Request) {
 	user := common.HexToAddress(req.User)
 	deadline := new(big.Int).SetUint64(req.Deadline)
 
-	txHash, err := rh.relayer.RelayRegister(r.Context(), user, deadline, v, rs, ss)
+	// register = setRecipientFor(user, user, ...) — sets recipient to self
+	txHash, err := rh.relayer.RelaySetRecipient(r.Context(), user, user, deadline, v, rs, ss)
 	if err != nil {
-		rh.logger.Error("relay registerFor failed", "error", err, "user", req.User)
+		rh.logger.Error("relay register failed", "error", err, "user", req.User)
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
 		return
 	}
@@ -286,7 +281,7 @@ func (rh *RelayHandler) RelayRegister(w http.ResponseWriter, r *http.Request) {
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
-// RelayBind POST /api/relay/bind — relay bindFor transaction
+// RelayBind POST /api/relay/bind — relay bindFor transaction (V2: agent binds to target)
 func (rh *RelayHandler) RelayBind(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 
@@ -300,8 +295,8 @@ func (rh *RelayHandler) RelayBind(w http.ResponseWriter, r *http.Request) {
 		rh.writeError(w, http.StatusBadRequest, "invalid agent address")
 		return
 	}
-	if !common.IsHexAddress(req.Principal) {
-		rh.writeError(w, http.StatusBadRequest, "invalid principal address")
+	if !common.IsHexAddress(req.Target) {
+		rh.writeError(w, http.StatusBadRequest, "invalid target address")
 		return
 	}
 	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() {
@@ -331,12 +326,12 @@ func (rh *RelayHandler) RelayBind(w http.ResponseWriter, r *http.Request) {
 	}
 
 	agent := common.HexToAddress(req.Agent)
-	principal := common.HexToAddress(req.Principal)
+	target := common.HexToAddress(req.Target)
 	deadline := new(big.Int).SetUint64(req.Deadline)
 
-	txHash, err := rh.relayer.RelayBind(r.Context(), agent, principal, deadline, v, rs, ss)
+	txHash, err := rh.relayer.RelayBind(r.Context(), agent, target, deadline, v, rs, ss)
 	if err != nil {
-		rh.logger.Error("relay bindFor failed", "error", err, "agent", req.Agent, "principal", req.Principal)
+		rh.logger.Error("relay bindFor failed", "error", err, "agent", req.Agent, "target", req.Target)
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
 		return
 	}
@@ -345,11 +340,11 @@ func (rh *RelayHandler) RelayBind(w http.ResponseWriter, r *http.Request) {
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
-// RelaySetRewardRecipient POST /api/relay/set-reward-recipient — relay setRewardRecipientFor transaction
-func (rh *RelayHandler) RelaySetRewardRecipient(w http.ResponseWriter, r *http.Request) {
+// RelaySetRecipient POST /api/relay/set-recipient — relay setRecipientFor transaction (V2)
+func (rh *RelayHandler) RelaySetRecipient(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
 
-	var req relaySetRewardRecipientRequest
+	var req relaySetRecipientRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		rh.writeError(w, http.StatusBadRequest, "invalid request body")
 		return
@@ -393,9 +388,9 @@ func (rh *RelayHandler) RelaySetRewardRecipient(w http.ResponseWriter, r *http.R
 	recipient := common.HexToAddress(req.Recipient)
 	deadline := new(big.Int).SetUint64(req.Deadline)
 
-	txHash, err := rh.relayer.RelaySetRewardRecipient(r.Context(), user, recipient, deadline, v, rs, ss)
+	txHash, err := rh.relayer.RelaySetRecipient(r.Context(), user, recipient, deadline, v, rs, ss)
 	if err != nil {
-		rh.logger.Error("relay setRewardRecipientFor failed", "error", err, "user", req.User, "recipient", req.Recipient)
+		rh.logger.Error("relay setRecipientFor failed", "error", err, "user", req.User, "recipient", req.Recipient)
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
 		return
 	}
@@ -412,7 +407,7 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 		rh.writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if !common.IsHexAddress(req.User) { rh.writeError(w, http.StatusBadRequest, "invalid user address"); return }
+	if !common.IsHexAddress(req.Staker) { rh.writeError(w, http.StatusBadRequest, "invalid staker address"); return }
 	if !common.IsHexAddress(req.Agent) { rh.writeError(w, http.StatusBadRequest, "invalid agent address"); return }
 	if req.SubnetID == 0 { rh.writeError(w, http.StatusBadRequest, "subnetId is required"); return }
 	if req.Amount == "" { rh.writeError(w, http.StatusBadRequest, "amount is required"); return }
@@ -430,11 +425,11 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 	if !ok || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
 
 	txHash, err := rh.relayer.RelayAllocate(r.Context(),
-		common.HexToAddress(req.User), common.HexToAddress(req.Agent),
+		common.HexToAddress(req.Staker), common.HexToAddress(req.Agent),
 		new(big.Int).SetUint64(req.SubnetID), amount,
 		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
 	if err != nil {
-		rh.logger.Error("relay allocateFor failed", "error", err, "user", req.User)
+		rh.logger.Error("relay allocateFor failed", "error", err, "staker", req.Staker)
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
 		return
 	}
@@ -450,7 +445,7 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 		rh.writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if !common.IsHexAddress(req.User) { rh.writeError(w, http.StatusBadRequest, "invalid user address"); return }
+	if !common.IsHexAddress(req.Staker) { rh.writeError(w, http.StatusBadRequest, "invalid staker address"); return }
 	if !common.IsHexAddress(req.Agent) { rh.writeError(w, http.StatusBadRequest, "invalid agent address"); return }
 	if req.SubnetID == 0 { rh.writeError(w, http.StatusBadRequest, "subnetId is required"); return }
 	if req.Amount == "" { rh.writeError(w, http.StatusBadRequest, "amount is required"); return }
@@ -468,11 +463,11 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 	if !ok || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
 
 	txHash, err := rh.relayer.RelayDeallocate(r.Context(),
-		common.HexToAddress(req.User), common.HexToAddress(req.Agent),
+		common.HexToAddress(req.Staker), common.HexToAddress(req.Agent),
 		new(big.Int).SetUint64(req.SubnetID), amount,
 		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
 	if err != nil {
-		rh.logger.Error("relay deallocateFor failed", "error", err, "user", req.User)
+		rh.logger.Error("relay deallocateFor failed", "error", err, "staker", req.Staker)
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
 		return
 	}

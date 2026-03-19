@@ -15,15 +15,15 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-// Relayer submits gasless transactions using a relayer private key (registerFor / bindFor / registerSubnetFor)
+// Relayer submits gasless transactions using a relayer private key (bindFor / setRecipientFor / registerSubnetFor)
 // Uses mutex to serialize tx submissions, preventing nonce collisions
 type Relayer struct {
-	client  *ethclient.Client
+	client      *ethclient.Client
 	awpRegistry *bindings.AWPRegistry
-	key     *ecdsa.PrivateKey
-	chainID *big.Int
-	logger  *slog.Logger
-	mu      sync.Mutex // serializes tx submissions to prevent nonce collisions
+	key         *ecdsa.PrivateKey
+	chainID     *big.Int
+	logger      *slog.Logger
+	mu          sync.Mutex // serializes tx submissions to prevent nonce collisions
 }
 
 // NewRelayer creates a Relayer instance
@@ -56,8 +56,8 @@ func (r *Relayer) auth(ctx context.Context) (*bind.TransactOpts, error) {
 	return auth, nil
 }
 
-// RelayRegister relays a registerFor transaction
-func (r *Relayer) RelayRegister(ctx context.Context, user common.Address, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
+// RelayBind relays a bindFor transaction (V2: agent binds to target)
+func (r *Relayer) RelayBind(ctx context.Context, agent common.Address, target common.Address, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -69,39 +69,17 @@ func (r *Relayer) RelayRegister(ctx context.Context, user common.Address, deadli
 		return "", err
 	}
 
-	tx, err := r.awpRegistry.RegisterFor(auth, user, deadline, v, rs, ss)
-	if err != nil {
-		return "", fmt.Errorf("RegisterFor tx: %w", err)
-	}
-
-	r.logger.Info("relay registerFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex())
-	return tx.Hash().Hex(), nil
-}
-
-// RelayBind relays a bindFor transaction
-func (r *Relayer) RelayBind(ctx context.Context, agent common.Address, principal common.Address, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	txCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	auth, err := r.auth(txCtx)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := r.awpRegistry.BindFor(auth, agent, principal, deadline, v, rs, ss)
+	tx, err := r.awpRegistry.BindFor(auth, agent, target, deadline, v, rs, ss)
 	if err != nil {
 		return "", fmt.Errorf("BindFor tx: %w", err)
 	}
 
-	r.logger.Info("relay bindFor sent", "txHash", tx.Hash().Hex(), "agent", agent.Hex(), "principal", principal.Hex())
+	r.logger.Info("relay bindFor sent", "txHash", tx.Hash().Hex(), "agent", agent.Hex(), "target", target.Hex())
 	return tx.Hash().Hex(), nil
 }
 
-// RelaySetRewardRecipient relays a setRewardRecipientFor transaction
-func (r *Relayer) RelaySetRewardRecipient(ctx context.Context, user common.Address, recipient common.Address, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
+// RelaySetRecipient relays a setRecipientFor transaction (V2: renamed from setRewardRecipientFor)
+func (r *Relayer) RelaySetRecipient(ctx context.Context, user common.Address, recipient common.Address, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -113,17 +91,17 @@ func (r *Relayer) RelaySetRewardRecipient(ctx context.Context, user common.Addre
 		return "", err
 	}
 
-	tx, err := r.awpRegistry.SetRewardRecipientFor(auth, user, recipient, deadline, v, rs, ss)
+	tx, err := r.awpRegistry.SetRecipientFor(auth, user, recipient, deadline, v, rs, ss)
 	if err != nil {
-		return "", fmt.Errorf("SetRewardRecipientFor tx: %w", err)
+		return "", fmt.Errorf("SetRecipientFor tx: %w", err)
 	}
 
-	r.logger.Info("relay setRewardRecipientFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "recipient", recipient.Hex())
+	r.logger.Info("relay setRecipientFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "recipient", recipient.Hex())
 	return tx.Hash().Hex(), nil
 }
 
-// RelayAllocate relays an allocateFor transaction
-func (r *Relayer) RelayAllocate(ctx context.Context, user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
+// RelayAllocate relays an allocateFor transaction (V2: staker instead of user)
+func (r *Relayer) RelayAllocate(ctx context.Context, staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -135,17 +113,17 @@ func (r *Relayer) RelayAllocate(ctx context.Context, user common.Address, agent 
 		return "", err
 	}
 
-	tx, err := r.awpRegistry.AllocateFor(auth, user, agent, subnetId, amount, deadline, v, rs, ss)
+	tx, err := r.awpRegistry.AllocateFor(auth, staker, agent, subnetId, amount, deadline, v, rs, ss)
 	if err != nil {
 		return "", fmt.Errorf("AllocateFor tx: %w", err)
 	}
 
-	r.logger.Info("relay allocateFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "agent", agent.Hex())
+	r.logger.Info("relay allocateFor sent", "txHash", tx.Hash().Hex(), "staker", staker.Hex(), "agent", agent.Hex())
 	return tx.Hash().Hex(), nil
 }
 
-// RelayDeallocate relays a deallocateFor transaction
-func (r *Relayer) RelayDeallocate(ctx context.Context, user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
+// RelayDeallocate relays a deallocateFor transaction (V2: staker instead of user)
+func (r *Relayer) RelayDeallocate(ctx context.Context, staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -157,12 +135,12 @@ func (r *Relayer) RelayDeallocate(ctx context.Context, user common.Address, agen
 		return "", err
 	}
 
-	tx, err := r.awpRegistry.DeallocateFor(auth, user, agent, subnetId, amount, deadline, v, rs, ss)
+	tx, err := r.awpRegistry.DeallocateFor(auth, staker, agent, subnetId, amount, deadline, v, rs, ss)
 	if err != nil {
 		return "", fmt.Errorf("DeallocateFor tx: %w", err)
 	}
 
-	r.logger.Info("relay deallocateFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "agent", agent.Hex())
+	r.logger.Info("relay deallocateFor sent", "txHash", tx.Hash().Hex(), "staker", staker.Hex(), "agent", agent.Hex())
 	return tx.Hash().Hex(), nil
 }
 

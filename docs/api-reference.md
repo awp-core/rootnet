@@ -7,7 +7,7 @@
    - [AWPEmission](#12-awpemission)
    - [StakingVault](#13-stakingvault)
    - [StakeNFT](#13b-stakenft)
-   - [AccessManager](#14-accessmanager)
+   - [~~AccessManager~~](#14-accessmanager-removed)
    - [AWPToken](#15-awptoken)
    - [AlphaToken](#16-alphatoken)
    - [LPManager](#17-lpmanager)
@@ -37,38 +37,29 @@
 
 > Unified entry point for subnet management and staking. All user-facing write operations go through AWPRegistry.
 
-#### User Registration
+#### Account System (V2)
+
+> EIP-712 domain name: "AWPRegistry". No mandatory registration — every address is implicitly a root.
 
 | Function | Access | Description |
 |----------|--------|-------------|
-| `register()` | Anyone | Register msg.sender as a user |
-| `registerFor(address user, uint256 deadline, uint8 v, bytes32 r, bytes32 s)` | Anyone | Gasless registration via EIP-712 signature |
-| `registerAndStake(uint256 depositAmount, uint64 lockDuration, address agent, uint256 subnetId, uint256 allocateAmount)` | Anyone | One-click: register + deposit (via StakeNFT) + allocate |
-| `register(address recipient, uint256 depositAmount, uint64 lockDuration)` | Anyone | One-stop: register + set reward recipient + deposit via StakeNFT (all params optional) |
-
-#### Agent Registration
-
-| Function | Access | Description |
-|----------|--------|-------------|
-| `bind(address principal)` | Agent (msg.sender) | Bind msg.sender as Agent to Principal (supports rebind; auto-registers Principal if needed) |
-| `bindFor(address agent, address principal, uint256 deadline, uint8 v, bytes32 r, bytes32 s)` | Anyone | Gasless Agent bind via EIP-712 |
-| `unbind()` | Agent (msg.sender) | Agent voluntarily unbinds, returning to unregistered status |
-
-#### Agent Management
-
-| Function | Access | Description |
-|----------|--------|-------------|
-| `removeAgent(address agent)` | Owner / Manager | Freeze all allocations and remove agent (StakingVault auto-enumerates subnets) |
-| `setDelegation(address agent, bool _isManager)` | Owner / Manager | Grant or revoke delegation |
-| `setRewardRecipient(address recipient)` | Owner only | Set custom reward recipient address |
+| `register()` | Anyone | Optional; equivalent to `setRecipient(msg.sender)` |
+| `bind(address target)` | Anyone | Tree-based binding with anti-cycle check |
+| `bindFor(address user, address target, uint256 deadline, uint8 v, bytes32 r, bytes32 s)` | Anyone | Gasless bind via EIP-712 |
+| `setRecipient(address recipient)` | Anyone | Set reward recipient address |
+| `setRecipientFor(address user, address recipient, uint256 deadline, uint8 v, bytes32 r, bytes32 s)` | Anyone | Gasless set recipient via EIP-712 |
+| `grantDelegate(address delegate)` | Anyone | Grant delegation to an address |
+| `revokeDelegate(address delegate)` | Anyone | Revoke delegation from an address |
+| `resolveRecipient(address addr)` | View | Walk boundTo chain to root, return reward recipient |
+| `isRegistered(address addr)` | View | `boundTo[addr] != 0 \|\| recipient[addr] != 0` |
 
 #### Staking (Allocation Only)
 
 | Function | Access | Description |
 |----------|--------|-------------|
-| `allocate(address agent, uint256 subnetId, uint256 amount)` | Owner / Manager | Allocate stake to (agent, subnet) triple |
-| `deallocate(address agent, uint256 subnetId, uint256 amount)` | Owner / Manager | Release stake allocation |
-| `reallocate(address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount)` | Owner / Manager | Move stake between triples (immediate) |
+| `allocate(address staker, address agent, uint256 subnetId, uint256 amount)` | Staker / Delegate | Allocate stake to (agent, subnet) triple; staker is explicit parameter |
+| `deallocate(address staker, address agent, uint256 subnetId, uint256 amount)` | Staker / Delegate | Release stake allocation |
+| `reallocate(address staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount)` | Staker / Delegate | Move stake between triples (immediate) |
 
 > **Note:** Deposit/withdraw is handled by StakeNFT directly. AWPRegistry only manages allocations.
 
@@ -103,9 +94,14 @@
 | `getActiveSubnetIdAt(uint256 index)` | `uint256` | Active subnet ID by index |
 | `isSubnetActive(uint256 subnetId)` | `bool` | Whether subnet is Active |
 | `nextSubnetId()` | `uint256` | Next subnet ID to be assigned |
-| `getAgentInfo(address agent, uint256 subnetId)` | `AgentInfo` | Agent stake + owner + reward recipient |
+| `getAgentInfo(address agent, uint256 subnetId)` | `AgentInfo` | Agent stake + boundTo + recipient |
 | `getAgentsInfo(address[] agents, uint256 subnetId)` | `AgentInfo[]` | Batch agent info query |
-| `getRegistry()` | 10 addresses | All module contract addresses (awpToken, subnetNFT, alphaTokenFactory, awpEmission, lpManager, accessManager, stakingVault, stakeNFT, treasury, guardian) |
+| `getRegistry()` | 9 addresses | All module contract addresses (awpToken, subnetNFT, alphaTokenFactory, awpEmission, lpManager, stakingVault, stakeNFT, treasury, guardian) |
+| `resolveRecipient(address addr)` | `address` | Walk boundTo chain to root |
+| `isRegistered(address addr)` | `bool` | `boundTo[addr] != 0 \|\| recipient[addr] != 0` |
+| `boundTo(address addr)` | `address` | Direct binding target |
+| `recipient(address addr)` | `address` | Set recipient address |
+| `delegates(address user, address delegate)` | `bool` | Whether delegate is authorized |
 
 #### Emergency
 
@@ -171,10 +167,10 @@
 
 | Function | Description |
 |----------|-------------|
-| `allocate(user, agent, subnetId, amount)` | Allocate stake (onlyAWPRegistry) |
-| `deallocate(user, agent, subnetId, amount)` | Release allocation (onlyAWPRegistry) |
-| `reallocate(user, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)` | Move allocation (onlyAWPRegistry) |
-| `freezeAgentAllocations(user, agent)` | Freeze on agent removal — auto-enumerates subnets (onlyAWPRegistry) |
+| `allocate(staker, agent, subnetId, amount)` | Allocate stake (onlyAWPRegistry) |
+| `deallocate(staker, agent, subnetId, amount)` | Release allocation (onlyAWPRegistry) |
+| `reallocate(staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)` | Move allocation (onlyAWPRegistry) |
+| `freezeAgentAllocations(staker, agent)` | Freeze agent allocations — auto-enumerates subnets (onlyAWPRegistry) |
 
 **View functions:** `userTotalAllocated`, `getAgentStake`, `subnetTotalStake`, `getSubnetTotalStake`, `getAgentSubnets(user, agent) → uint256[]`
 
@@ -215,22 +211,9 @@
 
 ---
 
-### 1.4 AccessManager
+### 1.4 ~~AccessManager~~ (REMOVED)
 
-> User/Agent registration with address mutual exclusion. Only callable by AWPRegistry.
-
-| Function | Description |
-|----------|-------------|
-| `register(address user)` | Register user |
-| `bind(address agent, address principal) → address oldPrincipal` | Bind Agent to Principal (supports rebind, auto-register Principal if needed) |
-| `unbind(address agent) → address oldPrincipal` | Unbind Agent, return to unregistered |
-| `removeAgent(user, agent, operator)` | Remove agent |
-| `setManager(user, agent, isManager, operator)` | Set manager flag |
-| `setRewardRecipient(user, recipient)` | Set reward recipient |
-
-> **Note:** `getAgentSubnets(user, agent)` is on StakingVault, not AccessManager.
-
-**View functions:** `isRegistered`, `isRegisteredUser`, `isRegisteredAgent`, `isAgent`, `isManagerAgent`, `getOwner`, `getAgents`, `getRewardRecipient`, `getTotalUsers`, `resolveCallerRole`, `batchAgentInfo`
+> AccessManager contract has been removed in Account System V2. All account management (binding, delegation, recipient) is now handled directly by AWPRegistry.
 
 ---
 
@@ -347,7 +330,7 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/health` | Health check → `{"status": "ok"}` |
-| GET | `/registry` | All 11 protocol contract addresses (rootNet, awpToken, awpEmission, stakingVault, stakeNFT, subnetNFT, accessManager, lpManager, alphaTokenFactory, dao, treasury). Per-subnet addresses (subnet_contract, alpha_token) are in `/subnets/{id}`. |
+| GET | `/registry` | All protocol contract addresses (awpRegistry, awpToken, awpEmission, stakingVault, stakeNFT, subnetNFT, lpManager, alphaTokenFactory, dao, treasury). Per-subnet addresses (subnet_contract, alpha_token) are in `/subnets/{id}`. |
 
 ### 2.2 Users
 
@@ -358,19 +341,11 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 | GET | `/users/{address}` | User detail (balance, agents, reward recipient) |
 | GET | `/address/{address}/check` | Check registration status |
 
-### 2.3 Agents
+### 2.3 Address Check
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/agents/by-owner/{owner}` | List user's agents |
-| GET | `/agents/by-owner/{owner}/{agent}` | Agent detail |
-| GET | `/agents/lookup/{agent}` | Lookup agent's owner |
-| POST | `/agents/batch-info` | Batch query agent info (max 100) |
-
-**POST /agents/batch-info request:**
-```json
-{"agents": ["0x...", "0x..."], "subnetId": 1}
-```
+| GET | `/address/{address}/check` | Check registration status: `{isRegistered, boundTo, recipient}` |
 
 ### 2.4 Staking
 
@@ -423,22 +398,22 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 
 ### 2.10 Relay (Gasless Transactions)
 
-> Rate limit: 100 requests per IP per 1 hour (shared across all three relay endpoints)
+> Rate limit: 100 requests per IP per 1 hour (shared across all relay endpoints)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/relay/register` | Gasless user registration via EIP-712 signature |
-| POST | `/relay/bind` | Gasless agent bind via EIP-712 signature |
+| POST | `/relay/bind` | Gasless tree-based bind via EIP-712 signature |
+| POST | `/relay/set-recipient` | Gasless set recipient via EIP-712 signature |
 | POST | `/relay/register-subnet` | Fully gasless subnet registration via ERC-2612 permit + EIP-712 |
-
-**POST /relay/register request:**
-```json
-{"user": "0x...", "deadline": 1742400000, "signature": "0x...130 hex chars (65 bytes)"}
-```
 
 **POST /relay/bind request:**
 ```json
-{"agent": "0x...", "principal": "0x...", "deadline": 1742400000, "signature": "0x...130 hex chars (65 bytes)"}
+{"user": "0x...", "target": "0x...", "deadline": 1742400000, "signature": "0x...130 hex chars (65 bytes)"}
+```
+
+**POST /relay/set-recipient request:**
+```json
+{"user": "0x...", "recipient": "0x...", "deadline": 1742400000, "signature": "0x...130 hex chars (65 bytes)"}
 ```
 
 **POST /relay/register-subnet request:**
@@ -528,10 +503,10 @@ struct SubnetParams {
 }
 
 struct AgentInfo {
-    address owner;
+    address boundTo;
     bool isValid;
     uint256 stake;
-    address rewardRecipient;
+    address recipient;
 }
 ```
 
@@ -543,12 +518,10 @@ struct AgentInfo {
 
 | Event | Parameters |
 |-------|-----------|
-| `UserRegistered` | `address indexed user` |
-| `AgentBound` | `address indexed principal, address indexed agent, address oldPrincipal` |
-| `AgentUnbound` | `address indexed principal, address indexed agent` |
-| `AgentRemoved` | `address indexed user, address indexed agent, address operator` |
-| `DelegationUpdated` | `address indexed user, address indexed agent, bool isManager, address operator` |
-| `RewardRecipientUpdated` | `address indexed user, address recipient` |
+| `Bound` | `address indexed user, address indexed target, address oldTarget` |
+| `RecipientUpdated` | `address indexed user, address recipient` |
+| `DelegateGranted` | `address indexed user, address indexed delegate` |
+| `DelegateRevoked` | `address indexed user, address indexed delegate` |
 | `Allocated` | `address indexed user, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator` |
 | `Deallocated` | `address indexed user, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator` |
 | `Reallocated` | `address indexed user, address fromAgent, uint256 fromSubnet, address toAgent, uint256 toSubnet, uint256 amount, address operator` |
@@ -602,15 +575,15 @@ struct AgentInfo {
 | `NotDeployer()` | Non-deployer calls initializeRegistry |
 | `AlreadyInitialized()` | Registry already initialized |
 | `UnknownAddress()` | Invalid Timelock/Guardian caller or unknown updateAddress key |
-| `NotManager()` | Agent is not a Manager |
-| `NotRegistered()` | Caller not registered as user |
+| `NotDelegate()` | Caller is not a delegate of the staker |
+| `CycleDetected()` | Binding would create a cycle in the tree |
 | `InvalidSubnetParams()` | name/symbol length invalid |
 | `SubnetManagerRequired()` | subnetManager is zero address |
 | `NotOwner()` | Non-NFT holder calling lifecycle function |
 | `InvalidSubnetStatus()` | Status precondition not met |
 | `MaxActiveSubnetsReached()` | Active count >= 10,000 |
 | `ImmunityNotExpired()` | Deregister during immunity period |
-| `InvalidAgent()` | Agent doesn't belong to user |
+| `InvalidAgent()` | Agent is not valid |
 | `PriceTooLow()` | initialAlphaPrice < 1e12 |
 | `PriceTooHigh()` | initialAlphaPrice exceeds maximum |
 | `InsufficientMinStake()` | Allocation results in agent stake below subnet minStake |

@@ -6,7 +6,6 @@ import {AWPToken} from "../src/token/AWPToken.sol";
 import {AlphaTokenFactory} from "../src/token/AlphaTokenFactory.sol";
 import {AWPEmission} from "../src/token/AWPEmission.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {AccessManager} from "../src/core/AccessManager.sol";
 import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {SubnetNFT} from "../src/core/SubnetNFT.sol";
@@ -76,16 +75,9 @@ contract InitCodeHashes is Script {
         console.log("");
         console.log("--- Tier 4 (depends on AWPRegistry + AWP) ---");
         _logHash("SubnetNFT", abi.encodePacked(type(SubnetNFT).creationCode, abi.encode("AWP Subnet", "AWPSUB", rootNet)));
-        _logHash("AccessManager", abi.encodePacked(type(AccessManager).creationCode, abi.encode(rootNet)));
         _logHash("LPManager", abi.encodePacked(type(LPManager).creationCode, abi.encode(rootNet, poolManager, positionManager, permit2Addr, awp)));
         _logHash("StakingVault", abi.encodePacked(type(StakingVault).creationCode, abi.encode(rootNet)));
 
-        // AWPEmission proxy (depends on impl + AWP + Treasury)
-        // Use uint256(0) as genesisTime placeholder — actual value set at deploy time.
-        // This matches Predict.s.sol convention: hash is stable for salt mining.
-        // NOTE: genesisTime is uint256(0) placeholder. Deploy.s.sol uses block.timestamp,
-        // so the actual proxy address will differ. AWPEmission_proxy cannot be vanity-mined
-        // deterministically — re-mine with the actual timestamp immediately before deployment.
         bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, treasury, INITIAL_DAILY_EMISSION, uint256(0), EPOCH_DURATION));
         _logHash("AWPEmission_proxy", abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(emissionImpl, initData)));
 

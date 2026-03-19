@@ -13,21 +13,21 @@ docs/architecture.md — Read the relevant section before starting any task.
 - Frontend: Next.js 14, Tailwind, wagmi/viem
 
 ## API Architecture
-- Backend is read-only + on-chain data indexer + gasless relay; three relay endpoints (register, bind, register-subnet)
+- Backend is read-only + on-chain data indexer + gasless relay; two relay endpoints (bind, register-subnet)
 - Frontend sends transactions directly to chain via wagmi/viem
 - Three independent Go processes: api (HTTP+WS) / indexer (event sync) / keeper (scheduled on-chain ops)
 - Indexer → Redis Pub/Sub → API WebSocket
 - Indexer uses 15-block confirmation depth to avoid chain reorgs
 
-## Core Architecture (13 contracts)
-- AWPRegistry.sol = Unified entry: subnet management + staking allocation. No deposit/withdraw — staking via StakeNFT. No epoch logic (epoch moved to AWPEmission). Gasless: registerFor, bindFor, registerSubnetFor, registerSubnetForWithPermit (fully gasless with ERC-2612 permit). Errors: NotTimelock, NotGuardian (distinct).
+## Core Architecture (11 contracts)
+- AWPRegistry.sol = Unified entry: subnet management + staking allocation + account system. No deposit/withdraw — staking via StakeNFT. No epoch logic (epoch moved to AWPEmission). EIP-712 domain name "AWPRegistry". No mandatory registration — every address is implicitly a root. `register()` is optional (= `setRecipient(msg.sender)`). `isRegistered(addr)` = `boundTo[addr] != 0 || recipient[addr] != 0`. Tree-based binding with anti-cycle check via `bind(target)`. No address mutual exclusion. `grantDelegate(delegate)` / `revokeDelegate(delegate)` for delegation. `resolveRecipient(addr)` walks boundTo chain to root. `allocate(staker, agent, subnetId, amount)` — staker is explicit parameter. Gasless: bindFor, registerSubnetFor, registerSubnetForWithPermit (fully gasless with ERC-2612 permit), setRecipientFor. Errors: NotTimelock, NotGuardian (distinct).
 - StakeNFT.sol = ERC721 position NFT (not Enumerable). Users deposit AWP with lock period (timestamp-based, lockDuration in seconds). Each position = NFT with (amount, lockEndTime, createdAt). NFTs are transferable. O(1) balance tracking via _userTotalStaked accumulator. getUserVotingPower requires caller to pass tokenIds. addToPosition blocked on expired locks (PositionExpired error).
-- StakingVault.sol = Pure allocation logic. Allocations are plain uint128. (user, agent, subnetId) triple; allocate/deallocate/reallocate all immediate. Auto-enumerates agent subnets via EnumerableSet — freezeAgentAllocations(user, agent) needs no caller-supplied list. allocate/reallocate reject subnetId=0.
+- StakingVault.sol = Pure allocation logic. Allocations are plain uint128. (staker, agent, subnetId) triple; allocate/deallocate/reallocate all immediate. Auto-enumerates agent subnets via EnumerableSet — freezeAgentAllocations(staker, agent) needs no caller-supplied list. allocate/reallocate reject subnetId=0.
 - AWPEmission.sol = UUPS upgradeable proxy: generic address→weight distribution engine. Epoch authority: genesisTime + epochDuration (1 day). currentEpoch() = (block.timestamp - genesisTime) / epochDuration. Oracle multi-sig submits epoch-versioned packed allocations (submitAllocations(address[] recipients, uint96[] weights, bytes[] signatures, uint256 effectiveEpoch)). settleEpoch(limit) batch-mints AWP via mintAndCall (triggers SubnetManager.onTransferReceived). settledEpoch tracks settlement progress. emergencySetWeight(epoch, index, addr, weight) for Timelock override. onlyTimelock manages oracle config.
 - AWPDAO.sol = Inherits OZ Governor, GovernorSettings, GovernorTimelockControl. Overrides _getVotes and _countVote for StakeNFT-based voting (no delegate/checkpoint). No awpRegistry dependency. Voters submit tokenId[] arrays. Voting power = amount * sqrt(min(remainingTime, 54 weeks) / 7 days). Anti-manipulation: only NFTs with createdAt < proposalCreatedAt (strict: >= blocks same-block mint+vote). Per-tokenId double-vote prevention. totalVotingPower > 0 required for proposal creation. Two proposal types: proposeWithTokens (executable via Timelock) and signalPropose (vote-only). propose() is blocked.
 - SubnetNFT.sol = ERC721 with on-chain identity storage. tokenId = subnetId. Stores immutable fields: name, subnetManager, alphaToken. Stores owner-updatable fields: skillsURI (via setSkillsURI), minStake (via setMinStake). Events: SkillsURIUpdated, MinStakeUpdated. Lifecycle status managed by AWPRegistry, not SubnetNFT.
 - SubnetManager.sol = Default subnet contract (deployed behind ERC1967Proxy via AWPRegistry when subnetManager=address(0)). Initializable + AccessControlUpgradeable + ReentrancyGuardUpgradeable + IERC1363Receiver. Three roles: MERKLE_ROLE (submit Merkle roots), STRATEGY_ROLE (AWP handling), TRANSFER_ROLE (token transfers). Merkle claim mints Alpha to users. AWP strategy: Reserve / AddLiquidity / BuybackBurn. onTransferReceived auto-executes strategy on AWP receipt via mintAndCall. PancakeSwap V4 BSC mainnet addresses hardcoded.
-- AccessManager / LPManager = onlyAWPRegistry; StakeNFT = independent; AWPEmission = onlyTimelock (governance)
+- LPManager = onlyAWPRegistry; StakeNFT = independent; AWPEmission = onlyTimelock (governance)
 
 ## Tokens
 - AWP: 10B MAX_SUPPLY; 200M (2%) minted in constructor; 98% AWPEmission mint on demand. mintAndCall(to, amount, data) triggers ERC1363 callback on recipient.
@@ -36,6 +36,7 @@ docs/architecture.md — Read the relevant section before starting any task.
 ## Gas Optimization Design
 - settleEpoch(limit) (AWPEmission) iterates recipients[] in bounded batches via mintAndCall
 - SubnetInfo on AWPRegistry stores only lifecycle state (lpPool, status, createdAt, activatedAt) — identity data in SubnetNFT
+- Account system V2: no mandatory registration, tree-based binding, no address mutual exclusion
 - Allocations use plain uint128 mapping, no struct wrapper
 - AWPRegistry manages activeSubnetIds locally with MAX_ACTIVE_SUBNETS = 10000 constant; AWPEmission has maxRecipients = 10000
 
@@ -65,25 +66,25 @@ docs/architecture.md — Read the relevant section before starting any task.
 
 ## Staking
 - StakeNFT: deposit AWP with lockDuration (seconds) → mint position NFT (amount, lockEndTime, createdAt). Transferable. addToPosition increases amount (blocked if lock expired — PositionExpired). withdraw after lock expires.
-- StakingVault: pure allocation logic. Auto-enumerates agent subnets via _agentSubnets EnumerableSet. freezeAgentAllocations(user, agent) needs no subnet list.
-- removeAgent(agent) — no subnetIds param; StakingVault auto-enumerates
-- (user, agent, subnetId) triple; allocate/deallocate/reallocate all immediate; subnetId=0 rejected
+- StakingVault: pure allocation logic. Auto-enumerates agent subnets via _agentSubnets EnumerableSet. freezeAgentAllocations(staker, agent) needs no subnet list.
+- `allocate(staker, agent, subnetId, amount)` — staker is explicit parameter (caller must be staker or delegate)
+- (staker, agent, subnetId) triple; allocate/deallocate/reallocate all immediate; subnetId=0 rejected
 - Epoch duration: 1 day (daily epochs, AWPEmission only)
 
 ## Deployment Sequence
 AWPToken(constructor mint 200M) → AlphaTokenFactory(deployer, vanityRule)
-→ Treasury → AWPRegistry(deployer, treasury, guardian) → SubnetNFT → AccessManager → LPManager
+→ Treasury → AWPRegistry(deployer, treasury, guardian) → SubnetNFT → LPManager
 → AWPEmission impl → ERC1967Proxy(impl, initData with genesisTime_ and epochDuration_)
 → StakingVault → StakeNFT(awpToken, stakingVault, awpRegistry)
 → SubnetManager impl
 → AWPDAO (6 params, no awpRegistry_)
 → grantRole(dao) + renounce + addMinter(awpEmissionProxy) + renounceAdmin + AlphaTokenFactory.setAddresses
-→ AWPRegistry.initializeRegistry (deployer calls, then zeroed; 9 addresses)
+→ AWPRegistry.initializeRegistry (deployer calls, then zeroed; 8 addresses)
 → AWP transfer distribution
 
 ## API Endpoints
-- REST: /api/registry (all 11 contract addresses, excludes implementation contracts), /api/users/*, /api/agents/*, /api/staking/*, /api/subnets/*, /api/emission/*, /api/tokens/*, /api/governance/*
-- Relay: POST /api/relay/register, /api/relay/bind, /api/relay/register-subnet (gasless EIP-712, rate-limited 100/IP/1h, configurable via Redis)
+- REST: /api/registry (all 9 contract addresses, excludes implementation contracts), /api/users/*, /api/staking/*, /api/subnets/*, /api/emission/*, /api/tokens/*, /api/governance/*
+- Relay: POST /api/relay/bind, /api/relay/set-recipient, /api/relay/register-subnet (gasless EIP-712, rate-limited 100/IP/1h, configurable via Redis)
 - Vanity: GET /api/vanity/mining-params, POST /api/vanity/upload-salts, GET /api/vanity/salts, GET /api/vanity/salts/count, POST /api/vanity/compute-salt (DB pool first, cast fallback)
 - WebSocket: WS /ws/live
 
@@ -99,12 +100,13 @@ AWPToken(constructor mint 200M) → AlphaTokenFactory(deployer, vanityRule)
 
 ## Bug Prevention
 - tokenId uses _nextSubnetId++
-- User/Agent address mutual exclusion (Principal/Agent model with bind/unbind)
-- removeAgent(agent) freezes stake via StakingVault auto-enumeration (no caller-supplied subnetIds)
+- Tree-based binding with anti-cycle check (no address mutual exclusion)
+- `bind(target)` walks chain to detect cycles before binding
+- `resolveRecipient(addr)` walks boundTo chain to root for reward distribution
 - StakeNFT: only NFTs with createdAt < proposalCreatedAt can vote (strict: >= blocks same-block)
 - StakeNFT: addToPosition blocked on expired locks (PositionExpired)
 - StakingVault: allocate/reallocate reject subnetId=0
-- AWPRegistry.allocate enforces SubnetNFT.minStake — allocation must result in total agent stake >= minStake (InsufficientMinStake)
+- SubnetNFT.minStake is stored on-chain but NOT enforced by AWPRegistry.allocate (used as off-chain/coordinator reference only)
 - AWPDAO: totalVotingPower > 0 required for proposals
 - deregisterSubnet: users must manually deallocate from deregistered subnets (deallocate has no status check); frontend should alert on SubnetDeregistered
 - subnetManager == address(0) auto-deploys SubnetManager proxy if defaultSubnetManagerImpl is set
@@ -115,6 +117,7 @@ AWPToken(constructor mint 200M) → AlphaTokenFactory(deployer, vanityRule)
 - settleEpoch has nonReentrant
 - DB lp_pool is nullable (SubnetRegistered precedes LPCreated)
 - DB vanity_salts: salt pool with CREATE2 + vanityRule verification on upload; FOR UPDATE SKIP LOCKED on claim
+- DB: `agents` table removed; `users` table has `bound_to` and `recipient` columns
 - SubnetNFT stores identity on-chain (name, subnetManager, alphaToken, skillsURI, minStake)
 - Permit2 BSC mainnet: 0x31c2F6fcFf4F8759b3Bd5Bf0e1084A055615c768
 - admin.sh: Hot-update rate limits, manage salt pool, view system status (scripts/admin.sh)

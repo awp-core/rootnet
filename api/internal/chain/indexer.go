@@ -256,6 +256,10 @@ func (idx *Indexer) detectReorg(ctx context.Context, q *gen.Queries, lastBlock u
 // rollback resets the indexer state to the given fork point atomically within a transaction.
 // Since all DB writes use ON CONFLICT DO UPDATE (upserts), re-indexing from the fork point
 // will overwrite any stale data. We only need to reset the sync cursor and clean up block hashes.
+//
+// NOTE: Allocation tracking (stake_allocations) uses additive upserts and is NOT fully
+// idempotent on replay. After a reorg rollback, allocation amounts may drift from on-chain
+// state. A full re-sync from genesis is recommended if allocation accuracy is critical.
 func (idx *Indexer) rollback(ctx context.Context, forkPoint int64) error {
 	tx, err := idx.pool.Begin(ctx)
 	if err != nil {
@@ -301,106 +305,75 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	awpEmission := idx.chain.AWPEmission
 	stakeNFT := idx.chain.StakeNFT
 
-	// Attempt to match each event signature
-	// UserRegistered
+	// ── AWPRegistry Account System V2 events ──
+
+	// UserRegistered(address indexed user)
 	if evt, err := awpRegistry.ParseUserRegistered(lg); err == nil {
-		if err := q.InsertUser(ctx, gen.InsertUserParams{
+		if err := q.SetUserRegisteredAt(ctx, gen.SetUserRegisteredAtParams{
 			Address:      strings.ToLower(evt.User.Hex()),
 			RegisteredAt: int64(lg.BlockNumber),
 		}); err != nil {
-			return nil, fmt.Errorf("InsertUser: %w", err)
-		}
-		if err := q.InitUserBalance(ctx, strings.ToLower(evt.User.Hex())); err != nil {
-			return nil, fmt.Errorf("InitUserBalance: %w", err)
+			return nil, fmt.Errorf("SetUserRegisteredAt: %w", err)
 		}
 		return []redisEvent{makeEvent("UserRegistered", lg, map[string]interface{}{
 			"user": evt.User.Hex(),
 		})}, nil
 	}
 
-	// AgentBound (covers both first bind and rebind)
-	if evt, err := awpRegistry.ParseAgentBound(lg); err == nil {
-		if err := q.UpsertAgent(ctx, gen.UpsertAgentParams{
-			AgentAddress: strings.ToLower(evt.Agent.Hex()),
-			OwnerAddress: strings.ToLower(evt.Principal.Hex()),
+	// Bound(address indexed addr, address indexed target)
+	if evt, err := awpRegistry.ParseBound(lg); err == nil {
+		if err := q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
+			Address: strings.ToLower(evt.Addr.Hex()),
+			BoundTo: strings.ToLower(evt.Target.Hex()),
 		}); err != nil {
-			return nil, fmt.Errorf("UpsertAgent: %w", err)
+			return nil, fmt.Errorf("UpsertUserBinding: %w", err)
 		}
-		return []redisEvent{makeEvent("AgentBound", lg, map[string]interface{}{
-			"principal":    evt.Principal.Hex(),
-			"agent":        evt.Agent.Hex(),
-			"oldPrincipal": evt.OldPrincipal.Hex(),
+		if err := q.InitUserBalance(ctx, strings.ToLower(evt.Addr.Hex())); err != nil {
+			return nil, fmt.Errorf("InitUserBalance (Bound): %w", err)
+		}
+		return []redisEvent{makeEvent("Bound", lg, map[string]interface{}{
+			"addr":   evt.Addr.Hex(),
+			"target": evt.Target.Hex(),
 		})}, nil
 	}
 
-	// AgentRemoved
-	if evt, err := awpRegistry.ParseAgentRemoved(lg); err == nil {
-		if err := q.UpdateAgentRemoved(ctx, gen.UpdateAgentRemovedParams{
-			AgentAddress: strings.ToLower(evt.Agent.Hex()),
-			RemovedAt:    pgtype.Int8{Int64: int64(lg.BlockNumber), Valid: true},
-		}); err != nil {
-			return nil, fmt.Errorf("UpdateAgentRemoved: %w", err)
+	// Unbound(address indexed addr)
+	if evt, err := awpRegistry.ParseUnbound(lg); err == nil {
+		if err := q.ClearUserBinding(ctx, strings.ToLower(evt.Addr.Hex())); err != nil {
+			return nil, fmt.Errorf("ClearUserBinding: %w", err)
 		}
-		if err := q.FreezeAgentAllocations(ctx, gen.FreezeAgentAllocationsParams{
-			UserAddress:  strings.ToLower(evt.User.Hex()),
-			AgentAddress: strings.ToLower(evt.Agent.Hex()),
-		}); err != nil {
-			return nil, fmt.Errorf("FreezeAgentAllocations: %w", err)
-		}
-		return []redisEvent{makeEvent("AgentRemoved", lg, map[string]interface{}{
-			"user":     evt.User.Hex(),
-			"agent":    evt.Agent.Hex(),
-			"operator": evt.Operator.Hex(),
+		return []redisEvent{makeEvent("Unbound", lg, map[string]interface{}{
+			"addr": evt.Addr.Hex(),
 		})}, nil
 	}
 
-	// AgentUnbound (agent voluntarily unbinds from principal — freeze allocations same as AgentRemoved)
-	if evt, err := awpRegistry.ParseAgentUnbound(lg); err == nil {
-		if err := q.UpdateAgentRemoved(ctx, gen.UpdateAgentRemovedParams{
-			AgentAddress: strings.ToLower(evt.Agent.Hex()),
-			RemovedAt:    pgtype.Int8{Int64: int64(lg.BlockNumber), Valid: true},
+	// RecipientSet(address indexed addr, address recipient)
+	if evt, err := awpRegistry.ParseRecipientSet(lg); err == nil {
+		if err := q.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+			Address:   strings.ToLower(evt.Addr.Hex()),
+			Recipient: strings.ToLower(evt.Recipient.Hex()),
 		}); err != nil {
-			return nil, fmt.Errorf("UpdateAgentRemoved (unbound): %w", err)
+			return nil, fmt.Errorf("UpsertUserRecipient: %w", err)
 		}
-		if err := q.FreezeAgentAllocations(ctx, gen.FreezeAgentAllocationsParams{
-			UserAddress:  strings.ToLower(evt.Principal.Hex()),
-			AgentAddress: strings.ToLower(evt.Agent.Hex()),
-		}); err != nil {
-			return nil, fmt.Errorf("FreezeAgentAllocations (unbound): %w", err)
-		}
-		return []redisEvent{makeEvent("AgentUnbound", lg, map[string]interface{}{
-			"principal": evt.Principal.Hex(),
-			"agent":     evt.Agent.Hex(),
-		})}, nil
-	}
-
-	// DelegationUpdated
-	if evt, err := awpRegistry.ParseDelegationUpdated(lg); err == nil {
-		if err := q.UpdateAgentManager(ctx, gen.UpdateAgentManagerParams{
-			AgentAddress: strings.ToLower(evt.Agent.Hex()),
-			IsManager:    evt.IsManager,
-		}); err != nil {
-			return nil, fmt.Errorf("UpdateAgentManager: %w", err)
-		}
-		return []redisEvent{makeEvent("DelegationUpdated", lg, map[string]interface{}{
-			"user":      evt.User.Hex(),
-			"agent":     evt.Agent.Hex(),
-			"isManager": evt.IsManager,
-			"operator":  evt.Operator.Hex(),
-		})}, nil
-	}
-
-	// RewardRecipientUpdated
-	if evt, err := awpRegistry.ParseRewardRecipientUpdated(lg); err == nil {
-		if err := q.UpsertRewardRecipient(ctx, gen.UpsertRewardRecipientParams{
-			UserAddress:      strings.ToLower(evt.User.Hex()),
-			RecipientAddress: strings.ToLower(evt.Recipient.Hex()),
-		}); err != nil {
-			return nil, fmt.Errorf("UpsertRewardRecipient: %w", err)
-		}
-		return []redisEvent{makeEvent("RewardRecipientUpdated", lg, map[string]interface{}{
-			"user":      evt.User.Hex(),
+		return []redisEvent{makeEvent("RecipientSet", lg, map[string]interface{}{
+			"addr":      evt.Addr.Hex(),
 			"recipient": evt.Recipient.Hex(),
+		})}, nil
+	}
+
+	// DelegateGranted(address indexed staker, address indexed delegate)
+	if evt, err := awpRegistry.ParseDelegateGranted(lg); err == nil {
+		return []redisEvent{makeEvent("DelegateGranted", lg, map[string]interface{}{
+			"staker":   evt.Staker.Hex(),
+			"delegate": evt.Delegate.Hex(),
+		})}, nil
+	}
+
+	// DelegateRevoked(address indexed staker, address indexed delegate)
+	if evt, err := awpRegistry.ParseDelegateRevoked(lg); err == nil {
+		return []redisEvent{makeEvent("DelegateRevoked", lg, map[string]interface{}{
+			"staker":   evt.Staker.Hex(),
+			"delegate": evt.Delegate.Hex(),
 		})}, nil
 	}
 
@@ -443,8 +416,8 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return nil, fmt.Errorf("UpdateStakePosition: %w", err)
 		}
 		return []redisEvent{makeEvent("PositionIncreased", lg, map[string]interface{}{
-			"tokenId":       evt.TokenId.String(),
-			"addedAmount":   evt.AddedAmount.String(),
+			"tokenId":        evt.TokenId.String(),
+			"addedAmount":    evt.AddedAmount.String(),
 			"newLockEndTime": evt.NewLockEndTime,
 		})}, nil
 	}
@@ -484,10 +457,10 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}
 	}
 
-	// Allocated
+	// Allocated (V2: staker instead of user)
 	if evt, err := awpRegistry.ParseAllocated(lg); err == nil {
 		if err := q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
-			UserAddress:  strings.ToLower(evt.User.Hex()),
+			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
 			SubnetID:     evt.SubnetId.Int64(),
 			Amount:       bigIntToNumeric(evt.Amount),
@@ -495,13 +468,13 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return nil, fmt.Errorf("UpsertStakeAllocation: %w", err)
 		}
 		if err := q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
-			UserAddress:    strings.ToLower(evt.User.Hex()),
+			UserAddress:    strings.ToLower(evt.Staker.Hex()),
 			TotalAllocated: bigIntToNumeric(evt.Amount),
 		}); err != nil {
 			return nil, fmt.Errorf("AddUserAllocated: %w", err)
 		}
 		return []redisEvent{makeEvent("Allocated", lg, map[string]interface{}{
-			"user":     evt.User.Hex(),
+			"staker":   evt.Staker.Hex(),
 			"agent":    evt.Agent.Hex(),
 			"subnetId": evt.SubnetId.String(),
 			"amount":   evt.Amount.String(),
@@ -509,10 +482,10 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// Deallocated
+	// Deallocated (V2: staker instead of user)
 	if evt, err := awpRegistry.ParseDeallocated(lg); err == nil {
 		if err := q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
-			UserAddress:  strings.ToLower(evt.User.Hex()),
+			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
 			SubnetID:     evt.SubnetId.Int64(),
 			Amount:       bigIntToNumeric(evt.Amount),
@@ -520,13 +493,13 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return nil, fmt.Errorf("SubtractStakeAllocation: %w", err)
 		}
 		if err := q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{
-			UserAddress:    strings.ToLower(evt.User.Hex()),
+			UserAddress:    strings.ToLower(evt.Staker.Hex()),
 			TotalAllocated: bigIntToNumeric(evt.Amount),
 		}); err != nil {
 			return nil, fmt.Errorf("SubtractUserAllocated: %w", err)
 		}
 		return []redisEvent{makeEvent("Deallocated", lg, map[string]interface{}{
-			"user":     evt.User.Hex(),
+			"staker":   evt.Staker.Hex(),
 			"agent":    evt.Agent.Hex(),
 			"subnetId": evt.SubnetId.String(),
 			"amount":   evt.Amount.String(),
@@ -534,11 +507,11 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// Reallocated — replaces the old ReallocationQueued; update DB allocations and publish event
+	// Reallocated (V2: staker instead of user)
 	if evt, err := awpRegistry.ParseReallocated(lg); err == nil {
 		// Subtract from source allocation
 		if err := q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
-			UserAddress:  strings.ToLower(evt.User.Hex()),
+			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.FromAgent.Hex()),
 			SubnetID:     evt.FromSubnet.Int64(),
 			Amount:       bigIntToNumeric(evt.Amount),
@@ -547,7 +520,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}
 		// Add to destination allocation
 		if err := q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
-			UserAddress:  strings.ToLower(evt.User.Hex()),
+			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.ToAgent.Hex()),
 			SubnetID:     evt.ToSubnet.Int64(),
 			Amount:       bigIntToNumeric(evt.Amount),
@@ -555,7 +528,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return nil, fmt.Errorf("UpsertStakeAllocation(Reallocated): %w", err)
 		}
 		return []redisEvent{makeEvent("Reallocated", lg, map[string]interface{}{
-			"user":       evt.User.Hex(),
+			"staker":     evt.Staker.Hex(),
 			"fromAgent":  evt.FromAgent.Hex(),
 			"fromSubnet": evt.FromSubnet.String(),
 			"toAgent":    evt.ToAgent.Hex(),
@@ -791,8 +764,8 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		// start_time = genesisTime + epochId * epochDuration (time-based epoch, not block number)
 		epochStartTime := idx.genesisTime + evt.Epoch.Int64()*idx.epochDuration
 		if err := q.UpsertEpoch(ctx, gen.UpsertEpochParams{
-			EpochID:        evt.Epoch.Int64(),
-			StartTime:      epochStartTime,
+			EpochID:       evt.Epoch.Int64(),
+			StartTime:     epochStartTime,
 			DailyEmission: bigIntToNumeric(evt.TotalEmission),
 			DaoEmission:   pgtype.Numeric{Valid: false},
 		}); err != nil {
@@ -835,8 +808,6 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// ── AWPRegistry governance events (notification-only, no DB writes) ──
-	// These events are not in the current AWPRegistry binding; match by topic hash.
-	// TODO: regenerate AWPRegistry binding to include these events and use typed parsing.
 	if lg.Address == idx.chain.AWPRegistryAddr {
 		topic := lg.Topics[0]
 		switch topic {

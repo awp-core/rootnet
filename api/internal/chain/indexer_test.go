@@ -58,7 +58,7 @@ func (db *testDB) truncate() {
 	db.t.Helper()
 	_, err := db.pool.Exec(context.Background(), `TRUNCATE TABLE
 		recipient_awp_distributions, stake_positions, stake_allocations,
-		user_balances, user_reward_recipients, agents, epochs,
+		user_balances, epochs,
 		subnets, proposals, users, sync_states`)
 	if err != nil {
 		db.t.Fatalf("TRUNCATE failed: %v", err)
@@ -98,97 +98,83 @@ func assertNumericEqual(t *testing.T, label string, got pgtype.Numeric, want int
 
 // --- Test scenarios: simulate database operations for indexer event processing ---
 
-func TestIndexerScenario_UserRegistered(t *testing.T) {
+func TestIndexerScenario_Bound(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
-	userAddr := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	agentAddr := "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	targetAddr := "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
-	// Simulate database operations for UserRegistered event in processLog
-	err := db.q.InsertUser(ctx, gen.InsertUserParams{
-		Address:      userAddr,
-		RegisteredAt: 100,
+	// Simulate Bound event: agent binds to target
+	err := db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
+		Address: agentAddr,
+		BoundTo: targetAddr,
 	})
 	if err != nil {
-		t.Fatalf("InsertUser failed: %v", err)
+		t.Fatalf("UpsertUserBinding failed: %v", err)
 	}
 
-	err = db.q.InitUserBalance(ctx, userAddr)
+	err = db.q.InitUserBalance(ctx, agentAddr)
 	if err != nil {
 		t.Fatalf("InitUserBalance failed: %v", err)
 	}
 
-	// Verify user was created
-	user, err := db.q.GetUser(ctx, userAddr)
+	// Verify user was created with correct binding
+	user, err := db.q.GetUser(ctx, agentAddr)
 	if err != nil {
 		t.Fatalf("GetUser failed: %v", err)
 	}
-	if user.Address != userAddr {
-		t.Fatalf("user address mismatch: expected %s, got %s", userAddr, user.Address)
+	if user.Address != agentAddr {
+		t.Fatalf("user address mismatch: expected %s, got %s", agentAddr, user.Address)
 	}
-	if user.RegisteredAt != 100 {
-		t.Fatalf("registered block mismatch: expected 100, got %d", user.RegisteredAt)
+	if user.BoundTo != targetAddr {
+		t.Fatalf("bound_to mismatch: expected %s, got %s", targetAddr, user.BoundTo)
 	}
 
 	// Verify balance initialized to 0
-	bal, err := db.q.GetUserBalance(ctx, userAddr)
+	bal, err := db.q.GetUserBalance(ctx, agentAddr)
 	if err != nil {
 		t.Fatalf("GetUserBalance failed: %v", err)
 	}
 	assertNumericEqual(t, "total_allocated", bal.TotalAllocated, 0)
 }
 
-func TestIndexerScenario_AgentRegistered(t *testing.T) {
+func TestIndexerScenario_BindAndLookup(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 	ownerAddr := "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	agentAddr := "0xcccccccccccccccccccccccccccccccccccccccc"
 
-	// Register the owner user first
-	err := db.q.InsertUser(ctx, gen.InsertUserParams{
-		Address:      ownerAddr,
-		RegisteredAt: 100,
+	// Simulate Bound event: agent binds to owner
+	err := db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
+		Address: agentAddr,
+		BoundTo: ownerAddr,
 	})
 	if err != nil {
-		t.Fatalf("InsertUser failed: %v", err)
+		t.Fatalf("UpsertUserBinding failed: %v", err)
 	}
 
-	// Simulate AgentRegistered event
-	err = db.q.InsertAgent(ctx, gen.InsertAgentParams{
-		AgentAddress: agentAddr,
-		OwnerAddress: ownerAddr,
-	})
+	// Verify agent binding
+	user, err := db.q.GetUser(ctx, agentAddr)
 	if err != nil {
-		t.Fatalf("InsertAgent failed: %v", err)
+		t.Fatalf("GetUser failed: %v", err)
+	}
+	if user.Address != agentAddr {
+		t.Fatalf("address mismatch: expected %s, got %s", agentAddr, user.Address)
+	}
+	if user.BoundTo != ownerAddr {
+		t.Fatalf("bound_to mismatch: expected %s, got %s", ownerAddr, user.BoundTo)
 	}
 
-	// Verify agent was created
-	agent, err := db.q.GetAgent(ctx, agentAddr)
+	// Verify query by bound_to (owner)
+	agents, err := db.q.GetUsersByBoundTo(ctx, ownerAddr)
 	if err != nil {
-		t.Fatalf("GetAgent failed: %v", err)
-	}
-	if agent.AgentAddress != agentAddr {
-		t.Fatalf("agent address mismatch: expected %s, got %s", agentAddr, agent.AgentAddress)
-	}
-	if agent.OwnerAddress != ownerAddr {
-		t.Fatalf("owner address mismatch: expected %s, got %s", ownerAddr, agent.OwnerAddress)
-	}
-	if agent.Removed {
-		t.Fatal("newly registered agent should not be marked as removed")
-	}
-	if agent.IsManager {
-		t.Fatal("newly registered agent should not be marked as manager")
-	}
-
-	// Verify query by owner
-	agents, err := db.q.GetAgentsByOwner(ctx, ownerAddr)
-	if err != nil {
-		t.Fatalf("GetAgentsByOwner failed: %v", err)
+		t.Fatalf("GetUsersByBoundTo failed: %v", err)
 	}
 	if len(agents) != 1 {
 		t.Fatalf("expected 1 agent, got %d", len(agents))
 	}
-	if agents[0].AgentAddress != agentAddr {
-		t.Fatalf("agent address mismatch: expected %s, got %s", agentAddr, agents[0].AgentAddress)
+	if agents[0].Address != agentAddr {
+		t.Fatalf("agent address mismatch: expected %s, got %s", agentAddr, agents[0].Address)
 	}
 }
 
@@ -198,7 +184,7 @@ func TestIndexerScenario_StakeNFTDeposited(t *testing.T) {
 	userAddr := "0xdddddddddddddddddddddddddddddddddddddd"
 
 	// Register user
-	_ = db.q.InsertUser(ctx, gen.InsertUserParams{Address: userAddr, RegisteredAt: 100})
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: userAddr, BoundTo: ""})
 
 	// Simulate StakeNFT.Deposited event: create stake position
 	err := db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
@@ -359,7 +345,7 @@ func TestIndexerScenario_Allocated(t *testing.T) {
 	var subnetID int64 = 1
 
 	// Setup: register user + balance
-	_ = db.q.InsertUser(ctx, gen.InsertUserParams{Address: userAddr, RegisteredAt: 100})
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: userAddr, BoundTo: ""})
 	_ = db.q.InitUserBalance(ctx, userAddr)
 
 	// Simulate Allocated event
@@ -431,7 +417,7 @@ func TestIndexerScenario_Deallocated(t *testing.T) {
 	var subnetID int64 = 2
 
 	// Setup: register user + allocation 2000
-	_ = db.q.InsertUser(ctx, gen.InsertUserParams{Address: userAddr, RegisteredAt: 100})
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: userAddr, BoundTo: ""})
 	_ = db.q.InitUserBalance(ctx, userAddr)
 	_ = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 		UserAddress:  userAddr,
@@ -831,20 +817,16 @@ func TestIndexerScenario_SyncState(t *testing.T) {
 	}
 }
 
-func TestIndexerScenario_AgentRemoved(t *testing.T) {
+func TestIndexerScenario_Unbound(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 	ownerAddr := "0x6666666666666666666666666666666666666666"
 	agentAddr := "0x7777777777777777777777777777777777777777"
 	var subnetID int64 = 5
 
-	// Setup: register user, agent, and stake allocation
-	_ = db.q.InsertUser(ctx, gen.InsertUserParams{Address: ownerAddr, RegisteredAt: 100})
+	// Setup: bind agent to owner, create stake allocation
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: agentAddr, BoundTo: ownerAddr})
 	_ = db.q.InitUserBalance(ctx, ownerAddr)
-	_ = db.q.InsertAgent(ctx, gen.InsertAgentParams{
-		AgentAddress: agentAddr,
-		OwnerAddress: ownerAddr,
-	})
 	_ = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 		UserAddress:  ownerAddr,
 		AgentAddress: agentAddr,
@@ -852,33 +834,28 @@ func TestIndexerScenario_AgentRemoved(t *testing.T) {
 		Amount:       numericFromInt64(3000),
 	})
 
-	// Simulate AgentRemoved event
-	err := db.q.UpdateAgentRemoved(ctx, gen.UpdateAgentRemovedParams{
-		AgentAddress: agentAddr,
-		RemovedAt:    pgtype.Int8{Int64: 500, Valid: true},
-	})
+	// Simulate Unbound event: clear binding
+	err := db.q.ClearUserBinding(ctx, agentAddr)
 	if err != nil {
-		t.Fatalf("UpdateAgentRemoved failed: %v", err)
+		t.Fatalf("ClearUserBinding failed: %v", err)
 	}
 
+	// Verify binding is cleared
+	user, err := db.q.GetUser(ctx, agentAddr)
+	if err != nil {
+		t.Fatalf("GetUser failed: %v", err)
+	}
+	if user.BoundTo != "" {
+		t.Fatalf("BoundTo should be empty after unbind, got %s", user.BoundTo)
+	}
+
+	// Freeze agent allocations (simulating what indexer does on unbind)
 	err = db.q.FreezeAgentAllocations(ctx, gen.FreezeAgentAllocationsParams{
 		UserAddress:  ownerAddr,
 		AgentAddress: agentAddr,
 	})
 	if err != nil {
 		t.Fatalf("FreezeAgentAllocations failed: %v", err)
-	}
-
-	// Verify agent is marked as removed
-	agent, err := db.q.GetAgent(ctx, agentAddr)
-	if err != nil {
-		t.Fatalf("GetAgent failed: %v", err)
-	}
-	if !agent.Removed {
-		t.Fatal("Agent should be marked as removed")
-	}
-	if !agent.RemovedAt.Valid || agent.RemovedAt.Int64 != 500 {
-		t.Fatalf("RemovedAt mismatch: %v", agent.RemovedAt)
 	}
 
 	// Verify allocations are frozen (GetAgentSubnetStake excludes frozen)
@@ -902,96 +879,45 @@ func TestIndexerScenario_AgentRemoved(t *testing.T) {
 	assertNumericEqual(t, "frozen amount", frozen[0].Amount, 3000)
 }
 
-func TestIndexerScenario_ManagerUpdated(t *testing.T) {
-	db := setupTestDB(t)
-	ctx := context.Background()
-	ownerAddr := "0x8888888888888888888888888888888888888888"
-	agentAddr := "0x9999999999999999999999999999999999999999"
-
-	// Setup
-	_ = db.q.InsertUser(ctx, gen.InsertUserParams{Address: ownerAddr, RegisteredAt: 100})
-	_ = db.q.InsertAgent(ctx, gen.InsertAgentParams{
-		AgentAddress: agentAddr,
-		OwnerAddress: ownerAddr,
-	})
-
-	// Simulate ManagerUpdated event: set as manager
-	err := db.q.UpdateAgentManager(ctx, gen.UpdateAgentManagerParams{
-		AgentAddress: agentAddr,
-		IsManager:    true,
-	})
-	if err != nil {
-		t.Fatalf("UpdateAgentManager(true) failed: %v", err)
-	}
-
-	agent, err := db.q.GetAgent(ctx, agentAddr)
-	if err != nil {
-		t.Fatalf("GetAgent failed: %v", err)
-	}
-	if !agent.IsManager {
-		t.Fatal("Agent should be marked as Manager")
-	}
-
-	// Unset manager
-	err = db.q.UpdateAgentManager(ctx, gen.UpdateAgentManagerParams{
-		AgentAddress: agentAddr,
-		IsManager:    false,
-	})
-	if err != nil {
-		t.Fatalf("UpdateAgentManager(false) failed: %v", err)
-	}
-
-	agent, err = db.q.GetAgent(ctx, agentAddr)
-	if err != nil {
-		t.Fatalf("GetAgent failed: %v", err)
-	}
-	if agent.IsManager {
-		t.Fatal("Agent should no longer be a Manager")
-	}
-}
-
-func TestIndexerScenario_RewardRecipientUpdated(t *testing.T) {
+func TestIndexerScenario_RecipientSet(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 	userAddr := "0xaaaa111111111111111111111111111111111111"
 	recipientAddr := "0xbbbb111111111111111111111111111111111111"
 
-	// Setup
-	_ = db.q.InsertUser(ctx, gen.InsertUserParams{Address: userAddr, RegisteredAt: 100})
-
-	// Simulate RewardRecipientUpdated event
-	err := db.q.UpsertRewardRecipient(ctx, gen.UpsertRewardRecipientParams{
-		UserAddress:      userAddr,
-		RecipientAddress: recipientAddr,
+	// Simulate RecipientSet event
+	err := db.q.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+		Address:   userAddr,
+		Recipient: recipientAddr,
 	})
 	if err != nil {
-		t.Fatalf("UpsertRewardRecipient failed: %v", err)
+		t.Fatalf("UpsertUserRecipient failed: %v", err)
 	}
 
-	rr, err := db.q.GetRewardRecipient(ctx, userAddr)
+	user, err := db.q.GetUser(ctx, userAddr)
 	if err != nil {
-		t.Fatalf("GetRewardRecipient failed: %v", err)
+		t.Fatalf("GetUser failed: %v", err)
 	}
-	if rr.RecipientAddress != recipientAddr {
-		t.Fatalf("RecipientAddress mismatch: expected %s, got %s", recipientAddr, rr.RecipientAddress)
+	if user.Recipient != recipientAddr {
+		t.Fatalf("Recipient mismatch: expected %s, got %s", recipientAddr, user.Recipient)
 	}
 
 	// Update recipient
 	newRecipient := "0xcccc111111111111111111111111111111111111"
-	err = db.q.UpsertRewardRecipient(ctx, gen.UpsertRewardRecipientParams{
-		UserAddress:      userAddr,
-		RecipientAddress: newRecipient,
+	err = db.q.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+		Address:   userAddr,
+		Recipient: newRecipient,
 	})
 	if err != nil {
-		t.Fatalf("UpsertRewardRecipient (update) failed: %v", err)
+		t.Fatalf("UpsertUserRecipient (update) failed: %v", err)
 	}
 
-	rr, err = db.q.GetRewardRecipient(ctx, userAddr)
+	user, err = db.q.GetUser(ctx, userAddr)
 	if err != nil {
-		t.Fatalf("GetRewardRecipient failed: %v", err)
+		t.Fatalf("GetUser failed: %v", err)
 	}
-	if rr.RecipientAddress != newRecipient {
-		t.Fatalf("RecipientAddress after update mismatch: expected %s, got %s", newRecipient, rr.RecipientAddress)
+	if user.Recipient != newRecipient {
+		t.Fatalf("Recipient after update mismatch: expected %s, got %s", newRecipient, user.Recipient)
 	}
 }
 
@@ -1001,7 +927,7 @@ func TestIndexerScenario_TransactionAtomicity(t *testing.T) {
 	userAddr := "0xdddd111111111111111111111111111111111111"
 
 	// Setup
-	_ = db.q.InsertUser(ctx, gen.InsertUserParams{Address: userAddr, RegisteredAt: 100})
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: userAddr, BoundTo: ""})
 	_ = db.q.InitUserBalance(ctx, userAddr)
 
 	// Simulate indexer transaction mode: execute multiple operations in a transaction
@@ -1116,22 +1042,17 @@ func TestIntegration_FullUserLifecycle(t *testing.T) {
 	var subnet1 int64 = 1
 
 	// 1. Register user + initialize balance
-	err := db.q.InsertUser(ctx, gen.InsertUserParams{Address: alice, RegisteredAt: 100})
+	err := db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: alice, BoundTo: ""})
 	if err != nil {
-		t.Fatalf("InsertUser failed: %v", err)
+		t.Fatalf("UpsertUserBinding failed: %v", err)
 	}
 	err = db.q.InitUserBalance(ctx, alice)
 	if err != nil {
 		t.Fatalf("InitUserBalance failed: %v", err)
 	}
 
-	// 2. Register agent
-	_, err = db.pool.Exec(ctx,
-		`INSERT INTO agents (agent_address, owner_address) VALUES ($1, $2)`,
-		agentA, alice)
-	if err != nil {
-		t.Fatalf("InsertAgent(raw SQL) failed: %v", err)
-	}
+	// 2. Bind agent to alice
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: agentA, BoundTo: alice})
 
 	// 3. Simulate StakeNFT.Deposited: create stake position of 10000
 	err = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
@@ -1220,7 +1141,7 @@ func TestIntegration_BalanceInvariant(t *testing.T) {
 	var subnetID int64 = 1
 
 	// Setup user
-	_ = db.q.InsertUser(ctx, gen.InsertUserParams{Address: user, RegisteredAt: 100})
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: user, BoundTo: ""})
 	_ = db.q.InitUserBalance(ctx, user)
 
 	// 1. Stake 7000 via two NFT positions
@@ -1299,9 +1220,9 @@ func TestIntegration_MultiUserIsolation(t *testing.T) {
 	var subnetID int64 = 1
 
 	// 1. Create alice and bob
-	_ = db.q.InsertUser(ctx, gen.InsertUserParams{Address: alice, RegisteredAt: 100})
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: alice, BoundTo: ""})
 	_ = db.q.InitUserBalance(ctx, alice)
-	_ = db.q.InsertUser(ctx, gen.InsertUserParams{Address: bob, RegisteredAt: 101})
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: bob, BoundTo: ""})
 	_ = db.q.InitUserBalance(ctx, bob)
 
 	// 2. Stake 5000 for alice, 3000 for bob (via StakeNFT positions)
@@ -1499,15 +1420,13 @@ func TestIntegration_AgentRemovalAndReallocation(t *testing.T) {
 	var subnet1 int64 = 1
 
 	// 1. Create user, agent, and stake position
-	_ = db.q.InsertUser(ctx, gen.InsertUserParams{Address: user, RegisteredAt: 100})
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: user, BoundTo: ""})
 	_ = db.q.InitUserBalance(ctx, user)
 	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
 		TokenID: 1, Owner: user, Amount: numericFromInt64(10000),
 		LockEndTime: 50, CreatedAt: 100,
 	})
-	_ = db.q.InsertAgent(ctx, gen.InsertAgentParams{
-		AgentAddress: agent, OwnerAddress: user,
-	})
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: agent, BoundTo: user})
 
 	// 2. Allocate 5000 to (agent, subnet1)
 	err := db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{

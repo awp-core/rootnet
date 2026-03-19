@@ -33,7 +33,7 @@ Agent                          AWP API                      Subnet
 
 ```javascript
 // REST API — list all active subnets with their skills URIs
-const res = await fetch('https://tapi.awp.sh/api/subnets?status=Active&page=1&limit=50');
+const res = await fetch(`${API_BASE}/subnets?status=Active&page=1&limit=50`);
 const subnets = await res.json();
 
 for (const subnet of subnets) {
@@ -47,7 +47,7 @@ for (const subnet of subnets) {
 
 ```javascript
 // REST API — get skills URI for a specific subnet
-const res = await fetch('https://tapi.awp.sh/api/subnets/1/skills');
+const res = await fetch(`${API_BASE}/subnets/1/skills`);
 const { skillsURI } = await res.json();
 // skillsURI = "https://subnet.example.com/SKILL.md"
 ```
@@ -151,7 +151,7 @@ A script that discovers all active subnets and installs their skills:
 #!/usr/bin/env bash
 # Install all AWP subnet skills into the local workspace
 
-API_BASE="https://tapi.awp.sh/api"
+API_BASE="${API_BASE_URL:-https://<api-host>/api}"
 SKILLS_DIR="./skills"
 
 # Fetch active subnets
@@ -298,7 +298,7 @@ clawhub publish
 
 ```bash
 # 1. Discover subnets with skills
-curl -s https://tapi.awp.sh/api/subnets?status=Active | \
+curl -s "${API_BASE}/subnets?status=Active" | \
   jq '.[] | select(.skills_uri != null) | {id: .subnet_id, name: .name, skills: .skills_uri}'
 
 # Output:

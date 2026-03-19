@@ -50,14 +50,6 @@
       "address": "0xEfC20e37Dbd14F6C0527ec130D6415f5831e08d3"
     },
     {
-      "name": "AccessManager",
-      "initCodeHash": "0x2acc76927f555659de80474f8b9458d318f610c91e22deef62bc9f8068b3d742",
-      "prefix": "",
-      "suffix": "",
-      "salt": "0x8e67724e6e7ec1da5edc8ad52657fe05b6d87df88a13dfc858bb038b51185a43",
-      "address": "0xE4807566e011eBcB451eC5eF908F29cae3fCDE49"
-    },
-    {
       "name": "LPManager",
       "initCodeHash": "0x75100a1229878f6daa6e4d7c8f33dbf7d9f3b31025241a3d034c1e2ee3eeea2c",
       "prefix": "",

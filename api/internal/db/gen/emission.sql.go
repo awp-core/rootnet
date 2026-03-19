@@ -58,46 +58,6 @@ func (q *Queries) GetEpochDistributions(ctx context.Context, epochID int64) ([]G
 	return items, nil
 }
 
-const getSubnetEarningsByID = `-- name: GetSubnetEarningsByID :many
-SELECT r.epoch_id, r.recipient, r.awp_amount
-FROM recipient_awp_distributions r
-JOIN subnets s ON LOWER(r.recipient) = LOWER(s.subnet_contract)
-WHERE s.subnet_id = $1
-ORDER BY r.epoch_id DESC LIMIT $2 OFFSET $3
-`
-
-type GetSubnetEarningsByIDParams struct {
-	SubnetID int64 `json:"subnet_id"`
-	Limit    int32 `json:"limit"`
-	Offset   int32 `json:"offset"`
-}
-
-type GetSubnetEarningsByIDRow struct {
-	EpochID   int64          `json:"epoch_id"`
-	Recipient string         `json:"recipient"`
-	AwpAmount pgtype.Numeric `json:"awp_amount"`
-}
-
-func (q *Queries) GetSubnetEarningsByID(ctx context.Context, arg GetSubnetEarningsByIDParams) ([]GetSubnetEarningsByIDRow, error) {
-	rows, err := q.db.Query(ctx, getSubnetEarningsByID, arg.SubnetID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetSubnetEarningsByIDRow{}
-	for rows.Next() {
-		var i GetSubnetEarningsByIDRow
-		if err := rows.Scan(&i.EpochID, &i.Recipient, &i.AwpAmount); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getLatestEpoch = `-- name: GetLatestEpoch :one
 SELECT epoch_id, start_time, daily_emission, dao_emission FROM epochs
 ORDER BY epoch_id DESC LIMIT 1
@@ -141,6 +101,46 @@ func (q *Queries) GetRecipientEarnings(ctx context.Context, arg GetRecipientEarn
 	items := []GetRecipientEarningsRow{}
 	for rows.Next() {
 		var i GetRecipientEarningsRow
+		if err := rows.Scan(&i.EpochID, &i.Recipient, &i.AwpAmount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getSubnetEarningsByID = `-- name: GetSubnetEarningsByID :many
+SELECT r.epoch_id, r.recipient, r.awp_amount
+FROM recipient_awp_distributions r
+JOIN subnets s ON LOWER(r.recipient) = LOWER(s.subnet_contract)
+WHERE s.subnet_id = $1
+ORDER BY r.epoch_id DESC LIMIT $2 OFFSET $3
+`
+
+type GetSubnetEarningsByIDParams struct {
+	SubnetID int64 `json:"subnet_id"`
+	Limit    int32 `json:"limit"`
+	Offset   int32 `json:"offset"`
+}
+
+type GetSubnetEarningsByIDRow struct {
+	EpochID   int64          `json:"epoch_id"`
+	Recipient string         `json:"recipient"`
+	AwpAmount pgtype.Numeric `json:"awp_amount"`
+}
+
+func (q *Queries) GetSubnetEarningsByID(ctx context.Context, arg GetSubnetEarningsByIDParams) ([]GetSubnetEarningsByIDRow, error) {
+	rows, err := q.db.Query(ctx, getSubnetEarningsByID, arg.SubnetID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetSubnetEarningsByIDRow{}
+	for rows.Next() {
+		var i GetSubnetEarningsByIDRow
 		if err := rows.Scan(&i.EpochID, &i.Recipient, &i.AwpAmount); err != nil {
 			return nil, err
 		}

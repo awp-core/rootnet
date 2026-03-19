@@ -48,7 +48,6 @@ type e2eEnv struct {
 	svAddr       common.Address
 	emAddr       common.Address
 	nftAddr      common.Address
-	amAddr       common.Address
 	trsAddr      common.Address
 	stakeNFTAddr common.Address
 
@@ -96,7 +95,6 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 	svAddr := common.HexToAddress(addresses["StakingVault"])
 	emAddr := common.HexToAddress(addresses["AWPEmission"])
 	nftAddr := common.HexToAddress(addresses["SubnetNFT"])
-	amAddr := common.HexToAddress(addresses["AccessManager"])
 	trsAddr := common.HexToAddress(addresses["Treasury"])
 
 	stakeNFTAddr := common.HexToAddress(addresses["StakeNFT"])
@@ -135,7 +133,6 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 		svAddr:       svAddr,
 		emAddr:       emAddr,
 		nftAddr:      nftAddr,
-		amAddr:       amAddr,
 		trsAddr:      trsAddr,
 		stakeNFTAddr: stakeNFTAddr,
 		pool:        pool,
@@ -187,7 +184,7 @@ func readDeployedAddresses(t *testing.T, contractsDir string) map[string]string 
 		}
 	}
 
-	required := []string{"AWPRegistry", "AWPToken", "StakingVault", "AWPEmission", "SubnetNFT", "AccessManager", "Treasury", "StakeNFT"}
+	required := []string{"AWPRegistry", "AWPToken", "StakingVault", "AWPEmission", "SubnetNFT", "Treasury", "StakeNFT"}
 	for _, name := range required {
 		if addrs[name] == "" {
 			t.Fatalf("deployment result missing contract: %s (found: %v)", name, addrs)
@@ -201,7 +198,7 @@ func (e *e2eEnv) cleanDB() {
 	ctx := context.Background()
 	_, _ = e.pool.Exec(ctx, `TRUNCATE TABLE
 		recipient_awp_distributions, stake_positions, stake_allocations,
-		user_balances, user_reward_recipients, agents, epochs,
+		user_balances, epochs,
 		subnets, proposals, users, sync_states`)
 	_ = e.rdb.FlushDB(ctx).Err()
 }

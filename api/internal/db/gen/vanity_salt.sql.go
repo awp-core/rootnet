@@ -11,17 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const countAvailableSalts = `-- name: CountAvailableSalts :one
-SELECT COUNT(*) FROM vanity_salts WHERE used = FALSE
-`
-
-func (q *Queries) CountAvailableSalts(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countAvailableSalts)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const claimRandomSalt = `-- name: ClaimRandomSalt :one
 WITH locked AS (
   SELECT id FROM vanity_salts WHERE used = FALSE ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED
@@ -41,6 +30,17 @@ func (q *Queries) ClaimRandomSalt(ctx context.Context) (ClaimRandomSaltRow, erro
 	var i ClaimRandomSaltRow
 	err := row.Scan(&i.Salt, &i.Address)
 	return i, err
+}
+
+const countAvailableSalts = `-- name: CountAvailableSalts :one
+SELECT COUNT(*) FROM vanity_salts WHERE used = FALSE
+`
+
+func (q *Queries) CountAvailableSalts(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countAvailableSalts)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const getRandomAvailableSalt = `-- name: GetRandomAvailableSalt :one

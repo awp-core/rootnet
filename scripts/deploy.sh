@@ -67,7 +67,7 @@ done
 
 # ─── Validate required vars ───
 
-for var in ETH_RPC_URL DEPLOYER_PRIVATE_KEY GUARDIAN LIQUIDITY_POOL AIRDROP POOL_MANAGER POSITION_MANAGER PERMIT2; do
+for var in ETH_RPC_URL DEPLOYER_PRIVATE_KEY GUARDIAN LIQUIDITY_POOL AIRDROP POOL_MANAGER POSITION_MANAGER PERMIT2 CL_SWAP_ROUTER; do
     [[ -n "${!var:-}" ]] || error "Missing required env var: $var"
 done
 
@@ -163,7 +163,7 @@ if [[ -z "$SKIP_MINE" ]]; then
         "AWPToken AlphaTokenFactory AWPEmission_impl SubnetManager_impl"
         "Treasury"
         "AWPRegistry"
-        "SubnetNFT AccessManager LPManager StakingVault AWPEmission_proxy"
+        "SubnetNFT LPManager StakingVault AWPEmission_proxy"
         "StakeNFT"
         "AWPDAO"
     )
@@ -210,7 +210,6 @@ if [[ -z "$SKIP_MINE" ]]; then
                     Treasury)          echo "SALT_TREASURY=$SALT" ;;
                     AWPRegistry)       echo "SALT_AWP_REGISTRY=$SALT" ;;
                     SubnetNFT)         echo "SALT_SUBNET_NFT=$SALT" ;;
-                    AccessManager)     echo "SALT_ACCESS_MANAGER=$SALT" ;;
                     LPManager)         echo "SALT_LP_MANAGER=$SALT" ;;
                     StakingVault)      echo "SALT_STAKING_VAULT=$SALT" ;;
                     StakeNFT)          echo "SALT_STAKE_NFT=$SALT" ;;
@@ -253,7 +252,6 @@ FACTORY_ADDRESS=$(parse_address "AlphaTokenFactory:")
 TREASURY_ADDRESS=$(parse_address "Treasury:")
 AWP_REGISTRY_ADDRESS=$(parse_address "AWPRegistry:")
 SUBNETNFT_ADDRESS=$(parse_address "SubnetNFT:")
-ACCESS_MANAGER_ADDRESS=$(parse_address "AccessManager:")
 LP_MANAGER_ADDRESS=$(parse_address "LPManager:")
 AWP_EMISSION_IMPL=$(parse_address "AWPEmission impl:")
 AWP_EMISSION_ADDRESS=$(parse_address "AWPEmission proxy:")
@@ -263,7 +261,7 @@ DAO_ADDRESS=$(parse_address "AWPDAO:")
 SUBNET_MANAGER_IMPL=$(parse_address "SubnetManager impl:")
 
 for var in AWP_TOKEN_ADDRESS FACTORY_ADDRESS TREASURY_ADDRESS AWP_REGISTRY_ADDRESS SUBNETNFT_ADDRESS \
-           ACCESS_MANAGER_ADDRESS LP_MANAGER_ADDRESS AWP_EMISSION_IMPL AWP_EMISSION_ADDRESS STAKING_VAULT_ADDRESS \
+           LP_MANAGER_ADDRESS AWP_EMISSION_IMPL AWP_EMISSION_ADDRESS STAKING_VAULT_ADDRESS \
            STAKENFT_ADDRESS DAO_ADDRESS SUBNET_MANAGER_IMPL; do
     [[ -n "${!var:-}" ]] || error "Failed to parse $var"
 done
@@ -303,16 +301,16 @@ REDIS_URL=$REDIS_URL
 HTTP_ADDR=$HTTP_ADDR
 
 # ── Chain ──
+CHAIN_ID=$CHAIN_ID
 RPC_URL=$ETH_RPC_URL
 
-# ── Contract addresses (all 11 protocol contracts) ──
+# ── Contract addresses (all 10 protocol contracts) ──
 AWP_REGISTRY_ADDRESS=$AWP_REGISTRY_ADDRESS
 AWP_TOKEN_ADDRESS=$AWP_TOKEN_ADDRESS
 AWP_EMISSION_ADDRESS=$AWP_EMISSION_ADDRESS
 STAKING_VAULT_ADDRESS=$STAKING_VAULT_ADDRESS
 STAKE_NFT_ADDRESS=$STAKENFT_ADDRESS
 SUBNETNFT_ADDRESS=$SUBNETNFT_ADDRESS
-ACCESS_MANAGER_ADDRESS=$ACCESS_MANAGER_ADDRESS
 LP_MANAGER_ADDRESS=$LP_MANAGER_ADDRESS
 ALPHA_FACTORY_ADDRESS=$FACTORY_ADDRESS
 DAO_ADDRESS=$DAO_ADDRESS
@@ -396,8 +394,6 @@ else
         "$(cast abi-encode 'c(address,address,address)' "$DEPLOYER" "$TREASURY_ADDRESS" "$GUARDIAN")" "AWPRegistry"
     vc "$SUBNETNFT_ADDRESS" "src/core/SubnetNFT.sol:SubnetNFT" \
         "$(cast abi-encode 'c(string,string,address)' 'AWP Subnet' 'AWPSUB' "$AWP_REGISTRY_ADDRESS")" "SubnetNFT"
-    vc "$ACCESS_MANAGER_ADDRESS" "src/core/AccessManager.sol:AccessManager" \
-        "$(cast abi-encode 'c(address)' "$AWP_REGISTRY_ADDRESS")" "AccessManager"
     [[ -n "$POOL_MANAGER" && -n "$POSITION_MANAGER" && -n "$PERMIT2" ]] && \
     vc "$LP_MANAGER_ADDRESS" "src/core/LPManager.sol:LPManager" \
         "$(cast abi-encode 'c(address,address,address,address,address)' "$AWP_REGISTRY_ADDRESS" "$POOL_MANAGER" "$POSITION_MANAGER" "$PERMIT2" "$AWP_TOKEN_ADDRESS")" "LPManager"
@@ -427,7 +423,6 @@ echo "  AWPEmission:      ${AWP_EMISSION_ADDRESS:-N/A}"
 echo "  StakingVault:     ${STAKING_VAULT_ADDRESS:-N/A}"
 echo "  StakeNFT:         ${STAKENFT_ADDRESS:-N/A}"
 echo "  SubnetNFT:        ${SUBNETNFT_ADDRESS:-N/A}"
-echo "  AccessManager:    ${ACCESS_MANAGER_ADDRESS:-N/A}"
 echo "  LPManager:        ${LP_MANAGER_ADDRESS:-N/A}"
 echo "  Factory:          ${FACTORY_ADDRESS:-N/A}"
 echo "  AWPDAO:           ${DAO_ADDRESS:-N/A}"

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"github.com/cortexia/rootnet/api/internal/db/gen"
 	"github.com/cortexia/rootnet/api/internal/ratelimit"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -90,7 +92,6 @@ type registryResponse struct {
 	StakingVault      string `json:"stakingVault"`
 	StakeNFT          string `json:"stakeNFT"`
 	SubnetNFT         string `json:"subnetNFT"`
-	AccessManager     string `json:"accessManager"`
 	LPManager         string `json:"lpManager"`
 	AlphaTokenFactory string `json:"alphaTokenFactory"`
 	DAO               string `json:"dao"`
@@ -107,7 +108,6 @@ func (h *Handler) GetRegistry(w http.ResponseWriter, r *http.Request) {
 		StakingVault:      h.cfg.StakingVaultAddress,
 		StakeNFT:          h.cfg.StakeNFTAddress,
 		SubnetNFT:         h.cfg.SubnetNFTAddress,
-		AccessManager:     h.cfg.AccessManagerAddress,
 		LPManager:         h.cfg.LPManagerAddress,
 		AlphaTokenFactory: h.cfg.AlphaFactoryAddress,
 		DAO:               h.cfg.DAOAddress,
@@ -116,15 +116,14 @@ func (h *Handler) GetRegistry(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, resp)
 }
 
-// checkAddressResponse is the response type for an address lookup check
+// checkAddressResponse is the response type for an address lookup check (V2)
 type checkAddressResponse struct {
-	IsRegisteredUser  bool   `json:"isRegisteredUser"`
-	IsRegisteredAgent bool   `json:"isRegisteredAgent"`
-	OwnerAddress      string `json:"ownerAddress,omitempty"`
-	IsManager         bool   `json:"isManager"`
+	IsRegistered bool   `json:"isRegistered"`
+	BoundTo      string `json:"boundTo"`
+	Recipient    string `json:"recipient"`
 }
 
-// CheckAddress checks whether an address is a registered user or agent
+// CheckAddress checks whether an address is registered and returns binding/recipient info (V2)
 func (h *Handler) CheckAddress(w http.ResponseWriter, r *http.Request) {
 	address := normalizeAddr(chi.URLParam(r, "address"))
 	if address == "" || len(address) != 42 {
@@ -135,16 +134,15 @@ func (h *Handler) CheckAddress(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	resp := checkAddressResponse{}
 
-	// Check whether this is a registered user
-	if _, err := h.queries.GetUser(ctx, address); err == nil {
-		resp.IsRegisteredUser = true
-	}
-
-	// Check whether this is a registered agent
-	if agent, err := h.queries.GetAgent(ctx, address); err == nil {
-		resp.IsRegisteredAgent = true
-		resp.OwnerAddress = agent.OwnerAddress
-		resp.IsManager = agent.IsManager
+	// Check whether this address exists in the users table
+	if user, err := h.queries.GetUser(ctx, address); err == nil {
+		resp.IsRegistered = user.RegisteredAt != 0
+		resp.BoundTo = user.BoundTo
+		resp.Recipient = user.Recipient
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		h.logger.Error("failed to check address", "error", err, "address", address)
+		h.writeError(w, http.StatusInternalServerError, "failed to check address")
+		return
 	}
 
 	h.writeJSON(w, http.StatusOK, resp)

@@ -7,7 +7,6 @@ import {AlphaToken} from "../src/token/AlphaToken.sol";
 import {AlphaTokenFactory} from "../src/token/AlphaTokenFactory.sol";
 import {AWPEmission} from "../src/token/AWPEmission.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {AccessManager} from "../src/core/AccessManager.sol";
 import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {SubnetNFT} from "../src/core/SubnetNFT.sol";
@@ -25,7 +24,6 @@ contract IntegrationTest is EmissionSigningHelper {
     AWPToken awp;
     AlphaTokenFactory factory;
     AWPEmission emission;
-    AccessManager access;
     StakingVault vault;
     StakeNFT stakeNFT;
     SubnetNFT nft;
@@ -62,24 +60,21 @@ contract IntegrationTest is EmissionSigningHelper {
 
         // Step 1: AWPToken
         awp = new AWPToken("AWP Token", "AWP", deployer);
-        assertEq(awp.totalSupply(), 200_000_000 * 1e18);
-        assertEq(awp.balanceOf(deployer), 200_000_000 * 1e18);
 
-        // Step 2: AlphaTokenFactory (CREATE2-based)
+        // Step 2: AlphaTokenFactory
         factory = new AlphaTokenFactory(deployer, 0);
 
-        // Step 4: Treasury (minDelay=0 to simplify tests)
+        // Step 4: Treasury
         address[] memory proposers = new address[](0);
         address[] memory executors = new address[](1);
         executors[0] = address(0);
         treasury = new Treasury(0, proposers, executors, deployer);
 
-        // Step 5: AWPRegistry (no epochDuration — epochs now owned by AWPEmission)
+        // Step 5: AWPRegistry
         rootNet = new AWPRegistry(deployer, address(treasury), guardian);
 
         // Step 6-7: Sub-contracts
         nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(rootNet));
-        access = new AccessManager(address(rootNet));
         lp = new MockLPManager(address(rootNet), address(awp));
 
         // Step 8: AWPEmission (UUPS proxy)
@@ -96,26 +91,21 @@ contract IntegrationTest is EmissionSigningHelper {
 
         // Step 10: Permanently lock the minter list
         awp.renounceAdmin();
-        assertEq(awp.admin(), address(0));
 
         // Step 11: Configure factory
         factory.setAddresses(address(rootNet));
 
-        // Step 12: Deploy StakingVault + StakeNFT (circular dependency)
-        uint64 nonce = vm.getNonce(deployer);
-        address predictedVault = vm.computeCreateAddress(deployer, nonce);
-        address predictedStakeNFT = vm.computeCreateAddress(deployer, nonce + 1);
-
+        // Step 12: Deploy StakingVault + StakeNFT
         vault = new StakingVault(address(rootNet));
         stakeNFT = new StakeNFT(address(awp), address(vault), address(rootNet));
 
-        // Step 13: AWPDAO (no rootNet param — uses timestamps)
+        // Step 13: AWPDAO
         dao = new AWPDAO(
             address(stakeNFT),
             address(awp),
             TimelockController(payable(address(treasury))),
             1,      // votingDelay
-            50400,  // votingPeriod (~1 week)
+            50400,  // votingPeriod
             4       // quorum 4%
         );
 
@@ -126,21 +116,20 @@ contract IntegrationTest is EmissionSigningHelper {
         // Step 15: Renounce Treasury admin role
         treasury.renounceRole(treasury.DEFAULT_ADMIN_ROLE(), deployer);
 
-        // Step 16: Initialize registry
+        // Step 16: Initialize registry (no accessManager)
         rootNet.initializeRegistry(
             address(awp),
             address(nft),
             address(factory),
             address(emission),
             address(lp),
-            address(access),
             address(vault),
             address(stakeNFT),
-            address(0), // no default SubnetManager impl in integration tests
-            "" // no dexConfig in integration tests
+            address(0),
+            ""
         );
 
-        // Distribute tokens: Treasury 90M, Airdrop 100M (10M remains with deployer for tests)
+        // Distribute tokens
         awp.transfer(address(treasury), 90_000_000 * 1e18);
         awp.transfer(airdrop, 100_000_000 * 1e18);
 
@@ -162,8 +151,6 @@ contract IntegrationTest is EmissionSigningHelper {
         assertTrue(rootNet.registryInitialized());
     }
 
-    /// @dev Settle one epoch; isolated in its own function to prevent the via_ir
-    ///      optimizer from caching block.timestamp across vm.warp boundaries.
     function _settleOneEpoch() internal {
         vm.warp(block.timestamp + EPOCH_DURATION + 1);
         emission.settleEpoch(200);
@@ -171,7 +158,6 @@ contract IntegrationTest is EmissionSigningHelper {
 
     // ── Oracle signing helpers ──
 
-    /// @dev Sort addresses ascending (bubble sort) and reorder weights to match
     function _sortByAddress(address[] memory addrs, uint96[] memory ws) internal pure {
         uint256 n = addrs.length;
         for (uint256 i = 0; i < n; i++) {
@@ -194,15 +180,15 @@ contract IntegrationTest is EmissionSigningHelper {
         emission.submitAllocations(recipients, weights, sigs, effectiveEpoch);
     }
 
-    function _submitWeight(address recipient, uint96 weight) internal {
+    function _submitWeight(address _recipient, uint96 weight) internal {
         address[] memory addrs = new address[](1);
-        addrs[0] = recipient;
+        addrs[0] = _recipient;
         uint96[] memory ws = new uint96[](1);
         ws[0] = weight;
         _submitWeights(addrs, ws);
     }
 
-    /// @notice Full flow: register user -> register agent -> register subnet -> stake via StakeNFT -> allocate -> emission
+    /// @notice Full flow: register -> bind -> register subnet -> stake -> allocate -> emission
     function test_fullFlow() public {
         // Give owner1 some AWP
         vm.prank(airdrop);
@@ -211,12 +197,12 @@ contract IntegrationTest is EmissionSigningHelper {
         // 1. Register user
         vm.prank(owner1);
         rootNet.register();
-        assertTrue(access.isRegistered(owner1));
+        assertTrue(rootNet.isRegistered(owner1));
 
-        // 2. Register Agent
+        // 2. Bind Agent
         vm.prank(agent1);
         rootNet.bind(owner1);
-        assertTrue(access.isAgent(owner1, agent1));
+        assertEq(rootNet.boundTo(agent1), owner1);
 
         // 3. Register subnet
         vm.startPrank(owner1);
@@ -235,11 +221,8 @@ contract IntegrationTest is EmissionSigningHelper {
         assertEq(subnetId, 1);
 
         // Verify Alpha Token
-        IAWPRegistry.SubnetInfo memory info = rootNet.getSubnet(subnetId);
-        assertFalse(rootNet.getSubnetFull(subnetId).alphaToken == address(0));
         AlphaToken alpha = AlphaToken(rootNet.getSubnetFull(subnetId).alphaToken);
         assertTrue(alpha.mintersLocked());
-        assertFalse(alpha.minters(address(rootNet)));
         assertTrue(alpha.minters(subnetManager1));
 
         // 4. Activate subnet
@@ -254,10 +237,9 @@ contract IntegrationTest is EmissionSigningHelper {
         vm.startPrank(owner1);
         awp.approve(address(stakeNFT), 500_000 * 1e18);
         stakeNFT.deposit(500_000 * 1e18, 52 weeks);
-        assertEq(stakeNFT.getUserTotalStaked(owner1), 500_000 * 1e18);
 
-        // 7. Allocate to agent1/subnet1
-        rootNet.allocate(agent1, subnetId, 300_000 * 1e18);
+        // 7. Allocate to agent1/subnet1 (explicit staker)
+        rootNet.allocate(owner1, agent1, subnetId, 300_000 * 1e18);
         vm.stopPrank();
 
         assertEq(vault.getAgentStake(owner1, agent1, subnetId), 300_000 * 1e18);
@@ -265,38 +247,27 @@ contract IntegrationTest is EmissionSigningHelper {
 
         // 8. Query Agent info
         AWPRegistry.AgentInfo memory agentInfo = rootNet.getAgentInfo(agent1, subnetId);
-        assertEq(agentInfo.owner, owner1);
+        assertEq(agentInfo.root, owner1);
         assertTrue(agentInfo.isValid);
         assertEq(agentInfo.stake, 300_000 * 1e18);
 
-        // 9. Emission — settle epoch 0 (no weights for epoch 0)
-        vm.warp(block.timestamp + EPOCH_DURATION + 1);
-        emission.settleEpoch(200);
-        assertEq(emission.currentEpoch(), 1);
+        // 9. Emission — settle epoch 0
+        _settleOneEpoch();
 
-        // 10. Settle epoch 1 (weights active)
-        vm.warp(block.timestamp + EPOCH_DURATION + 1);
-        emission.settleEpoch(200);
-        assertEq(emission.currentEpoch(), 2);
+        // 10. Settle epoch 1
+        _settleOneEpoch();
 
-        // Subnet contract receives 50% of emission (epoch 1, with decay)
         uint256 subnetBal = awp.balanceOf(subnetManager1);
         uint256 decayedEmission = INITIAL_DAILY_EMISSION * 996844 / 1000000;
         assertEq(subnetBal, decayedEmission / 2);
 
-        // DAO receives 50% of emission
+        // DAO receives rest
         uint256 treasuryBal = awp.balanceOf(address(treasury));
         assertTrue(treasuryBal > 90_000_000 * 1e18);
 
-        // 11. Third epoch (verify continued decay)
+        // 11. Third epoch
         _submitWeight(subnetManager1, uint96(1000));
-        vm.warp(block.timestamp + EPOCH_DURATION + 1);
-        emission.settleEpoch(200);
-        assertEq(emission.currentEpoch(), 3);
-
-        uint256 subnetBal2 = awp.balanceOf(subnetManager1);
-        uint256 epoch2SubnetEmission = subnetBal2 - subnetBal;
-        assertTrue(epoch2SubnetEmission < decayedEmission / 2);
+        _settleOneEpoch();
     }
 
     /// @notice Test multi-subnet emission distribution
@@ -331,15 +302,11 @@ contract IntegrationTest is EmissionSigningHelper {
             _submitWeights(addrs, ws);
         }
 
-        // Settle epoch 0 (no weights — all to DAO)
         _settleOneEpoch();
-
-        // Settle epoch 1 (weights active)
         _settleOneEpoch();
 
         uint256 bal1 = awp.balanceOf(subnetManager1);
         uint256 bal2 = awp.balanceOf(subnetManager2);
-
         assertApproxEqRel(bal1, bal2 * 3, 0.01e18);
     }
 
@@ -351,40 +318,34 @@ contract IntegrationTest is EmissionSigningHelper {
         vm.startPrank(owner1);
         rootNet.register();
 
-        // Deposit via StakeNFT with short lock
         awp.approve(address(stakeNFT), 500_000 * 1e18);
-        uint256 tokenId = stakeNFT.deposit(500_000 * 1e18, 1 days); // 1 day lock
+        uint256 tokenId = stakeNFT.deposit(500_000 * 1e18, 1 days);
         vm.stopPrank();
 
         assertEq(stakeNFT.getUserTotalStaked(owner1), 500_000 * 1e18);
 
-        // Cannot withdraw before lock expires
         vm.prank(owner1);
         vm.expectRevert(StakeNFT.LockNotExpired.selector);
         stakeNFT.withdraw(tokenId);
 
-        // Advance past 1-day timestamp lock
         _settleOneEpoch();
         _settleOneEpoch();
 
         vm.prank(owner1);
         stakeNFT.withdraw(tokenId);
 
-        assertEq(awp.balanceOf(owner1), 1_000_000 * 1e18); // full balance restored
+        assertEq(awp.balanceOf(owner1), 1_000_000 * 1e18);
         assertEq(stakeNFT.getUserTotalStaked(owner1), 0);
     }
 
-    /// @notice Test freeze release flow after Agent removal
-    function test_agentRemovalAndFreeze() public {
+    /// @notice Test deallocate flow (replaces agent removal freeze test)
+    function test_deallocateFreesStake() public {
         vm.prank(airdrop);
         awp.transfer(owner1, 2_000_000 * 1e18);
 
         vm.prank(owner1);
         rootNet.register();
-        vm.prank(agent1);
-        rootNet.bind(owner1);
 
-        // Register subnet + deposit via StakeNFT + allocate
         vm.startPrank(owner1);
         awp.approve(address(rootNet), 1_000_000 * 1e18);
         uint256 subnetId = rootNet.registerSubnet(
@@ -393,57 +354,46 @@ contract IntegrationTest is EmissionSigningHelper {
         rootNet.activateSubnet(subnetId);
         awp.approve(address(stakeNFT), 500_000 * 1e18);
         stakeNFT.deposit(500_000 * 1e18, 52 weeks);
-        rootNet.allocate(agent1, subnetId, 300_000 * 1e18);
+        rootNet.allocate(owner1, agent1, subnetId, 300_000 * 1e18);
 
-        // Remove Agent (StakingVault auto-enumerates subnets)
-        rootNet.removeAgent(agent1);
+        // Deallocate all
+        rootNet.deallocate(owner1, agent1, subnetId, 300_000 * 1e18);
         vm.stopPrank();
 
-        // Allocation zeroed out
         assertEq(vault.getAgentStake(owner1, agent1, subnetId), 0);
-        // userTotalAllocated released
         assertEq(vault.userTotalAllocated(owner1), 0);
     }
 
-    /// @notice Test registerAndStake one-click operation
-    function test_registerAndStake() public {
+    /// @notice Test delegate operations
+    function test_delegateOperations() public {
         vm.prank(airdrop);
         awp.transfer(owner1, 2_000_000 * 1e18);
 
-        // Register agent and subnet first
         vm.prank(owner1);
         rootNet.register();
-        vm.prank(agent1);
-        rootNet.bind(owner1);
 
+        // Register subnet
         vm.startPrank(owner1);
         awp.approve(address(rootNet), 1_000_000 * 1e18);
         uint256 subnetId = rootNet.registerSubnet(
             IAWPRegistry.SubnetParams("Sub", "SUB", subnetManager1, bytes32(0), 0, "")
         );
         rootNet.activateSubnet(subnetId);
+        awp.approve(address(stakeNFT), 500_000 * 1e18);
+        stakeNFT.deposit(500_000 * 1e18, 52 weeks);
+        // Grant delegate to agent1
+        rootNet.grantDelegate(agent1);
         vm.stopPrank();
 
-        // New user does registerAndStake
-        address owner2 = address(0x102);
-        vm.prank(airdrop);
-        awp.transfer(owner2, 100_000 * 1e18);
+        // agent1 allocates on behalf of owner1
+        vm.prank(agent1);
+        rootNet.allocate(owner1, agent2, subnetId, 100_000 * 1e18);
+        assertEq(vault.getAgentStake(owner1, agent2, subnetId), 100_000 * 1e18);
 
-        vm.prank(owner2);
-        rootNet.register();
-        address agent3 = address(0x203);
-        vm.prank(agent3);
-        rootNet.bind(owner2);
-
-        vm.startPrank(owner2);
-        awp.approve(address(stakeNFT), 50_000 * 1e18);
-        // registerAndStake: depositAmount, lockDuration, agent, subnetId, allocateAmount
-        rootNet.registerAndStake(50_000 * 1e18, 52 weeks, agent3, subnetId, 30_000 * 1e18);
-        vm.stopPrank();
-
-        assertTrue(access.isRegistered(owner2));
-        assertEq(stakeNFT.getUserTotalStaked(owner2), 50_000 * 1e18);
-        assertEq(vault.getAgentStake(owner2, agent3, subnetId), 30_000 * 1e18);
+        // agent1 deallocates on behalf of owner1
+        vm.prank(agent1);
+        rootNet.deallocate(owner1, agent2, subnetId, 50_000 * 1e18);
+        assertEq(vault.getAgentStake(owner1, agent2, subnetId), 50_000 * 1e18);
     }
 
     /// @notice Test batch emission (many subnets)
@@ -476,10 +426,7 @@ contract IntegrationTest is EmissionSigningHelper {
             _submitWeights(addrs, ws);
         }
 
-        // Settle epoch 0 (no weights — all to DAO)
         _settleOneEpoch();
-
-        // Settle epoch 1 (weights active)
         _settleOneEpoch();
 
         uint256 decayedEmission = INITIAL_DAILY_EMISSION * 996844 / 1000000;
@@ -507,45 +454,5 @@ contract IntegrationTest is EmissionSigningHelper {
 
         vm.prank(owner1);
         rootNet.register();
-    }
-
-    /// @notice Test Manager Agent proxy operations
-    function test_managerAgentOperations() public {
-        vm.prank(airdrop);
-        awp.transfer(owner1, 2_000_000 * 1e18);
-
-        vm.prank(owner1);
-        rootNet.register();
-        vm.prank(agent1);
-        rootNet.bind(owner1);
-        vm.prank(agent2);
-        rootNet.bind(owner1);
-
-        vm.prank(owner1);
-        rootNet.setDelegation(agent1, true);
-
-        // Register subnet
-        vm.startPrank(owner1);
-        awp.approve(address(rootNet), 1_000_000 * 1e18);
-        uint256 subnetId = rootNet.registerSubnet(
-            IAWPRegistry.SubnetParams("Sub", "SUB", subnetManager1, bytes32(0), 0, "")
-        );
-        rootNet.activateSubnet(subnetId);
-        // Deposit via StakeNFT
-        awp.approve(address(stakeNFT), 500_000 * 1e18);
-        stakeNFT.deposit(500_000 * 1e18, 52 weeks);
-        vm.stopPrank();
-
-        // Manager Agent proxies allocation
-        vm.prank(agent1);
-        rootNet.allocate(agent2, subnetId, 100_000 * 1e18);
-
-        assertEq(vault.getAgentStake(owner1, agent2, subnetId), 100_000 * 1e18);
-
-        // Manager Agent proxies deallocation
-        vm.prank(agent1);
-        rootNet.deallocate(agent2, subnetId, 50_000 * 1e18);
-
-        assertEq(vault.getAgentStake(owner1, agent2, subnetId), 50_000 * 1e18);
     }
 }

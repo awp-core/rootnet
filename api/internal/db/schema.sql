@@ -1,20 +1,8 @@
 CREATE TABLE users (
     address       CHAR(42) PRIMARY KEY,
-    registered_at BIGINT NOT NULL
-);
-
-CREATE TABLE agents (
-    agent_address CHAR(42) PRIMARY KEY,
-    owner_address CHAR(42) NOT NULL,
-    is_manager    BOOLEAN NOT NULL DEFAULT FALSE,
-    removed       BOOLEAN NOT NULL DEFAULT FALSE,
-    removed_at    BIGINT
-);
-CREATE INDEX idx_agents_owner ON agents(owner_address);
-
-CREATE TABLE user_reward_recipients (
-    user_address      CHAR(42) PRIMARY KEY,
-    recipient_address CHAR(42) NOT NULL
+    bound_to      VARCHAR(42) NOT NULL DEFAULT '',
+    recipient     VARCHAR(42) NOT NULL DEFAULT '',
+    registered_at BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE subnets (

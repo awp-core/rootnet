@@ -44,24 +44,23 @@ interface IAWPRegistry {
         string skillsURI;      // Skills file URI (set at registration, updatable later via SubnetNFT)
     }
 
-    // ── User events ──
+    // ── Account V2 events ──
     event UserRegistered(address indexed user);
-    event AgentBound(address indexed principal, address indexed agent, address oldPrincipal);
-    /// @notice Emitted when an Agent voluntarily unbinds itself from its Principal
-    event AgentUnbound(address indexed principal, address indexed agent);
-    event AgentRemoved(address indexed user, address indexed agent, address operator);
-    event DelegationUpdated(address indexed user, address indexed agent, bool isManager, address operator);
-    event RewardRecipientUpdated(address indexed user, address recipient);
+    event Bound(address indexed addr, address indexed target);
+    event Unbound(address indexed addr);
+    event RecipientSet(address indexed addr, address recipient);
+    event DelegateGranted(address indexed staker, address indexed delegate);
+    event DelegateRevoked(address indexed staker, address indexed delegate);
 
     // ── Staking events ──
     event Allocated(
-        address indexed user, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator
+        address indexed staker, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator
     );
     event Deallocated(
-        address indexed user, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator
+        address indexed staker, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator
     );
     event Reallocated(
-        address indexed user,
+        address indexed staker,
         address fromAgent,
         uint256 fromSubnet,
         address toAgent,

@@ -6,7 +6,6 @@ import {AWPToken} from "../src/token/AWPToken.sol";
 import {AlphaTokenFactory} from "../src/token/AlphaTokenFactory.sol";
 import {AWPEmission} from "../src/token/AWPEmission.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {AccessManager} from "../src/core/AccessManager.sol";
 import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {SubnetNFT} from "../src/core/SubnetNFT.sol";
@@ -30,7 +29,6 @@ contract TestDeploy is Script {
 
         AWPRegistry rootNet = new AWPRegistry(deployer, address(treasury), address(0x99));
         SubnetNFT nft = new SubnetNFT("AWPSUB", "AWPSUB", address(rootNet));
-        AccessManager am = new AccessManager(address(rootNet));
         LPManager lp = new LPManager(address(rootNet), address(0), address(0), address(0), address(awp));
 
         AWPEmission em;
@@ -40,14 +38,14 @@ contract TestDeploy is Script {
             em = AWPEmission(address(new ERC1967Proxy(address(emImpl), initData)));
         }
 
-        // Deploy StakingVault, then StakeNFT (setStakeNFT called in initializeRegistry)
+        // Deploy StakingVault, then StakeNFT
         StakingVault sv = new StakingVault(address(rootNet));
         StakeNFT stakeNft = new StakeNFT(address(awp), address(sv), address(rootNet));
 
         awp.addMinter(address(em));
         awp.renounceAdmin();
         factory.setAddresses(address(rootNet));
-        rootNet.initializeRegistry(address(awp), address(nft), address(factory), address(em), address(lp), address(am), address(sv), address(stakeNft), address(0), "");
+        rootNet.initializeRegistry(address(awp), address(nft), address(factory), address(em), address(lp), address(sv), address(stakeNft), address(0), "");
 
         vm.stopBroadcast();
 
@@ -55,7 +53,6 @@ contract TestDeploy is Script {
         console.log("AWPToken", address(awp));
         console.log("AWPRegistry", address(rootNet));
         console.log("SubnetNFT", address(nft));
-        console.log("AccessManager", address(am));
         console.log("StakingVault", address(sv));
         console.log("StakeNFT", address(stakeNft));
         console.log("AWPEmission", address(em));

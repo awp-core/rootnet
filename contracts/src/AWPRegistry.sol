@@ -12,7 +12,6 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 
 import {IAlphaToken} from "./interfaces/IAlphaToken.sol";
 import {IAlphaTokenFactory} from "./interfaces/IAlphaTokenFactory.sol";
-import {IAccessManager} from "./interfaces/IAccessManager.sol";
 import {IStakingVault} from "./interfaces/IStakingVault.sol";
 import {IStakeNFT} from "./interfaces/IStakeNFT.sol";
 import {ISubnetNFT} from "./interfaces/ISubnetNFT.sol";
@@ -22,12 +21,9 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 
 /// @title AWPRegistry — Unified entry point for the AWP protocol (subnet management + staking management)
 /// @author AWP Team
-/// @notice This contract is the core control layer of the entire AWP Registry Agent Mining protocol.
-///         All user interactions (registration, staking, subnet management) go through this contract.
-///         Emission logic has been migrated to the AWPEmission contract.
+/// @notice Account System V2: tree-based binding, optional registration, explicit staker parameter.
 /// @dev Inheritance: IAWPRegistry (interface defining enums/structs/events), Pausable (emergency pause),
 ///      ReentrancyGuard (reentrancy protection), EIP712 (EIP-712 signing domain, domain name "AWPRegistry" v1).
-///      10 external module addresses are injected once via initializeRegistry; the deployer is then zeroed and cannot call it again.
 contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -36,7 +32,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     //  Address registry — external module addresses injected via initializeRegistry after deployment
     // ══════════════════════════════════════════════
 
-    /// @notice AWP token contract address (ERC20, 10B MAX_SUPPLY, 50% minted in constructor, 50% minted on-demand)
+    /// @notice AWP token contract address (ERC20, 10B MAX_SUPPLY, 200M pre-minted, remainder via AWPEmission)
     address public awpToken;
     /// @notice SubnetNFT contract address; each subnet corresponds to one NFT (tokenId = subnetId)
     address public subnetNFT;
@@ -46,8 +42,6 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     address public awpEmission;
     /// @notice LP manager contract address, responsible for creating AWP/Alpha trading pairs and managing liquidity
     address public lpManager;
-    /// @notice Access control manager — manages user registration / Agent registration / Manager privileges
-    address public accessManager;
     /// @notice Staking vault contract address — manages allocation bookkeeping
     address public stakingVault;
     /// @notice StakeNFT contract address — manages AWP staking positions as NFTs
@@ -68,17 +62,30 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     bool public registryInitialized;
 
     // ══════════════════════════════════════════════
+    //  Account System V2 — binding, recipient, delegation
+    // ══════════════════════════════════════════════
+
+    /// @notice Total number of registered users (incremented by register/registerFor, never decremented)
+    uint256 public registeredCount;
+
+    /// @notice Tree-based binding: addr → target (address(0) = root / unbound)
+    mapping(address => address) public boundTo;
+    /// @notice Reward recipient: addr → recipient (address(0) = unregistered, self-fallback)
+    mapping(address => address) public recipient;
+    /// @notice Delegation: staker → delegate → authorized
+    mapping(address => mapping(address => bool)) public delegates;
+
+    // ══════════════════════════════════════════════
     //  Subnet data
     // ══════════════════════════════════════════════
 
     /// @notice subnetId => SubnetInfo mapping, stores the on-chain state of each subnet
-    /// @dev Strings are not stored on-chain (name/symbol); they are recorded via events and written to DB by the Indexer
     mapping(uint256 => SubnetInfo) public subnets;
 
     /// @dev Next subnet ID to be assigned, auto-increments from 1 (tokenId = subnetId)
     uint256 private _nextSubnetId = 1;
 
-    /// @dev Active subnet ID set (migrated here from AWPEmission V3)
+    /// @dev Active subnet ID set
     EnumerableSet.UintSet private activeSubnetIds;
 
     /// @notice Maximum number of active subnets
@@ -94,31 +101,27 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     uint256 public immunityPeriod = 30 days;
 
     // ══════════════════════════════════════════════
-    //  Gasless registration — EIP-712 signature related
+    //  Gasless — EIP-712 signature related
     // ══════════════════════════════════════════════
 
     /// @notice Per-signer nonce for replay attack prevention (nonces[signer]++ when validated)
     mapping(address => uint256) public nonces;
 
-    /// @dev EIP-712 type hash: Register(address user, uint256 nonce, uint256 deadline)
-    bytes32 private constant REGISTER_TYPEHASH =
-        keccak256("Register(address user,uint256 nonce,uint256 deadline)");
-
-    /// @dev EIP-712 type hash: Bind(address agent, address principal, uint256 nonce, uint256 deadline)
+    /// @dev EIP-712 type hash: Bind(address agent, address target, uint256 nonce, uint256 deadline)
     bytes32 private constant BIND_TYPEHASH =
-        keccak256("Bind(address agent,address principal,uint256 nonce,uint256 deadline)");
+        keccak256("Bind(address agent,address target,uint256 nonce,uint256 deadline)");
 
-    /// @dev EIP-712 type hash: SetRewardRecipient(address user, address recipient, uint256 nonce, uint256 deadline)
-    bytes32 private constant SET_REWARD_RECIPIENT_TYPEHASH =
-        keccak256("SetRewardRecipient(address user,address recipient,uint256 nonce,uint256 deadline)");
+    /// @dev EIP-712 type hash: SetRecipient(address user, address recipient, uint256 nonce, uint256 deadline)
+    bytes32 private constant SET_RECIPIENT_TYPEHASH =
+        keccak256("SetRecipient(address user,address recipient,uint256 nonce,uint256 deadline)");
 
-    /// @dev EIP-712 type hash: Allocate(address user, address agent, uint256 subnetId, uint256 amount, uint256 nonce, uint256 deadline)
+    /// @dev EIP-712 type hash: Allocate(address staker, address agent, uint256 subnetId, uint256 amount, uint256 nonce, uint256 deadline)
     bytes32 private constant ALLOCATE_TYPEHASH =
-        keccak256("Allocate(address user,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)");
+        keccak256("Allocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)");
 
-    /// @dev EIP-712 type hash: Deallocate(address user, address agent, uint256 subnetId, uint256 amount, uint256 nonce, uint256 deadline)
+    /// @dev EIP-712 type hash: Deallocate(address staker, address agent, uint256 subnetId, uint256 amount, uint256 nonce, uint256 deadline)
     bytes32 private constant DEALLOCATE_TYPEHASH =
-        keccak256("Deallocate(address user,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)");
+        keccak256("Deallocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)");
 
     /// @dev EIP-712 type hash: ActivateSubnet(address user, uint256 subnetId, uint256 nonce, uint256 deadline)
     bytes32 private constant ACTIVATE_SUBNET_TYPEHASH =
@@ -156,16 +159,10 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     error NotDeployer();
     /// @dev Registry is already initialized; cannot call again
     error AlreadyInitialized();
-    /// @dev Unknown address
-    error UnknownAddress();
     /// @dev Caller is not the Treasury (Timelock)
     error NotTimelock();
     /// @dev Caller is not the Guardian
     error NotGuardian();
-    /// @dev Caller is not a Manager
-    error NotManager();
-    /// @dev Caller is not registered as a user
-    error NotRegistered();
     /// @dev Subnet parameters are invalid (name/symbol length out of bounds)
     error InvalidSubnetParams();
     /// @dev Subnet contract address cannot be the zero address
@@ -176,8 +173,6 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     error ImmunityNotExpired();
     /// @dev Caller is not the subnet NFT owner
     error NotOwner();
-    /// @dev The specified Agent is not a valid Agent for this user
-    error InvalidAgent();
     /// @dev Initial Alpha price is too low (minimum 1e12)
     error PriceTooLow();
     /// @dev EIP-712 signature has expired (block.timestamp > deadline)
@@ -189,13 +184,24 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     /// @dev Initial Alpha price is too high
     error PriceTooHigh();
     /// @dev Allocation does not meet the subnet's minimum stake requirement
-    error InsufficientMinStake();
+    /// @dev Invalid address (zero address or self-bind)
+    error InvalidAddress();
+    /// @dev Binding would create a cycle in the tree
+    error CycleDetected();
+    /// @dev Binding chain is too long (safety limit)
+    error ChainTooLong();
+    /// @dev Caller is not authorized (not staker and not delegate)
+    error NotAuthorized();
+    /// @dev Cannot revoke self as delegate
+    error CannotRevokeSelf();
+    /// @dev Address is already registered
+    error AlreadyRegistered();
 
     // ══════════════════════════════════════════════
     //  Constructor
     // ══════════════════════════════════════════════
 
-    /// @notice Deploy the RootNet contract
+    /// @notice Deploy the AWPRegistry contract
     /// @dev EIP-712 domain name is "AWPRegistry", version "1".
     ///      deployer_ is used only for the subsequent initializeRegistry call; zeroed immediately after.
     /// @param deployer_ Deployer address (holds initializeRegistry rights, self-destructs after call)
@@ -217,25 +223,12 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
 
     /// @notice One-time initialization of all external module addresses; only callable by deployer, and only once
     /// @dev After successful call _deployer is zeroed, permanently locked; cannot be called again.
-    ///      Deployment flow: deploy all modules → deploy RootNet → initializeRegistry → deployer zeroed.
-    /// @param awpToken_ AWP token contract address
-    /// @param subnetNFT_ SubnetNFT contract address
-    /// @param alphaTokenFactory_ AlphaToken factory contract address
-    /// @param awpEmission_ AWP emission contract address
-    /// @param lpManager_ LP manager contract address
-    /// @param accessManager_ Access control manager contract address
-    /// @param stakingVault_ Staking vault contract address
-    /// @param stakeNFT_ StakeNFT contract address
-    /// @param defaultSubnetManagerImpl_ Default SubnetManager implementation (address(0) = disabled)
-    /// @param dexConfig_ ABI-encoded DEX config for auto-deployed SubnetManagers
-    ///        (clPoolManager, clPositionManager, clSwapRouter, permit2, poolFee, tickSpacing)
     function initializeRegistry(
         address awpToken_,
         address subnetNFT_,
         address alphaTokenFactory_,
         address awpEmission_,
         address lpManager_,
-        address accessManager_,
         address stakingVault_,
         address stakeNFT_,
         address defaultSubnetManagerImpl_,
@@ -251,7 +244,6 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
         alphaTokenFactory = alphaTokenFactory_;
         awpEmission = awpEmission_;
         lpManager = lpManager_;
-        accessManager = accessManager_;
         stakingVault = stakingVault_;
         stakeNFT = stakeNFT_;
         defaultSubnetManagerImpl = defaultSubnetManagerImpl_;
@@ -267,12 +259,11 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
 
     /// @notice Retrieve all module addresses in a single call
     /// @return In order: awpToken, subnetNFT, alphaTokenFactory, awpEmission,
-    ///         lpManager, accessManager, stakingVault, stakeNFT, treasury, guardian
+    ///         lpManager, stakingVault, stakeNFT, treasury, guardian
     function getRegistry()
         external
         view
         returns (
-            address,
             address,
             address,
             address,
@@ -290,7 +281,6 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
             alphaTokenFactory,
             awpEmission,
             lpManager,
-            accessManager,
             stakingVault,
             stakeNFT,
             treasury,
@@ -299,376 +289,250 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     }
 
     // ═══════════════════════════════════════════════
-    //  Identity Resolution
+    //  Account V2: Registration
     // ═══════════════════════════════════════════════
 
-    /// @notice Resolve the caller's identity: returns msg.sender if registered Principal, returns its Principal if a Manager Agent
-    /// @dev Uses AccessManager.resolveCallerRole for a single external call resolving the three-part identity (Principal / owner / isManager).
-    ///      - msg.sender is a registered Principal → returns msg.sender (Principal operates directly)
-    ///      - msg.sender is a Manager Agent → returns its Principal address (Manager acts on behalf)
-    ///      - Otherwise → revert
-    /// @return Resolved Principal address
-    function _resolvePrincipalOrDelegated() internal view returns (address) {
-        (address owner, bool isUser, bool isManager_) =
-            IAccessManager(accessManager).resolveCallerRole(msg.sender);
-        // Caller is itself a registered Principal; return directly
-        if (isUser) return msg.sender;
-        // owner is zero address means msg.sender is neither a Principal nor an Agent
-        if (owner == address(0)) revert UnknownAddress();
-        // Is an Agent but not a Manager; no permission to operate on behalf
-        if (!isManager_) revert NotManager();
-        return owner;
-    }
-
-    /// @notice Resolve the caller's identity: only registered users are allowed, Manager proxy is not permitted
-    /// @dev Used for sensitive operations such as setRewardRecipient
-    /// @return Caller address (must be a registered user)
-    function _resolveOwnerOnly() internal view returns (address) {
-        (,bool isUser,) = IAccessManager(accessManager).resolveCallerRole(msg.sender);
-        if (!isUser) revert NotRegistered();
-        return msg.sender;
-    }
-
-    /// @notice Validate that the specified agent is a valid Agent belonging to the specified user
-    /// @param user User address
-    /// @param agent Agent address
-    function _validateAgent(address user, address agent) internal view {
-        if (!IAccessManager(accessManager).isAgent(user, agent)) revert InvalidAgent();
-    }
-
-    // ═══════════════════════════════════════════════
-    //  User Registration
-    // ═══════════════════════════════════════════════
-
-    /// @notice Self-register as a Principal (msg.sender registers directly)
-    /// @dev Calls AccessManager.register; enforces mutual exclusion (cannot be both Principal and Agent)
+    /// @notice Self-register: sets recipient to self and increments registeredCount
     function register() external nonReentrant whenNotPaused {
-        IAccessManager(accessManager).register(msg.sender);
+        if (recipient[msg.sender] != address(0)) revert AlreadyRegistered();
+        recipient[msg.sender] = msg.sender;
+        registeredCount++;
         emit UserRegistered(msg.sender);
     }
 
-    /// @notice Register as a Principal with optional reward recipient and/or initial stake
-    /// @dev Combines register + setRewardRecipient + StakeNFT.depositFor in a single transaction.
-    ///      Any parameter can be omitted (zero value = skip that step).
-    ///      User must pre-approve AWP to the StakeNFT contract if depositAmount > 0.
-    /// @param recipient Custom reward recipient address (address(0) = use own address / default)
-    /// @param depositAmount AWP amount to stake via StakeNFT (0 = skip staking)
-    /// @param lockDuration Lock duration in seconds for the StakeNFT position (0 = skip staking)
-    function register(address recipient, uint256 depositAmount, uint64 lockDuration)
-        external
-        nonReentrant
-        whenNotPaused
-    {
-        // Register if not already registered
-        if (!IAccessManager(accessManager).isRegisteredUser(msg.sender)) {
-            IAccessManager(accessManager).register(msg.sender);
-            emit UserRegistered(msg.sender);
-        }
-        // Set custom reward recipient if provided
-        if (recipient != address(0)) {
-            IAccessManager(accessManager).setRewardRecipient(msg.sender, recipient);
-            emit RewardRecipientUpdated(msg.sender, recipient);
-        }
-        // Stake if both amount and duration are non-zero
-        if (depositAmount > 0 && lockDuration > 0) {
-            IStakeNFT(stakeNFT).depositFor(msg.sender, depositAmount, lockDuration);
-        }
-    }
-
-    /// @notice Gasless user registration: anyone can pay gas to submit a user-signed registration request
-    /// @dev EIP-712 signature verification flow:
-    ///      1. Check that the signature has not expired (block.timestamp <= deadline)
-    ///      2. Construct structHash = keccak256(abi.encode(REGISTER_TYPEHASH, user, nonces[user]++, deadline))
-    ///         nonces[user]++ reads the current value first then increments, preventing replay attacks
-    ///      3. Generate EIP-712 digest via _hashTypedDataV4
-    ///      4. ECDSA.recover recovers the signer; verify signer == user
-    /// @param user User address to register (must be the signer)
-    /// @param deadline Signature expiry time (unix timestamp)
-    /// @param v EIP-712 signature v value
-    /// @param r EIP-712 signature r value
-    /// @param s EIP-712 signature s value
-    function registerFor(address user, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
-        external
-        nonReentrant
-        whenNotPaused
-    {
-        // Check whether the signature has expired
-        if (block.timestamp > deadline) revert ExpiredSignature();
-        // Construct EIP-712 struct hash; nonce is read then incremented to prevent replay
-        bytes32 structHash = keccak256(abi.encode(REGISTER_TYPEHASH, user, nonces[user]++, deadline));
-        // Generate the full EIP-712 digest (including domain separator)
-        bytes32 digest = _hashTypedDataV4(structHash);
-        // Recover the signer from the signature
-        address signer = ECDSA.recover(digest, v, r, s);
-        // Verify the recovered signer matches the supplied user address
-        if (signer != user) revert InvalidSignature();
-
-        IAccessManager(accessManager).register(user);
-        emit UserRegistered(user);
-    }
-
-    /// @notice One-stop register + stake (via StakeNFT) + allocate: reduces the number of user interactions
-    /// @dev Executes in order: register (if not yet registered) → depositFor via StakeNFT (if depositAmount > 0)
-    ///      → allocate (if parameters are complete). Each step is optional.
-    ///      User must have pre-approved AWP to StakeNFT contract.
-    /// @param depositAmount AWP amount to deposit into StakeNFT (0 to skip deposit)
-    /// @param lockDuration Lock duration in seconds for the StakeNFT position
-    /// @param agent Agent address to allocate to (address(0) to skip allocation)
-    /// @param subnetId Subnet ID to allocate to (0 to skip allocation)
-    /// @param allocateAmount Staking amount to allocate (0 to skip allocation)
-    function registerAndStake(
-        uint256 depositAmount,
-        uint64 lockDuration,
-        address agent,
-        uint256 subnetId,
-        uint256 allocateAmount
-    ) external nonReentrant whenNotPaused {
-        // Auto-register the user if not yet registered
-        if (!IAccessManager(accessManager).isRegisteredUser(msg.sender)) {
-            IAccessManager(accessManager).register(msg.sender);
-            emit UserRegistered(msg.sender);
-        }
-        // Deposit via StakeNFT: create a new position for the user
-        if (depositAmount > 0 && lockDuration > 0) {
-            IStakeNFT(stakeNFT).depositFor(msg.sender, depositAmount, lockDuration);
-        }
-        // Allocate: assign staked AWP to the (agent, subnetId) triple
-        if (allocateAmount > 0 && agent != address(0) && subnetId > 0) {
-            if (subnets[subnetId].status != SubnetStatus.Active) revert InvalidSubnetStatus();
-            _validateAgent(msg.sender, agent);
-            IStakingVault(stakingVault).allocate(msg.sender, agent, subnetId, allocateAmount);
-            emit Allocated(msg.sender, agent, subnetId, allocateAmount, msg.sender);
-        }
-    }
-
     // ═══════════════════════════════════════════════
-    //  Agent Binding
+    //  Account V2: Binding (tree structure)
     // ═══════════════════════════════════════════════
 
-    /// @notice Bind msg.sender as an Agent to the specified Principal
-    /// @dev Calls AccessManager.bind; auto-registers Principal if not yet registered.
-    ///      Supports rebind: if Agent was previously bound to another Principal,
-    ///      its allocations are frozen automatically (StakingVault enumerates subnets).
-    ///      No-op (silent return) if Agent is already bound to the same Principal.
-    /// @param principal Principal address this Agent belongs to
-    function bind(address principal) external nonReentrant whenNotPaused {
-        if (principal == address(0)) revert UnknownAddress();
-        address oldPrincipal = IAccessManager(accessManager).bind(msg.sender, principal);
-        // Same-principal rebind: AccessManager made no changes, nothing to do
-        if (oldPrincipal == principal) return;
-        if (oldPrincipal != address(0)) {
-            // True rebind: freeze all allocations from the Agent under its old Principal
-            IStakingVault(stakingVault).freezeAgentAllocations(oldPrincipal, msg.sender);
+    /// @notice Bind msg.sender to target in the tree structure
+    /// @dev Anti-cycle: walk up from target, if we find msg.sender → cycle
+    /// @param target Address to bind to
+    function bind(address target) external nonReentrant whenNotPaused {
+        if (target == address(0)) revert InvalidAddress();
+        if (target == msg.sender) revert InvalidAddress();
+        // Anti-cycle: walk up from target, if we find msg.sender → cycle
+        address cur = target;
+        uint256 depth = 0;
+        while (boundTo[cur] != address(0) && boundTo[cur] != cur) {
+            if (boundTo[cur] == msg.sender) revert CycleDetected();
+            cur = boundTo[cur];
+            if (++depth >= 100) revert ChainTooLong();
         }
-        emit AgentBound(principal, msg.sender, oldPrincipal);
+        // First-time interaction: count as registered
+        if (boundTo[msg.sender] == address(0) && recipient[msg.sender] == address(0)) {
+            registeredCount++;
+            emit UserRegistered(msg.sender);
+        }
+        boundTo[msg.sender] = target;
+        emit Bound(msg.sender, target);
     }
 
-    /// @notice Gasless Agent bind: anyone can pay gas to submit an agent-signed bind request
-    /// @dev The agent signature proves possession of the private key for that address (mining devices do not need to hold BNB to bind).
-    ///      EIP-712 signature verification flow:
-    ///      1. Check signature expiry
-    ///      2. structHash = keccak256(abi.encode(BIND_TYPEHASH, agent, principal, nonces[agent]++, deadline))
-    ///         Note: the nonce uses the agent address's nonce (the signer is the agent)
-    ///      3. ECDSA.recover recovers the signer; verify signer == agent
-    /// @param agent Agent address (signer, mining device address)
-    /// @param principal Principal address this Agent belongs to
+    /// @notice Unbind msg.sender from the tree
+    function unbind() external nonReentrant whenNotPaused {
+        boundTo[msg.sender] = address(0);
+        emit Unbound(msg.sender);
+    }
+
+    /// @notice Gasless bind: relayer pays gas, agent signs EIP-712
+    /// @param agent Agent address (signer)
+    /// @param target Address to bind to
     /// @param deadline Signature expiry time
     /// @param v EIP-712 signature v value
     /// @param r EIP-712 signature r value
     /// @param s EIP-712 signature s value
-    function bindFor(address agent, address principal, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+    function bindFor(address agent, address target, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
         external
         nonReentrant
         whenNotPaused
     {
-        if (principal == address(0)) revert UnknownAddress();
-        // Check whether the signature has expired
+        if (target == address(0)) revert InvalidAddress();
+        if (target == agent) revert InvalidAddress();
         if (block.timestamp > deadline) revert ExpiredSignature();
-        // Construct EIP-712 struct hash using the agent's nonce (the signer is the agent)
-        bytes32 structHash = keccak256(abi.encode(BIND_TYPEHASH, agent, principal, nonces[agent]++, deadline));
+        bytes32 structHash = keccak256(abi.encode(BIND_TYPEHASH, agent, target, nonces[agent]++, deadline));
         bytes32 digest = _hashTypedDataV4(structHash);
         address signer = ECDSA.recover(digest, v, r, s);
-        // Verify the signer is the agent itself
         if (signer != agent) revert InvalidSignature();
 
-        address oldPrincipal = IAccessManager(accessManager).bind(agent, principal);
-        if (oldPrincipal == principal) return;
-        if (oldPrincipal != address(0)) {
-            IStakingVault(stakingVault).freezeAgentAllocations(oldPrincipal, agent);
+        // Anti-cycle check
+        address cur = target;
+        uint256 depth = 0;
+        while (boundTo[cur] != address(0) && boundTo[cur] != cur) {
+            if (boundTo[cur] == agent) revert CycleDetected();
+            cur = boundTo[cur];
+            if (++depth >= 100) revert ChainTooLong();
         }
-        emit AgentBound(principal, agent, oldPrincipal);
-    }
-
-    /// @notice Agent voluntarily unbinds itself from its Principal
-    /// @dev The Agent returns to unregistered status; all its allocations are frozen automatically
-    ///      (StakingVault enumerates subnets — no caller-supplied list required).
-    ///      After unbinding the address may bind to any Principal in the future.
-    ///      Intentionally NOT gated by whenNotPaused — Agents must always be able to voluntarily detach.
-    function unbind() external nonReentrant {
-        address oldPrincipal = IAccessManager(accessManager).unbind(msg.sender);
-        IStakingVault(stakingVault).freezeAgentAllocations(oldPrincipal, msg.sender);
-        emit AgentUnbound(oldPrincipal, msg.sender);
+        if (boundTo[agent] == address(0) && recipient[agent] == address(0)) {
+            registeredCount++;
+            emit UserRegistered(agent);
+        }
+        boundTo[agent] = target;
+        emit Bound(agent, target);
     }
 
     // ═══════════════════════════════════════════════
-    //  Agent Management
+    //  Account V2: Recipient
     // ═══════════════════════════════════════════════
 
-    /// @notice Remove an Agent: validate ownership, freeze all its allocations, then remove from AccessManager
-    /// @dev Validates agent ownership first, then freezes via StakingVault (auto-enumerates subnets).
-    ///      Supports Principal or delegated Agent calling (identity resolved via _resolvePrincipalOrDelegated).
-    /// @param agent Agent address to remove
-    function removeAgent(address agent) external nonReentrant whenNotPaused {
-        address user = _resolvePrincipalOrDelegated();
-        // Validate agent belongs to user before mutating StakingVault state
-        if (!IAccessManager(accessManager).isAgent(user, agent) || agent == user) revert UnknownAddress();
-        // Freeze all allocations this Agent has (StakingVault enumerates subnets automatically)
-        IStakingVault(stakingVault).freezeAgentAllocations(user, agent);
-        // Remove the Agent binding from AccessManager
-        IAccessManager(accessManager).removeAgent(user, agent, msg.sender);
-        emit AgentRemoved(user, agent, msg.sender);
+    /// @notice Set reward recipient for msg.sender
+    /// @param addr Recipient address
+    function setRecipient(address addr) external nonReentrant whenNotPaused {
+        bool firstTime = recipient[msg.sender] == address(0);
+        recipient[msg.sender] = addr;
+        if (firstTime) {
+            registeredCount++;
+            emit UserRegistered(msg.sender);
+        }
+        emit RecipientSet(msg.sender, addr);
     }
 
-    /// @notice Set delegation privileges for an Agent (delegated Agents may perform allocate/deallocate/reallocate on behalf of the Principal)
-    /// @dev Supports Principal or existing delegated Agent calling
-    /// @param agent Target Agent address
-    /// @param _isManager true = grant delegation, false = revoke
-    function setDelegation(address agent, bool _isManager) external whenNotPaused nonReentrant {
-        address user = _resolvePrincipalOrDelegated();
-        IAccessManager(accessManager).setManager(user, agent, _isManager, msg.sender);
-        emit DelegationUpdated(user, agent, _isManager, msg.sender);
-    }
-
-    /// @notice Set the reward recipient address (only the Owner may call; Manager proxy is not allowed)
-    /// @param recipient New reward recipient address
-    function setRewardRecipient(address recipient) external nonReentrant {
-        address user = _resolveOwnerOnly();
-        IAccessManager(accessManager).setRewardRecipient(user, recipient);
-        emit RewardRecipientUpdated(user, recipient);
-    }
-
-    /// @notice Gasless set reward recipient: relayer pays gas, user signs EIP-712
-    /// @param user User address (signer, must be the Principal owner)
-    /// @param recipient New reward recipient address
-    /// @param deadline Signature expiry time (unix timestamp)
-    /// @param v EIP-712 signature v value
-    /// @param r EIP-712 signature r value
-    /// @param s EIP-712 signature s value
-    function setRewardRecipientFor(
-        address user, address recipient, uint256 deadline,
+    /// @notice Gasless set recipient: relayer pays gas, user signs EIP-712
+    function setRecipientFor(
+        address user, address _recipient, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) external nonReentrant whenNotPaused {
         if (block.timestamp > deadline) revert ExpiredSignature();
         bytes32 structHash = keccak256(abi.encode(
-            SET_REWARD_RECIPIENT_TYPEHASH, user, recipient, nonces[user]++, deadline
+            SET_RECIPIENT_TYPEHASH, user, _recipient, nonces[user]++, deadline
         ));
         bytes32 digest = _hashTypedDataV4(structHash);
         address signer = ECDSA.recover(digest, v, r, s);
         if (signer != user) revert InvalidSignature();
 
-        IAccessManager(accessManager).setRewardRecipient(user, recipient);
-        emit RewardRecipientUpdated(user, recipient);
+        // If this is the first time setting recipient (registration), increment counter
+        bool firstTime = recipient[user] == address(0);
+        recipient[user] = _recipient;
+        if (firstTime) {
+            registeredCount++;
+            emit UserRegistered(user);
+        }
+        emit RecipientSet(user, _recipient);
+    }
+
+    /// @notice Resolve the reward recipient for an address by walking the binding tree to the root
+    /// @param addr Address to resolve
+    /// @return The reward recipient address
+    function resolveRecipient(address addr) external view returns (address) {
+        address cur = addr;
+        uint256 depth = 0;
+        while (boundTo[cur] != address(0) && boundTo[cur] != cur) {
+            cur = boundTo[cur];
+            if (++depth >= 100) break;
+        }
+        return recipient[cur] != address(0) ? recipient[cur] : cur;
+    }
+
+    /// @notice Check if an address is registered (has a non-zero recipient)
+    /// @param addr Address to check
+    /// @return true if registered
+    function isRegistered(address addr) external view returns (bool) {
+        return boundTo[addr] != address(0) || recipient[addr] != address(0);
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Account V2: Delegation
+    // ═══════════════════════════════════════════════
+
+    /// @notice Grant delegate authorization to another address
+    /// @param delegate Address to authorize
+    function grantDelegate(address delegate) external {
+        delegates[msg.sender][delegate] = true;
+        emit DelegateGranted(msg.sender, delegate);
+    }
+
+    /// @notice Revoke delegate authorization
+    /// @param delegate Address to de-authorize
+    function revokeDelegate(address delegate) external {
+        if (delegate == msg.sender) revert CannotRevokeSelf();
+        delegates[msg.sender][delegate] = false;
+        emit DelegateRevoked(msg.sender, delegate);
     }
 
     // ═══════════════════════════════════════════════
     //  Staking: Allocation
     // ═══════════════════════════════════════════════
 
-    /// @notice Allocate deposited AWP to a (user, agent, subnetId) triple
-    /// @dev Supports Owner or Manager calling. Allocation takes effect immediately.
-    /// @param agent Target Agent address (must be a valid Agent of the user)
+    /// @notice Allocate deposited AWP to a (staker, agent, subnetId) triple
+    /// @dev Permission: msg.sender == staker || delegates[staker][msg.sender]
+    /// @param staker Staker address (explicit)
+    /// @param agent Target agent address (any address)
     /// @param subnetId Target subnet ID
     /// @param amount AWP amount to allocate
-    function allocate(address agent, uint256 subnetId, uint256 amount) external nonReentrant whenNotPaused {
-        address user = _resolvePrincipalOrDelegated();
+    function allocate(address staker, address agent, uint256 subnetId, uint256 amount)
+        external nonReentrant whenNotPaused
+    {
+        if (msg.sender != staker && !delegates[staker][msg.sender]) revert NotAuthorized();
         if (subnets[subnetId].status != SubnetStatus.Active) revert InvalidSubnetStatus();
-        _validateAgent(user, agent);
-        IStakingVault(stakingVault).allocate(user, agent, subnetId, amount);
-        // Enforce subnet minStake requirement after allocation
-        uint128 minStake = ISubnetNFT(subnetNFT).getMinStake(subnetId);
-        if (minStake > 0) {
-            uint256 totalStake = IStakingVault(stakingVault).getAgentStake(user, agent, subnetId);
-            if (totalStake < minStake) revert InsufficientMinStake();
-        }
-        emit Allocated(user, agent, subnetId, amount, msg.sender);
+        IStakingVault(stakingVault).allocate(staker, agent, subnetId, amount);
+        emit Allocated(staker, agent, subnetId, amount, msg.sender);
     }
 
-    /// @notice Deallocate: release staking from a (user, agent, subnetId) triple
-    /// @dev Supports Owner or Manager calling. Released AWP returns to the user's unallocated balance.
-    ///      StakingVault internally validates that the fromAgent allocation is sufficient.
-    /// @param agent Source Agent address (must be a valid Agent of the user)
+    /// @notice Deallocate: release staking from a (staker, agent, subnetId) triple
+    /// @param staker Staker address (explicit)
+    /// @param agent Source agent address
     /// @param subnetId Source subnet ID
     /// @param amount AWP amount to deallocate
-    function deallocate(address agent, uint256 subnetId, uint256 amount) external nonReentrant whenNotPaused {
-        address user = _resolvePrincipalOrDelegated();
-        _validateAgent(user, agent);
-        IStakingVault(stakingVault).deallocate(user, agent, subnetId, amount);
-        emit Deallocated(user, agent, subnetId, amount, msg.sender);
+    function deallocate(address staker, address agent, uint256 subnetId, uint256 amount)
+        external nonReentrant whenNotPaused
+    {
+        if (msg.sender != staker && !delegates[staker][msg.sender]) revert NotAuthorized();
+        IStakingVault(stakingVault).deallocate(staker, agent, subnetId, amount);
+        emit Deallocated(staker, agent, subnetId, amount, msg.sender);
     }
 
-    /// @notice Gasless allocate: relayer pays gas, user signs EIP-712
+    /// @notice Gasless allocate: relayer pays gas, staker signs EIP-712
     function allocateFor(
-        address user, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
+        address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) external nonReentrant whenNotPaused {
         if (block.timestamp > deadline) revert ExpiredSignature();
         bytes32 structHash = keccak256(abi.encode(
-            ALLOCATE_TYPEHASH, user, agent, subnetId, amount, nonces[user]++, deadline
+            ALLOCATE_TYPEHASH, staker, agent, subnetId, amount, nonces[staker]++, deadline
         ));
         bytes32 digest = _hashTypedDataV4(structHash);
-        if (ECDSA.recover(digest, v, r, s) != user) revert InvalidSignature();
+        if (ECDSA.recover(digest, v, r, s) != staker) revert InvalidSignature();
 
         if (subnets[subnetId].status != SubnetStatus.Active) revert InvalidSubnetStatus();
-        _validateAgent(user, agent);
-        IStakingVault(stakingVault).allocate(user, agent, subnetId, amount);
-        uint128 minStake = ISubnetNFT(subnetNFT).getMinStake(subnetId);
-        if (minStake > 0) {
-            uint256 totalStake = IStakingVault(stakingVault).getAgentStake(user, agent, subnetId);
-            if (totalStake < minStake) revert InsufficientMinStake();
-        }
-        emit Allocated(user, agent, subnetId, amount, msg.sender);
+        IStakingVault(stakingVault).allocate(staker, agent, subnetId, amount);
+        emit Allocated(staker, agent, subnetId, amount, msg.sender);
     }
 
-    /// @notice Gasless deallocate: relayer pays gas, user signs EIP-712
+    /// @notice Gasless deallocate: relayer pays gas, staker signs EIP-712
     function deallocateFor(
-        address user, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
+        address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) external nonReentrant whenNotPaused {
         if (block.timestamp > deadline) revert ExpiredSignature();
         bytes32 structHash = keccak256(abi.encode(
-            DEALLOCATE_TYPEHASH, user, agent, subnetId, amount, nonces[user]++, deadline
+            DEALLOCATE_TYPEHASH, staker, agent, subnetId, amount, nonces[staker]++, deadline
         ));
         bytes32 digest = _hashTypedDataV4(structHash);
-        if (ECDSA.recover(digest, v, r, s) != user) revert InvalidSignature();
+        if (ECDSA.recover(digest, v, r, s) != staker) revert InvalidSignature();
 
-        _validateAgent(user, agent);
-        IStakingVault(stakingVault).deallocate(user, agent, subnetId, amount);
-        emit Deallocated(user, agent, subnetId, amount, msg.sender);
+        IStakingVault(stakingVault).deallocate(staker, agent, subnetId, amount);
+        emit Deallocated(staker, agent, subnetId, amount, msg.sender);
     }
 
     /// @notice Reallocate: move staking from one (agent, subnet) triple to another (immediate)
-    /// @dev Supports Owner or Manager calling. Reallocation takes effect immediately (atomic).
-    ///      Both agents must be validated as valid Agents of the user.
-    /// @param fromAgent Source Agent address
+    /// @param staker Staker address (explicit)
+    /// @param fromAgent Source agent address
     /// @param fromSubnetId Source subnet ID
-    /// @param toAgent Target Agent address
+    /// @param toAgent Target agent address
     /// @param toSubnetId Target subnet ID
     /// @param amount AWP amount to reallocate
     function reallocate(
+        address staker,
         address fromAgent,
         uint256 fromSubnetId,
         address toAgent,
         uint256 toSubnetId,
         uint256 amount
     ) external nonReentrant whenNotPaused {
-        address user = _resolvePrincipalOrDelegated();
+        if (msg.sender != staker && !delegates[staker][msg.sender]) revert NotAuthorized();
         if (subnets[toSubnetId].status != SubnetStatus.Active) revert InvalidSubnetStatus();
-        _validateAgent(user, fromAgent);
-        _validateAgent(user, toAgent);
         IStakingVault(stakingVault).reallocate(
-            user, fromAgent, fromSubnetId, toAgent, toSubnetId, amount
+            staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount
         );
-        emit Reallocated(user, fromAgent, fromSubnetId, toAgent, toSubnetId, amount, msg.sender);
+        emit Reallocated(staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount, msg.sender);
     }
 
     // ═══════════════════════════════════════════════
@@ -676,15 +540,6 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     // ═══════════════════════════════════════════════
 
     /// @notice Register a new subnet: deploy Alpha token, create LP, mint NFT
-    /// @dev Full registration flow (8 steps):
-    ///      1. Calculate AWP amount required for LP creation: INITIAL_ALPHA_MINT * initialAlphaPrice / 1e18
-    ///      2. Transfer AWP directly from the user to LPManager (RootNet does not intermediate)
-    ///      3. Mint SubnetNFT (tokenId = _nextSubnetId++) to msg.sender
-    ///      4. Deploy Alpha token via factory (admin = address(this), i.e. RootNet)
-    ///      5. RootNet mints INITIAL_ALPHA_MINT Alpha tokens to LPManager
-    ///      6. LPManager creates the AWP/Alpha trading pair and injects initial liquidity
-    ///      7. Set subnetManager as the sole minter of the Alpha token (setSubnetMinter permanently locked)
-    ///      8. Store SubnetInfo (strings not stored on-chain; name/symbol recorded via events)
     /// @param params Subnet parameters (name, symbol, subnetManager, salt, minStake)
     /// @return subnetId Newly created subnet ID
     function registerSubnet(SubnetParams calldata params) external nonReentrant whenNotPaused returns (uint256) {
@@ -692,10 +547,6 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     }
 
     /// @notice Gasless subnet registration: relayer pays gas, user signs EIP-712 and pays AWP
-    /// @dev User must have pre-approved AWP to RootNet (or use registerSubnetForWithPermit for fully gasless).
-    /// @param user User address (signer, pays AWP, receives NFT + admin)
-    /// @param params Subnet parameters
-    /// @param deadline Signature expiry time
     function registerSubnetFor(
         address user,
         SubnetParams calldata params,
@@ -708,17 +559,6 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     }
 
     /// @notice Fully gasless subnet registration with EIP-2612 permit (no prior approve tx needed)
-    /// @dev User signs two off-chain messages: (1) ERC20 permit for AWP, (2) EIP-712 registerSubnet.
-    ///      Relayer submits both in one tx. User pays zero gas.
-    /// @param user User address (signer, pays AWP, receives NFT + admin)
-    /// @param params Subnet parameters
-    /// @param deadline Shared deadline for both permit and registerSubnet signatures
-    /// @param permitV ERC-2612 permit signature v
-    /// @param permitR ERC-2612 permit signature r
-    /// @param permitS ERC-2612 permit signature s
-    /// @param registerV EIP-712 registerSubnet signature v
-    /// @param registerR EIP-712 registerSubnet signature r
-    /// @param registerS EIP-712 registerSubnet signature s
     function registerSubnetForWithPermit(
         address user,
         SubnetParams calldata params,
@@ -727,25 +567,17 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
         uint8 registerV, bytes32 registerR, bytes32 registerS
     ) external nonReentrant whenNotPaused returns (uint256) {
         if (block.timestamp > deadline) revert ExpiredSignature();
-        // Step 1: Execute ERC-2612 permit (user approves AWP to RootNet without a prior tx)
         uint256 lpAWPAmount = INITIAL_ALPHA_MINT * initialAlphaPrice / 1e18;
         IERC20Permit(awpToken).permit(user, address(this), lpAWPAmount, deadline, permitV, permitR, permitS);
-        // Step 2: Verify registerSubnet EIP-712 signature
         _verifyRegisterSubnetSignature(user, params, deadline, registerV, registerR, registerS);
-        // Step 3: Execute registration (safeTransferFrom uses the just-permitted allowance)
         return _registerSubnet(user, params);
     }
 
     /// @dev Verify EIP-712 signature for registerSubnetFor
-    ///      Uses standard EIP-712 nested struct encoding:
-    ///      - hashStruct(params) = keccak256(SUBNET_PARAMS_TYPEHASH ++ encode(fields))
-    ///      - hashStruct(msg) = keccak256(REGISTER_SUBNET_TYPEHASH ++ encode(user, hashStruct(params), nonce, deadline))
-    ///      Clients use standard signTypedData with nested SubnetParams type definition.
     function _verifyRegisterSubnetSignature(
         address user, SubnetParams calldata params, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) internal {
-        // EIP-712 hashStruct(SubnetParams): typeHash ++ encoded fields (strings hashed individually)
         bytes32 paramsStructHash = keccak256(abi.encode(
             SUBNET_PARAMS_TYPEHASH,
             keccak256(bytes(params.name)),
@@ -753,7 +585,6 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
             params.subnetManager, params.salt, params.minStake,
             keccak256(bytes(params.skillsURI))
         ));
-        // EIP-712 hashStruct(RegisterSubnet): typeHash ++ encoded fields
         bytes32 structHash = keccak256(abi.encode(
             REGISTER_SUBNET_TYPEHASH, user, paramsStructHash, nonces[user]++, deadline
         ));
@@ -826,13 +657,10 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
 
     // ═══════════════════════════════════════════════
     //  Subnet Lifecycle Management
-    //  State transitions: Pending → Active ⇌ Paused → Active, Active/Paused → Banned → Active
-    //  Deregistration: any state → deleted (requires immunity period to have elapsed)
     // ═══════════════════════════════════════════════
 
     /// @notice Activate a subnet: Pending → Active (only the NFT Owner may call)
-    /// @param subnetId Subnet ID to activate
-    function activateSubnet(uint256 subnetId) external whenNotPaused {
+    function activateSubnet(uint256 subnetId) external nonReentrant whenNotPaused {
         if (ISubnetNFT(subnetNFT).ownerOf(subnetId) != msg.sender) revert NotOwner();
         SubnetInfo storage info = subnets[subnetId];
         if (info.status != SubnetStatus.Pending) revert InvalidSubnetStatus();
@@ -870,8 +698,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     }
 
     /// @notice Pause a subnet: Active → Paused (only the NFT Owner may call)
-    /// @param subnetId Subnet ID to pause
-    function pauseSubnet(uint256 subnetId) external {
+    function pauseSubnet(uint256 subnetId) external nonReentrant {
         if (ISubnetNFT(subnetNFT).ownerOf(subnetId) != msg.sender) revert NotOwner();
         SubnetInfo storage info = subnets[subnetId];
         if (info.status != SubnetStatus.Active) revert InvalidSubnetStatus();
@@ -883,8 +710,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     }
 
     /// @notice Resume a subnet: Paused → Active (only the NFT Owner may call)
-    /// @param subnetId Subnet ID to resume
-    function resumeSubnet(uint256 subnetId) external whenNotPaused {
+    function resumeSubnet(uint256 subnetId) external nonReentrant whenNotPaused {
         if (ISubnetNFT(subnetNFT).ownerOf(subnetId) != msg.sender) revert NotOwner();
         SubnetInfo storage info = subnets[subnetId];
         if (info.status != SubnetStatus.Paused) revert InvalidSubnetStatus();
@@ -897,7 +723,6 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     }
 
     /// @notice Ban a subnet: Active/Paused → Banned (only Timelock may call)
-    /// @param subnetId Subnet ID to ban
     function banSubnet(uint256 subnetId) external onlyTimelock {
         SubnetInfo storage info = subnets[subnetId];
         SubnetStatus status = info.status;
@@ -916,7 +741,6 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     }
 
     /// @notice Unban a subnet: Banned → Active (only Timelock may call)
-    /// @param subnetId Subnet ID to unban
     function unbanSubnet(uint256 subnetId) external onlyTimelock {
         SubnetInfo storage info = subnets[subnetId];
         if (info.status != SubnetStatus.Banned) revert InvalidSubnetStatus();
@@ -932,8 +756,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
         emit SubnetUnbanned(subnetId);
     }
 
-    /// @notice Deregister a subnet: permanently delete subnet data (only Timelock may call; immunity period must have elapsed)
-    /// @param subnetId Subnet ID to deregister
+    /// @notice Deregister a subnet: permanently delete subnet data (only Timelock; immunity period must have elapsed)
     function deregisterSubnet(uint256 subnetId) external onlyTimelock {
         SubnetInfo storage info = subnets[subnetId];
         if (info.createdAt == 0) revert InvalidSubnetStatus();
@@ -956,8 +779,6 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     // ═══════════════════════════════════════════════
 
     /// @notice Set the initial Alpha price when registering a subnet (only Timelock may call)
-    /// @dev Minimum price limit 1e12 (prevents precision loss that would cause lpAWPAmount to be 0)
-    /// @param price New initial price (AWP wei / Alpha)
     function setInitialAlphaPrice(uint256 price) external onlyTimelock {
         if (price < 1e12) revert PriceTooLow();
         if (price > 1e30) revert PriceTooHigh();
@@ -966,15 +787,13 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     }
 
     /// @notice Update the guardian address (only Timelock may call)
-    /// @param g New guardian address
     function setGuardian(address g) external onlyTimelock {
-        if (g == address(0)) revert UnknownAddress();
+        if (g == address(0)) revert InvalidAddress();
         guardian = g;
         emit GuardianUpdated(g);
     }
 
     /// @notice Set the subnet deregistration immunity period (only Timelock may call)
-    /// @param p New immunity period duration (seconds, minimum 7 days)
     function setImmunityPeriod(uint256 p) external onlyTimelock {
         if (p < 7 days) revert InvalidSubnetParams();
         immunityPeriod = p;
@@ -982,62 +801,53 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     }
 
     /// @notice Replace the AlphaToken factory (only Timelock may call)
-    /// @dev New subnets will use the new factory; existing subnets are unaffected.
-    /// @param factory New AlphaTokenFactory address
     function setAlphaTokenFactory(address factory) external onlyTimelock {
-        if (factory == address(0)) revert UnknownAddress();
+        if (factory == address(0)) revert InvalidAddress();
         alphaTokenFactory = factory;
         emit AlphaTokenFactoryUpdated(factory);
     }
 
     /// @notice Set the default subnet implementation (only Timelock may call)
-    /// @dev When subnetManager is address(0) in registerSubnet, an ERC1967Proxy
-    ///      pointing to this implementation is deployed automatically.
-    ///      Setting address(0) disables auto-deployment (subnetManager becomes required).
-    /// @param impl SubnetManager implementation address
     function setSubnetManagerImpl(address impl) external onlyTimelock {
         defaultSubnetManagerImpl = impl;
         emit DefaultSubnetManagerImplUpdated(impl);
     }
 
     /// @notice Update DEX configuration for future auto-deployed SubnetManagers (only Timelock)
-    /// @param dexConfig_ ABI-encoded: (clPoolManager, clPositionManager, clSwapRouter, permit2, poolFee, tickSpacing)
     function setDexConfig(bytes calldata dexConfig_) external onlyTimelock {
         dexConfig = dexConfig_;
     }
 
     // ═══════════════════════════════════════════════
-    //  Subnet Queries (view functions)
+    //  Queries
     // ═══════════════════════════════════════════════
 
     /// @dev Agent information aggregate struct, used for off-chain queries
     struct AgentInfo {
-        /// @dev Agent's owner address
-        address owner;
-        /// @dev Whether the Agent is valid (has not been removed)
+        /// @dev Resolved root address (walks binding chain)
+        address root;
+        /// @dev Whether the agent has a binding or the root has a recipient set
         bool isValid;
-        /// @dev Agent's stake amount on the specified subnet
+        /// @dev Agent's stake amount on the specified subnet (uses root as staker)
         uint256 stake;
-        /// @dev Reward recipient address set by the Owner
+        /// @dev Reward recipient address for the root
         address rewardRecipient;
     }
 
-    /// @notice Query complete information for a single Agent on a specified subnet
+    /// @notice Query complete information for a single agent on a specified subnet
     /// @param agent Agent address
     /// @param subnetId Subnet ID
-    /// @return AgentInfo containing owner, isValid, stake, rewardRecipient
+    /// @return AgentInfo containing root, isValid, stake, rewardRecipient
     function getAgentInfo(address agent, uint256 subnetId) external view returns (AgentInfo memory) {
-        address owner = IAccessManager(accessManager).getOwner(agent);
-        bool isValid = IAccessManager(accessManager).isAgent(owner, agent);
-        uint256 stake = IStakingVault(stakingVault).getAgentStake(owner, agent, subnetId);
-        address rewardRecipient = IAccessManager(accessManager).getRewardRecipient(owner);
-        return AgentInfo(owner, isValid, stake, rewardRecipient);
+        // Walk the binding tree to find the root
+        address root = _resolveRoot(agent);
+        bool isValid = boundTo[agent] != address(0) || recipient[agent] != address(0);
+        uint256 stake = IStakingVault(stakingVault).getAgentStake(root, agent, subnetId);
+        address recip = recipient[root] != address(0) ? recipient[root] : root;
+        return AgentInfo(root, isValid, stake, recip);
     }
 
-    /// @notice Batch query information for multiple Agents on a specified subnet
-    /// @param agents Array of Agent addresses
-    /// @param subnetId Subnet ID
-    /// @return infos Array of AgentInfo
+    /// @notice Batch query information for multiple agents on a specified subnet
     function getAgentsInfo(address[] calldata agents, uint256 subnetId)
         external
         view
@@ -1046,34 +856,41 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
         AgentInfo[] memory infos = new AgentInfo[](agents.length);
         for (uint256 i = 0; i < agents.length;) {
             address agent = agents[i];
-            address owner = IAccessManager(accessManager).getOwner(agent);
-            bool isValid = owner != address(0);
+            address root = _resolveRoot(agent);
+            bool isValid = boundTo[agent] != address(0) || recipient[agent] != address(0);
             uint256 stake = isValid
-                ? IStakingVault(stakingVault).getAgentStake(owner, agent, subnetId)
+                ? IStakingVault(stakingVault).getAgentStake(root, agent, subnetId)
                 : 0;
-            address recipient = isValid
-                ? IAccessManager(accessManager).getRewardRecipient(owner)
+            address recip = isValid
+                ? (recipient[root] != address(0) ? recipient[root] : root)
                 : address(0);
-            infos[i] = AgentInfo(owner, isValid, stake, recipient);
+            infos[i] = AgentInfo(root, isValid, stake, recip);
             unchecked { ++i; }
         }
         return infos;
+    }
+
+    /// @dev Walk the binding chain to find the root
+    function _resolveRoot(address addr) internal view returns (address) {
+        address cur = addr;
+        uint256 depth = 0;
+        while (boundTo[cur] != address(0) && boundTo[cur] != cur) {
+            cur = boundTo[cur];
+            if (++depth >= 100) break;
+        }
+        return cur;
     }
 
     // ═══════════════════════════════════════════════
     //  View — general view functions
     // ═══════════════════════════════════════════════
 
-    /// @notice Get subnet lifecycle state (status, lpPool, timestamps)
-    /// @param subnetId Subnet ID
-    /// @return SubnetInfo struct (RootNet state only; use getSubnetFull for complete data)
+    /// @notice Get subnet lifecycle state
     function getSubnet(uint256 subnetId) external view returns (SubnetInfo memory) {
         return subnets[subnetId];
     }
 
     /// @notice Get complete subnet info combining RootNet state + SubnetNFT identity
-    /// @param subnetId Subnet ID
-    /// @return Full subnet data including name, addresses, skills, minStake, owner, status
     function getSubnetFull(uint256 subnetId) external view returns (SubnetFullInfo memory) {
         SubnetInfo storage info = subnets[subnetId];
         ISubnetNFT.SubnetData memory nftData = ISubnetNFT(subnetNFT).getSubnetData(subnetId);
@@ -1093,27 +910,21 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     }
 
     /// @notice Get the current number of active subnets
-    /// @return Active subnet count
     function getActiveSubnetCount() external view returns (uint256) {
         return activeSubnetIds.length();
     }
 
     /// @notice Get the active subnet ID at a given index
-    /// @param index Index position
-    /// @return Subnet ID
     function getActiveSubnetIdAt(uint256 index) external view returns (uint256) {
         return activeSubnetIds.at(index);
     }
 
     /// @notice Check whether a specified subnet is in the Active state
-    /// @param subnetId Subnet ID
-    /// @return Whether it is Active
     function isSubnetActive(uint256 subnetId) external view returns (bool) {
         return subnets[subnetId].status == SubnetStatus.Active;
     }
 
     /// @notice Get the next subnet ID to be assigned
-    /// @return Next subnet ID
     function nextSubnetId() external view returns (uint256) {
         return _nextSubnetId;
     }
@@ -1123,13 +934,11 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     // ═══════════════════════════════════════════════
 
     /// @notice Emergency pause the contract (only Guardian may call)
-    /// @dev After pausing, all functions with the whenNotPaused modifier will be uncallable
     function pause() external onlyGuardian {
         _pause();
     }
 
     /// @notice Unpause the contract (only Timelock may call)
-    /// @dev Pause is triggered by the Guardian; resumption requires Timelock governance, ensuring dual approval
     function unpause() external onlyTimelock {
         _unpause();
     }

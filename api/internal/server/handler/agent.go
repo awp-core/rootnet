@@ -11,19 +11,20 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// agentInfoItem holds a single agent's info including binding data and stake
+type agentInfoItem struct {
+	Address  string `json:"address"`
+	BoundTo  string `json:"boundTo"`
+	Stake    string `json:"stake"`
+}
+
 // batchAgentInfoRequest is the request body for batch agent info queries
 type batchAgentInfoRequest struct {
 	Agents   []string `json:"agents"`
 	SubnetID int64    `json:"subnetId"`
 }
 
-// agentInfoItem holds a single agent's info including agent details and stake data
-type agentInfoItem struct {
-	Agent gen.Agent `json:"agent"`
-	Stake string    `json:"stake"`
-}
-
-// GetAgentsByOwner returns all agents belonging to a given owner
+// GetAgentsByOwner returns all agents (addresses) bound to a given owner
 func (h *Handler) GetAgentsByOwner(w http.ResponseWriter, r *http.Request) {
 	owner := normalizeAddr(chi.URLParam(r, "owner"))
 	if owner == "" {
@@ -31,7 +32,7 @@ func (h *Handler) GetAgentsByOwner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	agents, err := h.queries.GetAgentsByOwner(r.Context(), owner)
+	agents, err := h.queries.GetUsersByBoundTo(r.Context(), owner)
 	if err != nil {
 		h.logger.Error("failed to get agents by owner", "error", err, "owner", owner)
 		h.writeError(w, http.StatusInternalServerError, "failed to get agents")
@@ -41,7 +42,7 @@ func (h *Handler) GetAgentsByOwner(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, agents)
 }
 
-// GetAgentDetail returns details for a single agent
+// GetAgentDetail returns details for a single agent (user record with binding info)
 func (h *Handler) GetAgentDetail(w http.ResponseWriter, r *http.Request) {
 	agentAddr := normalizeAddr(chi.URLParam(r, "agent"))
 	if agentAddr == "" {
@@ -49,7 +50,7 @@ func (h *Handler) GetAgentDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	agent, err := h.queries.GetAgent(r.Context(), agentAddr)
+	user, err := h.queries.GetUser(r.Context(), agentAddr)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			h.writeError(w, http.StatusNotFound, "agent not found")
@@ -60,10 +61,10 @@ func (h *Handler) GetAgentDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, agent)
+	h.writeJSON(w, http.StatusOK, user)
 }
 
-// LookupAgent looks up the owner of an agent by agent address
+// LookupAgent looks up the owner (boundTo) of an agent by agent address
 func (h *Handler) LookupAgent(w http.ResponseWriter, r *http.Request) {
 	agentAddr := normalizeAddr(chi.URLParam(r, "agent"))
 	if agentAddr == "" {
@@ -71,10 +72,10 @@ func (h *Handler) LookupAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	owner, err := h.queries.LookupAgentOwner(r.Context(), agentAddr)
+	user, err := h.queries.GetUser(r.Context(), agentAddr)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			h.writeError(w, http.StatusNotFound, "agent not found or already removed")
+			h.writeError(w, http.StatusNotFound, "agent not found")
 			return
 		}
 		h.logger.Error("failed to lookup agent owner", "error", err, "agent", agentAddr)
@@ -82,7 +83,12 @@ func (h *Handler) LookupAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.writeJSON(w, http.StatusOK, map[string]string{"ownerAddress": owner})
+	if user.BoundTo == "" {
+		h.writeError(w, http.StatusNotFound, "agent not bound")
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, map[string]string{"ownerAddress": user.BoundTo})
 }
 
 // BatchAgentInfo returns batch agent info along with each agent's stake in the specified subnet
@@ -109,14 +115,15 @@ func (h *Handler) BatchAgentInfo(w http.ResponseWriter, r *http.Request) {
 
 	for _, addr := range req.Agents {
 		addr = normalizeAddr(addr)
-		agent, err := h.queries.GetAgent(ctx, addr)
+		user, err := h.queries.GetUser(ctx, addr)
 		if err != nil {
 			continue
 		}
 
 		item := agentInfoItem{
-			Agent: agent,
-			Stake: "0",
+			Address: user.Address,
+			BoundTo: user.BoundTo,
+			Stake:   "0",
 		}
 
 		// Fetch the agent's stake in the specified subnet

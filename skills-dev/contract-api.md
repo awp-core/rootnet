@@ -1,8 +1,8 @@
 # AWP Smart Contract API Reference
 
 ## Chain Info
-- **Network**: BSC Mainnet (Chain ID: 56)
-- **RPC**: `https://bsc-dataseed.binance.org` or project QuickNode endpoint
+- **Network**: EVM chain (configured at deployment)
+- **RPC**: Chain RPC endpoint (from `RPC_URL` env var)
 - **Block time**: ~3 seconds
 - **EVM version**: Cancun (supports transient storage)
 
@@ -10,33 +10,26 @@
 
 ## AWPRegistry — Unified Entry Point
 
-### User Registration
-```
-register()                                                    // Anyone, register msg.sender
-registerFor(address user, uint256 deadline, uint8 v, bytes32 r, bytes32 s)  // Gasless EIP-712
-register(address recipient, uint256 depositAmount, uint64 lockDuration) // One-stop: register + set reward recipient + deposit via StakeNFT (all params optional)
-registerAndStake(uint256 depositAmount, uint64 lockDuration, address agent, uint256 subnetId, uint256 allocateAmount) // One-click: register + deposit (via StakeNFT) + allocate; lockDuration in seconds
-```
+> EIP-712 domain name: "AWPRegistry"
 
-### Agent Binding
+### Account System (V2)
 ```
-bind(address principal)                                        // msg.sender binds as Agent to Principal (supports rebind; auto-registers Principal)
-bindFor(address agent, address principal, uint256 deadline, uint8 v, bytes32 r, bytes32 s)  // Gasless EIP-712
-unbind()                                                       // Agent voluntarily unbinds, returns to unregistered status
-```
-
-### Agent Management
-```
-removeAgent(address agent)                                     // Owner/Manager; StakingVault auto-enumerates subnets
-setDelegation(address agent, bool _isManager)                  // Owner/Manager; grant or revoke delegation
-setRewardRecipient(address recipient)                          // Owner only
+register()                                                    // Optional; equivalent to setRecipient(msg.sender)
+bind(address target)                                          // Tree-based binding with anti-cycle check
+bindFor(address user, address target, uint256 deadline, uint8 v, bytes32 r, bytes32 s)  // Gasless EIP-712
+setRecipient(address recipient)                               // Set reward recipient
+setRecipientFor(address user, address recipient, uint256 deadline, uint8 v, bytes32 r, bytes32 s) // Gasless EIP-712
+grantDelegate(address delegate)                               // Grant delegation to an address
+revokeDelegate(address delegate)                              // Revoke delegation from an address
+resolveRecipient(address addr) view                           // Walks boundTo chain to root
+isRegistered(address addr) view                               // boundTo[addr] != 0 || recipient[addr] != 0
 ```
 
 ### Staking (Allocation Only — deposit/withdraw via StakeNFT)
 ```
-allocate(address agent, uint256 subnetId, uint256 amount)      // Owner/Manager
-deallocate(address agent, uint256 subnetId, uint256 amount)    // Owner/Manager
-reallocate(address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) // Owner/Manager, immediate
+allocate(address staker, address agent, uint256 subnetId, uint256 amount)      // Staker or delegate
+deallocate(address staker, address agent, uint256 subnetId, uint256 amount)    // Staker or delegate
+reallocate(address staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) // Staker or delegate, immediate
 ```
 
 ### Subnet Lifecycle
@@ -71,7 +64,12 @@ isSubnetActive(uint256 subnetId) → bool
 nextSubnetId() → uint256
 getAgentInfo(address agent, uint256 subnetId) → AgentInfo
 getAgentsInfo(address[] agents, uint256 subnetId) → AgentInfo[]
-getRegistry() → (awpToken, subnetNFT, alphaTokenFactory, awpEmission, lpManager, accessManager, stakingVault, stakeNFT, treasury, guardian)
+getRegistry() → (awpToken, subnetNFT, alphaTokenFactory, awpEmission, lpManager, stakingVault, stakeNFT, treasury, guardian)
+resolveRecipient(address addr) → address                       // Walks boundTo chain to root
+isRegistered(address addr) → bool                              // boundTo[addr] != 0 || recipient[addr] != 0
+boundTo(address addr) → address
+recipient(address addr) → address
+delegates(address user, address delegate) → bool
 nonces(address) → uint256
 ```
 
@@ -176,10 +174,10 @@ struct SubnetParams {
 }
 
 struct AgentInfo {
-    address owner;
+    address boundTo;
     bool isValid;
     uint256 stake;
-    address rewardRecipient;
+    address recipient;
 }
 ```
 
@@ -211,19 +209,19 @@ remainingTime(uint256 tokenId) → uint64                          // Remaining 
 
 ```
 setStakeNFT(address stakeNFT_)                                            // onlyAWPRegistry, one-time (called by initializeRegistry)
-allocate(address user, address agent, uint256 subnetId, uint256 amount)    // onlyAWPRegistry
-deallocate(address user, address agent, uint256 subnetId, uint256 amount)  // onlyAWPRegistry
-reallocate(address user, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) // onlyAWPRegistry
-freezeAgentAllocations(address user, address agent)                        // onlyAWPRegistry; auto-enumerates subnets
+allocate(address staker, address agent, uint256 subnetId, uint256 amount)    // onlyAWPRegistry
+deallocate(address staker, address agent, uint256 subnetId, uint256 amount)  // onlyAWPRegistry
+reallocate(address staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) // onlyAWPRegistry
+freezeAgentAllocations(address staker, address agent)                        // onlyAWPRegistry; auto-enumerates subnets
 ```
 
 ### View Functions
 ```
-userTotalAllocated(address user) → uint256
-getAgentStake(address user, address agent, uint256 subnetId) → uint256
+userTotalAllocated(address staker) → uint256
+getAgentStake(address staker, address agent, uint256 subnetId) → uint256
 subnetTotalStake(uint256 subnetId) → uint256
 getSubnetTotalStake(uint256 subnetId) → uint256
-getAgentSubnets(address user, address agent) → uint256[]
+getAgentSubnets(address staker, address agent) → uint256[]
 ```
 
 ---

@@ -9,12 +9,11 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// userDetailResponse is the response type for user details including balance, reward recipient, and agent list
+// userDetailResponse is the response type for user details including balance and bound agents (V2)
 type userDetailResponse struct {
-	User             gen.User                `json:"user"`
-	Balance          *gen.UserBalance        `json:"balance,omitempty"`
-	RewardRecipient  *gen.UserRewardRecipient `json:"rewardRecipient,omitempty"`
-	Agents           []gen.Agent             `json:"agents"`
+	User    gen.User         `json:"user"`
+	Balance *gen.UserBalance `json:"balance,omitempty"`
+	Agents  []gen.User       `json:"agents"`
 }
 
 // ListUsers returns a paginated list of users
@@ -46,7 +45,7 @@ func (h *Handler) GetUserCount(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]int64{"count": count})
 }
 
-// GetUser returns details for a single user including balance, reward recipient, and agent list
+// GetUser returns details for a single user including balance and bound agents (V2)
 func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 	address := normalizeAddr(chi.URLParam(r, "address"))
 	if address == "" {
@@ -70,7 +69,7 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 
 	resp := userDetailResponse{
 		User:   user,
-		Agents: []gen.Agent{},
+		Agents: []gen.User{},
 	}
 
 	// Fetch user balance
@@ -78,13 +77,8 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 		resp.Balance = &balance
 	}
 
-	// Fetch reward recipient
-	if recipient, err := h.queries.GetRewardRecipient(ctx, address); err == nil {
-		resp.RewardRecipient = &recipient
-	}
-
-	// Fetch the user's agent list
-	if agents, err := h.queries.GetActiveAgentsByOwner(ctx, address); err == nil {
+	// Fetch the user's bound agents (addresses where bound_to = this user)
+	if agents, err := h.queries.GetUsersByBoundTo(ctx, address); err == nil {
 		resp.Agents = agents
 	}
 

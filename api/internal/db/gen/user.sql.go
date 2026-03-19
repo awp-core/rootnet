@@ -25,25 +25,28 @@ func (q *Queries) AddUserAllocated(ctx context.Context, arg AddUserAllocatedPara
 	return err
 }
 
-const getRewardRecipient = `-- name: GetRewardRecipient :one
-SELECT user_address, recipient_address FROM user_reward_recipients WHERE user_address = $1
+const clearUserBinding = `-- name: ClearUserBinding :exec
+UPDATE users SET bound_to = '' WHERE address = $1
 `
 
-func (q *Queries) GetRewardRecipient(ctx context.Context, userAddress string) (UserRewardRecipient, error) {
-	row := q.db.QueryRow(ctx, getRewardRecipient, userAddress)
-	var i UserRewardRecipient
-	err := row.Scan(&i.UserAddress, &i.RecipientAddress)
-	return i, err
+func (q *Queries) ClearUserBinding(ctx context.Context, address string) error {
+	_, err := q.db.Exec(ctx, clearUserBinding, address)
+	return err
 }
 
 const getUser = `-- name: GetUser :one
-SELECT address, registered_at FROM users WHERE address = $1
+SELECT address, bound_to, recipient, registered_at FROM users WHERE address = $1
 `
 
 func (q *Queries) GetUser(ctx context.Context, address string) (User, error) {
 	row := q.db.QueryRow(ctx, getUser, address)
 	var i User
-	err := row.Scan(&i.Address, &i.RegisteredAt)
+	err := row.Scan(
+		&i.Address,
+		&i.BoundTo,
+		&i.Recipient,
+		&i.RegisteredAt,
+	)
 	return i, err
 }
 
@@ -69,6 +72,36 @@ func (q *Queries) GetUserCount(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const getUsersByBoundTo = `-- name: GetUsersByBoundTo :many
+SELECT address, bound_to, recipient, registered_at FROM users
+WHERE bound_to = $1 ORDER BY address
+`
+
+func (q *Queries) GetUsersByBoundTo(ctx context.Context, boundTo string) ([]User, error) {
+	rows, err := q.db.Query(ctx, getUsersByBoundTo, boundTo)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.Address,
+			&i.BoundTo,
+			&i.Recipient,
+			&i.RegisteredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const initUserBalance = `-- name: InitUserBalance :exec
 INSERT INTO user_balances (user_address, total_allocated) VALUES ($1, 0)
 ON CONFLICT (user_address) DO NOTHING
@@ -79,23 +112,8 @@ func (q *Queries) InitUserBalance(ctx context.Context, userAddress string) error
 	return err
 }
 
-const insertUser = `-- name: InsertUser :exec
-INSERT INTO users (address, registered_at) VALUES ($1, $2)
-ON CONFLICT (address) DO NOTHING
-`
-
-type InsertUserParams struct {
-	Address      string `json:"address"`
-	RegisteredAt int64  `json:"registered_at"`
-}
-
-func (q *Queries) InsertUser(ctx context.Context, arg InsertUserParams) error {
-	_, err := q.db.Exec(ctx, insertUser, arg.Address, arg.RegisteredAt)
-	return err
-}
-
 const listUsers = `-- name: ListUsers :many
-SELECT address, registered_at FROM users ORDER BY registered_at DESC LIMIT $1 OFFSET $2
+SELECT address, bound_to, recipient, registered_at FROM users ORDER BY registered_at DESC LIMIT $1 OFFSET $2
 `
 
 type ListUsersParams struct {
@@ -112,7 +130,12 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 	items := []User{}
 	for rows.Next() {
 		var i User
-		if err := rows.Scan(&i.Address, &i.RegisteredAt); err != nil {
+		if err := rows.Scan(
+			&i.Address,
+			&i.BoundTo,
+			&i.Recipient,
+			&i.RegisteredAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -137,21 +160,6 @@ func (q *Queries) SubtractUserAllocated(ctx context.Context, arg SubtractUserAll
 	return err
 }
 
-const upsertRewardRecipient = `-- name: UpsertRewardRecipient :exec
-INSERT INTO user_reward_recipients (user_address, recipient_address) VALUES ($1, $2)
-ON CONFLICT (user_address) DO UPDATE SET recipient_address = EXCLUDED.recipient_address
-`
-
-type UpsertRewardRecipientParams struct {
-	UserAddress      string `json:"user_address"`
-	RecipientAddress string `json:"recipient_address"`
-}
-
-func (q *Queries) UpsertRewardRecipient(ctx context.Context, arg UpsertRewardRecipientParams) error {
-	_, err := q.db.Exec(ctx, upsertRewardRecipient, arg.UserAddress, arg.RecipientAddress)
-	return err
-}
-
 const upsertUserBalance = `-- name: UpsertUserBalance :exec
 INSERT INTO user_balances (user_address, total_allocated)
 VALUES ($1, $2)
@@ -166,5 +174,51 @@ type UpsertUserBalanceParams struct {
 
 func (q *Queries) UpsertUserBalance(ctx context.Context, arg UpsertUserBalanceParams) error {
 	_, err := q.db.Exec(ctx, upsertUserBalance, arg.UserAddress, arg.TotalAllocated)
+	return err
+}
+
+const upsertUserBinding = `-- name: UpsertUserBinding :exec
+INSERT INTO users (address, bound_to) VALUES ($1, $2)
+ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to
+`
+
+type UpsertUserBindingParams struct {
+	Address string `json:"address"`
+	BoundTo string `json:"bound_to"`
+}
+
+func (q *Queries) UpsertUserBinding(ctx context.Context, arg UpsertUserBindingParams) error {
+	_, err := q.db.Exec(ctx, upsertUserBinding, arg.Address, arg.BoundTo)
+	return err
+}
+
+const upsertUserRecipient = `-- name: UpsertUserRecipient :exec
+INSERT INTO users (address, recipient) VALUES ($1, $2)
+ON CONFLICT (address) DO UPDATE SET recipient = EXCLUDED.recipient
+`
+
+type UpsertUserRecipientParams struct {
+	Address   string `json:"address"`
+	Recipient string `json:"recipient"`
+}
+
+func (q *Queries) UpsertUserRecipient(ctx context.Context, arg UpsertUserRecipientParams) error {
+	_, err := q.db.Exec(ctx, upsertUserRecipient, arg.Address, arg.Recipient)
+	return err
+}
+
+const setUserRegisteredAt = `-- name: SetUserRegisteredAt :exec
+INSERT INTO users (address, registered_at) VALUES ($1, $2)
+ON CONFLICT (address) DO UPDATE SET registered_at = EXCLUDED.registered_at
+WHERE users.registered_at = 0
+`
+
+type SetUserRegisteredAtParams struct {
+	Address      string `json:"address"`
+	RegisteredAt int64  `json:"registered_at"`
+}
+
+func (q *Queries) SetUserRegisteredAt(ctx context.Context, arg SetUserRegisteredAtParams) error {
+	_, err := q.db.Exec(ctx, setUserRegisteredAt, arg.Address, arg.RegisteredAt)
 	return err
 }

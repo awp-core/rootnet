@@ -1,6 +1,6 @@
 # AWP REST API Reference
 
-> Base URL: `https://tapi.awp.sh/api`
+> Base URL: `<API_BASE_URL>/api`
 
 ## System
 
@@ -10,7 +10,7 @@
 ```
 
 ### `GET /registry`
-Returns all 11 protocol contract addresses (excludes implementation contracts):
+Returns all 9 protocol contract addresses (excludes implementation contracts):
 ```json
 {
   "awpRegistry": "0x...",
@@ -19,7 +19,6 @@ Returns all 11 protocol contract addresses (excludes implementation contracts):
   "stakingVault": "0x...",
   "stakeNFT": "0x...",
   "subnetNFT": "0x...",
-  "accessManager": "0x...",
   "lpManager": "0x...",
   "alphaTokenFactory": "0x...",
   "dao": "0x...",
@@ -44,50 +43,20 @@ Paginated user list.
 ### `GET /users/{address}`
 ```json
 {
-  "user": {"address": "0x...", "registered_at": 1710000000},
-  "balance": {"user_address": "0x...", "total_staked": "5000000000000000000000", "total_allocated": "3000000000000000000000"},
-  "rewardRecipient": {"user_address": "0x...", "recipient_address": "0x..."},
-  "agents": [{"agent_address": "0x...", "owner_address": "0x...", "is_manager": false, "removed": false}]
+  "user": {"address": "0x...", "bound_to": "0x...", "recipient": "0x...", "registered_at": 1710000000},
+  "balance": {"user_address": "0x...", "total_staked": "5000000000000000000000", "total_allocated": "3000000000000000000000"}
 }
 ```
 
 ### `GET /address/{address}/check`
 ```json
 {
-  "isRegisteredUser": true,
-  "isRegisteredAgent": false,
-  "ownerAddress": "",
-  "isManager": false
+  "isRegistered": true,
+  "boundTo": "0x...",
+  "recipient": "0x..."
 }
 ```
-
----
-
-## Agents
-
-### `GET /agents/by-owner/{owner}`
-```json
-[{"agent_address": "0x...", "owner_address": "0x...", "is_manager": true, "removed": false}]
-```
-
-### `GET /agents/lookup/{agent}`
-```json
-{"ownerAddress": "0x..."}
-```
-
-### `POST /agents/batch-info`
-**Request:**
-```json
-{"agents": ["0xagent1", "0xagent2"], "subnetId": 1}
-```
-**Response:**
-```json
-[
-  {"agent": {"agent_address": "0x...", "owner_address": "0x..."}, "stake": "5000000000000000000000"},
-  {"agent": {"agent_address": "0x...", "owner_address": "0x..."}, "stake": "3000000000000000000000"}
-]
-```
-> Max 100 agents per request.
+> `isRegistered` = `boundTo != 0x0 || recipient != 0x0`.
 
 ---
 
@@ -254,7 +223,7 @@ From Redis cache (TTL 10m):
 ### `WS /ws/live`
 
 ```javascript
-const ws = new WebSocket('wss://tapi.awp.sh/ws/live');
+const ws = new WebSocket('wss://<API_HOST>/ws/live');
 
 // Subscribe to specific event types
 ws.send(JSON.stringify({
@@ -272,11 +241,10 @@ ws.onmessage = (event) => {
 
 | Event | Data Fields | Source |
 |-------|-------------|--------|
-| `UserRegistered` | `{user}` | AWPRegistry |
-| `AgentBound` | `{principal, agent, oldPrincipal}` | AWPRegistry |
-| `AgentUnbound` | `{principal, agent}` | AWPRegistry |
-| `AgentRemoved` | `{user, agent, operator}` | AWPRegistry |
-| `DelegationUpdated` | `{user, agent, isManager, operator}` | AWPRegistry |
+| `Bound` | `{user, target, oldTarget}` | AWPRegistry |
+| `RecipientUpdated` | `{user, recipient}` | AWPRegistry |
+| `DelegateGranted` | `{user, delegate}` | AWPRegistry |
+| `DelegateRevoked` | `{user, delegate}` | AWPRegistry |
 | `Deposited` | `{user, tokenId, amount, lockEndTime}` | StakeNFT |
 | `PositionIncreased` | `{tokenId, addedAmount, newLockEndTime}` | StakeNFT |
 | `Withdrawn` | `{user, tokenId, amount}` | StakeNFT |
@@ -304,15 +272,15 @@ ws.onmessage = (event) => {
 
 ## Relay (Gasless Transactions)
 
-> Rate limit: 100 requests per IP per 1 hour (shared across all three relay endpoints).
+> Rate limit: 100 requests per IP per 1 hour (shared across all relay endpoints).
 > Requires `RELAYER_PRIVATE_KEY` configured on the API server.
 
-### `POST /relay/register`
-Gasless user registration — relayer submits `registerFor()` on behalf of the user.
+### `POST /relay/bind`
+Gasless tree-based bind — relayer submits `bindFor()` on behalf of the caller.
 
 **Request:**
 ```json
-{"user": "0x1234...", "deadline": 1742400000, "signature": "0x...65 bytes hex (130 chars)"}
+{"user": "0xUser...", "target": "0xTarget...", "deadline": 1742400000, "signature": "0x...65 bytes hex (130 chars)"}
 ```
 
 **Response:**
@@ -320,12 +288,12 @@ Gasless user registration — relayer submits `registerFor()` on behalf of the u
 {"txHash": "0x..."}
 ```
 
-### `POST /relay/bind`
-Gasless agent bind — relayer submits `bindFor()` on behalf of the agent.
+### `POST /relay/set-recipient`
+Gasless set recipient — relayer submits `setRecipientFor()` on behalf of the user.
 
 **Request:**
 ```json
-{"agent": "0xAgent...", "principal": "0xPrincipal...", "deadline": 1742400000, "signature": "0x...65 bytes hex (130 chars)"}
+{"user": "0x1234...", "recipient": "0x5678...", "deadline": 1742400000, "signature": "0x...65 bytes hex (130 chars)"}
 ```
 
 **Response:**
@@ -367,8 +335,7 @@ Both are standard 65-byte signatures (r[32] + s[32] + v[1]), hex-encoded with `0
 | 400 | `{"error": "missing signature"}` | Signature field empty |
 | 400 | `{"error": "invalid signature"}` | EIP-712 signature verification failed |
 | 400 | `{"error": "signature expired"}` | On-chain deadline check failed |
-| 400 | `{"error": "user already registered"}` | User is already registered on-chain |
-| 400 | `{"error": "agent already bound"}` | Agent is already bound to a principal |
+| 400 | `{"error": "cycle detected"}` | Binding would create a cycle in the tree |
 | 400 | `{"error": "invalid subnet params (name 1-64 bytes, symbol 1-16 bytes)"}` | Name/symbol length violation |
 | 400 | `{"error": "subnet manager address required (auto-deploy not available)"}` | No default SubnetManager impl set |
 | 400 | `{"error": "insufficient AWP balance"}` | User lacks AWP for subnet registration |

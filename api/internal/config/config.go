@@ -31,14 +31,13 @@ type Config struct {
 	// Rate limits are configured via Redis (HSET ratelimit:config relay "100:3600")
 	// Defaults are compiled into the ratelimit.Limiter package
 
-	// Contract address registry (all 11 protocol contracts)
-	StakingVaultAddress  string `env:"STAKING_VAULT_ADDRESS"`
-	AWPEmissionAddress   string `env:"AWP_EMISSION_ADDRESS"`
-	TreasuryAddress      string `env:"TREASURY_ADDRESS"`
-	StakeNFTAddress      string `env:"STAKE_NFT_ADDRESS"`
-	AccessManagerAddress string `env:"ACCESS_MANAGER_ADDRESS"`
-	LPManagerAddress     string `env:"LP_MANAGER_ADDRESS"`
-	AlphaFactoryAddress  string `env:"ALPHA_FACTORY_ADDRESS"`
+	// Contract address registry (protocol contracts)
+	StakingVaultAddress string `env:"STAKING_VAULT_ADDRESS"`
+	AWPEmissionAddress  string `env:"AWP_EMISSION_ADDRESS"`
+	TreasuryAddress     string `env:"TREASURY_ADDRESS"`
+	StakeNFTAddress     string `env:"STAKE_NFT_ADDRESS"`
+	LPManagerAddress    string `env:"LP_MANAGER_ADDRESS"`
+	AlphaFactoryAddress string `env:"ALPHA_FACTORY_ADDRESS"`
 
 	// Vanity address mining config
 	AlphaInitCodeHash string `env:"ALPHA_INITCODE_HASH"` // keccak256(AlphaToken.creationCode), hex

@@ -111,9 +111,8 @@ forge script script/Deploy.s.sol --rpc-url $ETH_RPC_URL --broadcast --verify
 | 7 | Renounce admin | Treasury admin permanently locked |
 | 8 | AWPRegistry | Unified entry (deployer, treasury, guardian) |
 | 9 | SubnetNFT | ERC721, only AWPRegistry can mint/burn |
-| 10 | AccessManager | User/Agent registration |
-| 11 | StakingVault | Pure allocation logic |
-| 11b | StakeNFT | ERC721 position NFT (awpToken, stakingVault, rootNet) |
+| 10 | StakingVault | Pure allocation logic |
+| 10b | StakeNFT | ERC721 position NFT (awpToken, stakingVault, awpRegistry) |
 | 12 | LPManager | PancakeSwap V4 CL integration |
 | 13 | AWPEmission | UUPS proxy (impl + ERC1967Proxy + initialize(awpToken, treasury, initialDailyEmission, genesisTime_, epochDuration_=86400)) |
 | 14 | Add minter | AWPEmission added as sole AWP minter |
@@ -172,9 +171,7 @@ psql awp < api/internal/db/schema.sql
 
 | Table | Purpose |
 |-------|---------|
-| `users` | Registered user addresses |
-| `agents` | Agent registrations (owner, manager status) |
-| `user_reward_recipients` | Custom reward recipient mappings |
+| `users` | User addresses with `bound_to` and `recipient` columns |
 | `subnets` | Subnet metadata and status |
 | `stake_allocations` | (user, agent, subnet) stake allocations |
 | `user_balances` | User allocation totals (total_allocated only) |
@@ -450,19 +447,16 @@ redis-cli GET awp_info
 ### 6.4 First Subnet Registration
 
 ```bash
-# 1. Register as user
-cast send <AWPRegistry> "register()" --private-key $USER_KEY --rpc-url $RPC_URL
-
-# 2. Approve AWP for LP
+# 1. Approve AWP for LP (no mandatory registration needed)
 cast send <AWPToken> "approve(address,uint256)" <AWPRegistry> 1000000000000000000000000 \
   --private-key $USER_KEY --rpc-url $RPC_URL
 
-# 3. Register subnet (salt=0x00..00 uses subnetId as CREATE2 salt)
+# 2. Register subnet (salt=0x00..00 uses subnetId as CREATE2 salt)
 cast send <AWPRegistry> "registerSubnet((string,string,address,bytes32,uint128,string))" \
   "(\"My Subnet\",\"MSUB\",0x0000000000000000000000000000000000000000,0x0000000000000000000000000000000000000000000000000000000000000000,0,\"ipfs://QmSkills...\")" \
   --private-key $USER_KEY --rpc-url $RPC_URL
 
-# 4. Activate
+# 3. Activate
 cast send <AWPRegistry> "activateSubnet(uint256)" 1 \
   --private-key $USER_KEY --rpc-url $RPC_URL
 ```

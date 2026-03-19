@@ -4,9 +4,9 @@ You are developing **OpenClaw skills** for interacting with the AWP protocol. Sk
 
 ## Protocol Overview
 
-AWP is an **Agent Working protocol on BSC** (13 Solidity contracts) with these core components:
+AWP is an **Agent Working protocol on BSC** (11 Solidity contracts) with these core components:
 
-- **AWPRegistry** — Unified entry: subnet management + staking allocation + gasless relay (registerFor, bindFor, registerSubnetFor). No deposit/withdraw (handled by StakeNFT).
+- **AWPRegistry** — Unified entry: subnet management + staking allocation + account system V2 + gasless relay (bindFor, setRecipientFor, registerSubnetFor). No deposit/withdraw (handled by StakeNFT). No mandatory registration — every address is implicitly a root. Tree-based binding via `bind(target)`. `grantDelegate(delegate)` / `revokeDelegate(delegate)` for delegation. `allocate(staker, agent, subnetId, amount)` — staker is explicit parameter. EIP-712 domain name "AWPRegistry".
 - **StakeNFT** — ERC721 position NFT. Deposit AWP with lock period (timestamp-based, seconds). addToPosition blocked on expired locks (PositionExpired).
 - **AWPEmission** — **[DRAFT]** UUPS proxy emission engine. settleEpoch(limit) uses mintAndCall to auto-trigger SubnetManager strategies.
 - **StakingVault** — Pure allocation logic. Auto-enumerates agent subnets. allocate/reallocate reject subnetId=0.
@@ -54,9 +54,9 @@ AWP is an **Agent Working protocol on BSC** (13 Solidity contracts) with these c
 
 ## Implementation Notes
 
-- **Chain**: BSC (Chain ID 56), RPC via QuickNode or public BSC RPC
+- **Chain**: EVM chain (configured at deployment), RPC via `RPC_URL` env var
 - **Contract interaction**: Use `viem` or `ethers.js` for on-chain reads/writes
-- **REST API**: Base URL `https://tapi.awp.sh/api`
-- **WebSocket**: `wss://tapi.awp.sh/ws/live`
+- **REST API**: Base URL from deployment config (e.g. `https://<api-host>/api`)
+- **WebSocket**: From deployment config (e.g. `wss://<api-host>/ws/live`)
 - **All token amounts are in wei** (18 decimals). Display as human-readable with proper formatting.
 - **Addresses are lowercase** in the API but mixed-case (EIP-55) on-chain.

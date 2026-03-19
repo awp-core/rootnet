@@ -8,19 +8,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-type Agent struct {
-	AgentAddress string      `json:"agent_address"`
-	OwnerAddress string      `json:"owner_address"`
-	IsManager    bool        `json:"is_manager"`
-	Removed      bool        `json:"removed"`
-	RemovedAt    pgtype.Int8 `json:"removed_at"`
-}
-
 type Epoch struct {
 	EpochID       int64          `json:"epoch_id"`
 	StartTime     int64          `json:"start_time"`
 	DailyEmission pgtype.Numeric `json:"daily_emission"`
 	DaoEmission   pgtype.Numeric `json:"dao_emission"`
+}
+
+type IndexedBlock struct {
+	BlockNumber int64  `json:"block_number"`
+	BlockHash   string `json:"block_hash"`
 }
 
 type Proposal struct {
@@ -80,17 +77,14 @@ type SyncState struct {
 
 type User struct {
 	Address      string `json:"address"`
+	BoundTo      string `json:"bound_to"`
+	Recipient    string `json:"recipient"`
 	RegisteredAt int64  `json:"registered_at"`
 }
 
 type UserBalance struct {
 	UserAddress    string         `json:"user_address"`
 	TotalAllocated pgtype.Numeric `json:"total_allocated"`
-}
-
-type UserRewardRecipient struct {
-	UserAddress      string `json:"user_address"`
-	RecipientAddress string `json:"recipient_address"`
 }
 
 type VanitySalt struct {

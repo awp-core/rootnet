@@ -6,7 +6,6 @@ import {AWPToken} from "../src/token/AWPToken.sol";
 import {AlphaTokenFactory} from "../src/token/AlphaTokenFactory.sol";
 import {AWPEmission} from "../src/token/AWPEmission.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {AccessManager} from "../src/core/AccessManager.sol";
 import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {SubnetNFT} from "../src/core/SubnetNFT.sol";
@@ -42,8 +41,6 @@ contract Predict is Script {
         address poolManager = vm.envAddress("POOL_MANAGER");
         address positionManager = vm.envAddress("POSITION_MANAGER");
         address permit2Addr = vm.envAddress("PERMIT2");
-
-        // ── Predict all addresses in deployment order ──
 
         // AWPToken
         address awp = _predict(
@@ -86,13 +83,6 @@ contract Predict is Script {
         );
         console.log("SubnetNFT:         ", subnetNFT);
 
-        // AccessManager
-        address accessMgr = _predict(
-            _readSalt("SALT_ACCESS_MANAGER"),
-            abi.encodePacked(type(AccessManager).creationCode, abi.encode(rootNet))
-        );
-        console.log("AccessManager:     ", accessMgr);
-
         // LPManager
         address lpMgr = _predict(
             _readSalt("SALT_LP_MANAGER"),
@@ -107,7 +97,6 @@ contract Predict is Script {
         );
         console.log("AWPEmission impl:  ", emissionImpl);
 
-        // Note: genesisTime is set at deploy time; using 0 as placeholder for prediction
         bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, treasury, INITIAL_DAILY_EMISSION, uint256(0), EPOCH_DURATION));
         address emissionProxy = _predict(
             _readSalt("SALT_EMISSION_PROXY"),
@@ -115,7 +104,7 @@ contract Predict is Script {
         );
         console.log("AWPEmission proxy: ", emissionProxy);
 
-        // StakingVault (stakeNFT set via setStakeNFT after deploy — no circular dependency)
+        // StakingVault
         address vault = _predict(
             _readSalt("SALT_STAKING_VAULT"),
             abi.encodePacked(type(StakingVault).creationCode, abi.encode(rootNet))

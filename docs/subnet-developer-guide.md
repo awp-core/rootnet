@@ -7,17 +7,16 @@
 ## 1. Architecture Overview
 
 ```
-User (Owner)
+User
   │
-  ├── register() → Register user identity (via AWPRegistry)
+  ├── bind(target) → Tree-based binding (optional, every address is implicitly a root)
   ├── stakeNFT.deposit(AWP, lockDuration) → Deposit AWP, receive position NFT
-  ├── allocate(agent, subnetId, amount) → Allocate stake to a subnet (via AWPRegistry)
+  ├── allocate(staker, agent, subnetId, amount) → Allocate stake to a subnet (via AWPRegistry)
   └── registerSubnet(params) → Register new subnet (deploy Alpha + create LP)
         │
         ▼
-AWPRegistry (Unified Entry Point — allocation + subnet management)
+AWPRegistry (Unified Entry Point — account system + allocation + subnet management)
   │
-  ├── AccessManager — User/Agent registration and permissions
   ├── StakingVault — Pure allocation logic (no deposit/withdraw)
   ├── StakeNFT — ERC721 position NFT (deposit/withdraw AWP)
   ├── SubnetNFT — Subnet NFT (ownership)
@@ -48,8 +47,9 @@ Subnet Contract (What you develop)
 
 1. **Option A**: Deploy your own subnet manager contract, OR use `address(0)` to auto-deploy the default `SubnetManager` proxy
 2. Prepare AWP — LP creation cost = `INITIAL_ALPHA_MINT × initialAlphaPrice / 1e18` (default: 100M × 0.01 = 1M AWP)
-3. Query current price: `rootNet.initialAlphaPrice()` → calculate the actual AWP amount needed
-4. Call `AWPToken.approve(rootNet, awpAmount)` to authorize AWPRegistry for the transfer
+3. Query current price: `awpRegistry.initialAlphaPrice()` → calculate the actual AWP amount needed
+4. Call `AWPToken.approve(awpRegistry, awpAmount)` to authorize AWPRegistry for the transfer
+5. No mandatory registration needed — every address can register subnets directly
 
 ### 2.2 Registration
 
@@ -360,16 +360,15 @@ contract MySubnetContract {
 ```
 
 #### `GET /api/registry`
-Returns all 11 protocol contract addresses (excludes implementation contracts):
+Returns all 9 protocol contract addresses (excludes implementation contracts):
 ```json
 {
-  "rootNet": "0x...",
+  "awpRegistry": "0x...",
   "awpToken": "0x...",
   "awpEmission": "0x...",
   "stakingVault": "0x...",
   "stakeNFT": "0x...",
   "subnetNFT": "0x...",
-  "accessManager": "0x...",
   "lpManager": "0x...",
   "alphaTokenFactory": "0x...",
   "dao": "0x...",
@@ -400,43 +399,13 @@ Paginated user list.
 #### `GET /api/address/{address}/check`
 ```json
 {
-  "isRegisteredUser": true,
-  "isRegisteredAgent": false,
-  "ownerAddress": "",
-  "isManager": false
+  "isRegistered": true,
+  "boundTo": "0x...",
+  "recipient": "0x..."
 }
 ```
 
-### 4.3 Agents
-
-#### `GET /api/agents/by-owner/{owner}`
-> Returns all agents (including removed ones with `removed: true`). Coordinators should filter for `removed == false`.
-```json
-[
-  {"agent_address": "0x...", "owner_address": "0x...", "is_manager": true, "removed": false}
-]
-```
-
-#### `GET /api/agents/lookup/{agent}`
-```json
-{"ownerAddress": "0x..."}
-```
-
-#### `POST /api/agents/batch-info`
-**Used for Coordinator cold start** — batch query agent info:
-```json
-// Request
-{"agents": ["0xagent1", "0xagent2", ...], "subnetId": 1}
-
-// Response
-[
-  {"agent": {"agent_address": "0x...", "owner_address": "0x..."}, "stake": "5000"},
-  {"agent": {"agent_address": "0x...", "owner_address": "0x..."}, "stake": "3000"}
-]
-```
-> Maximum 100 addresses per request
-
-### 4.4 Staking
+### 4.3 Staking
 
 #### `GET /api/staking/user/{address}/balance`
 ```json
@@ -574,20 +543,20 @@ Projected emissions for 30/90/365 days:
 
 > Rate limit: 100 requests per IP per 1 hour. Requires `RELAYER_PRIVATE_KEY` configured on the server.
 
-#### `POST /api/relay/register`
-Relayer submits `registerFor()` on-chain for the user (user signs EIP-712, relayer pays gas):
+#### `POST /api/relay/bind`
+Relayer submits `bindFor()` on-chain (tree-based binding, user signs EIP-712, relayer pays gas):
 ```json
 // Request
-{"user": "0x...", "deadline": 1742400000, "signature": "0x...130 hex chars"}
+{"user": "0x...", "target": "0x...", "deadline": 1742400000, "signature": "0x...130 hex chars"}
 // Response
 {"txHash": "0x..."}
 ```
 
-#### `POST /api/relay/bind`
-Relayer submits `bindFor()` on-chain for the agent:
+#### `POST /api/relay/set-recipient`
+Relayer submits `setRecipientFor()` on-chain for the user:
 ```json
 // Request
-{"agent": "0x...", "principal": "0x...", "deadline": 1742400000, "signature": "0x...130 hex chars"}
+{"user": "0x...", "recipient": "0x...", "deadline": 1742400000, "signature": "0x...130 hex chars"}
 // Response
 {"txHash": "0x..."}
 ```
@@ -630,11 +599,10 @@ ws.onmessage = (event) => {
 
 | Event | Data | Coordinator Relevant |
 |-------|------|:---:|
-| `UserRegistered` | `{user}` | |
-| `AgentBound` | `{principal, agent, oldPrincipal}` | ✅ |
-| `AgentUnbound` | `{principal, agent}` | ✅ |
-| `AgentRemoved` | `{user, agent, operator}` | ✅ |
-| `DelegationUpdated` | `{user, agent, isManager, operator}` | ✅ |
+| `Bound` | `{user, target, oldTarget}` | ✅ |
+| `RecipientUpdated` | `{user, recipient}` | |
+| `DelegateGranted` | `{user, delegate}` | ✅ |
+| `DelegateRevoked` | `{user, delegate}` | ✅ |
 | `Deposited` (StakeNFT) | `{user, tokenId, amount, lockEndTime}` | |
 | `PositionIncreased` (StakeNFT) | `{tokenId, addedAmount, newLockEndTime}` | |
 | `Withdrawn` (StakeNFT) | `{user, tokenId, amount}` | |
@@ -699,7 +667,7 @@ Cold Start:
   3. Or on-chain: awpRegistry.getAgentsInfo(allAgents, subnetId)
 
 Runtime Incremental Updates:
-  1. WebSocket subscribe: ["AgentBound", "AgentUnbound", "Allocated", "Deallocated", "AgentRemoved", "Reallocated"]
+  1. WebSocket subscribe: ["Bound", "Allocated", "Deallocated", "Reallocated", "DelegateGranted", "DelegateRevoked"]
   2. Update local agent cache on each event
   3. Periodically GET /api/staking/subnet/{subnetId}/total to verify total stake
 
@@ -747,7 +715,6 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 | AWPEmission (Proxy) | `0xcc4fA866c0c49FE4763977C5302a6052C3f0d742` | Emission engine (UUPS proxy) |
 | Treasury | `0x710975eC607617fB4623Db9b86B5C218a92E7C7d` | Treasury (TimelockController) |
 | LPManager | `0x5372b30E2D14599F90Cb623fc673692B48E83404` | PancakeSwap V4 LP manager |
-| AccessManager | `0xcEa146F15db74f8801Bc8fD152EE0E7e07eDB3fD` | User/Agent registration |
 | AlphaTokenFactory | `0x7E3B68cf196FD8a972115685ea171b763B677499` | Alpha token deployer (CREATE2) |
 | AWPDAO | `0xe21097cB128b41611557356de7f55BCd25062579` | Governor |
 | SubnetManager (impl) | `0xE5771dC2a5a577CDFa6b939Af4F32Ad13CFc6D92` | Default subnet contract implementation |
@@ -801,8 +768,8 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 - [ ] Deploy subnet contract
 - [ ] Implement AWP reward distribution logic
 - [ ] Implement Alpha minting logic (proof of contribution)
-- [ ] Call `rootNet.registerSubnet(params)` to register
-- [ ] Call `rootNet.activateSubnet(subnetId)` to activate
+- [ ] Call `awpRegistry.registerSubnet(params)` to register
+- [ ] Call `awpRegistry.activateSubnet(subnetId)` to activate
 - [ ] Contact oracle operators to include your subnet contract address in `submitAllocations` weight submissions
 - [ ] Verify your contract receives AWP after the first epoch settlement
 

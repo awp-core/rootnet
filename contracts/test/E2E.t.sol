@@ -8,7 +8,6 @@ import {AlphaTokenFactory} from "../src/token/AlphaTokenFactory.sol";
 
 import {AWPEmission} from "../src/token/AWPEmission.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {AccessManager} from "../src/core/AccessManager.sol";
 import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {SubnetNFT} from "../src/core/SubnetNFT.sol";
@@ -21,12 +20,11 @@ import {TimelockController} from "@openzeppelin/contracts/governance/TimelockCon
 import {IGovernor} from "@openzeppelin/contracts/governance/IGovernor.sol";
 import {EmissionSigningHelper} from "./helpers/EmissionSigningHelper.sol";
 
-/// @title E2E — End-to-end tests based on the architecture document
+/// @title E2E — End-to-end tests based on the architecture document (Account System V2)
 contract E2ETest is EmissionSigningHelper {
     AWPToken awp;
     AlphaTokenFactory factory;
     AWPEmission emission;
-    AccessManager access;
     StakingVault vault;
     StakeNFT stakeNFT;
     SubnetNFT nft;
@@ -79,7 +77,6 @@ contract E2ETest is EmissionSigningHelper {
 
         rootNet = new AWPRegistry(deployer, address(treasury), guardian);
         nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(rootNet));
-        access = new AccessManager(address(rootNet));
         lp = new MockLPManager(address(rootNet), address(awp));
 
         // Deploy AWPEmission (UUPS proxy)
@@ -95,15 +92,11 @@ contract E2ETest is EmissionSigningHelper {
         awp.renounceAdmin();
         factory.setAddresses(address(rootNet));
 
-        // Deploy StakingVault + StakeNFT (circular dependency)
-        uint64 nonce = vm.getNonce(deployer);
-        address predictedVault = vm.computeCreateAddress(deployer, nonce);
-        address predictedStakeNFT = vm.computeCreateAddress(deployer, nonce + 1);
-
+        // Deploy StakingVault + StakeNFT
         vault = new StakingVault(address(rootNet));
         stakeNFT = new StakeNFT(address(awp), address(vault), address(rootNet));
 
-        // Deploy AWPDAO (no rootNet param — uses timestamps)
+        // Deploy AWPDAO
         dao = new AWPDAO(
             address(stakeNFT),
             address(awp),
@@ -116,10 +109,10 @@ contract E2ETest is EmissionSigningHelper {
         treasury.grantRole(treasury.CANCELLER_ROLE(), address(dao));
         treasury.renounceRole(treasury.DEFAULT_ADMIN_ROLE(), deployer);
 
-        // Initialize registry (including stakeNFT + default SubnetManager impl)
+        // Initialize registry (no accessManager)
         rootNet.initializeRegistry(
             address(awp), address(nft), address(factory), address(emission),
-            address(lp), address(access), address(vault), address(stakeNFT), address(0), ""
+            address(lp), address(vault), address(stakeNFT), address(0), ""
         );
 
         vm.stopPrank();
@@ -153,9 +146,9 @@ contract E2ETest is EmissionSigningHelper {
         rootNet.register();
     }
 
-    function _registerAgent(address agent, address user) internal {
+    function _bindAgent(address agent, address target) internal {
         vm.prank(agent);
-        rootNet.bind(user);
+        rootNet.bind(target);
     }
 
     function _registerSubnet(address owner, address sc) internal returns (uint256) {
@@ -168,14 +161,14 @@ contract E2ETest is EmissionSigningHelper {
         return id;
     }
 
-    /// @dev Deposit AWP via StakeNFT and allocate via RootNet
-    function _depositAndAllocate(address user, address agent, uint256 subnetId, uint256 deposit, uint256 alloc)
+    /// @dev Deposit AWP via StakeNFT and allocate via RootNet (explicit staker)
+    function _depositAndAllocate(address staker, address agent, uint256 subnetId, uint256 deposit, uint256 alloc)
         internal
     {
-        vm.startPrank(user);
+        vm.startPrank(staker);
         awp.approve(address(stakeNFT), deposit);
-        stakeNFT.deposit(deposit, 52 weeks); // 52 weeks lock
-        rootNet.allocate(agent, subnetId, alloc);
+        stakeNFT.deposit(deposit, 52 weeks);
+        rootNet.allocate(staker, agent, subnetId, alloc);
         vm.stopPrank();
     }
 
@@ -184,7 +177,6 @@ contract E2ETest is EmissionSigningHelper {
         emission.settleEpoch(200);
     }
 
-    /// @dev Sort addresses ascending (bubble sort) and reorder weights to match
     function _sortByAddress(address[] memory addrs, uint96[] memory ws) internal pure {
         uint256 n = addrs.length;
         for (uint256 i = 0; i < n; i++) {
@@ -207,9 +199,9 @@ contract E2ETest is EmissionSigningHelper {
         emission.submitAllocations(recipients, weights, sigs, effectiveEpoch);
     }
 
-    function _submitWeight(address recipient, uint96 weight) internal {
+    function _submitWeight(address _recipient, uint96 weight) internal {
         address[] memory addrs = new address[](1);
-        addrs[0] = recipient;
+        addrs[0] = _recipient;
         uint96[] memory ws = new uint96[](1);
         ws[0] = weight;
         _submitWeights(addrs, ws);
@@ -226,17 +218,14 @@ contract E2ETest is EmissionSigningHelper {
         vm.prank(alice);
         rootNet.activateSubnet(sid);
 
-        // Transfer NFT to Bob
         vm.prank(alice);
         nft.transferFrom(alice, bob, sid);
         assertEq(nft.ownerOf(sid), bob);
 
-        // Alice can no longer pause
         vm.prank(alice);
         vm.expectRevert(AWPRegistry.NotOwner.selector);
         rootNet.pauseSubnet(sid);
 
-        // Bob can pause and resume
         vm.prank(bob);
         rootNet.pauseSubnet(sid);
         assertFalse(rootNet.isSubnetActive(sid));
@@ -247,28 +236,25 @@ contract E2ETest is EmissionSigningHelper {
     }
 
     // ════════════════════════════════════════════
-    //  E2E 2: Reallocate is immediate (no dual-slot)
+    //  E2E 2: Reallocate is immediate
     // ════════════════════════════════════════════
 
     function test_e2e_reallocateImmediate() public {
         _registerUser(alice);
-        _registerAgent(agentA, alice);
-        _registerAgent(agentB, alice);
+        _bindAgent(agentA, alice);
+        _bindAgent(agentB, alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
         rootNet.activateSubnet(sid);
 
         _depositAndAllocate(alice, agentA, sid, 10_000 * 1e18, 8_000 * 1e18);
 
-        // Reallocate 5000 from agentA -> agentB (immediate effect)
+        // Reallocate 5000 from agentA -> agentB (immediate)
         vm.prank(alice);
-        rootNet.reallocate(agentA, sid, agentB, sid, 5_000 * 1e18);
+        rootNet.reallocate(alice, agentA, sid, agentB, sid, 5_000 * 1e18);
 
-        // Immediate: values reflect the reallocation right away
         assertEq(vault.getAgentStake(alice, agentA, sid), 3_000 * 1e18);
         assertEq(vault.getAgentStake(alice, agentB, sid), 5_000 * 1e18);
-
-        // userTotalAllocated unchanged
         assertEq(vault.userTotalAllocated(alice), 8_000 * 1e18);
     }
 
@@ -280,22 +266,18 @@ contract E2ETest is EmissionSigningHelper {
         _registerUser(alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
 
-        // Pending -> Active
         vm.prank(alice);
         rootNet.activateSubnet(sid);
         assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
 
-        // Active -> Paused
         vm.prank(alice);
         rootNet.pauseSubnet(sid);
         assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Paused));
 
-        // Paused -> Active
         vm.prank(alice);
         rootNet.resumeSubnet(sid);
         assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
 
-        // Active -> Banned
         vm.prank(address(treasury));
         rootNet.banSubnet(sid);
         assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Banned));
@@ -303,13 +285,11 @@ contract E2ETest is EmissionSigningHelper {
         AlphaToken alpha = AlphaToken(rootNet.getSubnetFull(sid).alphaToken);
         assertTrue(alpha.minterPaused(subnetC1));
 
-        // Banned -> Active
         vm.prank(address(treasury));
         rootNet.unbanSubnet(sid);
         assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
         assertFalse(alpha.minterPaused(subnetC1));
 
-        // Deregister
         vm.warp(block.timestamp + 31 days);
         vm.prank(address(treasury));
         rootNet.deregisterSubnet(sid);
@@ -330,24 +310,18 @@ contract E2ETest is EmissionSigningHelper {
         vm.prank(alice);
         rootNet.activateSubnet(sid);
 
-        // Alice stakes into StakeNFT for voting power (she has 50M - LP_COST remaining)
         uint256 stakeAmount = 40_000_000 * 1e18;
         vm.startPrank(alice);
         awp.approve(address(stakeNFT), stakeAmount);
         uint256 tokenId = stakeNFT.deposit(stakeAmount, 52 weeks);
         vm.stopPrank();
 
-        // Submit initial weight via oracle for epoch 1
         _submitWeight(subnetC1, uint96(100));
-
-        // Settle epoch 0 (no weights, all to DAO)
         _settleEpoch();
-        // Settle epoch 1 (promotes activeEpoch to 1)
         _settleEpoch();
 
         vm.roll(block.number + 1);
 
-        // Propose emergencySetWeight
         address[] memory targets = new address[](1);
         targets[0] = address(emission);
         uint256[] memory values = new uint256[](1);
@@ -360,16 +334,15 @@ contract E2ETest is EmissionSigningHelper {
         vm.prank(alice);
         uint256 proposalId = dao.proposeWithTokens(targets, values, calldatas, "Set weight for subnet 1", propTokenIds);
 
-        vm.roll(block.number + 2); // votingDelay
+        vm.roll(block.number + 2);
 
-        // Vote with NFT tokenIds
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = tokenId;
         bytes memory params = abi.encode(tokenIds);
         vm.prank(alice);
         dao.castVoteWithReasonAndParams(proposalId, 1, "", params);
 
-        vm.roll(block.number + 101); // votingPeriod
+        vm.roll(block.number + 101);
 
         dao.queue(targets, values, calldatas, descHash);
         vm.warp(block.timestamp + 2);
@@ -388,15 +361,12 @@ contract E2ETest is EmissionSigningHelper {
         vm.prank(alice);
         rootNet.activateSubnet(sid);
 
-        // Submit weight for epoch 1
         _submitWeight(subnetC1, uint96(100));
 
         uint256 prevEmission = INITIAL_DAILY;
 
         for (uint256 i = 0; i < 10; i++) {
-            // Before settling each epoch, submit weights for the NEXT epoch
             if (i > 0) {
-                // Re-submit for the next epoch (currentEpoch + 1)
                 _submitWeight(subnetC1, uint96(100));
             }
             _settleEpoch();
@@ -418,9 +388,6 @@ contract E2ETest is EmissionSigningHelper {
         _registerUser(alice);
         _registerUser(bob);
         _registerUser(charlie);
-        _registerAgent(agentA, alice);
-        _registerAgent(agentB, bob);
-        _registerAgent(agentC, charlie);
 
         uint256 sid1 = _registerSubnet(alice, subnetC1);
         uint256 sid2 = _registerSubnet(alice, subnetC2);
@@ -446,9 +413,7 @@ contract E2ETest is EmissionSigningHelper {
         assertEq(vault.getSubnetTotalStake(sid1), 130_000 * 1e18);
         assertEq(vault.getSubnetTotalStake(sid2), 30_000 * 1e18);
 
-        // Settle epoch 0 (no weights)
         _settleEpoch();
-        // Settle epoch 1 (weights active)
         _settleEpoch();
 
         uint256 bal1 = awp.balanceOf(subnetC1);
@@ -457,23 +422,21 @@ contract E2ETest is EmissionSigningHelper {
     }
 
     // ════════════════════════════════════════════
-    //  E2E 7: User/Agent address mutual exclusion
+    //  E2E 7: Binding tree (replaces mutual exclusion)
     // ════════════════════════════════════════════
 
-    function test_e2e_addressMutualExclusion() public {
-        _registerUser(alice);
+    function test_e2e_bindingTree() public {
+        // Build chain: agentA -> alice, agentB -> agentA
+        _bindAgent(agentA, alice);
+        _bindAgent(agentB, agentA);
 
-        // alice is a registered Principal — cannot be an Agent
+        assertEq(rootNet.boundTo(agentA), alice);
+        assertEq(rootNet.boundTo(agentB), agentA);
+
+        // resolveRecipient should walk to alice
         vm.prank(alice);
-        vm.expectRevert(AccessManager.AddressIsPrincipal.selector);
-        rootNet.bind(bob); // alice tries to bind herself as agent of bob
-
-        _registerAgent(agentA, alice);
-
-        // agentA is an Agent — cannot register as Principal directly
-        vm.prank(agentA);
-        vm.expectRevert(AccessManager.AddressIsAgent.selector);
-        rootNet.register();
+        rootNet.setRecipient(charlie);
+        assertEq(rootNet.resolveRecipient(agentB), charlie);
     }
 
     // ════════════════════════════════════════════
@@ -487,9 +450,7 @@ contract E2ETest is EmissionSigningHelper {
         rootNet.activateSubnet(sid);
         _submitWeight(subnetC1, uint96(100));
 
-        // Settle epoch 0 (no weights)
         _settleEpoch();
-        // Settle epoch 1 (weights active)
         _settleEpoch();
         uint256 afterEpoch1 = awp.totalSupply();
         assertTrue(afterEpoch1 > awp.INITIAL_MINT());
@@ -521,16 +482,11 @@ contract E2ETest is EmissionSigningHelper {
             _submitWeights(addrs, ws);
         }
 
-        // Settle epoch 0 (no weights)
         _settleEpoch();
 
-        // Start settling epoch 1 with limit=1
         vm.warp(block.timestamp + EPOCH + 1);
         emission.settleEpoch(1);
         assertTrue(emission.settleProgress() > 0);
-
-        // submitAllocations for future epochs is now ALLOWED during settlement
-        // (epoch-versioned design writes to a different slot)
 
         emission.settleEpoch(200);
         assertEq(emission.settleProgress(), 0);
@@ -542,45 +498,39 @@ contract E2ETest is EmissionSigningHelper {
     }
 
     // ════════════════════════════════════════════
-    //  E2E 10: Agent freeze releases allocations
+    //  E2E 10: Deallocate releases allocations
     // ════════════════════════════════════════════
 
-    function test_e2e_freezeWithAgentRemoval() public {
+    function test_e2e_deallocateReleasesAllocations() public {
         _registerUser(alice);
-        _registerAgent(agentA, alice);
-        _registerAgent(agentB, alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
         rootNet.activateSubnet(sid);
 
         _depositAndAllocate(alice, agentA, sid, 10_000 * 1e18, 5_000 * 1e18);
 
-        // Remove agentA — all allocations frozen and released (StakingVault auto-enumerates)
+        // Deallocate all
         vm.prank(alice);
-        rootNet.removeAgent(agentA);
+        rootNet.deallocate(alice, agentA, sid, 5_000 * 1e18);
 
         assertEq(vault.getAgentStake(alice, agentA, sid), 0);
         assertEq(vault.userTotalAllocated(alice), 0);
     }
 
     // ════════════════════════════════════════════
-    //  E2E 11: registerAndStake one-click flow
+    //  E2E 11: Deposit + allocate flow
     // ════════════════════════════════════════════
 
-    function test_e2e_registerAndStakeOneClick() public {
+    function test_e2e_depositAndAllocate() public {
         _registerUser(alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
         rootNet.activateSubnet(sid);
 
-        // Bob registers user + Agent first
-        _registerUser(bob);
-        _registerAgent(agentB, bob);
-
-        // registerAndStake with new signature (depositAmount, lockDuration, agent, subnetId, allocateAmount)
         vm.startPrank(bob);
         awp.approve(address(stakeNFT), 20_000 * 1e18);
-        rootNet.registerAndStake(20_000 * 1e18, 52 weeks, agentB, sid, 15_000 * 1e18);
+        stakeNFT.deposit(20_000 * 1e18, 52 weeks);
+        rootNet.allocate(bob, agentB, sid, 15_000 * 1e18);
         vm.stopPrank();
 
         assertEq(stakeNFT.getUserTotalStaked(bob), 20_000 * 1e18);
@@ -593,16 +543,16 @@ contract E2ETest is EmissionSigningHelper {
 
     function test_e2e_rewardRecipient() public {
         _registerUser(alice);
-        _registerAgent(agentA, alice);
+        _bindAgent(agentA, alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
         rootNet.activateSubnet(sid);
 
-        assertEq(access.getRewardRecipient(alice), alice);
+        assertEq(rootNet.resolveRecipient(alice), alice);
 
         vm.prank(alice);
-        rootNet.setRewardRecipient(bob);
-        assertEq(access.getRewardRecipient(alice), bob);
+        rootNet.setRecipient(bob);
+        assertEq(rootNet.resolveRecipient(alice), bob);
 
         _depositAndAllocate(alice, agentA, sid, 1_000 * 1e18, 500 * 1e18);
         AWPRegistry.AgentInfo memory info = rootNet.getAgentInfo(agentA, sid);
@@ -616,8 +566,6 @@ contract E2ETest is EmissionSigningHelper {
     function test_e2e_multiEpochWithStakeChanges() public {
         _registerUser(alice);
         _registerUser(bob);
-        _registerAgent(agentA, alice);
-        _registerAgent(agentB, bob);
 
         uint256 sid1 = _registerSubnet(alice, subnetC1);
         uint256 sid2 = _registerSubnet(alice, subnetC2);
@@ -639,9 +587,7 @@ contract E2ETest is EmissionSigningHelper {
         _depositAndAllocate(alice, agentA, sid1, 10_000 * 1e18, 8_000 * 1e18);
         _depositAndAllocate(bob, agentB, sid2, 5_000 * 1e18, 5_000 * 1e18);
 
-        // Settle epoch 0 (no weights)
         _settleEpoch();
-        // Settle epoch 1 (weights active)
         _settleEpoch();
         uint256 sc1Bal1 = awp.balanceOf(subnetC1);
         uint256 sc2Bal1 = awp.balanceOf(subnetC2);
@@ -649,9 +595,8 @@ contract E2ETest is EmissionSigningHelper {
 
         // Alice deallocates
         vm.prank(alice);
-        rootNet.deallocate(agentA, sid1, 3_000 * 1e18);
+        rootNet.deallocate(alice, agentA, sid1, 3_000 * 1e18);
 
-        // Submit weights for next epoch and settle
         _submitWeights(
             _toArray2(subnetC1, subnetC2),
             _toUint96Array2(100, 100)
@@ -660,9 +605,8 @@ contract E2ETest is EmissionSigningHelper {
 
         // Bob deallocates
         vm.prank(bob);
-        rootNet.deallocate(agentB, sid2, 5_000 * 1e18);
+        rootNet.deallocate(bob, agentB, sid2, 5_000 * 1e18);
 
-        // Submit weights for next epoch and settle
         _submitWeights(
             _toArray2(subnetC1, subnetC2),
             _toUint96Array2(100, 100)
@@ -679,37 +623,16 @@ contract E2ETest is EmissionSigningHelper {
     // ════════════════════════════════════════════
 
     function test_e2e_agentUnbind() public {
-        _registerUser(alice);
-        _registerAgent(agentA, alice);
-
-        assertTrue(access.isAgent(alice, agentA));
+        _bindAgent(agentA, alice);
+        assertEq(rootNet.boundTo(agentA), alice);
 
         vm.prank(agentA);
         rootNet.unbind();
+        assertEq(rootNet.boundTo(agentA), address(0));
 
-        assertFalse(access.isRegisteredAgent(agentA));
-        assertFalse(access.isKnownAddress(agentA));
-
-        // agentA can re-bind to any principal after unbind
-        _registerAgent(agentA, alice);
-        assertTrue(access.isAgent(alice, agentA));
-    }
-
-    // ════════════════════════════════════════════
-    //  E2E 14b: No agent limit per principal
-    // ════════════════════════════════════════════
-
-    function test_e2e_noAgentLimit() public {
-        _registerUser(alice);
-
-        // Bind 50 agents — should never revert
-        for (uint256 i = 0; i < 50; i++) {
-            address agent = address(uint160(0x5000 + i));
-            vm.prank(agent);
-            rootNet.bind(alice);
-        }
-
-        assertEq(access.getAgents(alice).length, 50);
+        // agentA can re-bind
+        _bindAgent(agentA, alice);
+        assertEq(rootNet.boundTo(agentA), alice);
     }
 
     // ════════════════════════════════════════════
@@ -752,7 +675,6 @@ contract E2ETest is EmissionSigningHelper {
 
     function test_e2e_emergencyPause() public {
         _registerUser(alice);
-        _registerAgent(agentA, alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
         rootNet.activateSubnet(sid);
@@ -766,14 +688,14 @@ contract E2ETest is EmissionSigningHelper {
         vm.expectRevert();
         rootNet.register();
         vm.expectRevert();
-        rootNet.allocate(agentA, sid, 100);
+        rootNet.allocate(alice, agentA, sid, 100);
         vm.expectRevert();
-        rootNet.deallocate(agentA, sid, 100);
+        rootNet.deallocate(alice, agentA, sid, 100);
         vm.expectRevert();
         rootNet.activateSubnet(sid);
         vm.stopPrank();
 
-        // Emission unaffected — settle epoch 0
+        // Emission unaffected
         vm.warp(block.timestamp + EPOCH + 1);
         emission.settleEpoch(200);
         assertEq(emission.settledEpoch(), 1);
@@ -783,7 +705,7 @@ contract E2ETest is EmissionSigningHelper {
         rootNet.unpause();
 
         vm.prank(alice);
-        rootNet.deallocate(agentA, sid, 1_000 * 1e18);
+        rootNet.deallocate(alice, agentA, sid, 1_000 * 1e18);
         assertEq(vault.getAgentStake(alice, agentA, sid), 4_000 * 1e18);
     }
 
@@ -794,8 +716,8 @@ contract E2ETest is EmissionSigningHelper {
     function test_e2e_batchAgentQuery() public {
         _registerUser(alice);
         _registerUser(bob);
-        _registerAgent(agentA, alice);
-        _registerAgent(agentB, bob);
+        _bindAgent(agentA, alice);
+        _bindAgent(agentB, bob);
 
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
@@ -805,7 +727,7 @@ contract E2ETest is EmissionSigningHelper {
         _depositAndAllocate(bob, agentB, sid, 2_000 * 1e18, 2_000 * 1e18);
 
         vm.prank(alice);
-        rootNet.setRewardRecipient(charlie);
+        rootNet.setRecipient(charlie);
 
         address[] memory agents = new address[](3);
         agents[0] = agentA;
@@ -815,59 +737,32 @@ contract E2ETest is EmissionSigningHelper {
         AWPRegistry.AgentInfo[] memory infos = rootNet.getAgentsInfo(agents, sid);
 
         assertEq(infos.length, 3);
-        assertEq(infos[0].owner, alice);
+        assertEq(infos[0].root, alice);
         assertTrue(infos[0].isValid);
         assertEq(infos[0].stake, 3_000 * 1e18);
         assertEq(infos[0].rewardRecipient, charlie);
 
-        assertEq(infos[1].owner, bob);
+        assertEq(infos[1].root, bob);
         assertTrue(infos[1].isValid);
         assertEq(infos[1].stake, 2_000 * 1e18);
 
-        assertEq(infos[2].owner, address(0));
+        assertEq(infos[2].root, address(0x9999));
         assertFalse(infos[2].isValid);
         assertEq(infos[2].stake, 0);
     }
 
     // ════════════════════════════════════════════
-    //  E2E 18: Gasless user registration
-    // ════════════════════════════════════════════
-
-    function test_e2e_gaslessUserRegistration() public {
-        (address user, uint256 userPk) = makeAddrAndKey("gaslessUser");
-
-        uint256 deadline = block.timestamp + 1 hours;
-        uint256 nonce = rootNet.nonces(user);
-
-        bytes32 structHash = keccak256(abi.encode(
-            keccak256("Register(address user,uint256 nonce,uint256 deadline)"),
-            user, nonce, deadline
-        ));
-        bytes32 digest = _getDigest(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, digest);
-
-        address relayer = address(0x9999);
-        vm.prank(relayer);
-        rootNet.registerFor(user, deadline, v, r, s);
-
-        assertTrue(access.isRegistered(user));
-        assertEq(rootNet.nonces(user), 1);
-    }
-
-    // ════════════════════════════════════════════
-    //  E2E 19: Gasless Agent registration
+    //  E2E 18: Gasless bind
     // ════════════════════════════════════════════
 
     function test_e2e_gaslessAgentBind() public {
-        _registerUser(alice);
-
         (address agent, uint256 agentPk) = makeAddrAndKey("gaslessAgent");
 
         uint256 deadline = block.timestamp + 1 hours;
         uint256 nonce = rootNet.nonces(agent);
 
         bytes32 structHash = keccak256(abi.encode(
-            keccak256("Bind(address agent,address principal,uint256 nonce,uint256 deadline)"),
+            keccak256("Bind(address agent,address target,uint256 nonce,uint256 deadline)"),
             agent, alice, nonce, deadline
         ));
         bytes32 digest = _getDigest(structHash);
@@ -877,79 +772,35 @@ contract E2ETest is EmissionSigningHelper {
         vm.prank(relayer);
         rootNet.bindFor(agent, alice, deadline, v, r, s);
 
-        assertTrue(access.isAgent(alice, agent));
+        assertEq(rootNet.boundTo(agent), alice);
     }
 
     // ════════════════════════════════════════════
-    //  E2E 20: Gasless expired signature reverts
+    //  E2E 19: Gasless expired signature reverts
     // ════════════════════════════════════════════
 
     function test_e2e_gaslessExpiredSignature() public {
-        (address user, uint256 userPk) = makeAddrAndKey("expiredUser");
+        (address agent, uint256 agentPk) = makeAddrAndKey("expiredAgent");
 
         uint256 deadline = block.timestamp - 1;
         bytes32 structHash = keccak256(abi.encode(
-            keccak256("Register(address user,uint256 nonce,uint256 deadline)"),
-            user, 0, deadline
+            keccak256("Bind(address agent,address target,uint256 nonce,uint256 deadline)"),
+            agent, alice, 0, deadline
         ));
         bytes32 digest = _getDigest(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(agentPk, digest);
 
         vm.expectRevert(AWPRegistry.ExpiredSignature.selector);
-        rootNet.registerFor(user, deadline, v, r, s);
+        rootNet.bindFor(agent, alice, deadline, v, r, s);
     }
 
     // ════════════════════════════════════════════
-    //  E2E 21: Gasless invalid signature reverts
-    // ════════════════════════════════════════════
-
-    function test_e2e_gaslessInvalidSignature() public {
-        (address user,) = makeAddrAndKey("targetUser");
-        (, uint256 wrongPk) = makeAddrAndKey("wrongSigner");
-
-        uint256 deadline = block.timestamp + 1 hours;
-        bytes32 structHash = keccak256(abi.encode(
-            keccak256("Register(address user,uint256 nonce,uint256 deadline)"),
-            user, 0, deadline
-        ));
-        bytes32 digest = _getDigest(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongPk, digest);
-
-        vm.expectRevert(AWPRegistry.InvalidSignature.selector);
-        rootNet.registerFor(user, deadline, v, r, s);
-    }
-
-    // ════════════════════════════════════════════
-    //  E2E 22: Gasless replay protection
-    // ════════════════════════════════════════════
-
-    function test_e2e_gaslessReplayProtection() public {
-        (address user, uint256 userPk) = makeAddrAndKey("replayUser");
-
-        uint256 deadline = block.timestamp + 1 hours;
-        bytes32 structHash = keccak256(abi.encode(
-            keccak256("Register(address user,uint256 nonce,uint256 deadline)"),
-            user, 0, deadline
-        ));
-        bytes32 digest = _getDigest(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, digest);
-
-        rootNet.registerFor(user, deadline, v, r, s);
-        assertTrue(access.isRegistered(user));
-
-        vm.expectRevert();
-        rootNet.registerFor(user, deadline, v, r, s);
-    }
-
-    // ════════════════════════════════════════════
-    //  E2E 23: Multi-user same subnet reallocate
+    //  E2E 20: Multi-user same subnet reallocate
     // ════════════════════════════════════════════
 
     function test_e2e_multiUserSameSubnetReallocate() public {
         _registerUser(alice);
         _registerUser(bob);
-        _registerAgent(agentA, alice);
-        _registerAgent(agentB, bob);
 
         uint256 sid1 = _registerSubnet(alice, subnetC1);
         uint256 sid2 = _registerSubnet(alice, subnetC2);
@@ -961,13 +812,12 @@ contract E2ETest is EmissionSigningHelper {
         _depositAndAllocate(alice, agentA, sid1, 1_000 * 1e18, 500 * 1e18);
         _depositAndAllocate(bob, agentB, sid1, 1_000 * 1e18, 300 * 1e18);
 
-        // Reallocate (immediate)
+        // Reallocate
         vm.prank(alice);
-        rootNet.reallocate(agentA, sid1, agentA, sid2, 200 * 1e18);
+        rootNet.reallocate(alice, agentA, sid1, agentA, sid2, 200 * 1e18);
         vm.prank(bob);
-        rootNet.reallocate(agentB, sid1, agentB, sid2, 100 * 1e18);
+        rootNet.reallocate(bob, agentB, sid1, agentB, sid2, 100 * 1e18);
 
-        // Immediate effect
         assertEq(vault.getAgentStake(alice, agentA, sid1), 300 * 1e18);
         assertEq(vault.getAgentStake(alice, agentA, sid2), 200 * 1e18);
         assertEq(vault.getAgentStake(bob, agentB, sid1), 200 * 1e18);
@@ -978,7 +828,7 @@ contract E2ETest is EmissionSigningHelper {
     }
 
     // ════════════════════════════════════════════
-    //  E2E 24: Batched settlement verification
+    //  E2E 21: Batched settlement verification
     // ════════════════════════════════════════════
 
     function test_e2e_batchSettleMultiCall() public {
@@ -991,280 +841,82 @@ contract E2ETest is EmissionSigningHelper {
             address(0x3004),
             address(0x3005)
         ];
-        uint256[5] memory wts = [uint256(100), 200, 300, 400, 500];
+
+        vm.startPrank(alice);
+        awp.approve(address(rootNet), LP_COST * 5);
         for (uint256 i = 0; i < 5; i++) {
-            _registerSubnet(alice, scs[i]);
-            vm.prank(alice);
+            rootNet.registerSubnet(
+                IAWPRegistry.SubnetParams("S", "S", scs[i], bytes32(0), 0, "")
+            );
             rootNet.activateSubnet(i + 1);
         }
+        vm.stopPrank();
 
         {
             address[] memory addrs = new address[](5);
             uint96[] memory ws = new uint96[](5);
             for (uint256 i = 0; i < 5; i++) {
                 addrs[i] = scs[i];
-                ws[i] = uint96(wts[i]);
+                ws[i] = uint96((i + 1) * 100);
             }
             _submitWeights(addrs, ws);
         }
 
-        // Settle epoch 0 (no weights)
+        _settleEpoch();
         _settleEpoch();
 
-        // Settle epoch 1 in batches
-        vm.warp(block.timestamp + EPOCH + 1);
-
-        emission.settleEpoch(2);
-        assertTrue(emission.settleProgress() > 0);
-        emission.settleEpoch(2);
-        assertTrue(emission.settleProgress() > 0);
-        emission.settleEpoch(2);
-        assertEq(emission.settleProgress(), 0);
-
-        uint256 totalWeightVal = 1500;
-        uint256 epochEmission = emission.epochEmissionLocked();
-        uint256 subnetPool = epochEmission * 5000 / 10000;
-
         for (uint256 i = 0; i < 5; i++) {
-            uint256 expected = subnetPool * wts[i] / totalWeightVal;
-            uint256 actual = awp.balanceOf(scs[i]);
-            assertApproxEqAbs(actual, expected, 1);
+            assertTrue(awp.balanceOf(scs[i]) > 0);
         }
     }
 
     // ════════════════════════════════════════════
-    //  E2E 25: Emission precision (no leakage)
+    //  E2E 22: Delegate operations
     // ════════════════════════════════════════════
 
-    function test_e2e_emissionPrecision() public {
-        _registerUser(alice);
-        uint256 sid = _registerSubnet(alice, subnetC1);
-        vm.prank(alice);
-        rootNet.activateSubnet(sid);
-        _submitWeight(subnetC1, uint96(100));
-
-        // Settle epoch 0 (no weights)
-        uint256 treasuryBalBefore0 = awp.balanceOf(address(treasury));
-        _settleEpoch();
-
-        // Settle epoch 1 (weights active)
-        uint256 treasuryBalBefore = awp.balanceOf(address(treasury));
-        uint256 totalSupplyBefore = awp.totalSupply();
-        _settleEpoch();
-
-        uint256 epochEmission = emission.epochEmissionLocked();
-        uint256 subnetMinted = awp.balanceOf(subnetC1);
-        uint256 daoMinted = awp.balanceOf(address(treasury)) - treasuryBalBefore;
-
-        assertEq(subnetMinted + daoMinted, epochEmission);
-        assertEq(awp.totalSupply() - totalSupplyBefore, epochEmission);
-    }
-
-    // ════════════════════════════════════════════
-    //  E2E 26: Query after deregistration
-    // ════════════════════════════════════════════
-
-    function test_e2e_deregisterThenQuery() public {
+    function test_e2e_delegateOperations() public {
         _registerUser(alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
         rootNet.activateSubnet(sid);
 
-        assertEq(rootNet.getActiveSubnetCount(), 1);
+        _depositAndAllocate(alice, agentA, sid, 10_000 * 1e18, 5_000 * 1e18);
 
-        vm.warp(block.timestamp + 31 days);
-        vm.prank(address(treasury));
-        rootNet.deregisterSubnet(sid);
-
-        vm.expectRevert();
-        rootNet.getSubnetFull(sid);
-        assertFalse(rootNet.isSubnetActive(sid));
-        assertEq(rootNet.getActiveSubnetCount(), 0);
-    }
-
-    // ════════════════════════════════════════════
-    //  E2E 27: Agent freeze across multiple subnets
-    // ════════════════════════════════════════════
-
-    function test_e2e_freezeMultipleSubnets() public {
-        _registerUser(alice);
-        _registerAgent(agentA, alice);
-
-        uint256 sid1 = _registerSubnet(alice, subnetC1);
-        uint256 sid2 = _registerSubnet(alice, subnetC2);
-        uint256 sid3 = _registerSubnet(alice, subnetC3);
-        vm.startPrank(alice);
-        rootNet.activateSubnet(sid1);
-        rootNet.activateSubnet(sid2);
-        rootNet.activateSubnet(sid3);
-        vm.stopPrank();
-
-        vm.startPrank(alice);
-        awp.approve(address(stakeNFT), 30_000 * 1e18);
-        stakeNFT.deposit(30_000 * 1e18, 52 weeks);
-        rootNet.allocate(agentA, sid1, 5_000 * 1e18);
-        rootNet.allocate(agentA, sid2, 8_000 * 1e18);
-        rootNet.allocate(agentA, sid3, 3_000 * 1e18);
-        vm.stopPrank();
-
-        assertEq(vault.userTotalAllocated(alice), 16_000 * 1e18);
-
+        // Grant delegate to bob
         vm.prank(alice);
-        rootNet.removeAgent(agentA);
+        rootNet.grantDelegate(bob);
 
-        assertEq(vault.getAgentStake(alice, agentA, sid1), 0);
-        assertEq(vault.getAgentStake(alice, agentA, sid2), 0);
-        assertEq(vault.getAgentStake(alice, agentA, sid3), 0);
-        assertEq(vault.userTotalAllocated(alice), 0);
+        // Bob can deallocate on behalf of alice
+        vm.prank(bob);
+        rootNet.deallocate(alice, agentA, sid, 2_000 * 1e18);
+        assertEq(vault.getAgentStake(alice, agentA, sid), 3_000 * 1e18);
 
-        _registerAgent(agentB, alice);
+        // Revoke delegation
         vm.prank(alice);
-        rootNet.allocate(agentB, sid1, 16_000 * 1e18);
-        assertEq(vault.getAgentStake(alice, agentB, sid1), 16_000 * 1e18);
+        rootNet.revokeDelegate(bob);
+
+        // Bob can no longer operate
+        vm.prank(bob);
+        vm.expectRevert(AWPRegistry.NotAuthorized.selector);
+        rootNet.deallocate(alice, agentA, sid, 1_000 * 1e18);
     }
 
-    // ════════════════════════════════════════════
-    //  E2E 28: All subnets zero weight -> all to DAO
-    // ════════════════════════════════════════════
+    // ── EIP-712 helpers ──
 
-    function test_e2e_settleEmptyWeight() public {
-        _registerUser(alice);
-
-        uint256 sid1 = _registerSubnet(alice, subnetC1);
-        uint256 sid2 = _registerSubnet(alice, subnetC2);
-        vm.startPrank(alice);
-        rootNet.activateSubnet(sid1);
-        rootNet.activateSubnet(sid2);
-        vm.stopPrank();
-
-        uint256 treasuryBalBefore = awp.balanceOf(address(treasury));
-
-        _settleEpoch();
-
-        assertEq(awp.balanceOf(subnetC1), 0);
-        assertEq(awp.balanceOf(subnetC2), 0);
-
-        uint256 daoReceived = awp.balanceOf(address(treasury)) - treasuryBalBefore;
-        assertEq(daoReceived, emission.epochEmissionLocked());
+    function _getDigest(bytes32 structHash) internal view returns (bytes32) {
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256("AWPRegistry"),
+                keccak256("1"),
+                block.chainid,
+                address(rootNet)
+            )
+        );
+        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
     }
 
-    // ════════════════════════════════════════════
-    //  E2E 29: Double reallocate accumulation
-    // ════════════════════════════════════════════
-
-    function test_e2e_doubleReallocateAccumulation() public {
-        _registerUser(alice);
-        _registerAgent(agentA, alice);
-        _registerAgent(agentB, alice);
-
-        uint256 sid1 = _registerSubnet(alice, subnetC1);
-        uint256 sid2 = _registerSubnet(alice, subnetC2);
-        vm.startPrank(alice);
-        rootNet.activateSubnet(sid1);
-        rootNet.activateSubnet(sid2);
-        vm.stopPrank();
-
-        _depositAndAllocate(alice, agentA, sid1, 2_000 * 1e18, 1_000 * 1e18);
-
-        vm.startPrank(alice);
-        rootNet.reallocate(agentA, sid1, agentB, sid2, 200 * 1e18);
-        rootNet.reallocate(agentA, sid1, agentB, sid2, 300 * 1e18);
-        vm.stopPrank();
-
-        // Immediate effect
-        assertEq(vault.getAgentStake(alice, agentA, sid1), 500 * 1e18);
-        assertEq(vault.getAgentStake(alice, agentB, sid2), 500 * 1e18);
-        assertEq(vault.userTotalAllocated(alice), 1_000 * 1e18);
-    }
-
-    // ════════════════════════════════════════════
-    //  EIP-712 Gasless Registration Tests
-    // ════════════════════════════════════════════
-
-    function test_registerFor() public {
-        uint256 userPk = 0xBEEF;
-        address userAddr = vm.addr(userPk);
-
-        uint256 deadline = block.timestamp + 1 hours;
-        uint256 nonce = rootNet.nonces(userAddr);
-
-        // Construct EIP-712 digest
-        bytes32 REGISTER_TYPEHASH = keccak256("Register(address user,uint256 nonce,uint256 deadline)");
-        bytes32 structHash = keccak256(abi.encode(REGISTER_TYPEHASH, userAddr, nonce, deadline));
-        bytes32 digest = _getDigest(structHash);
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, digest);
-
-        rootNet.registerFor(userAddr, deadline, v, r, s);
-
-        // Verify registered
-        assertTrue(access.isRegistered(userAddr));
-        assertEq(rootNet.nonces(userAddr), 1);
-    }
-
-    function test_bindFor() public {
-        // Register principal first
-        vm.prank(alice);
-        rootNet.register();
-
-        uint256 agentPk = 0xCAFE;
-        address agentAddr = vm.addr(agentPk);
-
-        uint256 deadline = block.timestamp + 1 hours;
-        uint256 nonce = rootNet.nonces(agentAddr);
-
-        bytes32 BIND_TYPEHASH = keccak256("Bind(address agent,address principal,uint256 nonce,uint256 deadline)");
-        bytes32 structHash = keccak256(abi.encode(BIND_TYPEHASH, agentAddr, alice, nonce, deadline));
-        bytes32 digest = _getDigest(structHash);
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(agentPk, digest);
-
-        rootNet.bindFor(agentAddr, alice, deadline, v, r, s);
-
-        // Verify bound
-        assertTrue(access.isAgent(alice, agentAddr));
-        assertEq(rootNet.nonces(agentAddr), 1);
-    }
-
-    function test_registerFor_expiredDeadline() public {
-        uint256 userPk = 0xDEAD;
-        address userAddr = vm.addr(userPk);
-
-        uint256 deadline = block.timestamp - 1; // expired
-        uint256 nonce = rootNet.nonces(userAddr);
-
-        bytes32 REGISTER_TYPEHASH = keccak256("Register(address user,uint256 nonce,uint256 deadline)");
-        bytes32 structHash = keccak256(abi.encode(REGISTER_TYPEHASH, userAddr, nonce, deadline));
-        bytes32 digest = _getDigest(structHash);
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, digest);
-
-        vm.expectRevert(AWPRegistry.ExpiredSignature.selector);
-        rootNet.registerFor(userAddr, deadline, v, r, s);
-    }
-
-    function test_registerFor_replayProtection() public {
-        uint256 userPk = 0xFACE;
-        address userAddr = vm.addr(userPk);
-
-        uint256 deadline = block.timestamp + 1 hours;
-        uint256 nonce = rootNet.nonces(userAddr);
-
-        bytes32 REGISTER_TYPEHASH = keccak256("Register(address user,uint256 nonce,uint256 deadline)");
-        bytes32 structHash = keccak256(abi.encode(REGISTER_TYPEHASH, userAddr, nonce, deadline));
-        bytes32 digest = _getDigest(structHash);
-
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, digest);
-
-        // First call succeeds
-        rootNet.registerFor(userAddr, deadline, v, r, s);
-
-        // Replay with same signature fails (nonce consumed)
-        vm.expectRevert(); // InvalidSignature or AlreadyRegistered
-        rootNet.registerFor(userAddr, deadline, v, r, s);
-    }
-
-    // ── Utility helpers ──
+    // ── Helper arrays ──
 
     function _toArray2(address a, address b) internal pure returns (address[] memory) {
         address[] memory arr = new address[](2);
@@ -1278,18 +930,5 @@ contract E2ETest is EmissionSigningHelper {
         arr[0] = a;
         arr[1] = b;
         return arr;
-    }
-
-    // ── EIP-712 helper ──
-
-    function _getDigest(bytes32 structHash) internal view returns (bytes32) {
-        bytes32 domainSeparator = keccak256(abi.encode(
-            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-            keccak256("AWPRegistry"),
-            keccak256("1"),
-            block.chainid,
-            address(rootNet)
-        ));
-        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
     }
 }

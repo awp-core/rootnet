@@ -6,7 +6,6 @@ import {AWPToken} from "../src/token/AWPToken.sol";
 import {AlphaTokenFactory} from "../src/token/AlphaTokenFactory.sol";
 import {AWPEmission} from "../src/token/AWPEmission.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {AccessManager} from "../src/core/AccessManager.sol";
 import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {SubnetNFT} from "../src/core/SubnetNFT.sol";
@@ -19,7 +18,6 @@ contract AWPRegistryTest is Test {
     AWPToken awp;
     AlphaTokenFactory factory;
     AWPEmission emission;
-    AccessManager access;
     StakingVault vault;
     StakeNFT stakeNFT;
     SubnetNFT nft;
@@ -49,16 +47,15 @@ contract AWPRegistryTest is Test {
         executors[0] = address(0);
         treasury = new Treasury(0, proposers, executors, deployer);
 
-        // Deploy AWPRegistry (no epochDuration param)
+        // Deploy AWPRegistry
         rootNet = new AWPRegistry(deployer, address(treasury), guardian);
 
         // Deploy sub-contracts
         factory = new AlphaTokenFactory(deployer, 0);
         nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(rootNet));
-        access = new AccessManager(address(rootNet));
         lp = new MockLPManager(address(rootNet), address(awp));
 
-        // Deploy AWPEmission (UUPS proxy) — now has its own epoch timing
+        // Deploy AWPEmission (UUPS proxy)
         AWPEmission emissionImpl = new AWPEmission();
         bytes memory emissionInitData = abi.encodeCall(
             AWPEmission.initialize,
@@ -74,22 +71,17 @@ contract AWPRegistryTest is Test {
         // Configure factory
         factory.setAddresses(address(rootNet));
 
-        // Deploy StakeNFT and StakingVault (circular dependency resolution)
-        uint64 nonce = vm.getNonce(deployer);
-        address predictedVault = vm.computeCreateAddress(deployer, nonce);
-        address predictedStakeNFT = vm.computeCreateAddress(deployer, nonce + 1);
-
+        // Deploy StakeNFT and StakingVault
         vault = new StakingVault(address(rootNet));
         stakeNFT = new StakeNFT(address(awp), address(vault), address(rootNet));
 
-        // Initialize registry
+        // Initialize registry (no accessManager parameter)
         rootNet.initializeRegistry(
             address(awp),
             address(nft),
             address(factory),
             address(emission),
             address(lp),
-            address(access),
             address(vault),
             address(stakeNFT),
             address(0), // no default SubnetManager impl in unit tests
@@ -109,176 +101,189 @@ contract AWPRegistryTest is Test {
         vm.expectRevert(AWPRegistry.NotDeployer.selector);
         rootNet.initializeRegistry(
             address(awp), address(nft), address(factory), address(emission),
-            address(lp), address(access), address(vault), address(stakeNFT), address(0), ""
+            address(lp), address(vault), address(stakeNFT), address(0), ""
         );
     }
 
-    // ── User registration ──
+    // ── Registration ──
 
     function test_register() public {
         vm.prank(user1);
         rootNet.register();
-        assertTrue(access.isRegistered(user1));
+        assertTrue(rootNet.isRegistered(user1));
     }
 
-    function test_registerAndStake() public {
-        vm.startPrank(user1);
-        // Approve StakeNFT for deposit
-        awp.approve(address(stakeNFT), 1000 * 1e18);
-        // Register + deposit via StakeNFT, without allocating (lockDuration in seconds)
-        rootNet.registerAndStake(1000 * 1e18, 52 weeks, address(0), 0, 0);
-        vm.stopPrank();
-
-        assertTrue(access.isRegistered(user1));
-        assertEq(stakeNFT.getUserTotalStaked(user1), 1000 * 1e18);
+    function test_register_alreadyRegistered_reverts() public {
+        vm.prank(user1);
+        rootNet.register();
+        vm.prank(user1);
+        vm.expectRevert(AWPRegistry.AlreadyRegistered.selector);
+        rootNet.register();
     }
 
-    // ── Agent binding ──
+    // ── Binding ──
 
     function test_bind() public {
-        // bind auto-registers the principal
         vm.prank(agent1);
         rootNet.bind(user1);
+        assertEq(rootNet.boundTo(agent1), user1);
+    }
 
-        assertTrue(access.isAgent(user1, agent1));
-        assertTrue(access.isRegistered(user1));
+    function test_bind_selfBind_reverts() public {
+        vm.prank(user1);
+        vm.expectRevert(AWPRegistry.InvalidAddress.selector);
+        rootNet.bind(user1);
+    }
+
+    function test_bind_zeroAddress_reverts() public {
+        vm.prank(agent1);
+        vm.expectRevert(AWPRegistry.InvalidAddress.selector);
+        rootNet.bind(address(0));
     }
 
     function test_bind_rebind() public {
-        vm.prank(user1);
-        rootNet.register();
-
         vm.prank(agent1);
         rootNet.bind(user1);
+        assertEq(rootNet.boundTo(agent1), user1);
 
         // rebind to user2
         vm.prank(agent1);
         rootNet.bind(user2);
-
-        assertFalse(access.isAgent(user1, agent1));
-        assertTrue(access.isAgent(user2, agent1));
+        assertEq(rootNet.boundTo(agent1), user2);
     }
 
-    // ── Agent management ──
+    function test_bind_antiCycle() public {
+        // A -> B -> C, then C tries to bind to A => cycle
+        vm.prank(address(0x10));
+        rootNet.bind(address(0x11));
+        vm.prank(address(0x11));
+        rootNet.bind(address(0x12));
 
-    function test_removeAgent() public {
-        vm.prank(user1);
-        rootNet.register();
-        vm.prank(agent1);
-        rootNet.bind(user1);
-
-        vm.prank(user1);
-        rootNet.removeAgent(agent1);
-
-        assertFalse(access.isAgent(user1, agent1));
+        vm.prank(address(0x12));
+        vm.expectRevert(AWPRegistry.CycleDetected.selector);
+        rootNet.bind(address(0x10));
     }
 
-    function test_setDelegation() public {
-        vm.prank(user1);
-        rootNet.register();
-        vm.prank(agent1);
-        rootNet.bind(user1);
-
-        vm.prank(user1);
-        rootNet.setDelegation(agent1, true);
-
-        assertTrue(access.isManagerAgent(agent1));
-    }
+    // ── Unbind ──
 
     function test_unbind() public {
-        vm.prank(user1);
-        rootNet.register();
         vm.prank(agent1);
         rootNet.bind(user1);
-
-        assertTrue(access.isAgent(user1, agent1));
+        assertEq(rootNet.boundTo(agent1), user1);
 
         vm.prank(agent1);
         rootNet.unbind();
-
-        assertFalse(access.isRegisteredAgent(agent1));
-        assertFalse(access.isKnownAddress(agent1));
+        assertEq(rootNet.boundTo(agent1), address(0));
     }
 
-    function test_registerWithOptions_recipientAndStake() public {
-        vm.startPrank(user1);
-        awp.approve(address(stakeNFT), 1000 * 1e18);
-        rootNet.register(user2, 1000 * 1e18, 52 weeks);
-        vm.stopPrank();
+    // ── Recipient ──
 
-        assertTrue(access.isRegistered(user1));
-        assertEq(access.getRewardRecipient(user1), user2);
-        assertEq(stakeNFT.getUserTotalStaked(user1), 1000 * 1e18);
+    function test_setRecipient() public {
+        vm.prank(user1);
+        rootNet.setRecipient(user2);
+        assertEq(rootNet.recipient(user1), user2);
     }
 
-    function test_registerWithOptions_emptyParams() public {
+    function test_resolveRecipient() public {
+        // Set up: agent1 -> user1, user1 has recipient = user2
         vm.prank(user1);
-        rootNet.register(address(0), 0, 0);
+        rootNet.setRecipient(user2);
+        vm.prank(agent1);
+        rootNet.bind(user1);
 
-        assertTrue(access.isRegistered(user1));
-        assertEq(access.getRewardRecipient(user1), user1); // default = self
-        assertEq(stakeNFT.getUserTotalStaked(user1), 0);
+        // resolveRecipient(agent1) should walk to user1 and return user2
+        assertEq(rootNet.resolveRecipient(agent1), user2);
     }
 
-    function test_registerWithOptions_idempotent() public {
-        // Calling register(options) on an already-registered user should not revert
-        vm.prank(user1);
-        rootNet.register();
-
-        vm.prank(user1);
-        rootNet.register(user2, 0, 0); // just update recipient
-
-        assertEq(access.getRewardRecipient(user1), user2);
+    function test_resolveRecipient_unregistered() public {
+        // No binding, no recipient => returns the address itself
+        assertEq(rootNet.resolveRecipient(user1), user1);
     }
 
-    function test_setRewardRecipient() public {
+    // ── Delegation ──
+
+    function test_grantAndRevokeDelegate() public {
         vm.prank(user1);
-        rootNet.register();
+        rootNet.grantDelegate(user2);
+        assertTrue(rootNet.delegates(user1, user2));
 
         vm.prank(user1);
-        rootNet.setRewardRecipient(user2);
-
-        assertEq(access.getRewardRecipient(user1), user2);
+        rootNet.revokeDelegate(user2);
+        assertFalse(rootNet.delegates(user1, user2));
     }
 
-    // ── Staking (via StakeNFT) ──
+    function test_revokeDelegate_self_reverts() public {
+        vm.prank(user1);
+        vm.expectRevert(AWPRegistry.CannotRevokeSelf.selector);
+        rootNet.revokeDelegate(user1);
+    }
+
+    // ── Staking (allocation with explicit staker) ──
 
     function test_allocateAndDeallocate() public {
-        // Setup: register, deposit via StakeNFT, register agent, register subnet
+        // Setup: deposit via StakeNFT, register subnet
         vm.startPrank(user1);
-        rootNet.register();
         awp.approve(address(stakeNFT), 1000 * 1e18);
         stakeNFT.deposit(1000 * 1e18, 52 weeks);
         vm.stopPrank();
-
-        vm.prank(agent1);
-        rootNet.bind(user1);
 
         _registerSubnet();
 
         vm.prank(user1);
         rootNet.activateSubnet(1);
 
-        // Allocate
+        // Allocate (staker = user1, agent = agent1)
         vm.prank(user1);
-        rootNet.allocate(agent1, 1, 500 * 1e18);
+        rootNet.allocate(user1, agent1, 1, 500 * 1e18);
         assertEq(vault.getAgentStake(user1, agent1, 1), 500 * 1e18);
 
         // Deallocate
         vm.prank(user1);
-        rootNet.deallocate(agent1, 1, 200 * 1e18);
+        rootNet.deallocate(user1, agent1, 1, 200 * 1e18);
         assertEq(vault.getAgentStake(user1, agent1, 1), 300 * 1e18);
     }
 
-    function test_reallocate_immediate() public {
+    function test_allocate_delegate() public {
+        // Setup: deposit
         vm.startPrank(user1);
-        rootNet.register();
+        awp.approve(address(stakeNFT), 1000 * 1e18);
+        stakeNFT.deposit(1000 * 1e18, 52 weeks);
+        rootNet.grantDelegate(user2);
+        vm.stopPrank();
+
+        _registerSubnet();
+
+        vm.prank(user1);
+        rootNet.activateSubnet(1);
+
+        // user2 allocates on behalf of user1
+        vm.prank(user2);
+        rootNet.allocate(user1, agent1, 1, 500 * 1e18);
+        assertEq(vault.getAgentStake(user1, agent1, 1), 500 * 1e18);
+    }
+
+    function test_allocate_notAuthorized_reverts() public {
+        vm.startPrank(user1);
         awp.approve(address(stakeNFT), 1000 * 1e18);
         stakeNFT.deposit(1000 * 1e18, 52 weeks);
         vm.stopPrank();
 
-        vm.prank(agent1);
-        rootNet.bind(user1);
+        _registerSubnet();
+
+        vm.prank(user1);
+        rootNet.activateSubnet(1);
+
+        // user2 has no delegation from user1
+        vm.prank(user2);
+        vm.expectRevert(AWPRegistry.NotAuthorized.selector);
+        rootNet.allocate(user1, agent1, 1, 500 * 1e18);
+    }
+
+    function test_reallocate_immediate() public {
+        vm.startPrank(user1);
+        awp.approve(address(stakeNFT), 1000 * 1e18);
+        stakeNFT.deposit(1000 * 1e18, 52 weeks);
+        vm.stopPrank();
 
         _registerSubnet(); // subnetId=1
 
@@ -286,18 +291,15 @@ contract AWPRegistryTest is Test {
         rootNet.activateSubnet(1);
 
         address agent2 = address(10);
-        vm.prank(agent2);
-        rootNet.bind(user1);
 
         // Allocate to agent1/subnet1
         vm.prank(user1);
-        rootNet.allocate(agent1, 1, 500 * 1e18);
+        rootNet.allocate(user1, agent1, 1, 500 * 1e18);
 
         // Reallocate to agent2/subnet1 — takes effect immediately
         vm.prank(user1);
-        rootNet.reallocate(agent1, 1, agent2, 1, 200 * 1e18);
+        rootNet.reallocate(user1, agent1, 1, agent2, 1, 200 * 1e18);
 
-        // Immediate effect, no epoch advance needed
         assertEq(vault.getAgentStake(user1, agent1, 1), 300 * 1e18);
         assertEq(vault.getAgentStake(user1, agent2, 1), 200 * 1e18);
     }
@@ -443,26 +445,25 @@ contract AWPRegistryTest is Test {
         rootNet.activateSubnet(1);
 
         vm.prank(user1);
-        rootNet.allocate(agent1, 1, 500 * 1e18);
+        rootNet.allocate(user1, agent1, 1, 500 * 1e18);
 
         AWPRegistry.AgentInfo memory info = rootNet.getAgentInfo(agent1, 1);
-        assertEq(info.owner, user1);
+        assertEq(info.root, user1);
         assertTrue(info.isValid);
         assertEq(info.stake, 500 * 1e18);
         assertEq(info.rewardRecipient, user1);
     }
 
     function test_getRegistry() public view {
-        (address a, address b, address c, address d, address e, address f, address g, address h,,) =
+        (address a, address b, address c, address d, address e, address f, address g,,) =
             rootNet.getRegistry();
         assertEq(a, address(awp));
         assertEq(b, address(nft));
         assertEq(c, address(factory));
         assertEq(d, address(emission));
         assertEq(e, address(lp));
-        assertEq(f, address(access));
-        assertEq(g, address(vault));
-        assertEq(h, address(stakeNFT));
+        assertEq(f, address(vault));
+        assertEq(g, address(stakeNFT));
     }
 
     // ── Helper functions ──
@@ -485,46 +486,61 @@ contract AWPRegistryTest is Test {
         return subnetId;
     }
 
-    // ── minStake enforcement ──
+    // ── Unbind idempotent ──
 
-    function test_allocate_insufficientMinStake() public {
-        // Register subnet with minStake = 1000 * 1e18
-        uint256 lpCost = 100_000_000 * 1e18 * 1e16 / 1e18;
-        vm.startPrank(user1);
-        awp.approve(address(rootNet), lpCost);
-        uint256 subnetId = rootNet.registerSubnet(
-            IAWPRegistry.SubnetParams({
-                name: "MinStakeSubnet",
-                symbol: "MSUB",
-                subnetManager: subnetManager,
-                salt: bytes32(0),
-                minStake: 1000 * 1e18,
-                skillsURI: ""
-            })
-        );
-        rootNet.activateSubnet(subnetId);
-        vm.stopPrank();
+    function test_unbind_idempotent() public {
+        // unbind when already unbound — should not revert
+        vm.prank(user1);
+        rootNet.unbind();
+        assertEq(rootNet.boundTo(user1), address(0));
+    }
 
-        // Setup: register user, bind agent, deposit AWP
-        vm.startPrank(user1);
-        rootNet.register();
-        awp.approve(address(stakeNFT), 5000 * 1e18);
-        stakeNFT.deposit(5000 * 1e18, 52 weeks);
-        vm.stopPrank();
+    // ── resolveRecipient deep chain ──
+
+    function test_resolveRecipient_deepChain() public {
+        // Build chain: agent3 → agent2 → agent1 → user1 (root with recipient)
+        address agent2 = makeAddr("agent2");
+        address agent3 = makeAddr("agent3");
+
+        vm.prank(user1);
+        rootNet.setRecipient(address(0xBEEF));
 
         vm.prank(agent1);
         rootNet.bind(user1);
 
-        // Allocate below minStake — should revert
-        vm.prank(user1);
-        vm.expectRevert(AWPRegistry.InsufficientMinStake.selector);
-        rootNet.allocate(agent1, subnetId, 500 * 1e18);
+        vm.prank(agent2);
+        rootNet.bind(agent1);
 
-        // Allocate at minStake — should succeed
-        vm.prank(user1);
-        rootNet.allocate(agent1, subnetId, 1000 * 1e18);
-        assertEq(vault.getAgentStake(user1, agent1, subnetId), 1000 * 1e18);
+        vm.prank(agent3);
+        rootNet.bind(agent2);
+
+        // resolveRecipient(agent3) should walk up to user1 and return 0xBEEF
+        assertEq(rootNet.resolveRecipient(agent3), address(0xBEEF));
     }
+
+    // ── Bind chain too long ──
+
+    function test_bind_chainTooLong() public {
+        // Build a chain of 100 addresses, then try to bind one more
+        address[] memory addrs = new address[](101);
+        for (uint256 i = 0; i < 101; i++) {
+            addrs[i] = address(uint160(0x1000 + i));
+        }
+        // Chain: addrs[0] is root, addrs[1] → addrs[0], addrs[2] → addrs[1], ...
+        for (uint256 i = 1; i < 101; i++) {
+            vm.prank(addrs[i]);
+            rootNet.bind(addrs[i-1]);
+        }
+        // addrs[100] is bound to addrs[99], chain depth is 100
+        // Now try to bind a new address to addrs[100] — should revert ChainTooLong
+        address newAddr = makeAddr("tooDeep");
+        vm.prank(newAddr);
+        vm.expectRevert(AWPRegistry.ChainTooLong.selector);
+        rootNet.bind(addrs[100]);
+    }
+
+    // ── minStake enforcement ──
+
 
     // ── setImmunityPeriod tests ──
 

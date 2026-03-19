@@ -254,6 +254,11 @@
         "name": "minStake_",
         "type": "uint128",
         "internalType": "uint128"
+      },
+      {
+        "name": "skillsURI_",
+        "type": "string",
+        "internalType": "string"
       }
     ],
     "outputs": [],

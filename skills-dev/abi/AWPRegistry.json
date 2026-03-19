@@ -48,19 +48,6 @@
   },
   {
     "type": "function",
-    "name": "accessManager",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "activateSubnet",
     "inputs": [
       {
@@ -115,6 +102,11 @@
     "name": "allocate",
     "inputs": [
       {
+        "name": "staker",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "agent",
         "type": "address",
         "internalType": "address"
@@ -138,7 +130,7 @@
     "name": "allocateFor",
     "inputs": [
       {
-        "name": "user",
+        "name": "staker",
         "type": "address",
         "internalType": "address"
       },
@@ -238,7 +230,7 @@
     "name": "bind",
     "inputs": [
       {
-        "name": "principal",
+        "name": "target",
         "type": "address",
         "internalType": "address"
       }
@@ -256,7 +248,7 @@
         "internalType": "address"
       },
       {
-        "name": "principal",
+        "name": "target",
         "type": "address",
         "internalType": "address"
       },
@@ -286,8 +278,32 @@
   },
   {
     "type": "function",
+    "name": "boundTo",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "deallocate",
     "inputs": [
+      {
+        "name": "staker",
+        "type": "address",
+        "internalType": "address"
+      },
       {
         "name": "agent",
         "type": "address",
@@ -312,7 +328,7 @@
     "name": "deallocateFor",
     "inputs": [
       {
-        "name": "user",
+        "name": "staker",
         "type": "address",
         "internalType": "address"
       },
@@ -364,6 +380,30 @@
         "name": "",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "delegates",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -491,7 +531,7 @@
         "internalType": "struct AWPRegistry.AgentInfo",
         "components": [
           {
-            "name": "owner",
+            "name": "root",
             "type": "address",
             "internalType": "address"
           },
@@ -537,7 +577,7 @@
         "internalType": "struct AWPRegistry.AgentInfo[]",
         "components": [
           {
-            "name": "owner",
+            "name": "root",
             "type": "address",
             "internalType": "address"
           },
@@ -566,11 +606,6 @@
     "name": "getRegistry",
     "inputs": [],
     "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      },
       {
         "name": "",
         "type": "address",
@@ -733,6 +768,19 @@
   },
   {
     "type": "function",
+    "name": "grantDelegate",
+    "inputs": [
+      {
+        "name": "delegate",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "guardian",
     "inputs": [],
     "outputs": [
@@ -800,11 +848,6 @@
         "internalType": "address"
       },
       {
-        "name": "accessManager_",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
         "name": "stakingVault_",
         "type": "address",
         "internalType": "address"
@@ -827,6 +870,25 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "isRegistered",
+    "inputs": [
+      {
+        "name": "addr",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -930,6 +992,11 @@
     "name": "reallocate",
     "inputs": [
       {
+        "name": "staker",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
         "name": "fromAgent",
         "type": "address",
         "internalType": "address"
@@ -960,97 +1027,27 @@
   },
   {
     "type": "function",
+    "name": "recipient",
+    "inputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "register",
     "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "register",
-    "inputs": [
-      {
-        "name": "recipient",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "depositAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "lockDuration",
-        "type": "uint64",
-        "internalType": "uint64"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "registerAndStake",
-    "inputs": [
-      {
-        "name": "depositAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "lockDuration",
-        "type": "uint64",
-        "internalType": "uint64"
-      },
-      {
-        "name": "agent",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "subnetId",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "allocateAmount",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "registerFor",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "deadline",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "v",
-        "type": "uint8",
-        "internalType": "uint8"
-      },
-      {
-        "name": "r",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "s",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -1274,6 +1271,19 @@
   },
   {
     "type": "function",
+    "name": "registeredCount",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "registryInitialized",
     "inputs": [],
     "outputs": [
@@ -1287,16 +1297,22 @@
   },
   {
     "type": "function",
-    "name": "removeAgent",
+    "name": "resolveRecipient",
     "inputs": [
       {
-        "name": "agent",
+        "name": "addr",
         "type": "address",
         "internalType": "address"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -1313,10 +1329,10 @@
   },
   {
     "type": "function",
-    "name": "setAlphaTokenFactory",
+    "name": "revokeDelegate",
     "inputs": [
       {
-        "name": "factory",
+        "name": "delegate",
         "type": "address",
         "internalType": "address"
       }
@@ -1326,17 +1342,12 @@
   },
   {
     "type": "function",
-    "name": "setDelegation",
+    "name": "setAlphaTokenFactory",
     "inputs": [
       {
-        "name": "agent",
+        "name": "factory",
         "type": "address",
         "internalType": "address"
-      },
-      {
-        "name": "_isManager",
-        "type": "bool",
-        "internalType": "bool"
       }
     ],
     "outputs": [],
@@ -1396,10 +1407,10 @@
   },
   {
     "type": "function",
-    "name": "setRewardRecipient",
+    "name": "setRecipient",
     "inputs": [
       {
-        "name": "recipient",
+        "name": "addr",
         "type": "address",
         "internalType": "address"
       }
@@ -1409,7 +1420,7 @@
   },
   {
     "type": "function",
-    "name": "setRewardRecipientFor",
+    "name": "setRecipientFor",
     "inputs": [
       {
         "name": "user",
@@ -1417,7 +1428,7 @@
         "internalType": "address"
       },
       {
-        "name": "recipient",
+        "name": "_recipient",
         "type": "address",
         "internalType": "address"
       },
@@ -1573,79 +1584,10 @@
   },
   {
     "type": "event",
-    "name": "AgentBound",
-    "inputs": [
-      {
-        "name": "principal",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "agent",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "oldPrincipal",
-        "type": "address",
-        "indexed": false,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "AgentRemoved",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "agent",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "operator",
-        "type": "address",
-        "indexed": false,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "AgentUnbound",
-    "inputs": [
-      {
-        "name": "principal",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "agent",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "Allocated",
     "inputs": [
       {
-        "name": "user",
+        "name": "staker",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -1692,10 +1634,29 @@
   },
   {
     "type": "event",
+    "name": "Bound",
+    "inputs": [
+      {
+        "name": "addr",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "target",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Deallocated",
     "inputs": [
       {
-        "name": "user",
+        "name": "staker",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -1742,30 +1703,37 @@
   },
   {
     "type": "event",
-    "name": "DelegationUpdated",
+    "name": "DelegateGranted",
     "inputs": [
       {
-        "name": "user",
+        "name": "staker",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "agent",
+        "name": "delegate",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "DelegateRevoked",
+    "inputs": [
+      {
+        "name": "staker",
         "type": "address",
         "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "isManager",
-        "type": "bool",
-        "indexed": false,
-        "internalType": "bool"
-      },
-      {
-        "name": "operator",
+        "name": "delegate",
         "type": "address",
-        "indexed": false,
+        "indexed": true,
         "internalType": "address"
       }
     ],
@@ -1865,7 +1833,7 @@
     "name": "Reallocated",
     "inputs": [
       {
-        "name": "user",
+        "name": "staker",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -1911,10 +1879,10 @@
   },
   {
     "type": "event",
-    "name": "RewardRecipientUpdated",
+    "name": "RecipientSet",
     "inputs": [
       {
-        "name": "user",
+        "name": "addr",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -2051,6 +2019,19 @@
   },
   {
     "type": "event",
+    "name": "Unbound",
+    "inputs": [
+      {
+        "name": "addr",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Unpaused",
     "inputs": [
       {
@@ -2078,6 +2059,26 @@
   {
     "type": "error",
     "name": "AlreadyInitialized",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "AlreadyRegistered",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CannotRevokeSelf",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ChainTooLong",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "CycleDetected",
     "inputs": []
   },
   {
@@ -2129,12 +2130,7 @@
   },
   {
     "type": "error",
-    "name": "InsufficientMinStake",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidAgent",
+    "name": "InvalidAddress",
     "inputs": []
   },
   {
@@ -2164,6 +2160,11 @@
   },
   {
     "type": "error",
+    "name": "NotAuthorized",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "NotDeployer",
     "inputs": []
   },
@@ -2174,17 +2175,7 @@
   },
   {
     "type": "error",
-    "name": "NotManager",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "NotOwner",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "NotRegistered",
     "inputs": []
   },
   {
@@ -2232,11 +2223,6 @@
   {
     "type": "error",
     "name": "SubnetManagerRequired",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "UnknownAddress",
     "inputs": []
   }
 ]

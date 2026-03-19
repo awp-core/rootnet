@@ -26,7 +26,6 @@ awp-rootnet/
 │   │   │   └── AWPEmission.sol            # AWP emission (mint on demand)
 │   │   ├── core/
 │   │   │   ├── SubnetNFT.sol              # Pure ERC721
-│   │   │   ├── AccessManager.sol          # User registration + Agent permissions
 │   │   │   ├── StakingVault.sol           # Pure allocation logic (onlyAWPRegistry)
 │   │   │   ├── StakeNFT.sol               # ERC721 position NFT (deposit/withdraw AWP)
 │   │   │   └── LPManager.sol              # PancakeSwap V4
@@ -39,7 +38,6 @@ awp-rootnet/
 │   │       ├── IAlphaToken.sol
 │   │       ├── IAWPEmission.sol
 │   │       ├── ISubnetNFT.sol
-│   │       ├── IAccessManager.sol
 │   │       ├── IStakingVault.sol
 │   │       ├── ILPManager.sol
 │   │       └── IPancakeV4.sol
@@ -49,7 +47,6 @@ awp-rootnet/
 │   │   ├── AlphaTokenFactory.t.sol
 │   │   ├── AWPRegistry.t.sol
 │   │   ├── SubnetNFT.t.sol
-│   │   ├── AccessManager.t.sol
 │   │   ├── StakingVault.t.sol
 │   │   ├── LPManager.t.sol
 │   │   ├── AWPDAO.t.sol
@@ -133,22 +130,22 @@ awp-rootnet/
                           │   Treasury   │
                           └──────┬───────┘
                                  │ onlyTimelock
-  User / Agent ─────────► ┌─────▼──────┐
+  User ──────────────────► ┌─────▼──────┐
                           │ AWPRegistry │
                           │ Unified    │
                           │  Entry     │
-                          └─┬──┬──┬──┬──┬─┘
-                            │  │  │  │  │
-              ┌─────────────┘  │  │  │  └──────────┐
-              ▼                ▼  ▼  ▼              ▼
-        ┌──────────┐   ┌────────┐ ┌──────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-        │ Access   │   │Subnet │ │Stake │ │ LP       │ │ AWP      │ │ Stake    │
-        │ Manager  │   │ NFT   │ │Vault │ │ Manager  │ │ Emission │ │ NFT      │
-        └──────────┘   └───────┘ └──────┘ └──────────┘ └──────────┘ └──────────┘
-                                               │              │           │
-                                         PancakeSwap V4   mint AWP   deposit/withdraw AWP
+                          └─┬──┬──┬──┬──┘
+                            │  │  │  │
+              ┌─────────────┘  │  │  └──────────┐
+              ▼                ▼  ▼              ▼
+        ┌────────┐   ┌──────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
+        │Subnet │   │Stake │ │ LP       │ │ AWP      │ │ Stake    │
+        │ NFT   │   │Vault │ │ Manager  │ │ Emission │ │ NFT      │
+        └───────┘   └──────┘ └──────────┘ └──────────┘ └──────────┘
+                                   │              │           │
+                             PancakeSwap V4   mint AWP   deposit/withdraw AWP
 
-Contracts: 13
+Contracts: 12
 
 Emission Model:
   → AWPEmission is a generic address→weight distribution engine (weight management, epoch settlement, batch minting, decay)
@@ -170,7 +167,6 @@ AlphaTokenFactory  → Ownable (no Clones; uses CREATE2 full deployment)
 AWPEmission        → Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable
 AWPRegistry         → Pausable, ReentrancyGuard, EnumerableSet
 SubnetNFT          → ERC721
-AccessManager      → EnumerableSet
 StakingVault       → EnumerableSet (pure allocation, no deposit/withdraw)
 StakeNFT           → ERC721, ReentrancyGuard (position NFT, deposit/withdraw AWP)
 AWPDAO        → Governor, GovernorSettings, GovernorTimelockControl (overrides _getVotes/_countVote for StakeNFT-based voting)
@@ -180,13 +176,14 @@ Treasury           → TimelockController
 ### Permission Model
 
 ```
-Three Key Types:
-  Owner:           Stake AWP via StakeNFT + allocate via AWPRegistry + manage Agents + transfer NFT + vote with tokenId[]
-  Agent (default): Mining authentication only
-  Agent (Manager): Mining + remove Agents + set Manager + allocate stake
+Account System V2 (no mandatory registration):
+  Every address:   Implicitly a root; can bind(target) to form delegation trees
+  register():      Optional, equivalent to setRecipient(msg.sender)
+  Delegates:       grantDelegate(delegate) / revokeDelegate(delegate) for staking operations
+  Staker:          allocate(staker, agent, subnetId, amount) — staker is explicit parameter
 
 Inter-contract Permissions:
-  onlyAWPRegistry   → AccessManager / StakingVault / SubnetNFT / LPManager
+  onlyAWPRegistry   → StakingVault / SubnetNFT / LPManager
   onlyTimelock  → AWPRegistry admin functions / AWPEmission governance (setWeight, setOracleConfig, etc.)
   onlyGuardian  → Can only pause the contract
 ```
@@ -543,80 +540,15 @@ Events:
   OracleConfigUpdated(address[] oracles, uint256 threshold)
 ```
 
-### 4.5 AccessManager.sol — Internal Contract
+### 4.5 ~~AccessManager.sol~~ — REMOVED
 
-```
-AWPRegistry-only callable (onlyAWPRegistry)
-
-Storage:
-  rootNet: address
-
-  // User registration
-  mapping(address => bool) public isRegistered;
-  mapping(address => uint64) public registeredAt;
-  uint256 public totalUsers;
-
-  // Agent
-  agentOwner: mapping(address => address)
-  userAgents: mapping(address => EnumerableSet.AddressSet)
-  isManager: mapping(address => bool)
-  rewardRecipients: mapping(address => address)
-  MAX_AGENTS_PER_USER = 32
-
-Functions:
-
-  // ── User Registration ──
-  register(address user) external onlyAWPRegistry
-    → require(!isRegistered[user])
-    → require(agentOwner[user] == address(0), "Address is agent")
-    → isRegistered[user] = true
-    → registeredAt[user] = uint64(block.timestamp)
-    → totalUsers++
-
-  // ── Agent Registration (Agent calls itself, proving private key ownership) ──
-  registerAgent(address agent, address user) external onlyAWPRegistry
-    → require(!isRegistered[agent], "Agent is a registered user")
-    → require(isRegistered[user], "User not registered")
-    → require(agentOwner[agent] == address(0), "Already bound")
-    → require(agent != user)
-    → require(userAgents[user].length() < MAX_AGENTS_PER_USER)
-    → agentOwner[agent] = user
-    → userAgents[user].add(agent)
-
-  // ── Agent Management ──
-  removeAgent(address user, address agent, address operator) external onlyAWPRegistry
-    → require(agentOwner[agent] == user)
-    → require(agent != operator, "Cannot remove self")
-    → delete agentOwner[agent]
-    → delete isManager[agent]
-    → userAgents[user].remove(agent)
-
-  setManager(address user, address agent, bool _isManager, address operator) external onlyAWPRegistry
-    → require(agentOwner[agent] == user)
-    → if (!_isManager) require(agent != operator, "Cannot revoke self")
-    → isManager[agent] = _isManager
-
-  setRewardRecipient(address user, address recipient) external onlyAWPRegistry
-    → require(recipient != address(0))
-    → rewardRecipients[user] = recipient
-
-  // ── View ──
-  getOwner(address addr) external view → address
-    → if (agentOwner[addr] != address(0)) return agentOwner[addr]
-    → if (isRegistered[addr]) return addr
-    → return address(0)
-
-  isRegisteredUser(address) view → bool
-  isRegisteredAgent(address) view → bool
-  isKnownAddress(address) view → bool
-  getAgents(address user) view → address[]
-  isAgent(address user, address agent) view → bool
-    → return agentOwner[agent] == user || (agent == user && isRegistered[user])
-  isManagerAgent(address) view → bool
-  getRewardRecipient(address user) view → address
-    → return rewardRecipients[user] != address(0) ? rewardRecipients[user] : user
-  getTotalUsers() view → uint256
-```
+> AccessManager contract has been removed in Account System V2. All account management is now handled directly by AWPRegistry:
+> - `bind(target)` — tree-based binding with anti-cycle check (replaces old Agent bind to Principal)
+> - `setRecipient(recipient)` — set reward recipient
+> - `grantDelegate(delegate)` / `revokeDelegate(delegate)` — replaces setDelegation
+> - `resolveRecipient(addr)` — walks boundTo chain to root
+> - `isRegistered(addr)` = `boundTo[addr] != 0 || recipient[addr] != 0`
+> - No address mutual exclusion (any address can both bind and be bound to)
 
 ### 4.6 StakingVault.sol — Internal Contract (Pure Allocation)
 
@@ -821,7 +753,12 @@ Storage:
 
   // Address registry
   awpToken, subnetNFT, alphaTokenFactory, awpEmission, lpManager,
-  accessManager, stakingVault, stakeNFT, treasury, guardian: address
+  stakingVault, stakeNFT, treasury, guardian: address
+
+  // Account System V2 (no mandatory registration, tree-based binding)
+  mapping(address => address) public boundTo;      // bind target (tree structure)
+  mapping(address => address) public recipient;    // reward recipient
+  mapping(address => mapping(address => bool)) public delegates;  // delegation
   _deployer: address                                     // Temporary; zeroed after initializeRegistry
   registryInitialized: bool
 
@@ -866,22 +803,13 @@ Storage:
 Functions:
 
   // ═══════════════
-  //  Identity Resolution
+  //  Account System V2 (no mandatory registration)
   // ═══════════════
-
-  _resolveOwnerOrManager() internal view → address
-    → if (accessManager.isRegisteredUser(msg.sender)): return msg.sender
-    → owner = accessManager.getOwner(msg.sender)
-    → require(owner != address(0), "Unknown address")
-    → require(accessManager.isManagerAgent(msg.sender), "Not manager")
-    → return owner
-
-  _resolveOwnerOnly() internal view → address
-    → require(accessManager.isRegisteredUser(msg.sender), "Not registered")
-    → return msg.sender
-
-  _validateAgent(address user, address agent) internal view
-    → require(accessManager.isAgent(user, agent))
+  // Every address is implicitly a root. No address mutual exclusion.
+  // isRegistered(addr) = boundTo[addr] != 0 || recipient[addr] != 0
+  // bind(target) creates tree-based binding with anti-cycle check
+  // resolveRecipient(addr) walks boundTo chain to root
+  // grantDelegate(delegate) / revokeDelegate(delegate) for delegation
 
   // ═══════════════
   //  Registry
@@ -899,75 +827,53 @@ Functions:
   getRegistry() external view
 
   // ═══════════════
-  //  User Registration
+  //  Account Operations
   // ═══════════════
 
-  register() external nonReentrant whenNotPaused
-    → accessManager.register(msg.sender)
-    → emit UserRegistered(msg.sender)
+  register() external
+    → setRecipient(msg.sender)  // Optional convenience; equivalent to setRecipient(msg.sender)
 
-  /// @notice One-click register + deposit (via StakeNFT) + allocate
-  registerAndStake(uint128 depositAmount, uint64 lockDuration, address agent, uint256 subnetId,
-                   uint128 allocateAmount) external nonReentrant whenNotPaused
-    → if (!accessManager.isRegisteredUser(msg.sender)):
-        accessManager.register(msg.sender); emit UserRegistered(msg.sender)
-    → if depositAmount > 0:
-        IERC20(awpToken).transferFrom(msg.sender, stakeNFT, depositAmount)
-        stakeNFT.depositFor(msg.sender, depositAmount, lockDuration)
-    → if allocateAmount > 0 && agent != address(0) && subnetId > 0:
-        _validateAgent(msg.sender, agent)
-        stakingVault.allocate(msg.sender, agent, subnetId, allocateAmount)
-        emit Allocated(msg.sender, agent, subnetId, allocateAmount, msg.sender)
+  bind(address target) external whenNotPaused
+    → _checkNoCycle(msg.sender, target)  // Anti-cycle check walks chain
+    → oldTarget = boundTo[msg.sender]
+    → boundTo[msg.sender] = target
+    → emit Bound(msg.sender, target, oldTarget)
 
-  // ═══════════════
-  //  Agent Registration (Agent calls itself)
-  // ═══════════════
+  setRecipient(address _recipient) external
+    → recipient[msg.sender] = _recipient
+    → emit RecipientUpdated(msg.sender, _recipient)
 
-  registerAgent(address user) external nonReentrant whenNotPaused
-    → accessManager.registerAgent(msg.sender, user)
-    → emit AgentRegistered(user, msg.sender)
+  grantDelegate(address delegate) external
+    → delegates[msg.sender][delegate] = true
+    → emit DelegateGranted(msg.sender, delegate)
 
-  // ═══════════════
-  //  Agent Management (Owner or Manager)
-  // ═══════════════
+  revokeDelegate(address delegate) external
+    → delegates[msg.sender][delegate] = false
+    → emit DelegateRevoked(msg.sender, delegate)
 
-  removeAgent(address agent) external nonReentrant whenNotPaused
-    → user = _resolveOwnerOrManager()
-    → stakingVault.freezeAgentAllocations(user, agent)
-    → accessManager.removeAgent(user, agent, msg.sender)
-    → emit AgentRemoved(user, agent, msg.sender)
-
-  setManager(address agent, bool _isManager) external whenNotPaused
-    → user = _resolveOwnerOrManager()
-    → accessManager.setManager(user, agent, _isManager, msg.sender)
-    → emit ManagerUpdated(user, agent, _isManager, msg.sender)
-
-  setRewardRecipient(address recipient) external
-    → user = _resolveOwnerOnly()
-    → accessManager.setRewardRecipient(user, recipient)
-    → emit RewardRecipientUpdated(user, recipient)
+  resolveRecipient(address addr) view → address
+    → walks boundTo chain to root, returns recipient[root] or root itself
 
   // ═══════════════
-  //  Staking: Allocation (Owner or Manager)
+  //  Staking: Allocation (Staker or Delegate)
   // ═══════════════
   // Note: Deposit/withdraw is handled by StakeNFT directly. AWPRegistry only manages allocations.
+  // Staker is explicit parameter. Caller must be staker or delegate of staker.
 
-  allocate(address agent, uint256 subnetId, uint128 amount) external
-    → user = _resolveOwnerOrManager()
-    → _validateAgent(user, agent)
-    → stakingVault.allocate(user, agent, subnetId, amount)
-    → emit Allocated(user, agent, subnetId, amount, msg.sender)
+  allocate(address staker, address agent, uint256 subnetId, uint128 amount) external
+    → _requireStakerOrDelegate(staker)
+    → stakingVault.allocate(staker, agent, subnetId, amount)
+    → emit Allocated(staker, agent, subnetId, amount, msg.sender)
 
-  deallocate(address agent, uint256 subnetId, uint128 amount) external
-    → user = _resolveOwnerOrManager()
-    → stakingVault.deallocate(user, agent, subnetId, amount)
-    → emit Deallocated(user, agent, subnetId, amount, msg.sender)
+  deallocate(address staker, address agent, uint256 subnetId, uint128 amount) external
+    → _requireStakerOrDelegate(staker)
+    → stakingVault.deallocate(staker, agent, subnetId, amount)
+    → emit Deallocated(staker, agent, subnetId, amount, msg.sender)
 
-  reallocate(fromAgent, fromSubnetId, toAgent, toSubnetId, amount) external
-    → user = _resolveOwnerOrManager()
-    → _validateAgent(user, toAgent)
-    → stakingVault.reallocate(user, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
-    → emit Reallocated(user, fromAgent, fromSubnetId, toAgent, toSubnetId, amount, msg.sender)
+  reallocate(staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount) external
+    → _requireStakerOrDelegate(staker)
+    → stakingVault.reallocate(staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
+    → emit Reallocated(staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount, msg.sender)
 
   // ═══════════════
   //  Subnet Registration (AWP payment + auto LP)
@@ -1117,14 +1023,13 @@ Functions:
   pause() external onlyGuardian; unpause() external onlyTimelock
 
 Events:
-  UserRegistered(address indexed user)
-  AgentRegistered(address indexed user, address indexed agent)
-  AgentRemoved(address indexed user, address indexed agent, address operator)
-  ManagerUpdated(address indexed user, address indexed agent, bool isManager, address operator)
-  RewardRecipientUpdated(address indexed user, address recipient)
-  Allocated(address indexed user, address indexed agent, uint256 indexed subnetId, uint128 amount, address operator)
-  Deallocated(address indexed user, address indexed agent, uint256 indexed subnetId, uint128 amount, address operator)
-  Reallocated(address indexed user, address fromAgent, uint256 fromSubnet,
+  Bound(address indexed user, address indexed target, address oldTarget)
+  RecipientUpdated(address indexed user, address recipient)
+  DelegateGranted(address indexed user, address indexed delegate)
+  DelegateRevoked(address indexed user, address indexed delegate)
+  Allocated(address indexed staker, address indexed agent, uint256 indexed subnetId, uint128 amount, address operator)
+  Deallocated(address indexed staker, address indexed agent, uint256 indexed subnetId, uint128 amount, address operator)
+  Reallocated(address indexed staker, address fromAgent, uint256 fromSubnet,
               address toAgent, uint256 toSubnet, uint128 amount, address operator)
   // Note: Deposited/Withdrawn/PositionIncreased events now emit from StakeNFT
   // Note: WithdrawRequested/WithdrawCancelled removed (no cooldown in StakeNFT model)
@@ -1204,11 +1109,10 @@ Step 5:  AWPDAO(awpToken, treasury, stakeNFT, ...)  // 6 params, no rootNet
 Step 6:  Treasury.grantRole(PROPOSER+CANCELLER, awpDAO)
 Step 7:  Treasury.renounceRole(ADMIN, deployer)
 Step 8:  AWPRegistry(deployer, treasury, guardian)  // No epochDuration (epoch moved to AWPEmission)
-Step 9:  SubnetNFT("AWP Subnet", "AWPSUB", rootNet)
-Step 10: AccessManager(rootNet)
-Step 11: StakingVault(rootNet, stakeNFT)
-Step 11b: StakeNFT(awpToken, stakingVault, rootNet)
-Step 12: LPManager(rootNet, poolManager, positionManager, awpToken)
+Step 9:  SubnetNFT("AWP Subnet", "AWPSUB", awpRegistry)
+Step 10: StakingVault(awpRegistry, stakeNFT)
+Step 10b: StakeNFT(awpToken, stakingVault, awpRegistry)
+Step 11: LPManager(awpRegistry, poolManager, positionManager, awpToken)
 Step 13a: AWPEmission impl = new AWPEmission()                  // 部署实现合约（不初始化）
 Step 13b: initData = AWPEmission.initialize.selector(awpToken, treasury,
                        initialDailyEmission=15_800_000e18, genesisTime_, epochDuration_=86400)
@@ -1216,8 +1120,8 @@ Step 13b: initData = AWPEmission.initialize.selector(awpToken, treasury,
           // Note: oracles and threshold configured post-deploy via AWPEmission.setOracleConfig()
 Step 14: AWPToken.addMinter(awpEmission)                         // 代理地址获得铸币权                        // Emission contract gets mint permission
 Step 15: AWPToken.renounceAdmin()                               // Permanently lock minter list
-Step 16: AlphaTokenFactory.setAddresses(rootNet)
-Step 17: AWPRegistry.initializeRegistry(all addresses, including awpEmission and stakeNFT — 9 addresses total)
+Step 16: AlphaTokenFactory.setAddresses(awpRegistry)
+Step 17: AWPRegistry.initializeRegistry(all addresses, including awpEmission and stakeNFT — 8 addresses total)
 
 // After all contracts deployed, deployer distributes non-mining portion via transfer:
 Step 18: AWPToken.transfer(treasury, 90_000_000e18)             // 0.9% DAO Treasury
@@ -1303,24 +1207,12 @@ Independently deployed, sharing data via PostgreSQL + Redis.
 ```sql
 CREATE TABLE users (
     address       CHAR(42) PRIMARY KEY,
+    bound_to      CHAR(42),              -- tree-based binding target
+    recipient     CHAR(42),              -- reward recipient
     registered_at BIGINT NOT NULL
 );
-
-CREATE TABLE agents (
-    agent_address CHAR(42) PRIMARY KEY,
-    owner_address CHAR(42) NOT NULL,
-    is_manager    BOOLEAN NOT NULL DEFAULT FALSE,
-    removed       BOOLEAN NOT NULL DEFAULT FALSE,
-    removed_at    BIGINT
-);
-CREATE INDEX idx_agents_owner ON agents(owner_address);
--- Note: No FK on owner_address (Agent may appear in events before User registers)
--- Note: removeAgent uses soft delete (removed=true), preserving history
-
-CREATE TABLE user_reward_recipients (
-    user_address      CHAR(42) PRIMARY KEY,
-    recipient_address CHAR(42) NOT NULL
-);
+-- Note: agents table removed in Account System V2
+-- Note: user_reward_recipients table merged into users.recipient
 
 CREATE TABLE subnets (
     subnet_id        INTEGER PRIMARY KEY,
@@ -1522,12 +1414,10 @@ func (idx *Indexer) Run(ctx context.Context) error {
 }
 
 // Event handling logic:
-//   UserRegistered       → INSERT users
-//   AgentRegistered      → INSERT agents
-//   AgentRemoved         → UPDATE agents SET removed=true, removed_at=blockTime
-//                          + DELETE stake_allocations WHERE user=? AND agent=? AND subnet_id IN (?)
-//   ManagerUpdated       → UPDATE agents SET is_manager=?
-//   RewardRecipientUpdated → UPSERT user_reward_recipients
+//   Bound                → UPSERT users SET bound_to=target
+//   RecipientUpdated     → UPSERT users SET recipient=recipient
+//   DelegateGranted      → INSERT delegates
+//   DelegateRevoked      → DELETE delegates
 //   Deposited (StakeNFT)  → INSERT stake_positions (tokenId, owner, amount, lockEndTime, createdAt)
 //   PositionIncreased (StakeNFT) → UPDATE stake_positions SET amount += delta
 //   Withdrawn (StakeNFT)  → DELETE stake_positions WHERE token_id = ?
@@ -1658,7 +1548,7 @@ lint:
 Phase 1 — Contracts (Week 1-2):
   Day 1:  Foundry + OZ + all interfaces + IPancakeV4
   Day 2:  AWPToken(minter) + AlphaToken(dual minter) + AlphaTokenFactory + AWPEmission
-  Day 3:  SubnetNFT + AccessManager(registration+Agent+Manager)
+  Day 3:  SubnetNFT + Account System V2 (bind/delegate/recipient in AWPRegistry)
   Day 4:  StakingVault(allocate/deallocate) + StakeNFT(deposit/withdraw/positions)
   Day 5:  LPManager(V4 LP creation)
   Day 6:  AWPRegistry(registration+Agent+staking forwarding+subnet registration)
@@ -1690,11 +1580,10 @@ Phase 3 — Frontend (Week 5)
 | Alpha 10B/subnet, dual minter | AlphaToken | ✅ |
 | Alpha Token factory | AlphaTokenFactory (CREATE2) | ✅ |
 | Subnet NFT | SubnetNFT (ERC721) | ✅ |
-| User registration | AccessManager → AWPRegistry | ✅ |
-| Agent self-registration | AccessManager → AWPRegistry | ✅ |
-| User/Agent address mutual exclusion | AccessManager | ✅ |
-| Manager manages Agents + allocation | AWPRegistry + AccessManager | ✅ |
-| Agent removal freezes stake | StakingVault freezeAgentAllocations | ✅ |
+| Account System V2 (no mandatory registration) | AWPRegistry | ✅ |
+| Tree-based binding with anti-cycle check | AWPRegistry (bind/boundTo) | ✅ |
+| Delegation (grantDelegate/revokeDelegate) | AWPRegistry | ✅ |
+| Reward recipient (setRecipient/resolveRecipient) | AWPRegistry | ✅ |
 | Staking deposit/withdraw (NFT positions) | StakeNFT (ERC721) | ✅ |
 | Staking allocate/deallocate (immediate) | StakingVault → AWPRegistry | ✅ |
 | Staking reallocate (immediate) | StakingVault → AWPRegistry | ✅ |
@@ -1717,5 +1606,5 @@ Phase 3 — Frontend (Week 5)
 | DAO treasury + Timelock | Treasury (TimelockController) | ✅ |
 | Guardian emergency pause | AWPRegistry | ✅ |
 | Subnet query (getAgentInfo) | AWPRegistry | ✅ |
-| Reward recipient address | AccessManager | ✅ |
+| Reward recipient (resolveRecipient) | AWPRegistry | ✅ |
 | AWPRegistry unified entry | AWPRegistry | ✅ |

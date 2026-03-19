@@ -39,6 +39,26 @@ func (q *Queries) AddProposalVotesFor(ctx context.Context, arg AddProposalVotesF
 	return err
 }
 
+const deleteIndexedBlocksAfter = `-- name: DeleteIndexedBlocksAfter :exec
+DELETE FROM indexed_blocks WHERE block_number > $1
+`
+
+func (q *Queries) DeleteIndexedBlocksAfter(ctx context.Context, blockNumber int64) error {
+	_, err := q.db.Exec(ctx, deleteIndexedBlocksAfter, blockNumber)
+	return err
+}
+
+const getIndexedBlockHash = `-- name: GetIndexedBlockHash :one
+SELECT block_hash FROM indexed_blocks WHERE block_number = $1
+`
+
+func (q *Queries) GetIndexedBlockHash(ctx context.Context, blockNumber int64) (string, error) {
+	row := q.db.QueryRow(ctx, getIndexedBlockHash, blockNumber)
+	var block_hash string
+	err := row.Scan(&block_hash)
+	return block_hash, err
+}
+
 const getProposal = `-- name: GetProposal :one
 SELECT proposal_id, proposer, description, status, votes_for, votes_against FROM proposals WHERE proposal_id = $1
 `
@@ -166,6 +186,15 @@ func (q *Queries) ListProposalsByStatus(ctx context.Context, arg ListProposalsBy
 	return items, nil
 }
 
+const pruneIndexedBlocks = `-- name: PruneIndexedBlocks :exec
+DELETE FROM indexed_blocks WHERE block_number < $1
+`
+
+func (q *Queries) PruneIndexedBlocks(ctx context.Context, blockNumber int64) error {
+	_, err := q.db.Exec(ctx, pruneIndexedBlocks, blockNumber)
+	return err
+}
+
 const updateProposalStatus = `-- name: UpdateProposalStatus :exec
 UPDATE proposals SET status = $2 WHERE proposal_id = $1
 `
@@ -177,21 +206,6 @@ type UpdateProposalStatusParams struct {
 
 func (q *Queries) UpdateProposalStatus(ctx context.Context, arg UpdateProposalStatusParams) error {
 	_, err := q.db.Exec(ctx, updateProposalStatus, arg.ProposalID, arg.Status)
-	return err
-}
-
-const upsertSyncState = `-- name: UpsertSyncState :exec
-INSERT INTO sync_states (contract_name, last_block) VALUES ($1, $2)
-ON CONFLICT (contract_name) DO UPDATE SET last_block = EXCLUDED.last_block
-`
-
-type UpsertSyncStateParams struct {
-	ContractName string `json:"contract_name"`
-	LastBlock    int64  `json:"last_block"`
-}
-
-func (q *Queries) UpsertSyncState(ctx context.Context, arg UpsertSyncStateParams) error {
-	_, err := q.db.Exec(ctx, upsertSyncState, arg.ContractName, arg.LastBlock)
 	return err
 }
 
@@ -210,31 +224,17 @@ func (q *Queries) UpsertIndexedBlock(ctx context.Context, arg UpsertIndexedBlock
 	return err
 }
 
-const getIndexedBlockHash = `-- name: GetIndexedBlockHash :one
-SELECT block_hash FROM indexed_blocks WHERE block_number = $1
+const upsertSyncState = `-- name: UpsertSyncState :exec
+INSERT INTO sync_states (contract_name, last_block) VALUES ($1, $2)
+ON CONFLICT (contract_name) DO UPDATE SET last_block = EXCLUDED.last_block
 `
 
-func (q *Queries) GetIndexedBlockHash(ctx context.Context, blockNumber int64) (string, error) {
-	row := q.db.QueryRow(ctx, getIndexedBlockHash, blockNumber)
-	var blockHash string
-	err := row.Scan(&blockHash)
-	return blockHash, err
+type UpsertSyncStateParams struct {
+	ContractName string `json:"contract_name"`
+	LastBlock    int64  `json:"last_block"`
 }
 
-const deleteIndexedBlocksAfter = `-- name: DeleteIndexedBlocksAfter :exec
-DELETE FROM indexed_blocks WHERE block_number > $1
-`
-
-func (q *Queries) DeleteIndexedBlocksAfter(ctx context.Context, blockNumber int64) error {
-	_, err := q.db.Exec(ctx, deleteIndexedBlocksAfter, blockNumber)
-	return err
-}
-
-const pruneIndexedBlocks = `-- name: PruneIndexedBlocks :exec
-DELETE FROM indexed_blocks WHERE block_number < $1
-`
-
-func (q *Queries) PruneIndexedBlocks(ctx context.Context, blockNumber int64) error {
-	_, err := q.db.Exec(ctx, pruneIndexedBlocks, blockNumber)
+func (q *Queries) UpsertSyncState(ctx context.Context, arg UpsertSyncStateParams) error {
+	_, err := q.db.Exec(ctx, upsertSyncState, arg.ContractName, arg.LastBlock)
 	return err
 }

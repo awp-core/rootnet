@@ -142,7 +142,6 @@ name_to_env_key() {
         Treasury)           echo "TREASURY" ;;
         AWPRegistry)        echo "AWP_REGISTRY" ;;
         SubnetNFT)          echo "SUBNET_NFT" ;;
-        AccessManager)      echo "ACCESS_MANAGER" ;;
         LPManager)          echo "LP_MANAGER" ;;
         StakingVault)       echo "STAKING_VAULT" ;;
         StakeNFT)           echo "STAKE_NFT" ;;

@@ -108,7 +108,7 @@ func (e *testEnv) cleanDB() {
 	// Truncate all tables in one statement
 	_, err := e.pool.Exec(ctx, `TRUNCATE TABLE
 		recipient_awp_distributions, stake_positions, stake_allocations,
-		user_balances, user_reward_recipients, agents, epochs,
+		user_balances, epochs,
 		subnets, proposals, users, sync_states`)
 	if err != nil {
 		e.t.Logf("cleanDB TRUNCATE failed: %v", err)
@@ -207,12 +207,12 @@ func TestListUsersWithData(t *testing.T) {
 	env := newTestEnv(t)
 	ctx := context.Background()
 
-	// Insert 3 users (registered_at determines sort order, DESC)
-	for i, ts := range []int64{1000, 2000, 3000} {
+	// Insert 3 users
+	for i := range []int{0, 1, 2} {
 		addr := strings.Replace("0x0000000000000000000000000000000000000001", "1", string(rune('1'+i)), 1)
-		_ = env.queries.InsertUser(ctx, gen.InsertUserParams{
-			Address:      addr,
-			RegisteredAt: ts,
+		_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
+			Address: addr,
+			BoundTo: "",
 		})
 	}
 
@@ -246,13 +246,13 @@ func TestGetUserCount(t *testing.T) {
 	ctx := context.Background()
 
 	// Insert 2 users
-	_ = env.queries.InsertUser(ctx, gen.InsertUserParams{
+	_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
 		Address:      "0x0000000000000000000000000000000000000001",
-		RegisteredAt: 1000,
+		BoundTo: "",
 	})
-	_ = env.queries.InsertUser(ctx, gen.InsertUserParams{
+	_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
 		Address:      "0x0000000000000000000000000000000000000002",
-		RegisteredAt: 2000,
+		BoundTo: "",
 	})
 
 	rr := env.request("GET", "/api/users/count", "")
@@ -274,9 +274,9 @@ func TestGetUser(t *testing.T) {
 	addr := "0x0000000000000000000000000000000000000001"
 
 	// Insert user
-	_ = env.queries.InsertUser(ctx, gen.InsertUserParams{
+	_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
 		Address:      addr,
-		RegisteredAt: 1000,
+		BoundTo: "",
 	})
 
 	// Initialize balance and create stake position
@@ -288,8 +288,8 @@ func TestGetUser(t *testing.T) {
 
 	// Insert agent
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO agents (agent_address, owner_address, is_manager) VALUES ($1, $2, $3)",
-		"0x00000000000000000000000000000000000000a1", addr, false,
+		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"0x00000000000000000000000000000000000000a1", addr,
 	)
 
 	rr := env.request("GET", "/api/users/"+addr, "")
@@ -338,9 +338,9 @@ func TestGetUserCaseInsensitive(t *testing.T) {
 
 	// Insert lowercase address
 	addr := "0x000000000000000000000000000000000000abcd"
-	_ = env.queries.InsertUser(ctx, gen.InsertUserParams{
+	_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
 		Address:      addr,
-		RegisteredAt: 1000,
+		BoundTo: "",
 	})
 
 	// Query with uppercase (handler normalizes to lowercase via normalizeAddr)
@@ -362,24 +362,24 @@ func TestCheckAddressUnknown(t *testing.T) {
 	}
 	var resp map[string]any
 	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
-	if resp["isRegisteredUser"] != false {
-		t.Error("expected isRegisteredUser=false")
+	if resp["isRegistered"] != false {
+		t.Error("expected isRegistered=false")
 	}
-	if resp["isRegisteredAgent"] != false {
-		t.Error("expected isRegisteredAgent=false")
+	if resp["boundTo"] != "" {
+		t.Errorf("expected empty boundTo, got %v", resp["boundTo"])
 	}
-	if resp["isManager"] != false {
-		t.Error("expected isManager=false")
+	if resp["recipient"] != "" {
+		t.Errorf("expected empty recipient, got %v", resp["recipient"])
 	}
 }
 
-func TestCheckAddressUser(t *testing.T) {
+func TestCheckAddressUnbound(t *testing.T) {
 	env := newTestEnv(t)
 	ctx := context.Background()
 	addr := "0x0000000000000000000000000000000000000001"
-	_ = env.queries.InsertUser(ctx, gen.InsertUserParams{
-		Address:      addr,
-		RegisteredAt: 1000,
+	_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
+		Address: addr,
+		BoundTo: "",
 	})
 
 	rr := env.request("GET", "/api/address/"+addr+"/check", "")
@@ -388,23 +388,21 @@ func TestCheckAddressUser(t *testing.T) {
 	}
 	var resp map[string]any
 	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
-	if resp["isRegisteredUser"] != true {
-		t.Error("expected isRegisteredUser=true")
-	}
-	if resp["isRegisteredAgent"] != false {
-		t.Error("expected isRegisteredAgent=false for user-only address")
+	// Address exists but has no binding and no recipient, so isRegistered=false
+	if resp["isRegistered"] != false {
+		t.Error("expected isRegistered=false for address with empty binding and recipient")
 	}
 }
 
-func TestCheckAddressAgent(t *testing.T) {
+func TestCheckAddressBound(t *testing.T) {
 	env := newTestEnv(t)
 	ctx := context.Background()
 
 	agentAddr := "0x00000000000000000000000000000000000000a1"
 	ownerAddr := "0x0000000000000000000000000000000000000001"
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO agents (agent_address, owner_address, is_manager) VALUES ($1, $2, $3)",
-		agentAddr, ownerAddr, false,
+		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		agentAddr, ownerAddr,
 	)
 
 	rr := env.request("GET", "/api/address/"+agentAddr+"/check", "")
@@ -413,39 +411,36 @@ func TestCheckAddressAgent(t *testing.T) {
 	}
 	var resp map[string]any
 	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
-	if resp["isRegisteredAgent"] != true {
-		t.Error("expected isRegisteredAgent=true")
+	if resp["isRegistered"] != true {
+		t.Error("expected isRegistered=true for bound address")
 	}
-	if resp["ownerAddress"] == nil || !strings.Contains(resp["ownerAddress"].(string), "0000001") {
-		t.Errorf("expected ownerAddress to contain owner, got %v", resp["ownerAddress"])
-	}
-	if resp["isManager"] != false {
-		t.Error("expected isManager=false")
+	if !strings.Contains(resp["boundTo"].(string), "0000001") {
+		t.Errorf("expected boundTo to contain owner, got %v", resp["boundTo"])
 	}
 }
 
-func TestCheckAddressManagerAgent(t *testing.T) {
+func TestCheckAddressWithRecipient(t *testing.T) {
 	env := newTestEnv(t)
 	ctx := context.Background()
 
-	agentAddr := "0x00000000000000000000000000000000000000a2"
-	ownerAddr := "0x0000000000000000000000000000000000000002"
-	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO agents (agent_address, owner_address, is_manager) VALUES ($1, $2, $3)",
-		agentAddr, ownerAddr, true,
-	)
+	userAddr := "0x00000000000000000000000000000000000000a2"
+	recipientAddr := "0x0000000000000000000000000000000000000002"
+	_ = env.queries.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+		Address:   userAddr,
+		Recipient: recipientAddr,
+	})
 
-	rr := env.request("GET", "/api/address/"+agentAddr+"/check", "")
+	rr := env.request("GET", "/api/address/"+userAddr+"/check", "")
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
 	}
 	var resp map[string]any
 	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
-	if resp["isRegisteredAgent"] != true {
-		t.Error("expected isRegisteredAgent=true")
+	if resp["isRegistered"] != true {
+		t.Error("expected isRegistered=true for address with recipient")
 	}
-	if resp["isManager"] != true {
-		t.Error("expected isManager=true for manager agent")
+	if !strings.Contains(resp["recipient"].(string), "0000002") {
+		t.Errorf("expected recipient to contain address, got %v", resp["recipient"])
 	}
 }
 
@@ -475,12 +470,12 @@ func TestGetAgentsByOwnerWithData(t *testing.T) {
 	agent2 := "0x00000000000000000000000000000000000000a2"
 
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO agents (agent_address, owner_address, is_manager) VALUES ($1, $2, $3)",
-		agent1, ownerAddr, false,
+		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		agent1, ownerAddr,
 	)
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO agents (agent_address, owner_address, is_manager) VALUES ($1, $2, $3)",
-		agent2, ownerAddr, true,
+		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		agent2, ownerAddr,
 	)
 
 	rr := env.request("GET", "/api/agents/by-owner/"+ownerAddr, "")
@@ -502,22 +497,22 @@ func TestGetAgentDetail(t *testing.T) {
 	agentAddr := "0x00000000000000000000000000000000000000a1"
 
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO agents (agent_address, owner_address, is_manager) VALUES ($1, $2, $3)",
-		agentAddr, ownerAddr, false,
+		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		agentAddr, ownerAddr,
 	)
 
-	// GetAgentDetail uses the /by-owner/{owner}/{agent} route but internally only queries agent
+	// GetAgentDetail uses the /by-owner/{owner}/{agent} route — returns user record
 	rr := env.request("GET", "/api/agents/by-owner/"+ownerAddr+"/"+agentAddr, "")
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
 	var resp map[string]any
 	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
-	if !strings.Contains(resp["agent_address"].(string), "a1") {
-		t.Errorf("unexpected agent_address: %v", resp["agent_address"])
+	if !strings.Contains(resp["address"].(string), "a1") {
+		t.Errorf("unexpected address: %v", resp["address"])
 	}
-	if !strings.Contains(resp["owner_address"].(string), "0000001") {
-		t.Errorf("unexpected owner_address: %v", resp["owner_address"])
+	if !strings.Contains(resp["bound_to"].(string), "0000001") {
+		t.Errorf("unexpected bound_to: %v", resp["bound_to"])
 	}
 }
 
@@ -528,8 +523,8 @@ func TestLookupAgent(t *testing.T) {
 	ownerAddr := "0x0000000000000000000000000000000000000001"
 	agentAddr := "0x00000000000000000000000000000000000000a1"
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO agents (agent_address, owner_address, is_manager) VALUES ($1, $2, $3)",
-		agentAddr, ownerAddr, false,
+		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		agentAddr, ownerAddr,
 	)
 
 	rr := env.request("GET", "/api/agents/lookup/"+agentAddr, "")
@@ -560,12 +555,12 @@ func TestBatchAgentInfo(t *testing.T) {
 	ownerAddr := "0x0000000000000000000000000000000000000001"
 
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO agents (agent_address, owner_address, is_manager) VALUES ($1, $2, $3)",
-		agent1, ownerAddr, false,
+		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		agent1, ownerAddr,
 	)
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO agents (agent_address, owner_address, is_manager) VALUES ($1, $2, $3)",
-		agent2, ownerAddr, true,
+		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		agent2, ownerAddr,
 	)
 
 	body := `{"agents":["` + agent1 + `","` + agent2 + `"],"subnetId":1}`
@@ -1319,13 +1314,13 @@ func TestE2E_UserRegistrationToStaking(t *testing.T) {
 	userAddr := "0x0000000000000000000000000000000000000001"
 	agentAddr := "0x00000000000000000000000000000000000000a1"
 
-	// Step 1: Register user
-	err := env.queries.InsertUser(ctx, gen.InsertUserParams{
-		Address:      userAddr,
-		RegisteredAt: 1000,
+	// Step 1: Register user with recipient (so address check shows isRegistered=true)
+	err := env.queries.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+		Address:   userAddr,
+		Recipient: userAddr, // self-recipient
 	})
 	if err != nil {
-		t.Fatalf("InsertUser failed: %v", err)
+		t.Fatalf("UpsertUserRecipient failed: %v", err)
 	}
 
 	// Step 2: Initialize balance
@@ -1345,8 +1340,8 @@ func TestE2E_UserRegistrationToStaking(t *testing.T) {
 
 	// Step 4: Insert agent
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO agents (agent_address, owner_address, is_manager) VALUES ($1, $2, $3)",
-		agentAddr, userAddr, false,
+		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		agentAddr, userAddr,
 	)
 
 	// Step 5: Insert stake allocations
@@ -1426,8 +1421,8 @@ func TestE2E_UserRegistrationToStaking(t *testing.T) {
 		}
 		var resp map[string]any
 		_ = json.Unmarshal(rr.Body.Bytes(), &resp)
-		if resp["isRegisteredUser"] != true {
-			t.Error("expected isRegisteredUser=true in E2E flow")
+		if resp["isRegistered"] != true {
+			t.Error("expected isRegistered=true in E2E flow")
 		}
 	})
 }
@@ -1522,15 +1517,18 @@ func TestE2E_AddressCaseNormalization(t *testing.T) {
 	// Insert all with lowercase
 	userAddr := "0x000000000000000000000000000000000000abcd"
 	agentAddr := "0x000000000000000000000000000000000000ef01"
+	recipientAddr := "0x0000000000000000000000000000000000001234"
 
-	_ = env.queries.InsertUser(ctx, gen.InsertUserParams{
-		Address:      userAddr,
-		RegisteredAt: 1000,
+	// User has a recipient set (makes isRegistered=true)
+	_ = env.queries.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+		Address:   userAddr,
+		Recipient: recipientAddr,
 	})
 	_ = env.queries.InitUserBalance(ctx, userAddr)
+	// Agent is bound to user
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO agents (agent_address, owner_address, is_manager) VALUES ($1, $2, $3)",
-		agentAddr, userAddr, false,
+		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		agentAddr, userAddr,
 	)
 
 	// Query all routes using uppercase addresses
@@ -1551,7 +1549,7 @@ func TestE2E_AddressCaseNormalization(t *testing.T) {
 		}
 		var resp map[string]any
 		_ = json.Unmarshal(rr.Body.Bytes(), &resp)
-		if resp["isRegisteredUser"] != true {
+		if resp["isRegistered"] != true {
 			t.Error("expected case-insensitive address check to find user")
 		}
 	})
