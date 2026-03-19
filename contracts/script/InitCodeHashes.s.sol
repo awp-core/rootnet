@@ -14,6 +14,8 @@ import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
 import {SubnetManager} from "../src/subnets/SubnetManager.sol";
+import {SubnetManagerUni} from "../src/subnets/SubnetManagerUni.sol";
+import {LPManagerUni} from "../src/core/LPManagerUni.sol";
 
 /// @title InitCodeHashes — Compute initcode hashes for vanity salt mining (tiered)
 /// @dev Run: forge script script/InitCodeHashes.s.sol
@@ -54,7 +56,8 @@ contract InitCodeHashes is Script {
         _logHash("AWPToken", abi.encodePacked(type(AWPToken).creationCode, abi.encode("AWP Token", "AWP", deployer)));
         _logHash("AlphaTokenFactory", abi.encodePacked(type(AlphaTokenFactory).creationCode, abi.encode(deployer, vanityRule)));
         _logHash("AWPEmission_impl", abi.encodePacked(type(AWPEmission).creationCode));
-        _logHash("SubnetManager_impl", abi.encodePacked(type(SubnetManager).creationCode));
+        _logHash("SubnetManager_impl (PancakeSwap)", abi.encodePacked(type(SubnetManager).creationCode));
+        _logHash("SubnetManager_impl (Uniswap)", abi.encodePacked(type(SubnetManagerUni).creationCode));
 
         // Tier 2: Treasury (no dependency on other deployed contracts)
         console.log("");
@@ -75,7 +78,8 @@ contract InitCodeHashes is Script {
         console.log("");
         console.log("--- Tier 4 (depends on AWPRegistry + AWP) ---");
         _logHash("SubnetNFT", abi.encodePacked(type(SubnetNFT).creationCode, abi.encode("AWP Subnet", "AWPSUB", rootNet)));
-        _logHash("LPManager", abi.encodePacked(type(LPManager).creationCode, abi.encode(rootNet, poolManager, positionManager, permit2Addr, awp)));
+        _logHash("LPManager (PancakeSwap)", abi.encodePacked(type(LPManager).creationCode, abi.encode(rootNet, poolManager, positionManager, permit2Addr, awp)));
+        _logHash("LPManager (Uniswap)", abi.encodePacked(type(LPManagerUni).creationCode, abi.encode(rootNet, poolManager, positionManager, permit2Addr, awp)));
         _logHash("StakingVault", abi.encodePacked(type(StakingVault).creationCode, abi.encode(rootNet)));
 
         bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, treasury, INITIAL_DAILY_EMISSION, uint256(0), EPOCH_DURATION));
