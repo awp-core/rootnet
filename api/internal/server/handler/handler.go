@@ -23,6 +23,12 @@ type Handler struct {
 	cfg     *config.Config
 	logger  *slog.Logger
 	limiter *ratelimit.Limiter
+	chain   ChainReader // optional: for on-chain reads (nonce, etc.)
+}
+
+// ChainReader provides read-only access to on-chain state (optional dependency)
+type ChainReader interface {
+	GetNonce(addr string) (uint64, error)
 }
 
 // NewHandler creates a new Handler instance
@@ -34,6 +40,11 @@ func NewHandler(queries *gen.Queries, rdb *redis.Client, cfg *config.Config, log
 		logger:  logger,
 		limiter: limiter,
 	}
+}
+
+// SetChainReader sets the optional chain reader for on-chain queries
+func (h *Handler) SetChainReader(cr ChainReader) {
+	h.chain = cr
 }
 
 // writeJSON writes data as JSON to the response
@@ -83,19 +94,28 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// eip712DomainResponse provides all info needed to construct EIP-712 signatures for gasless relay
+type eip712DomainResponse struct {
+	Name              string `json:"name"`
+	Version           string `json:"version"`
+	ChainID           int64  `json:"chainId"`
+	VerifyingContract string `json:"verifyingContract"`
+}
+
 // registryResponse is the response type for the contract address registry
 type registryResponse struct {
-	ChainID           int64  `json:"chainId"`
-	AWPRegistry       string `json:"awpRegistry"`
-	AWPToken          string `json:"awpToken"`
-	AWPEmission       string `json:"awpEmission"`
-	StakingVault      string `json:"stakingVault"`
-	StakeNFT          string `json:"stakeNFT"`
-	SubnetNFT         string `json:"subnetNFT"`
-	LPManager         string `json:"lpManager"`
-	AlphaTokenFactory string `json:"alphaTokenFactory"`
-	DAO               string `json:"dao"`
-	Treasury          string `json:"treasury"`
+	ChainID           int64               `json:"chainId"`
+	AWPRegistry       string              `json:"awpRegistry"`
+	AWPToken          string              `json:"awpToken"`
+	AWPEmission       string              `json:"awpEmission"`
+	StakingVault      string              `json:"stakingVault"`
+	StakeNFT          string              `json:"stakeNFT"`
+	SubnetNFT         string              `json:"subnetNFT"`
+	LPManager         string              `json:"lpManager"`
+	AlphaTokenFactory string              `json:"alphaTokenFactory"`
+	DAO               string              `json:"dao"`
+	Treasury          string              `json:"treasury"`
+	EIP712Domain      eip712DomainResponse `json:"eip712Domain"`
 }
 
 // GetRegistry returns the contract address registry with chain ID
@@ -112,6 +132,12 @@ func (h *Handler) GetRegistry(w http.ResponseWriter, r *http.Request) {
 		AlphaTokenFactory: h.cfg.AlphaFactoryAddress,
 		DAO:               h.cfg.DAOAddress,
 		Treasury:          h.cfg.TreasuryAddress,
+		EIP712Domain: eip712DomainResponse{
+			Name:              "AWPRegistry",
+			Version:           "1",
+			ChainID:           h.cfg.ChainID,
+			VerifyingContract: h.cfg.AWPRegistryAddress,
+		},
 	}
 	h.writeJSON(w, http.StatusOK, resp)
 }
@@ -121,6 +147,26 @@ type checkAddressResponse struct {
 	IsRegistered bool   `json:"isRegistered"`
 	BoundTo      string `json:"boundTo"`
 	Recipient    string `json:"recipient"`
+}
+
+// GetNonce returns the EIP-712 nonce for an address (used for gasless relay signature construction)
+func (h *Handler) GetNonce(w http.ResponseWriter, r *http.Request) {
+	address := normalizeAddr(chi.URLParam(r, "address"))
+	if address == "" || len(address) != 42 {
+		h.writeError(w, http.StatusBadRequest, "invalid address")
+		return
+	}
+	if h.chain == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "chain reader not available")
+		return
+	}
+	nonce, err := h.chain.GetNonce(address)
+	if err != nil {
+		h.logger.Error("failed to read nonce", "error", err, "address", address)
+		h.writeError(w, http.StatusInternalServerError, "failed to read nonce")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]uint64{"nonce": nonce})
 }
 
 // CheckAddress checks whether an address is registered and returns binding/recipient info (V2)

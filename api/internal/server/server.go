@@ -56,6 +56,7 @@ func NewRouter(p RouterParams) chi.Router {
 
 		// Address lookup
 		r.Get("/address/{address}/check", h.CheckAddress)
+		r.Get("/nonce/{address}", h.GetNonce)
 
 		// Agent nodes
 		r.Route("/agents", func(r chi.Router) {
