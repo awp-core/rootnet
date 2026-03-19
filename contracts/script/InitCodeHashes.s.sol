@@ -42,7 +42,7 @@ contract InitCodeHashes is Script {
         // Previously mined addresses (set these as you mine each tier)
         address awp = _addr("ADDR_AWP_TOKEN");
         address treasury = _addr("ADDR_TREASURY");
-        address rootNet = _addr("ADDR_ROOTNET");
+        address awpRegistry = _addr("ADDR_AWP_REGISTRY");
         address emissionImpl = _addr("ADDR_EMISSION_IMPL");
         address vault = _addr("ADDR_STAKING_VAULT");
         address stakeNft = _addr("ADDR_STAKE_NFT");
@@ -77,10 +77,10 @@ contract InitCodeHashes is Script {
         // Tier 4: Depends on AWPRegistry + AWP
         console.log("");
         console.log("--- Tier 4 (depends on AWPRegistry + AWP) ---");
-        _logHash("SubnetNFT", abi.encodePacked(type(SubnetNFT).creationCode, abi.encode("AWP Subnet", "AWPSUB", rootNet)));
-        _logHash("LPManager (PancakeSwap)", abi.encodePacked(type(LPManager).creationCode, abi.encode(rootNet, poolManager, positionManager, permit2Addr, awp)));
-        _logHash("LPManager (Uniswap)", abi.encodePacked(type(LPManagerUni).creationCode, abi.encode(rootNet, poolManager, positionManager, permit2Addr, awp)));
-        _logHash("StakingVault", abi.encodePacked(type(StakingVault).creationCode, abi.encode(rootNet)));
+        _logHash("SubnetNFT", abi.encodePacked(type(SubnetNFT).creationCode, abi.encode("AWP Subnet", "AWPSUB", awpRegistry)));
+        _logHash("LPManager (PancakeSwap)", abi.encodePacked(type(LPManager).creationCode, abi.encode(awpRegistry, poolManager, positionManager, permit2Addr, awp)));
+        _logHash("LPManager (Uniswap)", abi.encodePacked(type(LPManagerUni).creationCode, abi.encode(awpRegistry, poolManager, positionManager, permit2Addr, awp)));
+        _logHash("StakingVault", abi.encodePacked(type(StakingVault).creationCode, abi.encode(awpRegistry)));
 
         bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, treasury, INITIAL_DAILY_EMISSION, uint256(0), EPOCH_DURATION));
         _logHash("AWPEmission_proxy", abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(emissionImpl, initData)));
@@ -88,7 +88,7 @@ contract InitCodeHashes is Script {
         // Tier 5: StakeNFT (depends on StakingVault + AWPRegistry + AWP)
         console.log("");
         console.log("--- Tier 5 (depends on StakingVault) ---");
-        _logHash("StakeNFT", abi.encodePacked(type(StakeNFT).creationCode, abi.encode(awp, vault, rootNet)));
+        _logHash("StakeNFT", abi.encodePacked(type(StakeNFT).creationCode, abi.encode(awp, vault, awpRegistry)));
 
         // Tier 6: DAO (depends on StakeNFT + AWP + Treasury)
         console.log("");

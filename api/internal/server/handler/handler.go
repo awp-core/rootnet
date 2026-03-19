@@ -136,7 +136,7 @@ func (h *Handler) CheckAddress(w http.ResponseWriter, r *http.Request) {
 
 	// Check whether this address exists in the users table
 	if user, err := h.queries.GetUser(ctx, address); err == nil {
-		resp.IsRegistered = user.RegisteredAt != 0
+		resp.IsRegistered = user.RegisteredAt != 0 || user.BoundTo != "" || user.Recipient != ""
 		resp.BoundTo = user.BoundTo
 		resp.Recipient = user.Recipient
 	} else if !errors.Is(err, pgx.ErrNoRows) {

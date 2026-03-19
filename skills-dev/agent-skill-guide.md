@@ -271,12 +271,13 @@ When registering or updating your subnet, include the URL:
 
 ```javascript
 // At registration
-await rootNet.registerSubnet({
+await awpRegistry.registerSubnet({
   name: "MyProject",
   symbol: "MYP",
-  subnetManager: "0x...",
-  salt: "0x00...00",
+  subnetManager: "0x0000000000000000000000000000000000000000",
+  salt: "0x0000000000000000000000000000000000000000000000000000000000000000",
   minStake: 0n,
+  skillsURI: "https://docs.myproject.io/SKILL.md",
 });
 
 // Update skillsURI later (NFT owner only, via SubnetNFT)

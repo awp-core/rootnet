@@ -13,7 +13,7 @@
         "internalType": "address"
       },
       {
-        "name": "rootNet_",
+        "name": "awpRegistry_",
         "type": "address",
         "internalType": "address"
       }
@@ -112,6 +112,19 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "awpRegistry",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -467,19 +480,6 @@
         "name": "",
         "type": "uint64",
         "internalType": "uint64"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "rootNet",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -957,7 +957,7 @@
   },
   {
     "type": "error",
-    "name": "NotRootNet",
+    "name": "NotAWPRegistry",
     "inputs": []
   },
   {

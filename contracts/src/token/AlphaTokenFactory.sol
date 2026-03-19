@@ -18,8 +18,8 @@ import {AlphaToken} from "./AlphaToken.sol";
 ///      high byte = prefix0, low byte = suffix3
 ///      Default rule "0xA1????CAFE": 0x1001FFFF12101514
 contract AlphaTokenFactory is Ownable {
-    /// @notice RootNet contract address (immutable after setAddresses)
-    address public rootNet;
+    /// @notice AWPRegistry contract address (immutable after setAddresses)
+    address public awpRegistry;
 
     /// @notice Whether configuration is complete (true after setAddresses)
     bool public configured;
@@ -31,8 +31,8 @@ contract AlphaTokenFactory is Ownable {
     /// @notice Precomputed keccak256(type(AlphaToken).creationCode) for predictDeployAddress
     bytes32 public immutable ALPHA_BYTECODE_HASH;
 
-    /// @dev Caller is not RootNet
-    error NotRootNet();
+    /// @dev Caller is (not AWPRegistry)
+    error NotAWPRegistry();
 
     /// @dev Deployed address does not satisfy vanity constraints
     error InvalidVanityAddress();
@@ -45,26 +45,26 @@ contract AlphaTokenFactory is Ownable {
         ALPHA_BYTECODE_HASH = keccak256(type(AlphaToken).creationCode);
     }
 
-    /// @notice Set the RootNet address and renounce ownership (can only be called once)
-    /// @param rootNet_ RootNet contract address
-    function setAddresses(address rootNet_) external onlyOwner {
-        rootNet = rootNet_;
+    /// @notice Set the AWPRegistry address and renounce ownership (can only be called once)
+    /// @param awpRegistry_ AWPRegistry contract address
+    function setAddresses(address awpRegistry_) external onlyOwner {
+        awpRegistry = awpRegistry_;
         configured = true;
         renounceOwnership();
     }
 
-    /// @notice Deploy a new AlphaToken instance via CREATE2 (only RootNet may call)
+    /// @notice Deploy a new AlphaToken instance via CREATE2 (only AWPRegistry may call)
     /// @param subnetId_ Subnet ID
     /// @param name_     Token name
     /// @param symbol_   Token symbol
-    /// @param admin_    Admin address for the instance (typically RootNet itself)
+    /// @param admin_    Admin address for the instance (typically AWPRegistry itself)
     /// @param salt_     CREATE2 salt; if bytes32(0), uses subnetId as salt
     /// @return Address of the newly created AlphaToken contract
     function deploy(uint256 subnetId_, string memory name_, string memory symbol_, address admin_, bytes32 salt_)
         external
         returns (address)
     {
-        if (msg.sender != rootNet) revert NotRootNet();
+        if (msg.sender != awpRegistry) revert NotAWPRegistry();
 
         bytes32 effectiveSalt = salt_ == bytes32(0) ? bytes32(subnetId_) : salt_;
 

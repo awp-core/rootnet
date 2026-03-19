@@ -32,7 +32,7 @@ contract AWPDAOTest is Test {
         awpToken = new AWPToken("AWP", "AWP", deployer);
 
         // Deploy StakingVault + StakeNFT (circular dependency)
-        // This test contract (address(this)) acts as rootNet for access control
+        // This test contract (address(this)) acts as awpRegistry for access control
         uint64 nonce = vm.getNonce(deployer);
         address predictedVault = vm.computeCreateAddress(deployer, nonce);
         address predictedStakeNFT = vm.computeCreateAddress(deployer, nonce + 1);
@@ -49,7 +49,7 @@ contract AWPDAOTest is Test {
         executors[0] = address(0); // anyone can execute
         treasury = new Treasury(MIN_DELAY, proposers, executors, deployer);
 
-        // Deploy AWPDAO (no rootNet param)
+        // Deploy AWPDAO (no awpRegistry param)
         dao = new AWPDAO(
             address(stakeNFT),
             address(awpToken),

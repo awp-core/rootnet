@@ -311,12 +311,12 @@ contract AlphaTokenTest is Test {
 contract AlphaTokenFactoryTest is Test {
     AlphaTokenFactory public factory;
     address public deployer;
-    address public rootNet;
+    address public awpRegistry;
     address public alice;
 
     function setUp() public {
         deployer = makeAddr("deployer");
-        rootNet = makeAddr("rootNet");
+        awpRegistry = makeAddr("awpRegistry");
         alice = makeAddr("alice");
 
         vm.prank(deployer);
@@ -331,29 +331,29 @@ contract AlphaTokenFactoryTest is Test {
 
     function test_constructor_notConfigured() public view {
         assertFalse(factory.configured());
-        assertEq(factory.rootNet(), address(0));
+        assertEq(factory.awpRegistry(), address(0));
     }
 
     // ── setAddresses tests ──
 
     function test_setAddresses_configuresAndRenounces() public {
         vm.prank(deployer);
-        factory.setAddresses(rootNet);
+        factory.setAddresses(awpRegistry);
 
         assertTrue(factory.configured());
-        assertEq(factory.rootNet(), rootNet);
+        assertEq(factory.awpRegistry(), awpRegistry);
         assertEq(factory.owner(), address(0)); // ownership has been renounced
     }
 
     function test_setAddresses_revertIfNotOwner() public {
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, alice));
-        factory.setAddresses(rootNet);
+        factory.setAddresses(awpRegistry);
     }
 
     function test_setAddresses_cannotBeCalledTwice() public {
         vm.prank(deployer);
-        factory.setAddresses(rootNet);
+        factory.setAddresses(awpRegistry);
 
         // Ownership has been renounced; calling again should fail
         vm.prank(deployer);
@@ -365,10 +365,10 @@ contract AlphaTokenFactoryTest is Test {
 
     function test_deploy_createsToken() public {
         vm.prank(deployer);
-        factory.setAddresses(rootNet);
+        factory.setAddresses(awpRegistry);
 
-        vm.prank(rootNet);
-        address token = factory.deploy(1, "Subnet Alpha 1", "SA1", rootNet, bytes32(0));
+        vm.prank(awpRegistry);
+        address token = factory.deploy(1, "Subnet Alpha 1", "SA1", awpRegistry, bytes32(0));
 
         assertTrue(token != address(0));
 
@@ -376,26 +376,26 @@ contract AlphaTokenFactoryTest is Test {
         assertEq(alphaToken.name(), "Subnet Alpha 1");
         assertEq(alphaToken.symbol(), "SA1");
         assertEq(alphaToken.subnetId(), 1);
-        assertEq(alphaToken.admin(), rootNet);
+        assertEq(alphaToken.admin(), awpRegistry);
     }
 
-    function test_deploy_revertIfNotRootNet() public {
+    function test_deploy_revertIfNotAWPRegistry() public {
         vm.prank(deployer);
-        factory.setAddresses(rootNet);
+        factory.setAddresses(awpRegistry);
 
         vm.prank(alice);
-        vm.expectRevert(AlphaTokenFactory.NotRootNet.selector);
+        vm.expectRevert(AlphaTokenFactory.NotAWPRegistry.selector);
         factory.deploy(1, "X", "X", alice, bytes32(0));
     }
 
     function test_deploy_multipleSubnets() public {
         vm.prank(deployer);
-        factory.setAddresses(rootNet);
+        factory.setAddresses(awpRegistry);
 
-        vm.startPrank(rootNet);
-        address token1 = factory.deploy(1, "Alpha 1", "A1", rootNet, bytes32(0));
-        address token2 = factory.deploy(2, "Alpha 2", "A2", rootNet, bytes32(0));
-        address token3 = factory.deploy(3, "Alpha 3", "A3", rootNet, bytes32(0));
+        vm.startPrank(awpRegistry);
+        address token1 = factory.deploy(1, "Alpha 1", "A1", awpRegistry, bytes32(0));
+        address token2 = factory.deploy(2, "Alpha 2", "A2", awpRegistry, bytes32(0));
+        address token3 = factory.deploy(3, "Alpha 3", "A3", awpRegistry, bytes32(0));
         vm.stopPrank();
 
         assertTrue(token1 != token2);
@@ -408,34 +408,34 @@ contract AlphaTokenFactoryTest is Test {
 
     function test_deploy_adminIsMinter() public {
         vm.prank(deployer);
-        factory.setAddresses(rootNet);
+        factory.setAddresses(awpRegistry);
 
-        vm.prank(rootNet);
-        address token = factory.deploy(1, "Alpha", "A", rootNet, bytes32(0));
+        vm.prank(awpRegistry);
+        address token = factory.deploy(1, "Alpha", "A", awpRegistry, bytes32(0));
 
         AlphaToken alphaToken = AlphaToken(token);
-        assertTrue(alphaToken.minters(rootNet));
+        assertTrue(alphaToken.minters(awpRegistry));
     }
 
     function test_deploy_canMint() public {
         vm.prank(deployer);
-        factory.setAddresses(rootNet);
+        factory.setAddresses(awpRegistry);
 
-        vm.prank(rootNet);
-        address token = factory.deploy(1, "Alpha", "A", rootNet, bytes32(0));
+        vm.prank(awpRegistry);
+        address token = factory.deploy(1, "Alpha", "A", awpRegistry, bytes32(0));
 
         AlphaToken alphaToken = AlphaToken(token);
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         alphaToken.mint(alice, 1000e18);
         assertEq(alphaToken.balanceOf(alice), 1000e18);
     }
 
     function test_deploy_cannotReinitialize() public {
         vm.prank(deployer);
-        factory.setAddresses(rootNet);
+        factory.setAddresses(awpRegistry);
 
-        vm.prank(rootNet);
-        address token = factory.deploy(1, "Alpha", "A", rootNet, bytes32(0));
+        vm.prank(awpRegistry);
+        address token = factory.deploy(1, "Alpha", "A", awpRegistry, bytes32(0));
 
         vm.expectRevert();
         AlphaToken(token).initialize("Hacked", "H", 999, alice);
@@ -446,25 +446,25 @@ contract AlphaTokenFactoryTest is Test {
     function test_fullLifecycle_deployAndLockMinter() public {
         // 1. Configure factory
         vm.prank(deployer);
-        factory.setAddresses(rootNet);
+        factory.setAddresses(awpRegistry);
 
-        // 2. RootNet deploys AlphaToken
-        vm.prank(rootNet);
-        address token = factory.deploy(1, "Alpha 1", "A1", rootNet, bytes32(0));
+        // 2. AWPRegistry deploys AlphaToken
+        vm.prank(awpRegistry);
+        address token = factory.deploy(1, "Alpha 1", "A1", awpRegistry, bytes32(0));
         AlphaToken alphaToken = AlphaToken(token);
 
-        // 3. RootNet (admin) mints some tokens first
-        vm.prank(rootNet);
+        // 3. AWPRegistry (admin) mints some tokens first
+        vm.prank(awpRegistry);
         alphaToken.mint(alice, 1000 * 1e18);
         assertEq(alphaToken.balanceOf(alice), 1000 * 1e18);
 
-        // 4. Set subnet contract as minter, RootNet relinquishes minting rights
+        // 4. Set subnet contract as minter, AWPRegistry relinquishes minting rights
         address subnetManager = makeAddr("subnetManager");
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         alphaToken.setSubnetMinter(subnetManager);
 
-        // 5. RootNet can no longer mint
-        vm.prank(rootNet);
+        // 5. AWPRegistry can no longer mint
+        vm.prank(awpRegistry);
         vm.expectRevert(AlphaToken.NotMinter.selector);
         alphaToken.mint(alice, 100);
 
@@ -475,7 +475,7 @@ contract AlphaTokenFactoryTest is Test {
         assertEq(alphaToken.balanceOf(alice), 1500 * 1e18);
 
         // 7. Ban subnet (pause minter)
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         alphaToken.setMinterPaused(subnetManager, true);
 
         vm.prank(subnetManager);
@@ -483,7 +483,7 @@ contract AlphaTokenFactoryTest is Test {
         alphaToken.mint(alice, 100);
 
         // 8. Unban
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         alphaToken.setMinterPaused(subnetManager, false);
 
         vm.warp(block.timestamp + 1 days);
@@ -492,7 +492,7 @@ contract AlphaTokenFactoryTest is Test {
         assertEq(alphaToken.balanceOf(alice), 1700 * 1e18);
 
         // 9. Permanently locked; cannot set minter again
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         vm.expectRevert(AlphaToken.MintersLocked.selector);
         alphaToken.setSubnetMinter(alice);
     }
@@ -503,10 +503,10 @@ contract AlphaTokenFactoryTest is Test {
         subnetId = bound(subnetId, 0, 10000);
 
         vm.prank(deployer);
-        factory.setAddresses(rootNet);
+        factory.setAddresses(awpRegistry);
 
-        vm.prank(rootNet);
-        address token = factory.deploy(subnetId, "Alpha", "A", rootNet, bytes32(0));
+        vm.prank(awpRegistry);
+        address token = factory.deploy(subnetId, "Alpha", "A", awpRegistry, bytes32(0));
 
         assertEq(AlphaToken(token).subnetId(), subnetId);
     }
@@ -556,7 +556,7 @@ contract VanityRuleTest is Test {
         // can still be called directly. With rule=0, all positions have expected=0 (digit '0')
         // which would fail for most addresses. This test confirms rule=0 behaviour in deploy().
         VanityHarness h = new VanityHarness(0);
-        address rn = makeAddr("rootNet");
+        address rn = makeAddr("awpRegistry");
         h.setAddresses(rn);
 
         // deploy() skips _validateVanityAddress when vanityRule==0, so any address is accepted

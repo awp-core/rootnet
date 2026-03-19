@@ -35,7 +35,7 @@ interface IPermit2 {
 }
 
 /// @title LPManager — PancakeSwap V4 CL liquidity management
-/// @notice Only RootNet may call; LP is permanently locked in this contract and cannot be withdrawn
+/// @notice Only AWPRegistry may call; LP is permanently locked in this contract and cannot be withdrawn
 /// @dev Integrates PancakeSwap V4 Concentrated Liquidity:
 ///   - Full-range liquidity (MIN_TICK ~ MAX_TICK)
 ///   - Token approvals via Permit2
@@ -47,8 +47,8 @@ contract LPManager {
     //  Immutable storage
     // ══════════════════════════════════════════════
 
-    /// @notice RootNet contract address
-    address public immutable rootNet;
+    /// @notice AWPRegistry contract address
+    address public immutable awpRegistry;
     /// @notice PancakeSwap V4 CLPoolManager address
     address public immutable clPoolManager;
     /// @notice PancakeSwap V4 CLPositionManager address
@@ -88,24 +88,24 @@ contract LPManager {
     //  Errors
     // ══════════════════════════════════════════════
 
-    error NotRootNet();
+    error NotAWPRegistry();
     /// @dev A LP pool already exists for this Alpha token
     error PoolAlreadyExists();
 
-    /// @dev Only the RootNet contract may call
-    modifier onlyRootNet() {
-        if (msg.sender != rootNet) revert NotRootNet();
+    /// @dev Only the AWPRegistry contract may call
+    modifier onlyAWPRegistry() {
+        if (msg.sender != awpRegistry) revert NotAWPRegistry();
         _;
     }
 
     /// @notice Constructor
-    /// @param rootNet_ RootNet contract address
+    /// @param awpRegistry_ AWPRegistry contract address
     /// @param clPoolManager_ PancakeSwap V4 CLPoolManager address
     /// @param clPositionManager_ PancakeSwap V4 CLPositionManager address
     /// @param permit2_ Permit2 contract address
     /// @param awpToken_ AWP token contract address
-    constructor(address rootNet_, address clPoolManager_, address clPositionManager_, address permit2_, address awpToken_) {
-        rootNet = rootNet_;
+    constructor(address awpRegistry_, address clPoolManager_, address clPositionManager_, address permit2_, address awpToken_) {
+        awpRegistry = awpRegistry_;
         clPoolManager = clPoolManager_;
         clPositionManager = clPositionManager_;
         permit2 = permit2_;
@@ -126,7 +126,7 @@ contract LPManager {
     /// @return lpTokenId LP NFT ID
     function createPoolAndAddLiquidity(address alphaToken, uint256 awpAmount, uint256 alphaAmount)
         external
-        onlyRootNet
+        onlyAWPRegistry
         returns (bytes32 poolId, uint256 lpTokenId)
     {
         // Each Alpha token may only have one LP pool

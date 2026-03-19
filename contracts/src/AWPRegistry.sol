@@ -890,7 +890,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
         return subnets[subnetId];
     }
 
-    /// @notice Get complete subnet info combining RootNet state + SubnetNFT identity
+    /// @notice Get complete subnet info combining AWPRegistry state + SubnetNFT identity
     function getSubnetFull(uint256 subnetId) external view returns (SubnetFullInfo memory) {
         SubnetInfo storage info = subnets[subnetId];
         ISubnetNFT.SubnetData memory nftData = ISubnetNFT(subnetNFT).getSubnetData(subnetId);

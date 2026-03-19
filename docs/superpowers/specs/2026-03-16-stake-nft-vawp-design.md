@@ -150,7 +150,7 @@ mapping(address => mapping(address => mapping(uint256 => uint128))) private _all
 mapping(address => uint256) public userTotalAllocated;  // kept
 mapping(uint256 => uint256) public subnetTotalStake;    // kept
 
-address public immutable rootNet;
+address public immutable awpRegistry;
 address public stakeNFT;  // reference to StakeNFT for balance checks
 ```
 

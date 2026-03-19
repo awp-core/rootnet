@@ -10,9 +10,10 @@
 ```
 
 ### `GET /registry`
-Returns all 9 protocol contract addresses (excludes implementation contracts):
+Returns all protocol contract addresses + chainId:
 ```json
 {
+  "chainId": 8453,
   "awpRegistry": "0x...",
   "awpToken": "0x...",
   "awpEmission": "0x...",
@@ -301,6 +302,58 @@ Gasless set recipient — relayer submits `setRecipientFor()` on behalf of the u
 {"txHash": "0x..."}
 ```
 
+### `POST /relay/register`
+Gasless user registration — relayer submits `setRecipientFor(user, user)`.
+
+**Request:**
+```json
+{"user": "0x1234...", "deadline": 1742400000, "signature": "0x...65 bytes hex"}
+```
+
+**Response:**
+```json
+{"txHash": "0x..."}
+```
+
+### `POST /relay/allocate`
+Gasless stake allocation — relayer submits `allocateFor()`.
+
+**Request:**
+```json
+{"staker": "0x...", "agent": "0x...", "subnetId": 1, "amount": "5000000000000000000000", "deadline": 1742400000, "signature": "0x...65 bytes hex"}
+```
+
+**Response:**
+```json
+{"txHash": "0x..."}
+```
+
+### `POST /relay/deallocate`
+Gasless stake deallocation — relayer submits `deallocateFor()`.
+
+**Request:**
+```json
+{"staker": "0x...", "agent": "0x...", "subnetId": 1, "amount": "5000000000000000000000", "deadline": 1742400000, "signature": "0x...65 bytes hex"}
+```
+
+**Response:**
+```json
+{"txHash": "0x..."}
+```
+
+### `POST /relay/activate-subnet`
+Gasless subnet activation — relayer submits `activateSubnetFor()`.
+
+**Request:**
+```json
+{"user": "0x...", "subnetId": 1, "deadline": 1742400000, "signature": "0x...65 bytes hex"}
+```
+
+**Response:**
+```json
+{"txHash": "0x..."}
+```
+
 ### `POST /relay/register-subnet`
 Fully gasless subnet registration via `registerSubnetForWithPermit()`. User signs two off-chain messages (ERC-2612 permit for AWP + EIP-712 registerSubnet), relayer pays all gas. SubnetNFT + SubnetManager admin go to user.
 
@@ -408,6 +461,7 @@ Get a salt: tries DB pool first (O(1) atomic claim), falls back to `cast create2
 | 404 | Resource not found |
 | 429 | Rate limit exceeded (relay endpoints) |
 | 500 | Internal server error |
+| 503 | Service unavailable (keeper cache not ready) |
 
 ## Pagination
 

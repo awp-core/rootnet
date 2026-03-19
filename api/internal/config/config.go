@@ -16,7 +16,7 @@ type Config struct {
 	HTTPAddr string `env:"HTTP_ADDR" envDefault:":8080"`
 
 	// Chain
-	ChainID         int64  `env:"CHAIN_ID" envDefault:"56"` // BSC Mainnet
+	ChainID         int64  `env:"CHAIN_ID,required"` // No default — must match target chain
 	RPCURL          string `env:"RPC_URL,required"` // No default — must be explicitly set for target chain
 	AWPRegistryAddress string `env:"AWP_REGISTRY_ADDRESS"`
 	SubnetNFTAddress string `env:"SUBNETNFT_ADDRESS"`

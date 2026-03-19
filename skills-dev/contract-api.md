@@ -1,10 +1,11 @@
 # AWP Smart Contract API Reference
 
 ## Chain Info
-- **Network**: EVM chain (configured at deployment)
+- **Network**: Base mainnet (chain ID 8453) / BSC (chain ID 56)
 - **RPC**: Chain RPC endpoint (from `RPC_URL` env var)
-- **Block time**: ~3 seconds
+- **Block time**: ~2 seconds (Base) / ~3 seconds (BSC)
 - **EVM version**: Cancun (supports transient storage)
+- **DEX**: Uniswap V4 (Base) / PancakeSwap V4 (BSC)
 
 ---
 
@@ -144,7 +145,7 @@ enum SubnetStatus { Pending, Active, Paused, Banned }
 
 // AWPRegistry lifecycle state only — identity data in SubnetNFT
 struct SubnetInfo {
-    bytes32 lpPool;            // PancakeSwap V4 PoolId
+    bytes32 lpPool;            // DEX V4 PoolId (Uniswap or PancakeSwap)
     SubnetStatus status;
     uint64 createdAt;
     uint64 activatedAt;
@@ -257,7 +258,7 @@ MinStakeUpdated(uint256 indexed tokenId, uint128 minStake)
 
 ---
 
-## AWPToken — ERC20 + ERC1363 + Votes
+## AWPToken — ERC20 + ERC1363 + Permit
 
 ```
 mint(address to, uint256 amount)                               // Authorized minters only

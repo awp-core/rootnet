@@ -12,8 +12,8 @@ import {IStakeNFT} from "../interfaces/IStakeNFT.sol";
 contract StakingVault {
     using EnumerableSet for EnumerableSet.UintSet;
 
-    /// @notice RootNet contract address (immutable)
-    address public immutable rootNet;
+    /// @notice AWPRegistry contract address (immutable)
+    address public immutable awpRegistry;
 
     /// @notice StakeNFT contract address (for balance checks, set once via setStakeNFT)
     address public stakeNFT;
@@ -37,16 +37,16 @@ contract StakingVault {
 
     // ── Errors ──
 
-    error NotRootNet();
+    error NotAWPRegistry();
     error InsufficientUnallocated();
     error InsufficientAllocation();
     error InvalidAmount();
 
     event AgentAllocationsFrozen(address indexed user, address indexed agent, uint256 totalFrozen);
 
-    /// @dev Only the RootNet contract may call
-    modifier onlyRootNet() {
-        if (msg.sender != rootNet) revert NotRootNet();
+    /// @dev Only the AWPRegistry contract may call
+    modifier onlyAWPRegistry() {
+        if (msg.sender != awpRegistry) revert NotAWPRegistry();
         _;
     }
 
@@ -54,15 +54,15 @@ contract StakingVault {
     error AlreadySet();
 
     /// @notice Constructor
-    /// @param rootNet_ RootNet contract address
-    constructor(address rootNet_) {
-        rootNet = rootNet_;
+    /// @param awpRegistry_ AWPRegistry contract address
+    constructor(address awpRegistry_) {
+        awpRegistry = awpRegistry_;
     }
 
     /// @notice Set StakeNFT address (one-time, resolves CREATE2 circular dependency)
     /// @param stakeNFT_ StakeNFT contract address
     function setStakeNFT(address stakeNFT_) external {
-        if (msg.sender != rootNet) revert NotRootNet();
+        if (msg.sender != awpRegistry) revert NotAWPRegistry();
         if (stakeNFT != address(0)) revert AlreadySet();
         if (stakeNFT_ == address(0)) revert ZeroAddress();
         stakeNFT = stakeNFT_;
@@ -79,7 +79,7 @@ contract StakingVault {
     /// @param amount Allocation amount
     function allocate(address user, address agent, uint256 subnetId, uint256 amount)
         external
-        onlyRootNet
+        onlyAWPRegistry
     {
         if (amount == 0 || amount > type(uint128).max || subnetId == 0) revert InvalidAmount();
 
@@ -102,7 +102,7 @@ contract StakingVault {
     /// @param amount Amount to deallocate
     function deallocate(address user, address agent, uint256 subnetId, uint256 amount)
         external
-        onlyRootNet
+        onlyAWPRegistry
     {
         if (amount == 0 || amount > type(uint128).max) revert InvalidAmount();
 
@@ -134,7 +134,7 @@ contract StakingVault {
         address toAgent,
         uint256 toSubnetId,
         uint256 amount
-    ) external onlyRootNet {
+    ) external onlyAWPRegistry {
         if (amount == 0 || amount > type(uint128).max || fromSubnetId == 0 || toSubnetId == 0) revert InvalidAmount();
 
         uint128 amt128 = uint128(amount);
@@ -164,7 +164,7 @@ contract StakingVault {
     ///      Zeroes all allocations, updates subnet totals, and releases userTotalAllocated.
     /// @param user User (Principal) address
     /// @param agent Agent address to freeze
-    function freezeAgentAllocations(address user, address agent) external onlyRootNet {
+    function freezeAgentAllocations(address user, address agent) external onlyAWPRegistry {
         EnumerableSet.UintSet storage subnets = _agentSubnets[user][agent];
         uint256 count = subnets.length();
         if (count == 0) return;

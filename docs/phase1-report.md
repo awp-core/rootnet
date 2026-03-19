@@ -44,7 +44,7 @@ All 10 Solidity contracts for the AWP Agent Mining protocol have been implemente
 **Total: 216 tests, 216 passed, 0 failed**
 
 Test categories covered:
-- Access control (onlyRootNet, onlyTimelock, onlyGuardian)
+- Access control (onlyAWPRegistry, onlyTimelock, onlyGuardian)
 - Token minting/burning with MAX_SUPPLY enforcement
 - ERC1363 callback flows (transferAndCall, approveAndCall)
 - ERC20Votes delegation

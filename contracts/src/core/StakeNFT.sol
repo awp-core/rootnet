@@ -27,8 +27,8 @@ contract StakeNFT is ERC721, ReentrancyGuard, IStakeNFT {
     /// @notice StakingVault contract (for allocation balance checks)
     address public immutable stakingVault;
 
-    /// @notice RootNet contract (for depositFor access control)
-    address public immutable rootNet;
+    /// @notice AWPRegistry contract (for depositFor access control)
+    address public immutable awpRegistry;
 
     // ── Constants ──
 
@@ -66,12 +66,12 @@ contract StakeNFT is ERC721, ReentrancyGuard, IStakeNFT {
     error NothingToUpdate();
     error LockCannotShorten();
     error LockMustExceedCurrentTime();
-    error NotRootNet();
+    error NotAWPRegistry();
 
     // ── Modifiers ──
 
-    modifier onlyRootNet() {
-        if (msg.sender != rootNet) revert NotRootNet();
+    modifier onlyAWPRegistry() {
+        if (msg.sender != awpRegistry) revert NotAWPRegistry();
         _;
     }
 
@@ -79,15 +79,15 @@ contract StakeNFT is ERC721, ReentrancyGuard, IStakeNFT {
 
     /// @param awpToken_ AWP token address
     /// @param stakingVault_ StakingVault contract address
-    /// @param rootNet_ RootNet contract address (for depositFor access control)
+    /// @param awpRegistry_ AWPRegistry contract address (for depositFor access control)
     constructor(
         address awpToken_,
         address stakingVault_,
-        address rootNet_
+        address awpRegistry_
     ) ERC721("AWP Stake Position", "sAWP") {
         awpToken = IERC20(awpToken_);
         stakingVault = stakingVault_;
-        rootNet = rootNet_;
+        awpRegistry = awpRegistry_;
     }
 
     // ══════════════════════════════════════════════
@@ -117,10 +117,10 @@ contract StakeNFT is ERC721, ReentrancyGuard, IStakeNFT {
     /// @inheritdoc IStakeNFT
     function depositFor(address user, uint256 amount, uint64 lockDuration)
         external
-        onlyRootNet
+        onlyAWPRegistry
         returns (uint256 tokenId)
     {
-        // AWP is transferred from the user (not RootNet)
+        // AWP is transferred from the user ((not AWPRegistry))
         return _deposit(user, user, amount, lockDuration);
     }
 

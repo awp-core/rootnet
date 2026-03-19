@@ -1,4 +1,4 @@
-# AWP RootNet — Smart Contracts
+# AWP Registry — Smart Contracts
 
 Solidity 0.8.24, Foundry, OpenZeppelin 5.x. Targets BSC (EVM Cancun).
 
@@ -36,7 +36,7 @@ forge script script/Deploy.s.sol --rpc-url $ETH_RPC_URL --broadcast
 
 | Contract | Description |
 |----------|-------------|
-| `RootNet` | Unified entry: subnet lifecycle + staking allocation. Epoch authority (immutable genesisTime + epochDuration). |
+| `AWPRegistry` | Unified entry: subnet lifecycle + staking allocation. Epoch authority (immutable genesisTime + epochDuration). |
 | `AWPToken` | ERC20 + ERC20Votes + ERC1363. 10B max, 200M (2%) pre-minted. |
 | `AWPEmission` | **[DRAFT]** UUPS proxy. Oracle multi-sig weight submission, batch epoch settlement, exponential decay. |
 | `AlphaToken` | Per-subnet ERC20 via CREATE2. Time-based mint cap. |

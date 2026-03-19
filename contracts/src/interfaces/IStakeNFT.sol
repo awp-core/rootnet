@@ -26,8 +26,8 @@ interface IStakeNFT {
     /// @return tokenId The minted NFT token ID
     function deposit(uint256 amount, uint64 lockDuration) external returns (uint256 tokenId);
 
-    /// @notice Create a new stake position on behalf of a user (called by RootNet for registerAndStake)
-    /// @dev AWP is transferred from the user (not msg.sender). Only callable by RootNet.
+    /// @notice Create a new stake position on behalf of a user (called by AWPRegistry for registerAndStake)
+    /// @dev AWP is transferred from the user (not msg.sender). Only callable by AWPRegistry.
     /// @param user User address to mint the position to
     /// @param amount AWP amount to deposit
     /// @param lockDuration Lock duration in seconds

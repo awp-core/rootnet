@@ -52,7 +52,7 @@ const res = await fetch(`${API_BASE}/agents/batch-info`, {
   body: JSON.stringify({ agents: ['0xAgent1', '0xAgent2'], subnetId: 1 })
 });
 const agents = await res.json();
-// agents[0].agent.owner_address, agents[0].stake
+// agents[0].agent, agents[0].stake
 ```
 
 ---
@@ -181,9 +181,9 @@ await walletClient.writeContract({
 ```javascript
 await walletClient.writeContract({
   address: AWP_REGISTRY,
-  abi: parseAbi(['function allocate(address,uint256,uint256)']),
+  abi: parseAbi(['function allocate(address,address,uint256,uint256)']),
   functionName: 'allocate',
-  args: ['0xAgentAddress', 1n, 5000n * 10n**18n], // agent, subnetId, amount
+  args: [account.address, '0xAgentAddress', 1n, 5000n * 10n**18n], // staker, agent, subnetId, amount
 });
 ```
 
@@ -216,7 +216,7 @@ const { salt: vanitySalt, address: predictedAddr } = await vanityRes.json();
 // 3b. Register subnet (salt=0x00..00 uses subnetId as CREATE2 salt; or pass vanitySalt for vanity address)
 const hash = await walletClient.writeContract({
   address: AWP_REGISTRY,
-  abi: parseAbi(['function registerSubnet((string,string,address,bytes32,uint128)) returns (uint256)']),
+  abi: parseAbi(['function registerSubnet((string,string,address,bytes32,uint128,string)) returns (uint256)']),
   functionName: 'registerSubnet',
   args: [{
     name: "My Subnet Alpha",
@@ -224,6 +224,7 @@ const hash = await walletClient.writeContract({
     subnetManager: "0x0000000000000000000000000000000000000000", // address(0) = auto-deploy SubnetManager
     salt: vanitySalt ?? "0x0000000000000000000000000000000000000000000000000000000000000000",
     minStake: 0n,
+    skillsURI: "https://example.com/SKILL.md",
   }],
 });
 ```
@@ -249,7 +250,7 @@ ws.onopen = () => {
   // Subscribe to events relevant for a subnet coordinator
   ws.send(JSON.stringify({
     subscribe: [
-      'Allocated', 'Deallocated', 'Reallocated', 'AgentRegistered', 'AgentRemoved',
+      'Allocated', 'Deallocated', 'Reallocated',
       'Deposited', 'Withdrawn', 'RecipientAWPDistributed', 'EpochSettled'
     ]
   }));

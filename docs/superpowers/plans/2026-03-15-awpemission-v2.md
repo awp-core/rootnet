@@ -99,8 +99,8 @@ Complete rewrite. Changes from V1:
 - Inherit `Initializable`, `UUPSUpgradeable`, `ReentrancyGuardUpgradeable`, `EIP712Upgradeable`, `IAWPEmission`
 - Constructor only calls `_disableInitializers()`
 - `initialize()` replaces constructor logic, calls all OZ `__*_init()` functions including `__EIP712_init("AWPEmission", "2")`
-- `rootNet` and `awpToken` become regular state variables (not immutable — proxy incompatible)
-- `onlyTimelock` modifier only checks `treasury` (no longer accepts `rootNet`)
+- `awpRegistry` and `awpToken` become regular state variables (not immutable — proxy incompatible)
+- `onlyTimelock` modifier only checks `treasury` (no longer accepts `awpRegistry`)
 - `setWeight()` renamed to `emergencySetWeight()`
 - New `submitAllocations()` with EIP-712 signature verification
 - New `setOracleConfig()` with zero-address and duplicate checks
@@ -121,7 +121,7 @@ Key implementation details for `submitAllocations`:
 
 Storage layout must exactly match V1 order for existing variables, then append new V2 variables:
 ```
-rootNet, awpToken, treasury, epochDuration, currentEpoch, lastSettleTime,
+awpRegistry, awpToken, treasury, epochDuration, currentEpoch, lastSettleTime,
 currentDailyEmission, subnetWeights(mapping), activeSubnetIds(set),
 totalWeight, maxActiveSubnets+batchSize(packed), settleIndex,
 epochEmissionLocked, _epochSubnetPool, _epochSubnetMinted,
@@ -169,7 +169,7 @@ AWPEmission emissionImpl = new AWPEmission();
 // Step 13b: Deploy proxy with initialize call
 bytes memory initData = abi.encodeCall(
     AWPEmission.initialize,
-    (address(rootNet), address(awp), address(treasury), INITIAL_DAILY_EMISSION, EPOCH_DURATION)
+    (address(awpRegistry), address(awp), address(treasury), INITIAL_DAILY_EMISSION, EPOCH_DURATION)
 );
 ERC1967Proxy emissionProxy = new ERC1967Proxy(address(emissionImpl), initData);
 AWPEmission emission = AWPEmission(address(emissionProxy));
@@ -180,7 +180,7 @@ Add import for `ERC1967Proxy`:
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 ```
 
-After `rootNet.initializeRegistry(...)`, add oracle config:
+After `awpRegistry.initializeRegistry(...)`, add oracle config:
 ```solidity
 // Step 18: Configure oracles (placeholder — real oracles set by DAO governance)
 // In production, this would be called with actual oracle addresses
@@ -216,7 +216,7 @@ git commit -m "feat: AWPEmission V2 — UUPS proxy + oracle consensus + remove A
 Test setup deploys via proxy pattern:
 ```solidity
 AWPEmission emissionImpl = new AWPEmission();
-bytes memory initData = abi.encodeCall(AWPEmission.initialize, (rootNet, address(awpToken), treasury, INITIAL_DAILY_EMISSION, EPOCH_DURATION));
+bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awpRegistry, address(awpToken), treasury, INITIAL_DAILY_EMISSION, EPOCH_DURATION));
 ERC1967Proxy proxy = new ERC1967Proxy(address(emissionImpl), initData);
 emission = AWPEmission(address(proxy));
 ```
@@ -278,16 +278,16 @@ Change AWPEmission deployment from `new AWPEmission(...)` to proxy pattern.
 - [ ] **Step 2: Remove tests for deleted functions**
 
 Delete:
-- `test_setMaxActiveSubnets` (tests `rootNet.setMaxActiveSubnets` which no longer exists)
-- `test_setEpochDuration` (tests `rootNet.setEpochDuration` which no longer exists)
+- `test_setMaxActiveSubnets` (tests `awpRegistry.setMaxActiveSubnets` which no longer exists)
+- `test_setEpochDuration` (tests `awpRegistry.setEpochDuration` which no longer exists)
 
 Update `test_onlyTimelockFunctions`:
-- Remove `rootNet.setGovernanceWeight(1, 100)` expectation (function removed)
+- Remove `awpRegistry.setGovernanceWeight(1, 100)` expectation (function removed)
 - Keep other timelock function checks (`setInitialAlphaPrice`, `setGuardian`, `unpause`)
 
 - [ ] **Step 3: Update test_reallocate**
 
-`rootNet.settleEpoch()` was already changed to `emission.settleEpoch()` in prior refactoring. Verify it still references `emission.settleEpoch()`. The `setGovernanceWeight` call is no longer needed since V2 uses oracle submission — but reallocate test doesn't set weights, it just needs a subnet to be active. No weight needed for reallocate (just tests stake movement).
+`awpRegistry.settleEpoch()` was already changed to `emission.settleEpoch()` in prior refactoring. Verify it still references `emission.settleEpoch()`. The `setGovernanceWeight` call is no longer needed since V2 uses oracle submission — but reallocate test doesn't set weights, it just needs a subnet to be active. No weight needed for reallocate (just tests stake movement).
 
 - [ ] **Step 4: Run tests**
 
@@ -321,7 +321,7 @@ address oracle2 = vm.addr(oracle2Pk);
 address oracle3 = vm.addr(oracle3Pk);
 ```
 
-In `_deploy()`, after `rootNet.initializeRegistry(...)`, add:
+In `_deploy()`, after `awpRegistry.initializeRegistry(...)`, add:
 ```solidity
 address[] memory oracleList = new address[](3);
 oracleList[0] = oracle1; oracleList[1] = oracle2; oracleList[2] = oracle3;
@@ -332,16 +332,16 @@ Add helper `_submitWeights(uint256[] memory ids, uint128[] memory weights)` that
 
 - [ ] **Step 3: Update test_e2e_daoGovernanceWeight**
 
-Change from DAO proposal targeting `rootNet.setGovernanceWeight` to:
+Change from DAO proposal targeting `awpRegistry.setGovernanceWeight` to:
 - DAO proposal targeting `emission.emergencySetWeight(sid, 500)`
 - Update `targets[0] = address(emission)` and `calldatas[0] = abi.encodeCall(emission.emergencySetWeight, (sid, uint128(500)))`
 
-- [ ] **Step 4: Replace all `rootNet.setGovernanceWeight` calls with oracle submission**
+- [ ] **Step 4: Replace all `awpRegistry.setGovernanceWeight` calls with oracle submission**
 
 Throughout E2E tests, replace:
 ```solidity
 vm.prank(address(treasury));
-rootNet.setGovernanceWeight(sid, uint128(100));
+awpRegistry.setGovernanceWeight(sid, uint128(100));
 ```
 with oracle-signed `submitAllocations` call using the helper.
 
@@ -374,9 +374,9 @@ Expected: All tests pass.
 
 Same proxy pattern as E2E. Add oracle private keys and setup.
 
-- [ ] **Step 2: Replace rootNet.setGovernanceWeight calls**
+- [ ] **Step 2: Replace awpRegistry.setGovernanceWeight calls**
 
-Replace all `rootNet.setGovernanceWeight(subnetId, uint128(N))` with oracle-signed `submitAllocations`.
+Replace all `awpRegistry.setGovernanceWeight(subnetId, uint128(N))` with oracle-signed `submitAllocations`.
 
 - [ ] **Step 3: Run tests**
 
@@ -401,7 +401,7 @@ git commit -m "test: update E2E and Integration tests for AWPEmission V2 oracle 
 
 **Files:**
 - Regenerate: `api/internal/chain/bindings/a_w_p_emission.go`
-- Regenerate: `api/internal/chain/bindings/root_net.go`
+- Regenerate: `api/internal/chain/bindings/awp_registry.go`
 
 - [ ] **Step 1: Regenerate AWPEmission binding**
 
@@ -414,8 +414,8 @@ cd /home/ubuntu/code/Cortexia/contracts
 - [ ] **Step 2: Regenerate AWPRegistry binding**
 
 ```bash
-/home/ubuntu/.foundry/bin/forge inspect AWPRegistry abi --json > /tmp/rootnet_abi.json
-/home/ubuntu/go/bin/abigen --abi /tmp/rootnet_abi.json --pkg bindings --type AWPRegistry --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/root_net.go
+/home/ubuntu/.foundry/bin/forge inspect AWPRegistry abi --json > /tmp/awp_registry_abi.json
+/home/ubuntu/go/bin/abigen --abi /tmp/awp_registry_abi.json --pkg bindings --type AWPRegistry --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/awp_registry.go
 ```
 
 - [ ] **Step 3: Verify Go build**

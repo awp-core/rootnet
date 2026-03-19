@@ -16,7 +16,7 @@ contract StakingVaultTest is Test {
     address public user2 = makeAddr("user2");
     address public agent1 = makeAddr("agent1");
     address public agent2 = makeAddr("agent2");
-    address public nonRootNet = makeAddr("nonRootNet");
+    address public nonAWPRegistry = makeAddr("nonAWPRegistry");
 
     uint256 public constant SUBNET_1 = 1;
     uint256 public constant SUBNET_2 = 2;
@@ -24,7 +24,7 @@ contract StakingVaultTest is Test {
     uint256 public constant EPOCH_DURATION = 7 days;
     uint256 public genesisTime;
 
-    /// @dev This test contract acts as rootNet; StakeNFT calls rootNet.currentEpoch()
+    /// @dev This test contract acts as awpRegistry; StakeNFT calls awpRegistry.currentEpoch()
     function currentEpoch() external view returns (uint256) {
         return (block.timestamp - genesisTime) / EPOCH_DURATION;
     }
@@ -36,7 +36,7 @@ contract StakingVaultTest is Test {
         awp = new AWPToken("AWP", "AWP", deployer);
 
         // Deploy StakingVault + StakeNFT (circular dependency)
-        // This test contract (address(this)) acts as rootNet
+        // This test contract (address(this)) acts as awpRegistry
         uint64 nonce = vm.getNonce(deployer);
         address predictedVault = vm.computeCreateAddress(deployer, nonce);
         address predictedStakeNFT = vm.computeCreateAddress(deployer, nonce + 1);
@@ -217,30 +217,30 @@ contract StakingVaultTest is Test {
     }
 
     // ══════════════════════════════════════════════
-    // onlyRootNet access control tests
+    // onlyAWPRegistry access control tests
     // ══════════════════════════════════════════════
 
-    function test_onlyRootNet_allocate() public {
-        vm.prank(nonRootNet);
-        vm.expectRevert(StakingVault.NotRootNet.selector);
+    function test_onlyAWPRegistry_allocate() public {
+        vm.prank(nonAWPRegistry);
+        vm.expectRevert(StakingVault.NotAWPRegistry.selector);
         vault.allocate(user1, agent1, SUBNET_1, 100 ether);
     }
 
-    function test_onlyRootNet_deallocate() public {
-        vm.prank(nonRootNet);
-        vm.expectRevert(StakingVault.NotRootNet.selector);
+    function test_onlyAWPRegistry_deallocate() public {
+        vm.prank(nonAWPRegistry);
+        vm.expectRevert(StakingVault.NotAWPRegistry.selector);
         vault.deallocate(user1, agent1, SUBNET_1, 100 ether);
     }
 
-    function test_onlyRootNet_reallocate() public {
-        vm.prank(nonRootNet);
-        vm.expectRevert(StakingVault.NotRootNet.selector);
+    function test_onlyAWPRegistry_reallocate() public {
+        vm.prank(nonAWPRegistry);
+        vm.expectRevert(StakingVault.NotAWPRegistry.selector);
         vault.reallocate(user1, agent1, SUBNET_1, agent2, SUBNET_2, 100 ether);
     }
 
-    function test_onlyRootNet_freezeAgentAllocations() public {
-        vm.prank(nonRootNet);
-        vm.expectRevert(StakingVault.NotRootNet.selector);
+    function test_onlyAWPRegistry_freezeAgentAllocations() public {
+        vm.prank(nonAWPRegistry);
+        vm.expectRevert(StakingVault.NotAWPRegistry.selector);
         vault.freezeAgentAllocations(user1, agent1);
     }
 }

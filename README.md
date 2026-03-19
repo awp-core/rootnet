@@ -58,21 +58,46 @@ User
 - **Subnets**: registration deploys Alpha token (CREATE2 vanity address) + DEX V4 LP. Time-based mint cap on Alpha. Auto-deploys SubnetManager proxy if no custom manager provided.
 - **Chain-agnostic**: Deploy script auto-selects Uniswap V4 or PancakeSwap V4 contracts based on chain ID. PoolKey struct differences (5 fields vs 6 fields) handled transparently.
 
-## Deployed Contracts (Base Mainnet)
+## Live Testnet
+
+| | |
+|---|---|
+| **API** | `https://tapi.awp.sh/api` |
+| **WebSocket** | `wss://tapi.awp.sh/ws/live` |
+| **Chain** | Base Mainnet (chain ID 8453) |
+| **Explorer** | [basescan.org](https://basescan.org) |
+
+### Deployed Contracts (Base Mainnet)
 
 | Contract | Address |
 |----------|---------|
-| AWPToken | `0x0000d0e38e9c6ba147b0098bb42007b942ef00a1` |
-| AWPRegistry | `0x00003a7fa04c3af3adba2dc3c6622277501400b1` |
-| Treasury | `0x9ee82684e4214edb405d930001e9058d1913d994` |
-| AlphaTokenFactory | `0x3ebe3168c898f4b05ebf0c0d17f4739e111e5164` |
-| SubnetNFT | `0x0f86ec2f2fbf234b00b18e66e7c5e00518091cda` |
-| LPManagerUni | `0x2703d681ff3f7c4dc9eeed6f3ebaba3e82f8ebae` |
-| AWPEmission (proxy) | `0xd31b6fedf7e568091b7fcf3cb5aac86c3a0ef1cf` |
-| StakingVault | `0x0367e9c2f79ab35dc65e6876405a747882296fca` |
-| StakeNFT | `0x4f7e8d4487c0c514b72ed0e35ed707cb8acdce39` |
-| SubnetManagerUni (impl) | `0x567882378dcc11ec0d763fc5ca6c862487bbe574` |
-| AWPDAO | `0x7171211da849a2c569643fb1e8f5399ddd71939a` |
+| AWPToken | [`0x0000d0e3...00a1`](https://basescan.org/address/0x0000d0e38e9c6ba147b0098bb42007b942ef00a1) |
+| AWPRegistry | [`0x00003a7f...00b1`](https://basescan.org/address/0x00003a7fa04c3af3adba2dc3c6622277501400b1) |
+| Treasury | [`0x9ee82684...d994`](https://basescan.org/address/0x9ee82684e4214edb405d930001e9058d1913d994) |
+| AlphaTokenFactory | [`0x3ebe3168...5164`](https://basescan.org/address/0x3ebe3168c898f4b05ebf0c0d17f4739e111e5164) |
+| SubnetNFT | [`0x0f86ec2f...1cda`](https://basescan.org/address/0x0f86ec2f2fbf234b00b18e66e7c5e00518091cda) |
+| LPManagerUni | [`0x2703d681...ebae`](https://basescan.org/address/0x2703d681ff3f7c4dc9eeed6f3ebaba3e82f8ebae) |
+| AWPEmission (proxy) | [`0xd31b6fed...f1cf`](https://basescan.org/address/0xd31b6fedf7e568091b7fcf3cb5aac86c3a0ef1cf) |
+| StakingVault | [`0x0367e9c2...6fca`](https://basescan.org/address/0x0367e9c2f79ab35dc65e6876405a747882296fca) |
+| StakeNFT | [`0x4f7e8d44...ce39`](https://basescan.org/address/0x4f7e8d4487c0c514b72ed0e35ed707cb8acdce39) |
+| SubnetManagerUni (impl) | [`0x56788237...e574`](https://basescan.org/address/0x567882378dcc11ec0d763fc5ca6c862487bbe574) |
+| AWPDAO | [`0x71712119...939a`](https://basescan.org/address/0x7171211da849a2c569643fb1e8f5399ddd71939a) |
+
+### Quick Start
+
+```bash
+# Query contract addresses + chain ID
+curl https://tapi.awp.sh/api/registry
+
+# List subnets
+curl https://tapi.awp.sh/api/subnets
+
+# Get emission info
+curl https://tapi.awp.sh/api/emission/current
+
+# Compute a vanity salt for Alpha token
+curl -X POST https://tapi.awp.sh/api/vanity/compute-salt
+```
 
 ## Deployment
 

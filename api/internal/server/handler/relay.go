@@ -62,7 +62,7 @@ var revertErrors = map[string]string{
 	"0xc30436e9": "exceeds AWP max supply",
 	"0x1c04203f": "exceeds mintable limit",
 	"0x16a1ae75": "invalid vanity address (EIP-55 mismatch)",
-	"0x00af5596": "not authorized (onlyRootNet)",
+	"0x00af5596": "not authorized (onlyAWPRegistry)",
 	"0x03119322": "LP pool already exists",
 	// AWPEmission errors
 	"0xc2cf00fc": "emission mining complete",

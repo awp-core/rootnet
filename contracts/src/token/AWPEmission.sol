@@ -23,7 +23,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     //  Storage layout — V3 (fresh proxy deployment, epoch-versioned weights)
     // ══════════════════════════════════════════════
 
-    /// @dev Reserved slot 0: was rootNet, kept for UUPS proxy upgrade safety
+    /// @dev Reserved slot 0: was awpRegistry, kept for UUPS proxy upgrade safety
     uint256 private __reserved_slot0;               // slot 0
 
     /// @notice AWP token contract reference
@@ -86,7 +86,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice Maximum number of recipients allowed
     uint256 public maxRecipients;                   // slot 20
 
-    /// @dev Reserved slot 21: was rootNet reference (no longer needed)
+    /// @dev Reserved slot 21: was awpRegistry reference (no longer needed)
     uint256 private __freed_slot21;                 // slot 21
 
     /// @dev Reserved storage gap for upgrades

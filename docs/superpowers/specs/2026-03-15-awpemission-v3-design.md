@@ -47,7 +47,7 @@ Future V4 upgrades MUST preserve this slot order and only append within __gap.
 // ── Inherited OZ storage (ERC-7201 namespaced, not in sequential slots) ──
 
 // ── Sequential storage (slot 0+) ──
-address public rootNet;                          // slot 0 (kept for reference, unused after init)
+address public awpRegistry;                          // slot 0 (kept for reference, unused after init)
 IAWPToken public awpToken;                       // slot 1
 address public treasury;                         // slot 2
 

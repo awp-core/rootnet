@@ -70,23 +70,23 @@ contract Predict is Script {
         console.log("Treasury:          ", treasury);
 
         // AWPRegistry
-        address rootNet = _predict(
+        address awpRegistry = _predict(
             _readSalt("SALT_AWP_REGISTRY"),
             abi.encodePacked(type(AWPRegistry).creationCode, abi.encode(deployer, treasury, guardian))
         );
-        console.log("AWPRegistry:           ", rootNet);
+        console.log("AWPRegistry:           ", awpRegistry);
 
         // SubnetNFT
         address subnetNFT = _predict(
             _readSalt("SALT_SUBNET_NFT"),
-            abi.encodePacked(type(SubnetNFT).creationCode, abi.encode("AWP Subnet", "AWPSUB", rootNet))
+            abi.encodePacked(type(SubnetNFT).creationCode, abi.encode("AWP Subnet", "AWPSUB", awpRegistry))
         );
         console.log("SubnetNFT:         ", subnetNFT);
 
         // LPManager
         address lpMgr = _predict(
             _readSalt("SALT_LP_MANAGER"),
-            abi.encodePacked(type(LPManager).creationCode, abi.encode(rootNet, poolManager, positionManager, permit2Addr, awp))
+            abi.encodePacked(type(LPManager).creationCode, abi.encode(awpRegistry, poolManager, positionManager, permit2Addr, awp))
         );
         console.log("LPManager:         ", lpMgr);
 
@@ -107,14 +107,14 @@ contract Predict is Script {
         // StakingVault
         address vault = _predict(
             _readSalt("SALT_STAKING_VAULT"),
-            abi.encodePacked(type(StakingVault).creationCode, abi.encode(rootNet))
+            abi.encodePacked(type(StakingVault).creationCode, abi.encode(awpRegistry))
         );
         console.log("StakingVault:      ", vault);
 
         // StakeNFT
         address stakeNft = _predict(
             _readSalt("SALT_STAKE_NFT"),
-            abi.encodePacked(type(StakeNFT).creationCode, abi.encode(awp, vault, rootNet))
+            abi.encodePacked(type(StakeNFT).creationCode, abi.encode(awp, vault, awpRegistry))
         );
         console.log("StakeNFT:          ", stakeNft);
 
