@@ -290,6 +290,10 @@ contract E2ETest is EmissionSigningHelper {
         assertEq(uint256(awpRegistry.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
         assertFalse(alpha.minterPaused(subnetC1));
 
+        // Must ban again before deregister (deregister requires Banned status)
+        vm.prank(address(treasury));
+        awpRegistry.banSubnet(sid);
+
         vm.warp(block.timestamp + 31 days);
         vm.prank(address(treasury));
         awpRegistry.deregisterSubnet(sid);

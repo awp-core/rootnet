@@ -1,3 +1,9 @@
+-- name: TruncateStakeAllocations :exec
+DELETE FROM stake_allocations;
+
+-- name: TruncateUserBalances :exec
+DELETE FROM user_balances;
+
 -- name: UpsertStakeAllocation :exec
 INSERT INTO stake_allocations (user_address, agent_address, subnet_id, amount, frozen)
 VALUES ($1, $2, $3, $4, FALSE)

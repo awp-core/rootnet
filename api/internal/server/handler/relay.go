@@ -127,14 +127,15 @@ func NewRelayHandler(relayer *chain.Relayer, limiter *ratelimit.Limiter, logger 
 	}
 }
 
-// checkRateLimit checks relay IP rate limit (read-only pre-check), returns true if exceeded.
+// checkRateLimit atomically checks and increments the relay IP rate limit.
+// Returns true if exceeded (counter NOT incremented when exceeded).
 func (rh *RelayHandler) checkRateLimit(r *http.Request) (bool, error) {
-	return rh.limiter.CheckIP(r.Context(), "relay", ratelimit.GetClientIP(r))
+	return rh.limiter.CheckAndIncrement(r.Context(), "relay", ratelimit.GetClientIP(r))
 }
 
-// recordSuccessfulRelay increments the relay rate limit counter after a successful transaction.
+// recordSuccessfulRelay is a no-op — counter is now incremented atomically in checkRateLimit.
 func (rh *RelayHandler) recordSuccessfulRelay(r *http.Request) {
-	rh.limiter.RecordSuccess("relay", ratelimit.GetClientIP(r))
+	// Intentionally empty: CheckAndIncrement already incremented the counter.
 }
 
 func (rh *RelayHandler) writeJSON(w http.ResponseWriter, status int, data any) {

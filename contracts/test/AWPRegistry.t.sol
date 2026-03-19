@@ -393,10 +393,21 @@ contract AWPRegistryTest is Test {
         vm.prank(user1);
         awpRegistry.activateSubnet(subnetId);
 
+        // Cannot deregister Active subnet (must ban first)
+        vm.prank(address(treasury));
+        vm.expectRevert(AWPRegistry.InvalidSubnetStatus.selector);
+        awpRegistry.deregisterSubnet(subnetId);
+
+        // Ban the subnet first
+        vm.prank(address(treasury));
+        awpRegistry.banSubnet(subnetId);
+
+        // Cannot deregister during immunity period
         vm.prank(address(treasury));
         vm.expectRevert(AWPRegistry.ImmunityNotExpired.selector);
         awpRegistry.deregisterSubnet(subnetId);
 
+        // After immunity period, deregister succeeds
         vm.warp(block.timestamp + 31 days);
         vm.prank(address(treasury));
         awpRegistry.deregisterSubnet(subnetId);

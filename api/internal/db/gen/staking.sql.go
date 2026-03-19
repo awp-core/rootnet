@@ -291,6 +291,24 @@ func (q *Queries) SubtractStakeAllocation(ctx context.Context, arg SubtractStake
 	return err
 }
 
+const truncateStakeAllocations = `-- name: TruncateStakeAllocations :exec
+DELETE FROM stake_allocations
+`
+
+func (q *Queries) TruncateStakeAllocations(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, truncateStakeAllocations)
+	return err
+}
+
+const truncateUserBalances = `-- name: TruncateUserBalances :exec
+DELETE FROM user_balances
+`
+
+func (q *Queries) TruncateUserBalances(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, truncateUserBalances)
+	return err
+}
+
 const upsertStakeAllocation = `-- name: UpsertStakeAllocation :exec
 INSERT INTO stake_allocations (user_address, agent_address, subnet_id, amount, frozen)
 VALUES ($1, $2, $3, $4, FALSE)

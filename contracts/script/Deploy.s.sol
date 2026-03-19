@@ -140,7 +140,8 @@ contract Deploy is Script {
             ));
             console.log("AWPEmission impl:", address(emissionImpl));
 
-            bytes memory initData = abi.encodeCall(AWPEmission.initialize, (address(awp), address(treasury), INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION));
+            uint256 genesisTime = vm.envOr("GENESIS_TIME", block.timestamp);
+            bytes memory initData = abi.encodeCall(AWPEmission.initialize, (address(awp), address(treasury), INITIAL_DAILY_EMISSION, genesisTime, EPOCH_DURATION));
             emission = AWPEmission(_create2(
                 saltEmissionProxy,
                 abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(address(emissionImpl), initData))
@@ -193,8 +194,9 @@ contract Deploy is Script {
         // Step 11: Roles + Admin
         treasury.grantRole(treasury.PROPOSER_ROLE(), address(dao));
         treasury.grantRole(treasury.CANCELLER_ROLE(), address(dao));
+        treasury.renounceRole(treasury.EXECUTOR_ROLE(), deployer);
         treasury.renounceRole(treasury.DEFAULT_ADMIN_ROLE(), deployer);
-        console.log("Roles granted + Treasury admin renounced");
+        console.log("Roles granted + Treasury admin + executor renounced");
 
         awp.addMinter(address(emission));
         awp.renounceAdmin();

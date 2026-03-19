@@ -66,7 +66,32 @@ func (l *Limiter) GetConfig(ctx context.Context, name string) Config {
 	return Config{Limit: 100, Window: time.Hour} // ultimate fallback
 }
 
-// CheckIP checks if IP has exceeded the rate limit (read-only).
+// CheckAndIncrement atomically checks the rate limit and increments the counter in a single
+// Lua script. Returns (exceeded bool, err). This prevents TOCTOU races where concurrent
+// requests all see count=0 before any increment.
+func (l *Limiter) CheckAndIncrement(ctx context.Context, name string, ip string) (bool, error) {
+	cfg := l.GetConfig(ctx, name)
+	key := fmt.Sprintf("rl:%s:%s", name, ip)
+
+	luaScript := redis.NewScript(`
+		local count = redis.call('INCR', KEYS[1])
+		if count == 1 then
+			redis.call('EXPIRE', KEYS[1], ARGV[1])
+		end
+		if count > tonumber(ARGV[2]) then
+			redis.call('DECR', KEYS[1])
+			return 1
+		end
+		return 0
+	`)
+	result, err := luaScript.Run(ctx, l.rdb, []string{key}, int(cfg.Window.Seconds()), cfg.Limit).Int64()
+	if err != nil {
+		return false, err
+	}
+	return result == 1, nil
+}
+
+// CheckIP checks if IP has exceeded the rate limit (read-only, for backward compat).
 func (l *Limiter) CheckIP(ctx context.Context, name string, ip string) (bool, error) {
 	cfg := l.GetConfig(ctx, name)
 	key := fmt.Sprintf("rl:%s:%s", name, ip)

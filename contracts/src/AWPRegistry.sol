@@ -376,6 +376,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     /// @notice Set reward recipient for msg.sender
     /// @param addr Recipient address
     function setRecipient(address addr) external nonReentrant whenNotPaused {
+        if (addr == address(0)) revert InvalidAddress();
         bool firstTime = recipient[msg.sender] == address(0);
         recipient[msg.sender] = addr;
         if (firstTime) {
@@ -397,6 +398,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
         bytes32 digest = _hashTypedDataV4(structHash);
         address signer = ECDSA.recover(digest, v, r, s);
         if (signer != user) revert InvalidSignature();
+        if (_recipient == address(0)) revert InvalidAddress();
 
         // If this is the first time setting recipient (registration), increment counter
         bool firstTime = recipient[user] == address(0);
@@ -759,7 +761,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     /// @notice Deregister a subnet: permanently delete subnet data (only Timelock; immunity period must have elapsed)
     function deregisterSubnet(uint256 subnetId) external onlyTimelock {
         SubnetInfo storage info = subnets[subnetId];
-        if (info.createdAt == 0) revert InvalidSubnetStatus();
+        if (info.status != SubnetStatus.Banned) revert InvalidSubnetStatus();
         uint256 immunityStart = info.activatedAt > 0 ? uint256(info.activatedAt) : uint256(info.createdAt);
         if (block.timestamp <= immunityStart + immunityPeriod) revert ImmunityNotExpired();
 

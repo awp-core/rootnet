@@ -254,12 +254,8 @@ func (idx *Indexer) detectReorg(ctx context.Context, q *gen.Queries, lastBlock u
 }
 
 // rollback resets the indexer state to the given fork point atomically within a transaction.
-// Since all DB writes use ON CONFLICT DO UPDATE (upserts), re-indexing from the fork point
-// will overwrite any stale data. We only need to reset the sync cursor and clean up block hashes.
-//
-// NOTE: Allocation tracking (stake_allocations) uses additive upserts and is NOT fully
-// idempotent on replay. After a reorg rollback, allocation amounts may drift from on-chain
-// state. A full re-sync from genesis is recommended if allocation accuracy is critical.
+// Allocation tracking uses additive upserts, so we must truncate stake_allocations and
+// user_balances on rollback to prevent double-counting when events are replayed.
 func (idx *Indexer) rollback(ctx context.Context, forkPoint int64) error {
 	tx, err := idx.pool.Begin(ctx)
 	if err != nil {
@@ -276,6 +272,13 @@ func (idx *Indexer) rollback(ctx context.Context, forkPoint int64) error {
 	}
 	if err := qtx.DeleteIndexedBlocksAfter(ctx, forkPoint); err != nil {
 		return fmt.Errorf("delete indexed blocks after %d: %w", forkPoint, err)
+	}
+	// Truncate additive tables to prevent double-counting on replay
+	if err := qtx.TruncateStakeAllocations(ctx); err != nil {
+		return fmt.Errorf("truncate stake_allocations: %w", err)
+	}
+	if err := qtx.TruncateUserBalances(ctx); err != nil {
+		return fmt.Errorf("truncate user_balances: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
