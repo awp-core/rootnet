@@ -652,8 +652,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
         emit SubnetRegistered(
             subnetId, user,
             params.name, params.symbol,
-            sc, alphaToken,
-            params.minStake, params.skillsURI
+            sc, alphaToken
         );
         emit LPCreated(subnetId, poolId, lpAWPAmount, INITIAL_ALPHA_MINT);
     }

@@ -76,9 +76,7 @@ interface IAWPRegistry {
         string name,
         string symbol,
         address subnetManager,
-        address alphaToken,
-        uint128 minStake,
-        string skillsURI
+        address alphaToken
     );
     event LPCreated(uint256 indexed subnetId, bytes32 poolId, uint256 awpAmount, uint256 alphaAmount);
     event SubnetActivated(uint256 indexed subnetId);
