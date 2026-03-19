@@ -166,8 +166,9 @@ func newVanityHandler(cfg *config.Config, queries *gen.Queries, limiter *ratelim
 }
 
 // newRouterParams assembles RouterParams
-func newRouterParams(h *handler.Handler, hub *ws.Hub, rh *handler.RelayHandler, vh *handler.VanityHandler) server.RouterParams {
+func newRouterParams(cfg *config.Config, h *handler.Handler, hub *ws.Hub, rh *handler.RelayHandler, vh *handler.VanityHandler) server.RouterParams {
 	return server.RouterParams{
+		Config:        cfg,
 		Handler:       h,
 		Hub:           hub,
 		RelayHandler:  rh,

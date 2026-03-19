@@ -94,9 +94,8 @@ func (h *Handler) LookupAgent(w http.ResponseWriter, r *http.Request) {
 
 // BatchAgentInfo returns batch agent info along with each agent's stake in the specified subnet
 func (h *Handler) BatchAgentInfo(w http.ResponseWriter, r *http.Request) {
-	// Rate limit: reuse compute_salt bucket (20/hr/IP) to prevent DB exhaustion
 	ip := ratelimit.GetClientIP(r)
-	if exceeded, _ := h.limiter.CheckAndIncrement(r.Context(), "compute_salt", ip); exceeded {
+	if exceeded, _ := h.limiter.CheckAndIncrement(r.Context(), "batch_agent_info", ip); exceeded {
 		h.writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
 		return
 	}

@@ -208,8 +208,8 @@ contract SubnetManagerUni is SubnetManager {
         // For !zeroForOne: delta0 > 0 (we receive token0), delta1 < 0 (we owe token1)
         address inputCurrency = zeroForOne ? pk.currency0 : pk.currency1;
         address outputCurrency = zeroForOne ? pk.currency1 : pk.currency0;
-        uint256 inputAmt = uint256(int256(zeroForOne ? -delta0 : -delta1));
-        uint256 outputAmt = uint256(int256(zeroForOne ? delta1 : delta0));
+        uint256 inputAmt = uint256(uint128(zeroForOne ? -delta0 : -delta1));
+        uint256 outputAmt = uint256(uint128(zeroForOne ? delta1 : delta0));
 
         // Slippage check
         if (outputAmt < minOut) revert SlippageExceeded();

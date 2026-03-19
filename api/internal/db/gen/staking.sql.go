@@ -292,7 +292,7 @@ func (q *Queries) SubtractStakeAllocation(ctx context.Context, arg SubtractStake
 }
 
 const truncateStakeAllocations = `-- name: TruncateStakeAllocations :exec
-DELETE FROM stake_allocations
+TRUNCATE stake_allocations
 `
 
 func (q *Queries) TruncateStakeAllocations(ctx context.Context) error {
@@ -301,7 +301,7 @@ func (q *Queries) TruncateStakeAllocations(ctx context.Context) error {
 }
 
 const truncateUserBalances = `-- name: TruncateUserBalances :exec
-DELETE FROM user_balances
+TRUNCATE user_balances
 `
 
 func (q *Queries) TruncateUserBalances(ctx context.Context) error {

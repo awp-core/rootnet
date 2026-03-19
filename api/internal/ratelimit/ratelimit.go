@@ -35,6 +35,28 @@ type Limiter struct {
 
 const configKey = "ratelimit:config"
 
+// Package-level Lua scripts (allocated once, SHA1 cached by go-redis)
+var (
+	luaCheckAndIncr = redis.NewScript(`
+		local count = redis.call('INCR', KEYS[1])
+		if count == 1 then
+			redis.call('EXPIRE', KEYS[1], ARGV[1])
+		end
+		if count > tonumber(ARGV[2]) then
+			redis.call('DECR', KEYS[1])
+			return 1
+		end
+		return 0
+	`)
+	luaIncr = redis.NewScript(`
+		local count = redis.call('INCR', KEYS[1])
+		if count == 1 then
+			redis.call('EXPIRE', KEYS[1], ARGV[1])
+		end
+		return count
+	`)
+)
+
 // NewLimiter creates a Limiter with default configurations.
 // Defaults are used when the Redis config key is absent.
 func NewLimiter(rdb *redis.Client, logger *slog.Logger) *Limiter {
@@ -42,10 +64,11 @@ func NewLimiter(rdb *redis.Client, logger *slog.Logger) *Limiter {
 		rdb:    rdb,
 		logger: logger,
 		defaults: map[string]Config{
-			"relay":         {Limit: 100, Window: 1 * time.Hour},
-			"upload_salts":  {Limit: 5, Window: 1 * time.Hour},
-			"compute_salt":  {Limit: 20, Window: 1 * time.Hour},
-			"ws_connect":    {Limit: 10, Window: 0}, // 0 = concurrent count, not time-windowed
+			"relay":            {Limit: 100, Window: 1 * time.Hour},
+			"upload_salts":     {Limit: 5, Window: 1 * time.Hour},
+			"compute_salt":     {Limit: 20, Window: 1 * time.Hour},
+			"batch_agent_info": {Limit: 30, Window: 1 * time.Hour},
+			"ws_connect":       {Limit: 10, Window: 0}, // 0 = concurrent count, not time-windowed
 		},
 	}
 }
@@ -73,74 +96,13 @@ func (l *Limiter) CheckAndIncrement(ctx context.Context, name string, ip string)
 	cfg := l.GetConfig(ctx, name)
 	key := fmt.Sprintf("rl:%s:%s", name, ip)
 
-	luaScript := redis.NewScript(`
-		local count = redis.call('INCR', KEYS[1])
-		if count == 1 then
-			redis.call('EXPIRE', KEYS[1], ARGV[1])
-		end
-		if count > tonumber(ARGV[2]) then
-			redis.call('DECR', KEYS[1])
-			return 1
-		end
-		return 0
-	`)
-	result, err := luaScript.Run(ctx, l.rdb, []string{key}, int(cfg.Window.Seconds()), cfg.Limit).Int64()
+	result, err := luaCheckAndIncr.Run(ctx, l.rdb, []string{key}, int(cfg.Window.Seconds()), cfg.Limit).Int64()
 	if err != nil {
 		return false, err
 	}
 	return result == 1, nil
 }
 
-// CheckIP checks if IP has exceeded the rate limit (read-only, for backward compat).
-func (l *Limiter) CheckIP(ctx context.Context, name string, ip string) (bool, error) {
-	cfg := l.GetConfig(ctx, name)
-	key := fmt.Sprintf("rl:%s:%s", name, ip)
-	count, err := l.rdb.Get(ctx, key).Int64()
-	if err == redis.Nil {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return count >= int64(cfg.Limit), nil
-}
-
-// RecordSuccess increments the rate limit counter for a successful operation.
-// Uses background context so the increment is not cancelled by client disconnect.
-func (l *Limiter) RecordSuccess(name string, ip string) {
-	cfg := l.GetConfig(context.Background(), name)
-	key := fmt.Sprintf("rl:%s:%s", name, ip)
-
-	luaScript := redis.NewScript(`
-		local count = redis.call('INCR', KEYS[1])
-		if count == 1 then
-			redis.call('EXPIRE', KEYS[1], ARGV[1])
-		end
-		return count
-	`)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := luaScript.Run(ctx, l.rdb, []string{key}, int(cfg.Window.Seconds())).Err(); err != nil {
-		l.logger.Error("failed to record rate limit", "name", name, "error", err)
-	}
-}
-
-// Record increments the counter immediately (for non-success-only counting like upload-salts).
-func (l *Limiter) Record(ctx context.Context, name string, ip string) {
-	cfg := l.GetConfig(ctx, name)
-	key := fmt.Sprintf("rl:%s:%s", name, ip)
-
-	luaScript := redis.NewScript(`
-		local count = redis.call('INCR', KEYS[1])
-		if count == 1 then
-			redis.call('EXPIRE', KEYS[1], ARGV[1])
-		end
-		return count
-	`)
-	if err := luaScript.Run(ctx, l.rdb, []string{key}, int(cfg.Window.Seconds())).Err(); err != nil {
-		l.logger.Error("failed to record rate limit", "name", name, "error", err)
-	}
-}
 
 // FormatError returns a user-friendly rate limit exceeded message.
 func (l *Limiter) FormatError(ctx context.Context, name string) string {

@@ -133,10 +133,6 @@ func (rh *RelayHandler) checkRateLimit(r *http.Request) (bool, error) {
 	return rh.limiter.CheckAndIncrement(r.Context(), "relay", ratelimit.GetClientIP(r))
 }
 
-// recordSuccessfulRelay is a no-op — counter is now incremented atomically in checkRateLimit.
-func (rh *RelayHandler) recordSuccessfulRelay(r *http.Request) {
-	// Intentionally empty: CheckAndIncrement already incremented the counter.
-}
 
 func (rh *RelayHandler) writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
@@ -278,7 +274,6 @@ func (rh *RelayHandler) RelayRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rh.recordSuccessfulRelay(r)
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
@@ -337,7 +332,6 @@ func (rh *RelayHandler) RelayBind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rh.recordSuccessfulRelay(r)
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
@@ -396,7 +390,6 @@ func (rh *RelayHandler) RelaySetRecipient(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	rh.recordSuccessfulRelay(r)
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
@@ -434,7 +427,6 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
 		return
 	}
-	rh.recordSuccessfulRelay(r)
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
@@ -472,7 +464,6 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
 		return
 	}
-	rh.recordSuccessfulRelay(r)
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
@@ -504,7 +495,6 @@ func (rh *RelayHandler) RelayActivateSubnet(w http.ResponseWriter, r *http.Reque
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
 		return
 	}
-	rh.recordSuccessfulRelay(r)
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
@@ -607,6 +597,5 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	rh.recordSuccessfulRelay(r)
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }

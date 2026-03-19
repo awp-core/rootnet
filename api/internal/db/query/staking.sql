@@ -1,8 +1,8 @@
 -- name: TruncateStakeAllocations :exec
-DELETE FROM stake_allocations;
+TRUNCATE stake_allocations;
 
 -- name: TruncateUserBalances :exec
-DELETE FROM user_balances;
+TRUNCATE user_balances;
 
 -- name: UpsertStakeAllocation :exec
 INSERT INTO stake_allocations (user_address, agent_address, subnet_id, amount, frozen)
