@@ -134,11 +134,11 @@ func (idx *Indexer) poll(ctx context.Context) error {
 
 	slog.Info("scanning blocks", "from", fromBlock, "to", toBlock)
 
-	// 3. Filter logs from RootNet, AWPEmission, StakeNFT, and SubnetNFT contracts
+	// 3. Filter logs from RootNet, AWPEmission, StakeNFT, SubnetNFT, and AWPDAO contracts
 	logs, err := idx.chain.Eth.FilterLogs(ctx, ethereum.FilterQuery{
 		FromBlock: new(big.Int).SetUint64(fromBlock),
 		ToBlock:   new(big.Int).SetUint64(toBlock),
-		Addresses: []common.Address{idx.chain.RootNetAddr, idx.chain.AWPEmissionAddr, idx.chain.StakeNFTAddr, idx.chain.SubnetNFTAddr},
+		Addresses: []common.Address{idx.chain.RootNetAddr, idx.chain.AWPEmissionAddr, idx.chain.StakeNFTAddr, idx.chain.SubnetNFTAddr, idx.chain.AWPDAOAddr},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to filter logs: %w", err)
@@ -161,8 +161,7 @@ func (idx *Indexer) poll(ctx context.Context) error {
 		}
 		evts, err := idx.processLog(ctx, qtx, lg)
 		if err != nil {
-			slog.Warn("failed to process log", "txHash", lg.TxHash.Hex(), "topic", lg.Topics[0].Hex(), "error", err)
-			continue
+			return fmt.Errorf("failed to process log at block %d tx %s: %w", lg.BlockNumber, lg.TxHash.Hex(), err)
 		}
 		events = append(events, evts...)
 	}
@@ -362,23 +361,26 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// StakeNFT.Transfer — NFT ownership transfer (ERC721 Transfer event)
-	if evt, err := stakeNFT.ParseTransfer(lg); err == nil {
-		// Skip mint (from=0) and burn (to=0) — handled by Deposited/Withdrawn
-		zeroAddr := common.Address{}
-		if evt.From != zeroAddr && evt.To != zeroAddr {
-			if err := q.UpdateStakePositionOwner(ctx, gen.UpdateStakePositionOwnerParams{
-				TokenID: evt.TokenId.Int64(),
-				Owner:   strings.ToLower(evt.To.Hex()),
-			}); err != nil {
-				return nil, fmt.Errorf("UpdateStakePositionOwner: %w", err)
+	// Guard on address to avoid matching SubnetNFT Transfer (same event signature)
+	if lg.Address == idx.chain.StakeNFTAddr {
+		if evt, err := stakeNFT.ParseTransfer(lg); err == nil {
+			// Skip mint (from=0) and burn (to=0) — handled by Deposited/Withdrawn
+			zeroAddr := common.Address{}
+			if evt.From != zeroAddr && evt.To != zeroAddr {
+				if err := q.UpdateStakePositionOwner(ctx, gen.UpdateStakePositionOwnerParams{
+					TokenID: evt.TokenId.Int64(),
+					Owner:   strings.ToLower(evt.To.Hex()),
+				}); err != nil {
+					return nil, fmt.Errorf("UpdateStakePositionOwner: %w", err)
+				}
+				return []redisEvent{makeEvent("StakeNFTTransfer", lg, map[string]interface{}{
+					"from":    evt.From.Hex(),
+					"to":      evt.To.Hex(),
+					"tokenId": evt.TokenId.String(),
+				})}, nil
 			}
-			return []redisEvent{makeEvent("StakeNFTTransfer", lg, map[string]interface{}{
-				"from":    evt.From.Hex(),
-				"to":      evt.To.Hex(),
-				"tokenId": evt.TokenId.String(),
-			})}, nil
+			return nil, nil
 		}
-		return nil, nil
 	}
 
 	// Allocated
@@ -469,9 +471,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			Owner:          strings.ToLower(evt.Owner.Hex()),
 			Name:           evt.Name,
 			Symbol:         evt.Symbol,
-			MetadataUri:    pgtype.Text{String: evt.MetadataURI, Valid: evt.MetadataURI != ""},
 			SubnetContract: strings.ToLower(evt.SubnetManager.Hex()),
-			CoordinatorUrl: pgtype.Text{String: evt.CoordinatorURL, Valid: evt.CoordinatorURL != ""},
 			SkillsUri:      pgtype.Text{Valid: false},
 			MinStake:       bigIntToNumeric(big.NewInt(0)), // default 0; updated via SubnetNFT.MinStakeUpdated event
 			AlphaToken:     strings.ToLower(evt.AlphaToken.Hex()),
@@ -489,14 +489,12 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			slog.Warn("mark salt used failed (non-critical)", "error", markErr, "alphaToken", evt.AlphaToken.Hex())
 		}
 		return []redisEvent{makeEvent("SubnetRegistered", lg, map[string]interface{}{
-			"subnetId":       evt.SubnetId.String(),
-			"owner":          evt.Owner.Hex(),
-			"name":           evt.Name,
-			"symbol":         evt.Symbol,
-			"metadataURI":    evt.MetadataURI,
-			"subnetManager":  evt.SubnetManager.Hex(),
-			"alphaToken":     evt.AlphaToken.Hex(),
-			"coordinatorURL": evt.CoordinatorURL,
+			"subnetId":      evt.SubnetId.String(),
+			"owner":         evt.Owner.Hex(),
+			"name":          evt.Name,
+			"symbol":        evt.Symbol,
+			"subnetManager": evt.SubnetManager.Hex(),
+			"alphaToken":    evt.AlphaToken.Hex(),
 		})}, nil
 	}
 
@@ -514,22 +512,6 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			"poolId":      poolIdHex,
 			"awpAmount":   evt.AwpAmount.String(),
 			"alphaAmount": evt.AlphaAmount.String(),
-		})}, nil
-	}
-
-	// MetadataUpdated
-	if evt, err := rootNet.ParseMetadataUpdated(lg); err == nil {
-		if err := q.UpdateSubnetMetadata(ctx, gen.UpdateSubnetMetadataParams{
-			SubnetID:       evt.SubnetId.Int64(),
-			MetadataUri:    pgtype.Text{String: evt.MetadataURI, Valid: evt.MetadataURI != ""},
-			CoordinatorUrl: pgtype.Text{String: evt.CoordinatorURL, Valid: evt.CoordinatorURL != ""},
-		}); err != nil {
-			return nil, fmt.Errorf("UpdateSubnetMetadata: %w", err)
-		}
-		return []redisEvent{makeEvent("MetadataUpdated", lg, map[string]interface{}{
-			"subnetId":       evt.SubnetId.String(),
-			"metadataURI":    evt.MetadataURI,
-			"coordinatorURL": evt.CoordinatorURL,
 		})}, nil
 	}
 
@@ -640,6 +622,29 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
+	// SubnetNFT.Transfer — subnet ownership transfer (ERC721 Transfer event)
+	// Guard on address to avoid matching StakeNFT Transfer (same event signature)
+	if lg.Address == idx.chain.SubnetNFTAddr {
+		if evt, err := subnetNFT.ParseTransfer(lg); err == nil {
+			// Skip mint (from=0) and burn (to=0) — handled by SubnetRegistered/SubnetDeregistered
+			zeroAddr := common.Address{}
+			if evt.From != zeroAddr && evt.To != zeroAddr {
+				if err := q.UpdateSubnetOwner(ctx, gen.UpdateSubnetOwnerParams{
+					SubnetID: evt.TokenId.Int64(),
+					Owner:    strings.ToLower(evt.To.Hex()),
+				}); err != nil {
+					return nil, fmt.Errorf("UpdateSubnetOwner: %w", err)
+				}
+				return []redisEvent{makeEvent("SubnetNFTTransfer", lg, map[string]interface{}{
+					"from":     evt.From.Hex(),
+					"to":       evt.To.Hex(),
+					"subnetId": evt.TokenId.String(),
+				})}, nil
+			}
+			return nil, nil
+		}
+	}
+
 	// ── AWPEmission events ──
 
 	// GovernanceWeightUpdated (emitted from AWPEmission) — weight data lives on-chain; only publish Redis event
@@ -725,6 +730,93 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		return []redisEvent{makeEvent("OracleConfigUpdated", lg, map[string]interface{}{
 			"oracles":   addrs,
 			"threshold": evt.Threshold.String(),
+		})}, nil
+	}
+
+	// ── RootNet governance events (notification-only, no DB writes) ──
+	// These events are not in the current RootNet binding; match by topic hash.
+	// TODO: regenerate RootNet binding to include these events and use typed parsing.
+	if lg.Address == idx.chain.RootNetAddr {
+		topic := lg.Topics[0]
+		switch topic {
+		// GuardianUpdated(address indexed newGuardian)
+		case common.HexToHash("0x6bb7ff33e730289800c62ad882105a144a74010d2bdbb9a942544a3005ad55bf"):
+			newGuardian := common.BytesToAddress(lg.Topics[1].Bytes())
+			return []redisEvent{makeEvent("GuardianUpdated", lg, map[string]interface{}{
+				"newGuardian": newGuardian.Hex(),
+			})}, nil
+		// InitialAlphaPriceUpdated(uint256 newPrice)
+		case common.HexToHash("0xab7ee876750d22d253d0b38988caea5f6285a832697e4889d9beb36515dde34e"):
+			newPrice := new(big.Int).SetBytes(lg.Data)
+			return []redisEvent{makeEvent("InitialAlphaPriceUpdated", lg, map[string]interface{}{
+				"newPrice": newPrice.String(),
+			})}, nil
+		// ImmunityPeriodUpdated(uint256 newPeriod)
+		case common.HexToHash("0x49b186851943e5bbcefec9411c3238262c6e102e4000142f8f060143d1b8724c"):
+			newPeriod := new(big.Int).SetBytes(lg.Data)
+			return []redisEvent{makeEvent("ImmunityPeriodUpdated", lg, map[string]interface{}{
+				"newPeriod": newPeriod.String(),
+			})}, nil
+		// AlphaTokenFactoryUpdated(address indexed newFactory)
+		case common.HexToHash("0xca3b5054bdfbf81973dd36029b7ef8c5479d0739433700df6b2e6d690ead4a3e"):
+			newFactory := common.BytesToAddress(lg.Topics[1].Bytes())
+			return []redisEvent{makeEvent("AlphaTokenFactoryUpdated", lg, map[string]interface{}{
+				"newFactory": newFactory.Hex(),
+			})}, nil
+		// DefaultSubnetManagerImplUpdated(address indexed newImpl)
+		case common.HexToHash("0xa37cb79f631c6bb2a11d965d06cce40e3c936eba1649879b8ffa233c0219f949"):
+			newImpl := common.BytesToAddress(lg.Topics[1].Bytes())
+			return []redisEvent{makeEvent("DefaultSubnetManagerImplUpdated", lg, map[string]interface{}{
+				"newImpl": newImpl.Hex(),
+			})}, nil
+		}
+	}
+
+	// ── AWPDAO events (notification-only, no DB writes) ──
+
+	awpDAO := idx.chain.AWPDAO
+
+	// ProposalCreated
+	if evt, err := awpDAO.ParseProposalCreated(lg); err == nil {
+		return []redisEvent{makeEvent("ProposalCreated", lg, map[string]interface{}{
+			"proposalId":  evt.ProposalId.String(),
+			"proposer":    evt.Proposer.Hex(),
+			"voteStart":   evt.VoteStart.String(),
+			"voteEnd":     evt.VoteEnd.String(),
+			"description": evt.Description,
+		})}, nil
+	}
+
+	// VoteCast
+	if evt, err := awpDAO.ParseVoteCast(lg); err == nil {
+		return []redisEvent{makeEvent("VoteCast", lg, map[string]interface{}{
+			"voter":      evt.Voter.Hex(),
+			"proposalId": evt.ProposalId.String(),
+			"support":    evt.Support,
+			"weight":     evt.Weight.String(),
+			"reason":     evt.Reason,
+		})}, nil
+	}
+
+	// ProposalExecuted
+	if evt, err := awpDAO.ParseProposalExecuted(lg); err == nil {
+		return []redisEvent{makeEvent("ProposalExecuted", lg, map[string]interface{}{
+			"proposalId": evt.ProposalId.String(),
+		})}, nil
+	}
+
+	// ProposalCanceled
+	if evt, err := awpDAO.ParseProposalCanceled(lg); err == nil {
+		return []redisEvent{makeEvent("ProposalCanceled", lg, map[string]interface{}{
+			"proposalId": evt.ProposalId.String(),
+		})}, nil
+	}
+
+	// ProposalQueued
+	if evt, err := awpDAO.ParseProposalQueued(lg); err == nil {
+		return []redisEvent{makeEvent("ProposalQueued", lg, map[string]interface{}{
+			"proposalId": evt.ProposalId.String(),
+			"etaSeconds": evt.EtaSeconds.String(),
 		})}, nil
 	}
 

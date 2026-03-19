@@ -19,6 +19,7 @@ import (
 	"github.com/cortexia/rootnet/api/internal/chain/bindings"
 	"github.com/cortexia/rootnet/api/internal/config"
 	"github.com/cortexia/rootnet/api/internal/db/gen"
+	"github.com/cortexia/rootnet/api/internal/ratelimit"
 	"github.com/cortexia/rootnet/api/internal/server"
 	"github.com/cortexia/rootnet/api/internal/server/handler"
 	"github.com/cortexia/rootnet/api/internal/server/ws"
@@ -238,7 +239,8 @@ func (e *e2eEnv) setupRouter() {
 		TreasuryAddress:     e.trsAddr.Hex(),
 		StakeNFTAddress:     e.stakeNFTAddr.Hex(),
 	}
-	h := handler.NewHandler(e.queries, e.rdb, cfg, logger)
+	limiter := ratelimit.NewLimiter(e.rdb, logger)
+	h := handler.NewHandler(e.queries, e.rdb, cfg, logger, limiter)
 	hub := ws.NewHub(e.rdb, logger)
 	e.router = server.NewRouter(server.RouterParams{Handler: h, Hub: hub})
 }

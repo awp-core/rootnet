@@ -9,6 +9,7 @@ import (
 
 	"github.com/cortexia/rootnet/api/internal/config"
 	"github.com/cortexia/rootnet/api/internal/db/gen"
+	"github.com/cortexia/rootnet/api/internal/ratelimit"
 	"github.com/go-chi/chi/v5"
 	"github.com/redis/go-redis/v9"
 )
@@ -19,15 +20,17 @@ type Handler struct {
 	rdb     *redis.Client
 	cfg     *config.Config
 	logger  *slog.Logger
+	limiter *ratelimit.Limiter
 }
 
 // NewHandler creates a new Handler instance
-func NewHandler(queries *gen.Queries, rdb *redis.Client, cfg *config.Config, logger *slog.Logger) *Handler {
+func NewHandler(queries *gen.Queries, rdb *redis.Client, cfg *config.Config, logger *slog.Logger, limiter *ratelimit.Limiter) *Handler {
 	return &Handler{
 		queries: queries,
 		rdb:     rdb,
 		cfg:     cfg,
 		logger:  logger,
+		limiter: limiter,
 	}
 }
 
@@ -80,6 +83,7 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 
 // registryResponse is the response type for the contract address registry
 type registryResponse struct {
+	ChainID           int64  `json:"chainId"`
 	RootNet           string `json:"rootNet"`
 	AWPToken          string `json:"awpToken"`
 	AWPEmission       string `json:"awpEmission"`
@@ -93,9 +97,10 @@ type registryResponse struct {
 	Treasury          string `json:"treasury"`
 }
 
-// GetRegistry returns the contract address registry
+// GetRegistry returns the contract address registry with chain ID
 func (h *Handler) GetRegistry(w http.ResponseWriter, r *http.Request) {
 	resp := registryResponse{
+		ChainID:           h.cfg.ChainID,
 		RootNet:           h.cfg.RootNetAddress,
 		AWPToken:          h.cfg.AWPTokenAddress,
 		AWPEmission:       h.cfg.AWPEmissionAddress,

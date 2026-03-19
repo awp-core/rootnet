@@ -14,6 +14,7 @@ import {LPManager} from "../src/core/LPManager.sol";
 import {RootNet} from "../src/RootNet.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
+import {SubnetManager} from "../src/subnets/SubnetManager.sol";
 
 /// @title Predict — Print the deterministic addresses for all contracts given the current .env salts
 /// @dev Run: forge script script/Predict.s.sol
@@ -127,6 +128,13 @@ contract Predict is Script {
             abi.encodePacked(type(StakeNFT).creationCode, abi.encode(awp, vault, rootNet))
         );
         console.log("StakeNFT:          ", stakeNft);
+
+        // SubnetManager impl
+        address subnetMgrImpl = _predict(
+            _readSalt("SALT_SUBNET_MANAGER_IMPL"),
+            abi.encodePacked(type(SubnetManager).creationCode)
+        );
+        console.log("SubnetManager impl:", subnetMgrImpl);
 
         // AWPDAO
         address dao = _predict(

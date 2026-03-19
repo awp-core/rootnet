@@ -6,96 +6,103 @@
       "initCodeHash": "0x83a24a396c31ac07b2a827344f8045eb5932880e07b1cc0111a3a30fce057088",
       "prefix": "0000",
       "suffix": "00a1",
-      "salt": "0x1835169b7dbd4a09aae88582f84a62af0bc9cdc65616eb473bd173fc0e43a943",
-      "address": "0x0000969dDC625E1c084ECE9079055Fbc50F400a1"
+      "salt": "0xea03d22575f85a48930419c95262d9c31bed4bc871f7eec9a24fb04f6f977c34",
+      "address": "0x00006B0598404AFCB5cF9C476da6D7A2136600a1"
     },
     {
       "name": "AlphaTokenFactory",
-      "initCodeHash": "0xe67345efdade6024c84329f28f5f1ebfc16c209a69d82852aa9a42617d1b230c",
+      "initCodeHash": "0x99048d62fb441aba7b0f4e208c55615415bec85ba308038f957cab7776bffab9",
       "prefix": "",
       "suffix": "",
-      "salt": "0x0000000000000000000000000000000000000000000000000000000000000100",
-      "address": "0x7159769285e724Af9077C7C1e2200ff6b0FB1897"
+      "salt": "0x2ade2d8d53b03a8e428d48754a7cc32662bfb2284a9d9219a4c573e84e2c3918",
+      "address": "0x94B6b6e5df4c83518a3a84B00e066A0b6FD76097"
     },
     {
       "name": "AWPEmission_impl",
       "initCodeHash": "0x2fb4a4d0ccd70940e4dbe5742900e29da8088fc11bbf0140f7df1007cef89428",
       "prefix": "",
       "suffix": "",
-      "salt": "0x0000000000000000000000000000000000000000000000000000000000000101",
-      "address": "0x9BB22529622A9d104A3D713bD7A8D5E63dF93649"
+      "salt": "0x957f03d3c091cc43731fee2ba76ad1a9a38b4debd5ec852f279cc731becf7350",
+      "address": "0x9BE052Fa580deAf516854a5E1E8F4D191cDfeC44"
     },
     {
       "name": "Treasury",
       "initCodeHash": "0x883bd37952cc327fbb80ba5a0396edadbd48f65a7c4b261fae40dd751134ab2a",
       "prefix": "",
       "suffix": "",
-      "salt": "0x0000000000000000000000000000000000000000000000000000000000000102",
-      "address": "0x97eFA24aafFB1d50F46c17F96264671A160f3fdF"
+      "salt": "0x99c59156930945977874f1715d70804abb82b5b9e9be974517463e92917c0c0e",
+      "address": "0x8C62A1373C3d0AAf3282da9807bd7F14D1F36620"
     },
     {
       "name": "RootNet",
-      "initCodeHash": "0x14053f26d40eccb76bd82edebf9ab5552826fc90baeb5c9b87d8f9f5a5a52664",
+      "initCodeHash": "0x03f81dd38f7a1ac144e53e568a42052958cbb1358a9651e3450830934eef2fe6",
       "prefix": "0000",
       "suffix": "00b1",
-      "salt": "0x9364e2460570d34886c7860defb4c162c7bea2a25a75cb3c6eefd65a821569c7",
-      "address": "0x0000e8b3AA86970bA84eCb894021bC3d2A0B00b1"
+      "salt": "0x25430c2c584642e916b82dd79d395501befe1f26f94b416dff9fddd1a4dce600",
+      "address": "0x0000C392609cd929da9a633c75B86A583C2800b1"
     },
     {
       "name": "SubnetNFT",
-      "initCodeHash": "0xe365749377352104d874d1f6a764402ba9aeafe4f217abcd63da650fb4eae80d",
+      "initCodeHash": "0xe6bfa3d98b705f4014c76e6067c5aac4a7b2b72092e80b9ebe23c0617a732598",
       "prefix": "",
       "suffix": "",
-      "salt": "0x0000000000000000000000000000000000000000000000000000000000000103",
-      "address": "0xe243881B6f809466d8c353b92CB60b1A4ac24620"
+      "salt": "0xe325bec8cf02d67671a7615b3f311596faa818d400cebec808087f720f55bf29",
+      "address": "0xEfC20e37Dbd14F6C0527ec130D6415f5831e08d3"
     },
     {
       "name": "AccessManager",
-      "initCodeHash": "0xbb69883d4001fecd5f39871100b6223bad47007a169ceef455099698271d2fbc",
+      "initCodeHash": "0x2acc76927f555659de80474f8b9458d318f610c91e22deef62bc9f8068b3d742",
       "prefix": "",
       "suffix": "",
-      "salt": "0x0000000000000000000000000000000000000000000000000000000000000104",
-      "address": "0x4eAa48d1aA801214ABA96aD18F22eF11Af136FAF"
+      "salt": "0x8e67724e6e7ec1da5edc8ad52657fe05b6d87df88a13dfc858bb038b51185a43",
+      "address": "0xE4807566e011eBcB451eC5eF908F29cae3fCDE49"
     },
     {
       "name": "LPManager",
-      "initCodeHash": "0xa1b2c5c0374d13e44d7726c3b83df65ab56caa97cd6662742b75f04b4f19c68d",
+      "initCodeHash": "0x75100a1229878f6daa6e4d7c8f33dbf7d9f3b31025241a3d034c1e2ee3eeea2c",
       "prefix": "",
       "suffix": "",
-      "salt": "0x0000000000000000000000000000000000000000000000000000000000000105",
-      "address": "0x4B18e602F579D36C753Cea5a87a88455D8377adc"
+      "salt": "0x8116d832cab08a89b216d444baf4f971373c4817b8cbac091528044f1cd26db9",
+      "address": "0xbD77A3Cea72E9e84Ce2606DFFab5efd72bCD7788"
     },
     {
       "name": "StakingVault",
-      "initCodeHash": "0xb0df7558364d3001564a9a177cb2a0efdd697b4ddf005f5ae3048c108675b7fe",
+      "initCodeHash": "0x44ca9dea8f2f84d1b15fcec717f9197647ff389ae776826ff7fefa8e155100e1",
       "prefix": "",
       "suffix": "",
-      "salt": "0x0000000000000000000000000000000000000000000000000000000000000106",
-      "address": "0x078618AFbB2B13fDFDc90620D241cfE3881DCdF4"
+      "salt": "0x64d6c80f554a5d79f0d1fc23d61d95e6c508cfb1fad49e24b57017c34552cc6a",
+      "address": "0x85e74CdC0cbe7a37e4Cce9972994AcF212563fB3"
     },
     {
       "name": "AWPEmission_proxy",
-      "initCodeHash": "0x95b8021f7d931945313489d6e194b1323c402ffb9c77b6ba9708a0025bdcedfd",
+      "initCodeHash": "0xf08757c08cb0381b746ed43192b46a7ab677b795b7c6d2859293af779d310c9f",
       "prefix": "",
       "suffix": "",
-      "salt": "0x0000000000000000000000000000000000000000000000000000000000000107",
-      "address": "0x67Eb296b87F31f81c4F87B65Fee27B5be89D08ca"
+      "salt": "0x46cabf33039852810bb6a32dcc515c796f5b5a45894ddd539277b636dea46c75",
+      "address": "0x2360aaC229747086f42421345390F413bB92a90e"
     },
     {
       "name": "StakeNFT",
-      "initCodeHash": "0x9ac50c25320aa77b8d5d99114e95520ce237367dcdb36cbce89ac802a85c274c",
+      "initCodeHash": "0x619e485badf8aeaff985d37f8f48ba9ef036fd227eedceb1c82290c13da64b57",
       "prefix": "",
       "suffix": "",
-      "salt": "0x0000000000000000000000000000000000000000000000000000000000000108",
-      "address": "0x85221586FF995b63cBde0824C3625AF8462e66E2"
+      "salt": "0x133e3ed62e59d97e6d9424dbaf750802e160e8201c73d21e4aed8c2358c29e97",
+      "address": "0x756f789D7E42a1c6378Eb88822A96551D760CDAE"
+    },
+    {
+      "name": "SubnetManager_impl",
+      "pattern": "",
+      "initCodeHash": "0x609406fecfbe377e28283abadfce433dbe11595169772aa118bfd6254d17ac54",
+      "salt": "0x4cd407f2ebf4688a3af3973e7b1fc9289838019a09ef090d30c39f56530b7bdc",
+      "address": "0x47c58bD0e4Db0c922F5bF2b4a764a44579c76B16"
     },
     {
       "name": "AWPDAO",
-      "initCodeHash": "0xe4c85be4fafe272104efb239e6d6758e7dbcc88eb4cbe10726f8de57e969da3f",
+      "initCodeHash": "0xb0fc434053df738b19ca77ed2691961b17f485e45a0bd137faf4638149d9e371",
       "prefix": "",
       "suffix": "",
-      "salt": "0x0000000000000000000000000000000000000000000000000000000000000109",
-      "address": "0xb11f35Ca72611abC35395f3DFfA2C489D0Aed941"
+      "salt": "0x7f66635a83b4fffe37d15d78298004ddf89910587d471735ecdce48bda288027",
+      "address": "0x20e4306f738ec7359d321124D2385F3E0F95F80E"
     }
   ]
 }

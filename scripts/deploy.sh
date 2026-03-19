@@ -67,7 +67,7 @@ done
 
 # ─── Validate required vars ───
 
-for var in ETH_RPC_URL DEPLOYER_PRIVATE_KEY GUARDIAN TEAM_VESTING INVESTOR_VESTING LIQUIDITY_POOL AIRDROP POOL_MANAGER POSITION_MANAGER PERMIT2; do
+for var in ETH_RPC_URL DEPLOYER_PRIVATE_KEY GUARDIAN LIQUIDITY_POOL AIRDROP POOL_MANAGER POSITION_MANAGER PERMIT2; do
     [[ -n "${!var:-}" ]] || error "Missing required env var: $var"
 done
 
@@ -160,7 +160,7 @@ if [[ -z "$SKIP_MINE" ]]; then
 
     # Tier definitions: mine in order, export addresses between tiers
     TIERS=(
-        "AWPToken AlphaTokenFactory AWPEmission_impl"
+        "AWPToken AlphaTokenFactory AWPEmission_impl SubnetManager_impl"
         "Treasury"
         "RootNet"
         "SubnetNFT AccessManager LPManager StakingVault AWPEmission_proxy"
@@ -215,6 +215,7 @@ if [[ -z "$SKIP_MINE" ]]; then
                     StakingVault)      echo "SALT_STAKING_VAULT=$SALT" ;;
                     StakeNFT)          echo "SALT_STAKE_NFT=$SALT" ;;
                     AWPDAO)            echo "SALT_DAO=$SALT" ;;
+                    SubnetManager_impl) echo "SALT_SUBNET_MANAGER_IMPL=$SALT" ;;
                 esac
             fi
         done
@@ -259,10 +260,11 @@ AWP_EMISSION_ADDRESS=$(parse_address "AWPEmission proxy:")
 STAKING_VAULT_ADDRESS=$(parse_address "StakingVault:")
 STAKENFT_ADDRESS=$(parse_address "StakeNFT:")
 DAO_ADDRESS=$(parse_address "AWPDAO:")
+SUBNET_MANAGER_IMPL=$(parse_address "SubnetManager impl:")
 
 for var in AWP_TOKEN_ADDRESS FACTORY_ADDRESS TREASURY_ADDRESS ROOTNET_ADDRESS SUBNETNFT_ADDRESS \
-           ACCESS_MANAGER_ADDRESS LP_MANAGER_ADDRESS AWP_EMISSION_ADDRESS STAKING_VAULT_ADDRESS \
-           STAKENFT_ADDRESS DAO_ADDRESS; do
+           ACCESS_MANAGER_ADDRESS LP_MANAGER_ADDRESS AWP_EMISSION_IMPL AWP_EMISSION_ADDRESS STAKING_VAULT_ADDRESS \
+           STAKENFT_ADDRESS DAO_ADDRESS SUBNET_MANAGER_IMPL; do
     [[ -n "${!var:-}" ]] || error "Failed to parse $var"
 done
 
@@ -331,6 +333,7 @@ KEEPER_PRIVATE_KEY=$KEEPER_PRIVATE_KEY
 
 # ── For verification (internal) ──
 AWP_EMISSION_IMPL=$AWP_EMISSION_IMPL
+SUBNET_MANAGER_IMPL=$SUBNET_MANAGER_IMPL
 ENVFILE
 
 chmod 600 "$OUTPUT_ENV"
@@ -399,6 +402,7 @@ else
     vc "$LP_MANAGER_ADDRESS" "src/core/LPManager.sol:LPManager" \
         "$(cast abi-encode 'c(address,address,address,address,address)' "$ROOTNET_ADDRESS" "$POOL_MANAGER" "$POSITION_MANAGER" "$PERMIT2" "$AWP_TOKEN_ADDRESS")" "LPManager"
     [[ -n "${AWP_EMISSION_IMPL:-}" ]] && vc "$AWP_EMISSION_IMPL" "src/token/AWPEmission.sol:AWPEmission" "" "AWPEmission (impl)"
+    [[ -n "${SUBNET_MANAGER_IMPL:-}" ]] && vc "$SUBNET_MANAGER_IMPL" "src/subnets/SubnetManager.sol:SubnetManager" "" "SubnetManager (impl)"
     vc "$STAKING_VAULT_ADDRESS" "src/core/StakingVault.sol:StakingVault" \
         "$(cast abi-encode 'c(address)' "$ROOTNET_ADDRESS")" "StakingVault"
     vc "$STAKENFT_ADDRESS" "src/core/StakeNFT.sol:StakeNFT" \
@@ -428,6 +432,7 @@ echo "  LPManager:        ${LP_MANAGER_ADDRESS:-N/A}"
 echo "  Factory:          ${FACTORY_ADDRESS:-N/A}"
 echo "  AWPDAO:           ${DAO_ADDRESS:-N/A}"
 echo "  Treasury:         ${TREASURY_ADDRESS:-N/A}"
+echo "  SubnetMgr impl:  ${SUBNET_MANAGER_IMPL:-N/A}"
 echo ""
 echo "  Deploy Block:     ${DEPLOY_BLOCK:-N/A}"
 echo "  Vanity Rule:      $VANITY_RULE"

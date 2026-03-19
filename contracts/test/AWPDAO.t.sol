@@ -67,7 +67,7 @@ contract AWPDAOTest is Test {
         treasury.renounceRole(treasury.DEFAULT_ADMIN_ROLE(), deployer);
 
         // Transfer tokens to voter and have them stake via StakeNFT
-        uint256 voterAmount = 1_000_000_000 * 1e18; // 1B AWP
+        uint256 voterAmount = 100_000_000 * 1e18; // 100M AWP
         awpToken.transfer(voter, voterAmount);
 
         vm.stopPrank();
@@ -102,6 +102,7 @@ contract AWPDAOTest is Test {
 
         // Prepare proposal: send ETH from Treasury
         address payable target = payable(makeAddr("target"));
+        vm.etch(target, ""); // Ensure target is EOA — needed for fork tests
         uint256 sendAmount = 1 ether;
         vm.deal(address(treasury), sendAmount);
 

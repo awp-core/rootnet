@@ -75,8 +75,6 @@ DEPLOYER_PRIVATE_KEY=0x...
 GUARDIAN=0x...
 
 # Token distribution addresses
-TEAM_VESTING=0x...
-INVESTOR_VESTING=0x...
 LIQUIDITY_POOL=0x...
 AIRDROP=0x...
 
@@ -104,7 +102,7 @@ forge script script/Deploy.s.sol --rpc-url $ETH_RPC_URL --broadcast --verify
 
 | Step | Contract | Notes |
 |------|----------|-------|
-| 1 | AWPToken | 5B minted to deployer |
+| 1 | AWPToken | 200M minted to deployer |
 | 2 | AlphaToken (impl not needed) | No longer deployed separately — CREATE2 full deployment |
 | 3 | AlphaTokenFactory | CREATE2 deployer with optional vanity rule |
 | 4 | Treasury | TimelockController (2-day delay) |
@@ -117,12 +115,12 @@ forge script script/Deploy.s.sol --rpc-url $ETH_RPC_URL --broadcast --verify
 | 11 | StakingVault | Pure allocation logic |
 | 11b | StakeNFT | ERC721 position NFT (awpToken, stakingVault, rootNet) |
 | 12 | LPManager | PancakeSwap V4 CL integration |
-| 13 | AWPEmission | UUPS proxy (impl + ERC1967Proxy + initialize(awpToken, treasury, rootNet, initialDailyEmission, genesisTime_, epochDuration_=86400)) |
+| 13 | AWPEmission | UUPS proxy (impl + ERC1967Proxy + initialize(awpToken, treasury, initialDailyEmission, genesisTime_, epochDuration_=86400)) |
 | 14 | Add minter | AWPEmission added as sole AWP minter |
 | 15 | Renounce admin | AWP minter list permanently locked |
 | 16 | Configure factory | `factory.setAddresses(rootNet)` — links to RootNet and renounces ownership |
 | 17 | Initialize registry | All module addresses injected into RootNet |
-| 18-22 | Distribute AWP | Treasury 2B, Team 1B, Investor 750M, LP 1B, Airdrop 250M |
+| 18-22 | Distribute AWP | Treasury 90M, LP 10M, Airdrop 100M |
 
 ### 2.4 Verify Deployment
 
@@ -460,8 +458,8 @@ cast send <AWPToken> "approve(address,uint256)" <RootNet> 1000000000000000000000
   --private-key $USER_KEY --rpc-url $RPC_URL
 
 # 3. Register subnet (salt=0x00..00 uses subnetId as CREATE2 salt)
-cast send <RootNet> "registerSubnet((string,string,string,address,string,string,bytes32))" \
-  "(\"My Subnet\",\"MSUB\",\"ipfs://...\",0xSubnetContract,\"https://coord.example.com\",\"ipfs://QmSkills...\",0x0000000000000000000000000000000000000000000000000000000000000000)" \
+cast send <RootNet> "registerSubnet((string,string,address,bytes32,uint128,string))" \
+  "(\"My Subnet\",\"MSUB\",0x0000000000000000000000000000000000000000,0x0000000000000000000000000000000000000000000000000000000000000000,0,\"ipfs://QmSkills...\")" \
   --private-key $USER_KEY --rpc-url $RPC_URL
 
 # 4. Activate

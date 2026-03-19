@@ -54,7 +54,7 @@ contract RootNetTest is Test {
 
         // Deploy sub-contracts
         factory = new AlphaTokenFactory(deployer, 0);
-        nft = new SubnetNFT("AWP Subnet", "CXSUB", address(rootNet));
+        nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(rootNet));
         access = new AccessManager(address(rootNet));
         lp = new MockLPManager(address(rootNet), address(awp));
 
@@ -91,7 +91,8 @@ contract RootNetTest is Test {
             address(lp),
             address(access),
             address(vault),
-            address(stakeNFT)
+            address(stakeNFT),
+            address(0) // no default SubnetManager impl in unit tests
         );
 
         // Give users some AWP
@@ -107,7 +108,7 @@ contract RootNetTest is Test {
         vm.expectRevert(RootNet.NotDeployer.selector);
         rootNet.initializeRegistry(
             address(awp), address(nft), address(factory), address(emission),
-            address(lp), address(access), address(vault), address(stakeNFT)
+            address(lp), address(access), address(vault), address(stakeNFT), address(0)
         );
     }
 
@@ -321,11 +322,10 @@ contract RootNetTest is Test {
             IRootNet.SubnetParams({
                 name: "",
                 symbol: "TEST",
-                metadataURI: "",
                 subnetManager: subnetManager,
-                coordinatorURL: "",
                 salt: bytes32(0),
-                minStake: 0
+                minStake: 0,
+                skillsURI: ""
             })
         );
 
@@ -335,11 +335,10 @@ contract RootNetTest is Test {
             IRootNet.SubnetParams({
                 name: "Test",
                 symbol: "TEST",
-                metadataURI: "",
                 subnetManager: address(0),
-                coordinatorURL: "",
                 salt: bytes32(0),
-                minStake: 0
+                minStake: 0,
+                skillsURI: ""
             })
         );
         vm.stopPrank();
@@ -424,13 +423,6 @@ contract RootNetTest is Test {
         rootNet.pause();
     }
 
-    function test_updateMetadata() public {
-        uint256 subnetId = _registerSubnet();
-
-        vm.prank(user1);
-        rootNet.updateMetadata(subnetId, "ipfs://new", "https://new.api");
-    }
-
     // ── Queries ──
 
     function test_getAgentInfo() public {
@@ -482,15 +474,55 @@ contract RootNetTest is Test {
             IRootNet.SubnetParams({
                 name: "TestSubnet",
                 symbol: "TSUB",
-                metadataURI: "ipfs://test",
                 subnetManager: subnetManager,
-                coordinatorURL: "https://test.api",
                 salt: bytes32(0),
-                minStake: 0
+                minStake: 0,
+                skillsURI: ""
             })
         );
         vm.stopPrank();
         return subnetId;
+    }
+
+    // ── minStake enforcement ──
+
+    function test_allocate_insufficientMinStake() public {
+        // Register subnet with minStake = 1000 * 1e18
+        uint256 lpCost = 100_000_000 * 1e18 * 1e16 / 1e18;
+        vm.startPrank(user1);
+        awp.approve(address(rootNet), lpCost);
+        uint256 subnetId = rootNet.registerSubnet(
+            IRootNet.SubnetParams({
+                name: "MinStakeSubnet",
+                symbol: "MSUB",
+                subnetManager: subnetManager,
+                salt: bytes32(0),
+                minStake: 1000 * 1e18,
+                skillsURI: ""
+            })
+        );
+        rootNet.activateSubnet(subnetId);
+        vm.stopPrank();
+
+        // Setup: register user, bind agent, deposit AWP
+        vm.startPrank(user1);
+        rootNet.register();
+        awp.approve(address(stakeNFT), 5000 * 1e18);
+        stakeNFT.deposit(5000 * 1e18, 52 weeks);
+        vm.stopPrank();
+
+        vm.prank(agent1);
+        rootNet.bind(user1);
+
+        // Allocate below minStake — should revert
+        vm.prank(user1);
+        vm.expectRevert(RootNet.InsufficientMinStake.selector);
+        rootNet.allocate(agent1, subnetId, 500 * 1e18);
+
+        // Allocate at minStake — should succeed
+        vm.prank(user1);
+        rootNet.allocate(agent1, subnetId, 1000 * 1e18);
+        assertEq(vault.getAgentStake(user1, agent1, subnetId), 1000 * 1e18);
     }
 
     // ── setImmunityPeriod tests ──

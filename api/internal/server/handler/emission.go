@@ -25,7 +25,7 @@ func (h *Handler) GetCurrentEmission(w http.ResponseWriter, r *http.Request) {
 	val, err := h.rdb.Get(ctx, "emission_current").Result()
 	if err != nil {
 		if err == redis.Nil {
-			h.writeJSON(w, http.StatusOK, map[string]any{})
+			h.writeError(w, http.StatusServiceUnavailable, "emission data not yet available (keeper may not be running)")
 			return
 		}
 		h.logger.Error("failed to read Redis emission_current", "error", err)

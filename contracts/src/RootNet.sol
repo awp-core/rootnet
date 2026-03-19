@@ -69,7 +69,7 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     // ══════════════════════════════════════════════
 
     /// @notice subnetId => SubnetInfo mapping, stores the on-chain state of each subnet
-    /// @dev Strings are not stored on-chain (name/symbol/metadataURI/coordinatorURL); they are recorded via events and written to DB by the Indexer
+    /// @dev Strings are not stored on-chain (name/symbol); they are recorded via events and written to DB by the Indexer
     mapping(uint256 => SubnetInfo) public subnets;
 
     /// @dev Next subnet ID to be assigned, auto-increments from 1 (tokenId = subnetId)
@@ -105,9 +105,13 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     bytes32 private constant BIND_TYPEHASH =
         keccak256("Bind(address agent,address principal,uint256 nonce,uint256 deadline)");
 
-    /// @dev EIP-712 type hash: RegisterSubnet(address user, bytes32 paramsHash, uint256 nonce, uint256 deadline)
+    /// @dev EIP-712 type hash for SubnetParams nested struct
+    bytes32 private constant SUBNET_PARAMS_TYPEHASH =
+        keccak256("SubnetParams(string name,string symbol,address subnetManager,bytes32 salt,uint128 minStake,string skillsURI)");
+
+    /// @dev EIP-712 type hash: RegisterSubnet with nested SubnetParams (per EIP-712 §encodeType)
     bytes32 private constant REGISTER_SUBNET_TYPEHASH =
-        keccak256("RegisterSubnet(address user,bytes32 paramsHash,uint256 nonce,uint256 deadline)");
+        keccak256("RegisterSubnet(address user,SubnetParams params,uint256 nonce,uint256 deadline)SubnetParams(string name,string symbol,address subnetManager,bytes32 salt,uint128 minStake,string skillsURI)");
 
     // ══════════════════════════════════════════════
     //  Permission modifiers
@@ -203,6 +207,7 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     /// @param accessManager_ Access control manager contract address
     /// @param stakingVault_ Staking vault contract address
     /// @param stakeNFT_ StakeNFT contract address
+    /// @param defaultSubnetManagerImpl_ Default SubnetManager implementation (address(0) = disabled)
     function initializeRegistry(
         address awpToken_,
         address subnetNFT_,
@@ -211,7 +216,8 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
         address lpManager_,
         address accessManager_,
         address stakingVault_,
-        address stakeNFT_
+        address stakeNFT_,
+        address defaultSubnetManagerImpl_
     ) external {
         // Only the deployer may call
         if (msg.sender != _deployer) revert NotDeployer();
@@ -226,6 +232,7 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
         accessManager = accessManager_;
         stakingVault = stakingVault_;
         stakeNFT = stakeNFT_;
+        defaultSubnetManagerImpl = defaultSubnetManagerImpl_;
 
         // Link StakingVault → StakeNFT (one-time setter, resolves CREATE2 circular dependency)
         IStakingVault(stakingVault).setStakeNFT(stakeNFT);
@@ -488,7 +495,7 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     /// @dev Validates agent ownership first, then freezes via StakingVault (auto-enumerates subnets).
     ///      Supports Principal or delegated Agent calling (identity resolved via _resolvePrincipalOrDelegated).
     /// @param agent Agent address to remove
-    function removeAgent(address agent) external nonReentrant {
+    function removeAgent(address agent) external nonReentrant whenNotPaused {
         address user = _resolvePrincipalOrDelegated();
         // Validate agent belongs to user before mutating StakingVault state
         if (!IAccessManager(accessManager).isAgent(user, agent) || agent == user) revert UnknownAddress();
@@ -503,7 +510,7 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     /// @dev Supports Principal or existing delegated Agent calling
     /// @param agent Target Agent address
     /// @param _isManager true = grant delegation, false = revoke
-    function setDelegation(address agent, bool _isManager) external {
+    function setDelegation(address agent, bool _isManager) external whenNotPaused nonReentrant {
         address user = _resolvePrincipalOrDelegated();
         IAccessManager(accessManager).setManager(user, agent, _isManager, msg.sender);
         emit DelegationUpdated(user, agent, _isManager, msg.sender);
@@ -511,7 +518,7 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
 
     /// @notice Set the reward recipient address (only the Owner may call; Manager proxy is not allowed)
     /// @param recipient New reward recipient address
-    function setRewardRecipient(address recipient) external {
+    function setRewardRecipient(address recipient) external nonReentrant {
         address user = _resolveOwnerOnly();
         IAccessManager(accessManager).setRewardRecipient(user, recipient);
         emit RewardRecipientUpdated(user, recipient);
@@ -591,8 +598,8 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     ///      5. RootNet mints INITIAL_ALPHA_MINT Alpha tokens to LPManager
     ///      6. LPManager creates the AWP/Alpha trading pair and injects initial liquidity
     ///      7. Set subnetManager as the sole minter of the Alpha token (setSubnetMinter permanently locked)
-    ///      8. Store SubnetInfo (strings not stored on-chain; name/symbol/metadataURI/coordinatorURL recorded via events)
-    /// @param params Subnet parameters (name, symbol, metadataURI, subnetManager, coordinatorURL)
+    ///      8. Store SubnetInfo (strings not stored on-chain; name/symbol recorded via events)
+    /// @param params Subnet parameters (name, symbol, subnetManager, salt, minStake)
     /// @return subnetId Newly created subnet ID
     function registerSubnet(SubnetParams calldata params) external nonReentrant whenNotPaused returns (uint256) {
         return _registerSubnet(msg.sender, params);
@@ -644,16 +651,25 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     }
 
     /// @dev Verify EIP-712 signature for registerSubnetFor
+    ///      Uses standard EIP-712 nested struct encoding:
+    ///      - hashStruct(params) = keccak256(SUBNET_PARAMS_TYPEHASH ++ encode(fields))
+    ///      - hashStruct(msg) = keccak256(REGISTER_SUBNET_TYPEHASH ++ encode(user, hashStruct(params), nonce, deadline))
+    ///      Clients use standard signTypedData with nested SubnetParams type definition.
     function _verifyRegisterSubnetSignature(
         address user, SubnetParams calldata params, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) internal {
-        bytes32 paramsHash = keccak256(abi.encode(
-            params.name, params.symbol, params.metadataURI,
-            params.subnetManager, params.coordinatorURL, params.salt, params.minStake
+        // EIP-712 hashStruct(SubnetParams): typeHash ++ encoded fields (strings hashed individually)
+        bytes32 paramsStructHash = keccak256(abi.encode(
+            SUBNET_PARAMS_TYPEHASH,
+            keccak256(bytes(params.name)),
+            keccak256(bytes(params.symbol)),
+            params.subnetManager, params.salt, params.minStake,
+            keccak256(bytes(params.skillsURI))
         ));
+        // EIP-712 hashStruct(RegisterSubnet): typeHash ++ encoded fields
         bytes32 structHash = keccak256(abi.encode(
-            REGISTER_SUBNET_TYPEHASH, user, paramsHash, nonces[user]++, deadline
+            REGISTER_SUBNET_TYPEHASH, user, paramsStructHash, nonces[user]++, deadline
         ));
         bytes32 digest = _hashTypedDataV4(structHash);
         address signer = ECDSA.recover(digest, v, r, s);
@@ -688,7 +704,7 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
         }
 
         IAlphaToken(alphaToken).setSubnetMinter(sc);
-        ISubnetNFT(subnetNFT).mint(user, subnetId, params.name, sc, alphaToken, params.minStake);
+        ISubnetNFT(subnetNFT).mint(user, subnetId, params.name, sc, alphaToken, params.minStake, params.skillsURI);
         subnets[subnetId] = SubnetInfo({
             lpPool: poolId,
             status: SubnetStatus.Pending,
@@ -716,9 +732,8 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     ) internal {
         emit SubnetRegistered(
             subnetId, user,
-            params.name, params.symbol, params.metadataURI,
-            sc, alphaToken,
-            params.coordinatorURL
+            params.name, params.symbol,
+            sc, alphaToken
         );
         emit LPCreated(subnetId, poolId, lpAWPAmount, INITIAL_ALPHA_MINT);
     }
@@ -830,19 +845,6 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     //  Subnet Parameters
     // ═══════════════════════════════════════════════
 
-    /// @notice Notify off-chain services that subnet metadata has changed (only NFT Owner may call)
-    /// @dev This function does NOT store any data on-chain. It only emits a MetadataUpdated event
-    ///      which the Indexer listens to and writes to the database. On-chain metadata is served
-    ///      via SubnetNFT.tokenURI (baseURI + tokenId). This function exists solely as an on-chain
-    ///      notification mechanism for off-chain consumers (Indexer, API, frontends).
-    /// @param subnetId Subnet ID
-    /// @param metadataURI New metadata URI (e.g. IPFS hash for subnet description/avatar)
-    /// @param coordinatorURL New Coordinator service URL
-    function updateMetadata(uint256 subnetId, string calldata metadataURI, string calldata coordinatorURL) external {
-        if (ISubnetNFT(subnetNFT).ownerOf(subnetId) != msg.sender) revert NotOwner();
-        emit MetadataUpdated(subnetId, metadataURI, coordinatorURL);
-    }
-
     /// @notice Set the initial Alpha price when registering a subnet (only Timelock may call)
     /// @dev Minimum price limit 1e12 (prevents precision loss that would cause lpAWPAmount to be 0)
     /// @param price New initial price (AWP wei / Alpha)
@@ -850,6 +852,7 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
         if (price < 1e12) revert PriceTooLow();
         if (price > 1e30) revert PriceTooHigh();
         initialAlphaPrice = price;
+        emit InitialAlphaPriceUpdated(price);
     }
 
     /// @notice Update the guardian address (only Timelock may call)
@@ -857,6 +860,7 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     function setGuardian(address g) external onlyTimelock {
         if (g == address(0)) revert UnknownAddress();
         guardian = g;
+        emit GuardianUpdated(g);
     }
 
     /// @notice Set the subnet deregistration immunity period (only Timelock may call)
@@ -864,6 +868,7 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     function setImmunityPeriod(uint256 p) external onlyTimelock {
         if (p < 7 days) revert InvalidSubnetParams();
         immunityPeriod = p;
+        emit ImmunityPeriodUpdated(p);
     }
 
     /// @notice Replace the AlphaToken factory (only Timelock may call)
@@ -872,6 +877,7 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     function setAlphaTokenFactory(address factory) external onlyTimelock {
         if (factory == address(0)) revert UnknownAddress();
         alphaTokenFactory = factory;
+        emit AlphaTokenFactoryUpdated(factory);
     }
 
     /// @notice Set the default subnet implementation (only Timelock may call)
@@ -881,6 +887,7 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     /// @param impl SubnetManager implementation address
     function setSubnetManagerImpl(address impl) external onlyTimelock {
         defaultSubnetManagerImpl = impl;
+        emit DefaultSubnetManagerImplUpdated(impl);
     }
 
     // ═══════════════════════════════════════════════

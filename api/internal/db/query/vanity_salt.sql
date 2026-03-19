@@ -4,7 +4,15 @@ VALUES ($1, $2)
 ON CONFLICT (salt) DO NOTHING;
 
 -- name: GetRandomAvailableSalt :one
-SELECT salt, address FROM vanity_salts WHERE used = FALSE ORDER BY RANDOM() LIMIT 1;
+SELECT salt, address FROM vanity_salts WHERE used = FALSE ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED;
+
+-- name: ClaimRandomSalt :one
+WITH locked AS (
+  SELECT id FROM vanity_salts WHERE used = FALSE ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED
+)
+UPDATE vanity_salts SET used = TRUE
+WHERE id = (SELECT id FROM locked)
+RETURNING salt, address;
 
 -- name: MarkSaltUsedByAddress :exec
 UPDATE vanity_salts SET used = TRUE, subnet_id = $1

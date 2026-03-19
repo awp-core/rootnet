@@ -48,10 +48,20 @@ func newRedis(lc fx.Lifecycle, cfg *config.Config) (*redis.Client, error) {
 	return rdb, nil
 }
 
-func newEthClient(cfg *config.Config) (*ethclient.Client, error) {
+func newEthClient(lc fx.Lifecycle, cfg *config.Config) (*ethclient.Client, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	return ethclient.DialContext(ctx, cfg.RPCURL)
+	client, err := ethclient.DialContext(ctx, cfg.RPCURL)
+	if err != nil {
+		return nil, err
+	}
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			client.Close()
+			return nil
+		},
+	})
+	return client, nil
 }
 
 func newKeeper(client *ethclient.Client, rdb *redis.Client, cfg *config.Config, logger *slog.Logger) (*chain.Keeper, error) {

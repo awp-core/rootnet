@@ -22,8 +22,29 @@ func (q *Queries) CountAvailableSalts(ctx context.Context) (int64, error) {
 	return count, err
 }
 
+const claimRandomSalt = `-- name: ClaimRandomSalt :one
+WITH locked AS (
+  SELECT id FROM vanity_salts WHERE used = FALSE ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED
+)
+UPDATE vanity_salts SET used = TRUE
+WHERE id = (SELECT id FROM locked)
+RETURNING salt, address
+`
+
+type ClaimRandomSaltRow struct {
+	Salt    string `json:"salt"`
+	Address string `json:"address"`
+}
+
+func (q *Queries) ClaimRandomSalt(ctx context.Context) (ClaimRandomSaltRow, error) {
+	row := q.db.QueryRow(ctx, claimRandomSalt)
+	var i ClaimRandomSaltRow
+	err := row.Scan(&i.Salt, &i.Address)
+	return i, err
+}
+
 const getRandomAvailableSalt = `-- name: GetRandomAvailableSalt :one
-SELECT salt, address FROM vanity_salts WHERE used = FALSE ORDER BY RANDOM() LIMIT 1
+SELECT salt, address FROM vanity_salts WHERE used = FALSE ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED
 `
 
 type GetRandomAvailableSaltRow struct {

@@ -147,6 +147,7 @@ name_to_env_key() {
         StakingVault)       echo "STAKING_VAULT" ;;
         StakeNFT)           echo "STAKE_NFT" ;;
         AWPDAO)             echo "DAO" ;;
+        SubnetManager_impl) echo "SUBNET_MANAGER_IMPL" ;;
         *)                  echo "$1" | tr '[:lower:]' '[:upper:]' ;;
     esac
 }

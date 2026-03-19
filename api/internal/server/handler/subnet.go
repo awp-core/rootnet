@@ -68,7 +68,7 @@ func (h *Handler) GetSubnet(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, subnet)
 }
 
-// GetSubnetEarnings returns a paginated AWP earnings history for a subnet
+// GetSubnetEarnings returns a paginated AWP earnings history for a subnet (single JOIN query)
 func (h *Handler) GetSubnetEarnings(w http.ResponseWriter, r *http.Request) {
 	subnetID, err := parseSubnetID(r)
 	if err != nil {
@@ -76,26 +76,12 @@ func (h *Handler) GetSubnetEarnings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := r.Context()
-
-	// Look up the subnet_contract address by subnet_id
-	subnet, err := h.queries.GetSubnet(ctx, subnetID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			h.writeError(w, http.StatusNotFound, "subnet not found")
-			return
-		}
-		h.logger.Error("failed to get subnet", "error", err, "subnetId", subnetID)
-		h.writeError(w, http.StatusInternalServerError, "failed to get subnet")
-		return
-	}
-
 	limit, offset := h.parsePageParams(r)
 
-	earnings, err := h.queries.GetRecipientEarnings(ctx, gen.GetRecipientEarningsParams{
-		Recipient: subnet.SubnetContract,
-		Limit:     int32(limit),
-		Offset:    int32(offset),
+	earnings, err := h.queries.GetSubnetEarningsByID(r.Context(), gen.GetSubnetEarningsByIDParams{
+		SubnetID: subnetID,
+		Limit:    int32(limit),
+		Offset:   int32(offset),
 	})
 	if err != nil {
 		h.logger.Error("failed to get subnet earnings", "error", err, "subnetId", subnetID)
@@ -153,8 +139,12 @@ func (h *Handler) GetSubnetSkills(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusInternalServerError, "failed to get subnet skills")
 		return
 	}
+	var uri string
+	if skillsURI.Valid {
+		uri = skillsURI.String
+	}
 	h.writeJSON(w, http.StatusOK, map[string]interface{}{
 		"subnetId":  subnetID,
-		"skillsURI": skillsURI,
+		"skillsURI": uri,
 	})
 }

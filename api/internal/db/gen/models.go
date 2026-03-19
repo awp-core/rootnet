@@ -61,9 +61,7 @@ type Subnet struct {
 	Owner          string         `json:"owner"`
 	Name           string         `json:"name"`
 	Symbol         string         `json:"symbol"`
-	MetadataUri    pgtype.Text    `json:"metadata_uri"`
 	SubnetContract string         `json:"subnet_contract"`
-	CoordinatorUrl pgtype.Text    `json:"coordinator_url"`
 	SkillsUri      pgtype.Text    `json:"skills_uri"`
 	MinStake       pgtype.Numeric `json:"min_stake"`
 	AlphaToken     string         `json:"alpha_token"`

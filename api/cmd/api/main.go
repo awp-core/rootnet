@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/cortexia/rootnet/api/internal/config"
 	"github.com/cortexia/rootnet/api/internal/db/gen"
+	"github.com/cortexia/rootnet/api/internal/ratelimit"
 	"github.com/cortexia/rootnet/api/internal/server"
 	"github.com/cortexia/rootnet/api/internal/server/handler"
 	"github.com/cortexia/rootnet/api/internal/server/ws"
@@ -33,6 +34,7 @@ func main() {
 			newDBPool,
 			newRedis,
 			newQueries,
+			newLimiter,
 			handler.NewHandler,
 			ws.NewHub,
 			newRelayHandler,
@@ -49,7 +51,12 @@ func newLogger() *slog.Logger {
 }
 
 func newDBPool(lc fx.Lifecycle, cfg *config.Config) (*pgxpool.Pool, error) {
-	pool, err := pgxpool.New(context.Background(), cfg.DatabaseURL)
+	poolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if err != nil {
+		return nil, err
+	}
+	poolCfg.MaxConns = 20
+	pool, err := pgxpool.NewWithConfig(context.Background(), poolCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -80,9 +87,13 @@ func newQueries(pool *pgxpool.Pool) *gen.Queries {
 	return gen.New(pool)
 }
 
+func newLimiter(rdb *redis.Client, logger *slog.Logger) *ratelimit.Limiter {
+	return ratelimit.NewLimiter(rdb, logger)
+}
+
 // newRelayHandler creates RelayHandler (optional: returns nil if RELAYER_PRIVATE_KEY not set)
 // If key is configured but invalid, returns error to fail fast
-func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, rdb *redis.Client, logger *slog.Logger) (*handler.RelayHandler, error) {
+func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, limiter *ratelimit.Limiter, logger *slog.Logger) (*handler.RelayHandler, error) {
 	if cfg.RelayerPrivateKey == "" {
 		logger.Info("RELAYER_PRIVATE_KEY not set, relay endpoints disabled")
 		return nil, nil
@@ -122,11 +133,11 @@ func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, rdb *redis.Client, log
 	})
 
 	logger.Info("relay endpoints enabled", "chainID", chainID.String())
-	return handler.NewRelayHandler(relayer, rdb, logger), nil
+	return handler.NewRelayHandler(relayer, limiter, logger), nil
 }
 
 // newVanityHandler creates VanityHandler (optional: returns nil if not configured)
-func newVanityHandler(cfg *config.Config, queries *gen.Queries, logger *slog.Logger) *handler.VanityHandler {
+func newVanityHandler(cfg *config.Config, queries *gen.Queries, limiter *ratelimit.Limiter, logger *slog.Logger) *handler.VanityHandler {
 	if cfg.AlphaFactoryAddress == "" || cfg.AlphaInitCodeHash == "" || cfg.VanityRule == "" {
 		logger.Info("ALPHA_FACTORY_ADDRESS, ALPHA_INITCODE_HASH or VANITY_RULE not set, vanity endpoint disabled")
 		return nil
@@ -151,7 +162,7 @@ func newVanityHandler(cfg *config.Config, queries *gen.Queries, logger *slog.Log
 	}
 
 	logger.Info("vanity compute-salt endpoint enabled", "factory", cfg.AlphaFactoryAddress, "vanityRule", cfg.VanityRule)
-	return handler.NewVanityHandler(cfg.AlphaFactoryAddress, cfg.AlphaInitCodeHash, rule, queries, logger)
+	return handler.NewVanityHandler(cfg.AlphaFactoryAddress, cfg.AlphaInitCodeHash, rule, queries, limiter, logger)
 }
 
 // newRouterParams assembles RouterParams

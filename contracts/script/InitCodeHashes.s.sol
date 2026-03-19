@@ -14,6 +14,7 @@ import {LPManager} from "../src/core/LPManager.sol";
 import {RootNet} from "../src/RootNet.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
+import {SubnetManager} from "../src/subnets/SubnetManager.sol";
 
 /// @title InitCodeHashes — Compute initcode hashes for vanity salt mining (tiered)
 /// @dev Run: forge script script/InitCodeHashes.s.sol
@@ -54,6 +55,7 @@ contract InitCodeHashes is Script {
         _logHash("AWPToken", abi.encodePacked(type(AWPToken).creationCode, abi.encode("AWP Token", "AWP", deployer)));
         _logHash("AlphaTokenFactory", abi.encodePacked(type(AlphaTokenFactory).creationCode, abi.encode(deployer, vanityRule)));
         _logHash("AWPEmission_impl", abi.encodePacked(type(AWPEmission).creationCode));
+        _logHash("SubnetManager_impl", abi.encodePacked(type(SubnetManager).creationCode));
 
         // Tier 2: Treasury (no dependency on other deployed contracts)
         console.log("");
@@ -79,7 +81,12 @@ contract InitCodeHashes is Script {
         _logHash("StakingVault", abi.encodePacked(type(StakingVault).creationCode, abi.encode(rootNet)));
 
         // AWPEmission proxy (depends on impl + AWP + Treasury)
-        bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, treasury, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION));
+        // Use uint256(0) as genesisTime placeholder — actual value set at deploy time.
+        // This matches Predict.s.sol convention: hash is stable for salt mining.
+        // NOTE: genesisTime is uint256(0) placeholder. Deploy.s.sol uses block.timestamp,
+        // so the actual proxy address will differ. AWPEmission_proxy cannot be vanity-mined
+        // deterministically — re-mine with the actual timestamp immediately before deployment.
+        bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, treasury, INITIAL_DAILY_EMISSION, uint256(0), EPOCH_DURATION));
         _logHash("AWPEmission_proxy", abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(emissionImpl, initData)));
 
         // Tier 5: StakeNFT (depends on StakingVault + RootNet + AWP)

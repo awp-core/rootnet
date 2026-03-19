@@ -43,6 +43,9 @@ contract AlphaToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable
     /// @dev Pre-minted tokens (admin LP mint) are excluded from the time-based cap calculation
     uint256 public supplyAtLock;
 
+    /// @notice Cumulative gross tokens minted since setSubnetMinter was called (not affected by burns)
+    uint256 public grossMintedSinceLock;
+
     /// @notice Emitted when the subnet minter is permanently set
     event SubnetMinterSet(address indexed subnetManager);
 
@@ -101,6 +104,7 @@ contract AlphaToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable
         // Snapshot supply and reset clock before locking
         supplyAtLock = totalSupply();
         createdAt = uint64(block.timestamp);
+        grossMintedSinceLock = 0;
         // Permanently lock the minter list
         mintersLocked = true;
         emit SubnetMinterSet(subnetManager);
@@ -131,10 +135,11 @@ contract AlphaToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable
         // Admin minting (initial LP liquidity) is exempt from the time cap
         if (mintersLocked) {
             uint256 elapsed = block.timestamp - uint256(createdAt);
-            uint256 maxMintable = MAX_SUPPLY * elapsed / 365 days;
-            if (maxMintable > MAX_SUPPLY) maxMintable = MAX_SUPPLY;
-            uint256 mintedSinceLock = supply - supplyAtLock;
-            if (mintedSinceLock + amount > maxMintable) revert ExceedsMintableLimit();
+            if (elapsed == 0) elapsed = 1; // Allow same-block mint after setSubnetMinter
+            uint256 maxMintable = (MAX_SUPPLY - supplyAtLock) * elapsed / 365 days;
+            if (maxMintable > MAX_SUPPLY - supplyAtLock) maxMintable = MAX_SUPPLY - supplyAtLock;
+            if (grossMintedSinceLock + amount > maxMintable) revert ExceedsMintableLimit();
+            grossMintedSinceLock += amount;
         }
         _mint(to, amount);
     }
@@ -144,10 +149,10 @@ contract AlphaToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable
     function currentMintableLimit() external view returns (uint256) {
         if (!mintersLocked) return 0;
         uint256 elapsed = block.timestamp - uint256(createdAt);
-        uint256 maxMintable = MAX_SUPPLY * elapsed / 365 days;
-        if (maxMintable > MAX_SUPPLY) maxMintable = MAX_SUPPLY;
-        uint256 mintedSinceLock = totalSupply() - supplyAtLock;
-        return mintedSinceLock >= maxMintable ? 0 : maxMintable - mintedSinceLock;
+        if (elapsed == 0) elapsed = 1; // Allow same-block query after setSubnetMinter
+        uint256 maxMintable = (MAX_SUPPLY - supplyAtLock) * elapsed / 365 days;
+        if (maxMintable > MAX_SUPPLY - supplyAtLock) maxMintable = MAX_SUPPLY - supplyAtLock;
+        return grossMintedSinceLock >= maxMintable ? 0 : maxMintable - grossMintedSinceLock;
     }
 
     // ── ERC1363 callbacks ──

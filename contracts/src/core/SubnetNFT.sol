@@ -66,14 +66,15 @@ contract SubnetNFT is ERC721 {
     // ── RootNet-only writes ──
     // ═══════════════════════════════════════════════
 
-    /// @notice Mint subnet NFT with identity data + initial minStake (called by RootNet during registerSubnet)
+    /// @notice Mint subnet NFT with identity data + initial metadata (called by RootNet during registerSubnet)
     function mint(
         address to,
         uint256 tokenId,
         string calldata name_,
         address subnetManager_,
         address alphaToken_,
-        uint128 minStake_
+        uint128 minStake_,
+        string calldata skillsURI_
     ) external onlyRootNet {
         _mint(to, tokenId);
         _identity[tokenId] = SubnetIdentity({
@@ -83,6 +84,11 @@ contract SubnetNFT is ERC721 {
         });
         if (minStake_ > 0) {
             _meta[tokenId].minStake = minStake_;
+            emit MinStakeUpdated(tokenId, minStake_);
+        }
+        if (bytes(skillsURI_).length > 0) {
+            _meta[tokenId].skillsURI = skillsURI_;
+            emit SkillsURIUpdated(tokenId, skillsURI_);
         }
     }
 

@@ -37,9 +37,6 @@ contract E2ETest is EmissionSigningHelper {
 
     address deployer = address(0xD);
     address guardian = address(0xE);
-    address teamVesting = address(0xF1);
-    address investorVesting = address(0xF2);
-    address liquidityPool = address(0xF3);
     address airdropAddr = address(0xF4);
 
     // Mock users
@@ -81,7 +78,7 @@ contract E2ETest is EmissionSigningHelper {
         treasury = new Treasury(1, p, e, deployer);
 
         rootNet = new RootNet(deployer, address(treasury), guardian);
-        nft = new SubnetNFT("AWP Subnet", "CXSUB", address(rootNet));
+        nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(rootNet));
         access = new AccessManager(address(rootNet));
         lp = new MockLPManager(address(rootNet), address(awp));
 
@@ -119,10 +116,10 @@ contract E2ETest is EmissionSigningHelper {
         treasury.grantRole(treasury.CANCELLER_ROLE(), address(dao));
         treasury.renounceRole(treasury.DEFAULT_ADMIN_ROLE(), deployer);
 
-        // Initialize registry with 9 params (including stakeNFT)
+        // Initialize registry (including stakeNFT + default SubnetManager impl)
         rootNet.initializeRegistry(
             address(awp), address(nft), address(factory), address(emission),
-            address(lp), address(access), address(vault), address(stakeNFT)
+            address(lp), address(access), address(vault), address(stakeNFT), address(0)
         );
 
         vm.stopPrank();
@@ -135,12 +132,10 @@ contract E2ETest is EmissionSigningHelper {
         vm.prank(address(treasury));
         emission.setOracleConfig(oracleList, 2);
 
+        // Distribute tokens from deployer
         vm.startPrank(deployer);
-        awp.transfer(address(treasury), 2_000_000_000 * 1e18);
-        awp.transfer(teamVesting, 1_000_000_000 * 1e18);
-        awp.transfer(investorVesting, 750_000_000 * 1e18);
-        awp.transfer(liquidityPool, 1_000_000_000 * 1e18);
-        awp.transfer(airdropAddr, 250_000_000 * 1e18);
+        awp.transfer(address(treasury), 50_000_000 * 1e18);
+        awp.transfer(airdropAddr, 150_000_000 * 1e18);
         vm.stopPrank();
 
         // Distribute AWP to test users
@@ -167,7 +162,7 @@ contract E2ETest is EmissionSigningHelper {
         vm.startPrank(owner);
         awp.approve(address(rootNet), LP_COST);
         uint256 id = rootNet.registerSubnet(
-            IRootNet.SubnetParams("Subnet", "SUB", "ipfs://meta", sc, "https://coord", bytes32(0), 0)
+            IRootNet.SubnetParams("Subnet", "SUB", sc, bytes32(0), 0, "")
         );
         vm.stopPrank();
         return id;
@@ -330,19 +325,16 @@ contract E2ETest is EmissionSigningHelper {
     // ════════════════════════════════════════════
 
     function test_e2e_daoGovernanceWeight() public {
-        // Give Alice enough voting power
-        vm.prank(liquidityPool);
-        awp.transfer(alice, 250_000_000 * 1e18);
-
         _registerUser(alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
         rootNet.activateSubnet(sid);
 
-        // Alice stakes into StakeNFT for voting power
+        // Alice stakes into StakeNFT for voting power (she has 50M - LP_COST remaining)
+        uint256 stakeAmount = 40_000_000 * 1e18;
         vm.startPrank(alice);
-        awp.approve(address(stakeNFT), 250_000_000 * 1e18);
-        uint256 tokenId = stakeNFT.deposit(250_000_000 * 1e18, 52 weeks);
+        awp.approve(address(stakeNFT), stakeAmount);
+        uint256 tokenId = stakeNFT.deposit(stakeAmount, 52 weeks);
         vm.stopPrank();
 
         // Submit initial weight via oracle for epoch 1
@@ -500,7 +492,7 @@ contract E2ETest is EmissionSigningHelper {
         // Settle epoch 1 (weights active)
         _settleEpoch();
         uint256 afterEpoch1 = awp.totalSupply();
-        assertTrue(afterEpoch1 > 5_000_000_000 * 1e18);
+        assertTrue(afterEpoch1 > awp.INITIAL_MINT());
 
         uint256 remaining = awp.MAX_SUPPLY() - awp.totalSupply();
         assertTrue(remaining > 0);
@@ -1183,6 +1175,93 @@ contract E2ETest is EmissionSigningHelper {
         assertEq(vault.getAgentStake(alice, agentA, sid1), 500 * 1e18);
         assertEq(vault.getAgentStake(alice, agentB, sid2), 500 * 1e18);
         assertEq(vault.userTotalAllocated(alice), 1_000 * 1e18);
+    }
+
+    // ════════════════════════════════════════════
+    //  EIP-712 Gasless Registration Tests
+    // ════════════════════════════════════════════
+
+    function test_registerFor() public {
+        uint256 userPk = 0xBEEF;
+        address userAddr = vm.addr(userPk);
+
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = rootNet.nonces(userAddr);
+
+        // Construct EIP-712 digest
+        bytes32 REGISTER_TYPEHASH = keccak256("Register(address user,uint256 nonce,uint256 deadline)");
+        bytes32 structHash = keccak256(abi.encode(REGISTER_TYPEHASH, userAddr, nonce, deadline));
+        bytes32 digest = _getDigest(structHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, digest);
+
+        rootNet.registerFor(userAddr, deadline, v, r, s);
+
+        // Verify registered
+        assertTrue(access.isRegistered(userAddr));
+        assertEq(rootNet.nonces(userAddr), 1);
+    }
+
+    function test_bindFor() public {
+        // Register principal first
+        vm.prank(alice);
+        rootNet.register();
+
+        uint256 agentPk = 0xCAFE;
+        address agentAddr = vm.addr(agentPk);
+
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = rootNet.nonces(agentAddr);
+
+        bytes32 BIND_TYPEHASH = keccak256("Bind(address agent,address principal,uint256 nonce,uint256 deadline)");
+        bytes32 structHash = keccak256(abi.encode(BIND_TYPEHASH, agentAddr, alice, nonce, deadline));
+        bytes32 digest = _getDigest(structHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(agentPk, digest);
+
+        rootNet.bindFor(agentAddr, alice, deadline, v, r, s);
+
+        // Verify bound
+        assertTrue(access.isAgent(alice, agentAddr));
+        assertEq(rootNet.nonces(agentAddr), 1);
+    }
+
+    function test_registerFor_expiredDeadline() public {
+        uint256 userPk = 0xDEAD;
+        address userAddr = vm.addr(userPk);
+
+        uint256 deadline = block.timestamp - 1; // expired
+        uint256 nonce = rootNet.nonces(userAddr);
+
+        bytes32 REGISTER_TYPEHASH = keccak256("Register(address user,uint256 nonce,uint256 deadline)");
+        bytes32 structHash = keccak256(abi.encode(REGISTER_TYPEHASH, userAddr, nonce, deadline));
+        bytes32 digest = _getDigest(structHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, digest);
+
+        vm.expectRevert(RootNet.ExpiredSignature.selector);
+        rootNet.registerFor(userAddr, deadline, v, r, s);
+    }
+
+    function test_registerFor_replayProtection() public {
+        uint256 userPk = 0xFACE;
+        address userAddr = vm.addr(userPk);
+
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = rootNet.nonces(userAddr);
+
+        bytes32 REGISTER_TYPEHASH = keccak256("Register(address user,uint256 nonce,uint256 deadline)");
+        bytes32 structHash = keccak256(abi.encode(REGISTER_TYPEHASH, userAddr, nonce, deadline));
+        bytes32 digest = _getDigest(structHash);
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userPk, digest);
+
+        // First call succeeds
+        rootNet.registerFor(userAddr, deadline, v, r, s);
+
+        // Replay with same signature fails (nonce consumed)
+        vm.expectRevert(); // InvalidSignature or AlreadyRegistered
+        rootNet.registerFor(userAddr, deadline, v, r, s);
     }
 
     // ── Utility helpers ──

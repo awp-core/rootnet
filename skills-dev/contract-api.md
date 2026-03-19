@@ -14,6 +14,7 @@
 ```
 register()                                                    // Anyone, register msg.sender
 registerFor(address user, uint256 deadline, uint8 v, bytes32 r, bytes32 s)  // Gasless EIP-712
+register(address recipient, uint256 depositAmount, uint64 lockDuration) // One-stop: register + set reward recipient + deposit via StakeNFT (all params optional)
 registerAndStake(uint256 depositAmount, uint64 lockDuration, address agent, uint256 subnetId, uint256 allocateAmount) // One-click: register + deposit (via StakeNFT) + allocate; lockDuration in seconds
 ```
 
@@ -46,7 +47,6 @@ registerSubnetForWithPermit(user, params, deadline, permitV, permitR, permitS, r
 activateSubnet(uint256 subnetId)                               // NFT Owner: Pending → Active
 pauseSubnet(uint256 subnetId)                                  // NFT Owner: Active → Paused
 resumeSubnet(uint256 subnetId)                                 // NFT Owner: Paused → Active
-updateMetadata(uint256 subnetId, string metadataURI, string coordinatorURL) // NFT Owner; event-only notification
 ```
 
 ### Governance (Timelock only)
@@ -58,7 +58,7 @@ setInitialAlphaPrice(uint256 price)
 setGuardian(address g)
 setImmunityPeriod(uint256 p)                                   // Minimum 7 days
 setAlphaTokenFactory(address factory)                          // Replace factory for new subnets
-setDefaultSubnetManagerImpl(address impl)                      // Set/update auto-deploy impl
+setSubnetManagerImpl(address impl)                              // Set/update auto-deploy impl
 ```
 
 ### View Functions
@@ -169,11 +169,10 @@ struct SubnetFullInfo {
 struct SubnetParams {
     string name;               // Alpha token name (1-64 bytes)
     string symbol;             // Alpha token symbol (1-16 bytes)
-    string metadataURI;        // IPFS metadata URI
     address subnetManager;     // address(0) = auto-deploy SubnetManager proxy
-    string coordinatorURL;
     bytes32 salt;              // CREATE2 salt; bytes32(0) = use subnetId as salt
     uint128 minStake;          // Minimum stake for agents (0 = no minimum)
+    string skillsURI;          // Skills file URI (IPFS/HTTPS)
 }
 
 struct AgentInfo {
@@ -233,7 +232,7 @@ getAgentSubnets(address user, address agent) → uint256[]
 
 ```
 // RootNet-only writes
-mint(address to, uint256 tokenId, string name_, address subnetManager_, address alphaToken_, uint128 minStake_) // onlyRootNet
+mint(address to, uint256 tokenId, string name_, address subnetManager_, address alphaToken_, uint128 minStake_, string skillsURI_) // onlyRootNet
 burn(uint256 tokenId)                                          // onlyRootNet
 setBaseURI(string uri)                                         // onlyRootNet
 

@@ -1,6 +1,6 @@
 -- name: InsertSubnet :exec
-INSERT INTO subnets (subnet_id, owner, name, symbol, metadata_uri, subnet_contract, coordinator_url, skills_uri, min_stake, alpha_token, lp_pool, status, created_at, immunity_ends_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'Pending', $12, $13)
+INSERT INTO subnets (subnet_id, owner, name, symbol, subnet_contract, skills_uri, min_stake, alpha_token, lp_pool, status, created_at, immunity_ends_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Pending', $10, $11)
 ON CONFLICT (subnet_id) DO NOTHING;
 
 -- name: GetSubnet :one
@@ -20,9 +20,6 @@ UPDATE subnets SET status = $2 WHERE subnet_id = $1;
 
 -- name: UpdateSubnetActivated :exec
 UPDATE subnets SET status = 'Active', activated_at = $2 WHERE subnet_id = $1;
-
--- name: UpdateSubnetMetadata :exec
-UPDATE subnets SET metadata_uri = $2, coordinator_url = $3 WHERE subnet_id = $1;
 
 -- name: UpdateSubnetSkillsURI :exec
 UPDATE subnets SET skills_uri = $2 WHERE subnet_id = $1;

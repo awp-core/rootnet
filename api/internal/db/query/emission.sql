@@ -28,6 +28,13 @@ ON CONFLICT (epoch_id, recipient) DO NOTHING;
 SELECT epoch_id, recipient, awp_amount FROM recipient_awp_distributions
 WHERE recipient = $1 ORDER BY epoch_id DESC LIMIT $2 OFFSET $3;
 
+-- name: GetSubnetEarningsByID :many
+SELECT r.epoch_id, r.recipient, r.awp_amount
+FROM recipient_awp_distributions r
+JOIN subnets s ON LOWER(r.recipient) = LOWER(s.subnet_contract)
+WHERE s.subnet_id = $1
+ORDER BY r.epoch_id DESC LIMIT $2 OFFSET $3;
+
 -- name: GetEpochDistributions :many
 SELECT epoch_id, recipient, awp_amount FROM recipient_awp_distributions
 WHERE epoch_id = $1 ORDER BY recipient;

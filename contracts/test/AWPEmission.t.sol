@@ -39,7 +39,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
     function setUp() public {
         vm.startPrank(deployer);
 
-        // Deploy AWPToken (constructor mints 5B to deployer)
+        // Deploy AWPToken (constructor mints 200M to deployer)
         awpToken = new AWPToken("AWP", "AWP", deployer);
 
         // Deploy AWPEmission (UUPS proxy pattern)
@@ -531,14 +531,14 @@ contract AWPEmissionTest is EmissionSigningHelper {
         ws[0] = 100;
         _submitWithOraclesForEpoch(addrs, ws, 1);
 
-        // Epoch 0 (no decay, no weights)
-        vm.warp(2 days);
+        // Epoch 0 (no decay, no weights) — use relative warp for fork compatibility
+        vm.warp(block.timestamp + 2 days);
         emission.settleEpoch(200);
         assertEq(emission.settledEpoch(), 1);
         assertEq(emission.currentDailyEmission(), INITIAL_DAILY_EMISSION);
 
         // Epoch 1 (should decay, weights available)
-        vm.warp(4 days);
+        vm.warp(block.timestamp + 2 days);
         emission.settleEpoch(200);
         assertEq(emission.settledEpoch(), 2);
 

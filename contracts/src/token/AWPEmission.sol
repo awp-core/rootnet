@@ -230,7 +230,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     ) external {
         // Cannot submit during active settlement (prevents reentrant overwrite via mintAndCall callback)
         if (settleProgress != 0) revert SettlementInProgress();
-        // effectiveEpoch must be strictly greater than settledEpoch
+        // Allow submission for any epoch > settledEpoch (including already-elapsed epochs for catch-up)
         if (effectiveEpoch <= settledEpoch) revert MustBeFutureEpoch();
         // Check that oracle is configured
         if (oracleThreshold == 0) revert OracleNotConfigured();
@@ -422,13 +422,20 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
                     if (share > 0 && awpRemaining > 0) {
                         uint256 toMint = share > awpRemaining ? awpRemaining : share;
                         // mintAndCall triggers ERC1363 callback; fallback to plain mint if callback reverts
-                        // Prevents a single recipient callback failure from bricking epoch settlement
-                        try awpToken.mintAndCall(recipient, toMint, "") {} catch {
-                            awpToken.mint(recipient, toMint);
+                        // Double try/catch: if both fail (e.g. minter revoked), skip recipient — share goes to DAO
+                        bool mintOk;
+                        try awpToken.mintAndCall(recipient, toMint, "") {
+                            mintOk = true;
+                        } catch {
+                            try awpToken.mint(recipient, toMint) {
+                                mintOk = true;
+                            } catch {}
                         }
-                        minted += toMint;
-                        awpRemaining -= toMint;
-                        emit RecipientAWPDistributed(epoch, recipient, toMint);
+                        if (mintOk) {
+                            minted += toMint;
+                            awpRemaining -= toMint;
+                            emit RecipientAWPDistributed(epoch, recipient, toMint);
+                        }
                     }
                 }
                 unchecked { ++i; }

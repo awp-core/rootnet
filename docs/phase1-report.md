@@ -67,7 +67,7 @@ Test categories covered:
 ## Deploy Script
 
 `script/Deploy.s.sol` — 163 lines, implements the full 22-step deployment sequence:
-1. AWPToken (constructor mints 5B to deployer)
+1. AWPToken (constructor mints 200M to deployer)
 2. AlphaToken implementation
 3. AlphaTokenFactory
 4. Treasury (TimelockController)
@@ -80,7 +80,7 @@ Test categories covered:
 14-15. Add minter + renounce admin (permanently locks minter list)
 16. AlphaTokenFactory.setAddresses
 17. RootNet.initializeRegistry
-18-22. AWP distribution (Treasury 2B, Team 1B, Investors 750M, Liquidity 1B, Airdrop 250M)
+18-22. AWP distribution (Treasury 90M, LP 10M, Airdrop 100M)
 
 ## Design Decisions
 

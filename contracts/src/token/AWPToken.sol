@@ -11,15 +11,15 @@ import {IERC1363Receiver, IERC1363Spender} from "../interfaces/IERC1363Receiver.
 /// @title AWPToken — AWP main token
 /// @notice ERC20Votes + minter model + ERC1363 callbacks
 /// @dev Total supply capped at 10 billion (MAX_SUPPLY = 10B × 1e18).
-///      Constructor pre-mints 50% (INITIAL_MINT = 5B) to the deployer; remaining 50% minted on-demand by AWPEmission.
+///      Constructor pre-mints INITIAL_MINT to the deployer for distribution; remainder minted on-demand by AWPEmission.
 ///      Minter management flow: admin → addMinter(awpEmission) → renounceAdmin(); minter list is then permanently immutable.
 ///      Inherits ERC20Votes for on-chain governance voting; inherits ERC20Burnable for token burns.
 contract AWPToken is ERC20, ERC20Permit, ERC20Votes, ERC20Burnable {
     /// @notice AWP maximum supply: 10 billion tokens (18 decimals)
     uint256 public constant MAX_SUPPLY = 10_000_000_000 * 1e18;
 
-    /// @notice Constructor pre-mint: 5 billion tokens transferred to the deployer for distribution
-    uint256 public constant INITIAL_MINT = 5_000_000_000 * 1e18;
+    /// @notice Constructor pre-mint: 200 million tokens transferred to the deployer for distribution
+    uint256 public constant INITIAL_MINT = 200_000_000 * 1e18;
 
     /// @notice Minter whitelist; only authorized addresses may call mint()
     mapping(address => bool) public minters;
@@ -47,7 +47,7 @@ contract AWPToken is ERC20, ERC20Permit, ERC20Votes, ERC20Burnable {
     {
         // Set deployer as admin
         admin = deployer_;
-        // Pre-mint 50% of supply to deployer for subsequent distribution (Treasury / DAO / LP, etc.)
+        // Pre-mint 200M (2% of max supply) to deployer for subsequent distribution
         _mint(deployer_, INITIAL_MINT);
     }
 

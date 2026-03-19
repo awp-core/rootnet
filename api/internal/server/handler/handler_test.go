@@ -14,6 +14,7 @@ import (
 
 	"github.com/cortexia/rootnet/api/internal/config"
 	"github.com/cortexia/rootnet/api/internal/db/gen"
+	"github.com/cortexia/rootnet/api/internal/ratelimit"
 	"github.com/cortexia/rootnet/api/internal/server"
 	"github.com/cortexia/rootnet/api/internal/server/handler"
 	"github.com/cortexia/rootnet/api/internal/server/ws"
@@ -37,7 +38,7 @@ func newTestEnv(t *testing.T) *testEnv {
 
 	dbURL := os.Getenv("TEST_DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://postgres:postgres@localhost:5432/cortexia_test?sslmode=disable"
+		dbURL = "postgres://postgres:postgres@localhost:5432/awp_test?sslmode=disable"
 	}
 
 	pool, err := pgxpool.New(context.Background(), dbURL)
@@ -75,7 +76,8 @@ func newTestEnv(t *testing.T) *testEnv {
 		AWPEmissionAddress:  "0xffffffffffffffffffffffffffffffffffffffff",
 	}
 
-	h := handler.NewHandler(queries, rdb, cfg, logger)
+	limiter := ratelimit.NewLimiter(rdb, logger)
+	h := handler.NewHandler(queries, rdb, cfg, logger, limiter)
 	hub := ws.NewHub(rdb, logger)
 	router := server.NewRouter(server.RouterParams{Handler: h, Hub: hub})
 

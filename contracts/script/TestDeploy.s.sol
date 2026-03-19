@@ -29,7 +29,7 @@ contract TestDeploy is Script {
         Treasury treasury = new Treasury(0, p, e, deployer);
 
         RootNet rootNet = new RootNet(deployer, address(treasury), address(0x99));
-        SubnetNFT nft = new SubnetNFT("CXSUB", "CXSUB", address(rootNet));
+        SubnetNFT nft = new SubnetNFT("AWPSUB", "AWPSUB", address(rootNet));
         AccessManager am = new AccessManager(address(rootNet));
         LPManager lp = new LPManager(address(rootNet), address(0), address(0), address(0), address(awp));
 
@@ -47,7 +47,7 @@ contract TestDeploy is Script {
         awp.addMinter(address(em));
         awp.renounceAdmin();
         factory.setAddresses(address(rootNet));
-        rootNet.initializeRegistry(address(awp), address(nft), address(factory), address(em), address(lp), address(am), address(sv), address(stakeNft));
+        rootNet.initializeRegistry(address(awp), address(nft), address(factory), address(em), address(lp), address(am), address(sv), address(stakeNft), address(0));
 
         vm.stopBroadcast();
 

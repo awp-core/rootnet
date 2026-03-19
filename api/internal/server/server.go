@@ -24,8 +24,12 @@ func NewRouter(p RouterParams) chi.Router {
 	r := chi.NewRouter()
 
 	// Global middleware
+	// IMPORTANT: middleware.RealIP trusts X-Forwarded-For/X-Real-IP headers.
+	// This is safe ONLY behind a trusted reverse proxy (nginx) that sets these headers.
+	// If the API is directly Internet-facing, rate limiting can be bypassed via header spoofing.
 	r.Use(middleware.RealIP)
 	r.Use(middleware.RequestID)
+	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Compress(5))
 	r.Use(cors.Handler(cors.Options{

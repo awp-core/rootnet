@@ -22,6 +22,12 @@ interface IAlphaToken is IERC20 {
     /// @notice Pause/resume a specific minter (used for subnet banning)
     function setMinterPaused(address minter, bool paused) external;
 
+    function burn(uint256 amount) external;
+    function currentMintableLimit() external view returns (uint256);
+    function supplyAtLock() external view returns (uint256);
+    function grossMintedSinceLock() external view returns (uint256);
+    function createdAt() external view returns (uint64);
+
     function transferAndCall(address to, uint256 amount, bytes calldata data) external returns (bool);
     function approveAndCall(address spender, uint256 amount, bytes calldata data) external returns (bool);
 }

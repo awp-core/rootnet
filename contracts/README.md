@@ -37,7 +37,7 @@ forge script script/Deploy.s.sol --rpc-url $ETH_RPC_URL --broadcast
 | Contract | Description |
 |----------|-------------|
 | `RootNet` | Unified entry: subnet lifecycle + staking allocation. Epoch authority (immutable genesisTime + epochDuration). |
-| `AWPToken` | ERC20 + ERC20Votes + ERC1363. 10B max, 50% pre-minted. |
+| `AWPToken` | ERC20 + ERC20Votes + ERC1363. 10B max, 200M (2%) pre-minted. |
 | `AWPEmission` | **[DRAFT]** UUPS proxy. Oracle multi-sig weight submission, batch epoch settlement, exponential decay. |
 | `AlphaToken` | Per-subnet ERC20 via CREATE2. Time-based mint cap. |
 | `AlphaTokenFactory` | CREATE2 deployer with configurable EIP-55 vanity address rules. |

@@ -16,6 +16,7 @@ type Config struct {
 	HTTPAddr string `env:"HTTP_ADDR" envDefault:":8080"`
 
 	// Chain
+	ChainID         int64  `env:"CHAIN_ID" envDefault:"56"` // BSC Mainnet
 	RPCURL          string `env:"RPC_URL" envDefault:"https://bsc-testnet-rpc.publicnode.com"`
 	RootNetAddress  string `env:"ROOTNET_ADDRESS"`
 	SubnetNFTAddress string `env:"SUBNETNFT_ADDRESS"`
@@ -27,6 +28,8 @@ type Config struct {
 
 	// Relayer (gasless transaction relay)
 	RelayerPrivateKey string `env:"RELAYER_PRIVATE_KEY"`
+	// Rate limits are configured via Redis (HSET ratelimit:config relay "100:3600")
+	// Defaults are compiled into the ratelimit.Limiter package
 
 	// Contract address registry (all 11 protocol contracts)
 	StakingVaultAddress  string `env:"STAKING_VAULT_ADDRESS"`

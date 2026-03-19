@@ -58,9 +58,7 @@ Subnet Contract (What you develop)
 IRootNet.SubnetParams memory params = IRootNet.SubnetParams({
     name: "My Subnet Alpha",     // Alpha Token name (1-64 bytes)
     symbol: "MSALPHA",           // Alpha Token symbol (1-16 bytes)
-    metadataURI: "ipfs://Qm...", // Subnet metadata URI
     subnetManager: address(0),   // address(0) = auto-deploy SubnetManager proxy
-    coordinatorURL: "https://coord.mysubnet.io",
     salt: bytes32(0),            // 0 = use subnetId as CREATE2 salt (default)
     minStake: 0                  // Minimum stake for agents (0 = no minimum)
 });
@@ -74,8 +72,8 @@ await writeContract({
   address: ROOTNET_ADDRESS,
   abi: rootNetABI,
   functionName: 'registerSubnet',
-  args: [{ name, symbol, metadataURI, subnetManager: '0x0000000000000000000000000000000000000000',
-            coordinatorURL, salt: '0x00...00', minStake: 0n }]
+  args: [{ name, symbol, subnetManager: '0x0000000000000000000000000000000000000000',
+            salt: '0x00...00', minStake: 0n }]
 });
 ```
 
@@ -93,14 +91,14 @@ Query `AlphaTokenFactory.vanityRule()` to see what pattern is enforced. A value 
 
 The API maintains a pre-mined salt pool. Request a salt:
 ```bash
-curl -X POST https://api.awp.network/api/vanity/compute-salt
+curl -X POST https://tapi.awp.sh/api/vanity/compute-salt
 # Response: {"salt": "0x530c...", "address": "0xa1...cafe", "source": "pool", "elapsed": "1ms"}
 ```
 
 Or mine offline using parameters from the API:
 ```bash
 # Get mining params
-curl https://api.awp.network/api/vanity/mining-params
+curl https://tapi.awp.sh/api/vanity/mining-params
 # {"factoryAddress": "0xAe8E...", "initCodeHash": "0xec76...", "vanityRule": "0x0A01..."}
 
 # Mine with cast
@@ -108,7 +106,7 @@ cast create2 --deployer <factoryAddress> --init-code-hash <initCodeHash> \
   --starts-with a1 --ends-with cafe --case-sensitive
 
 # Upload to pool
-curl -X POST https://api.awp.network/api/vanity/upload-salts \
+curl -X POST https://tapi.awp.sh/api/vanity/upload-salts \
   -H "Content-Type: application/json" \
   -d '{"salts": [{"salt": "0x...", "address": "0x..."}]}'
 ```
@@ -135,7 +133,7 @@ The factory will deploy the Alpha token at the vanity address and then validate 
 | 5 | Auto-deploy SubnetManager proxy (if subnetManager=0) | ERC1967Proxy → defaultSubnetManagerImpl, admin = user |
 | 6 | Set subnet manager as sole Alpha minter | `setSubnetMinter(sc)` permanently locked |
 | 7 | Mint SubnetNFT with identity data | name, subnetManager, alphaToken, minStake stored on-chain |
-| 8 | Store lifecycle state | lpPool, status=Pending, createdAt; strings via events |
+| 8 | Store lifecycle state | lpPool, status=Pending, createdAt |
 
 ### 2.4 Activate Subnet
 
@@ -280,10 +278,9 @@ claimed(uint32 epoch, address account) → bool  // Alias for isClaimed
    - subnetManager.claim(epoch, amount, proof)
 7. Monitor via WebSocket:
    - Subscribe to: SkillsURIUpdated, MinStakeUpdated, Allocated, Deallocated
-8. Update metadata:
+8. Update subnet settings:
    - subnetNFT.setSkillsURI(subnetId, "ipfs://...")
    - subnetNFT.setMinStake(subnetId, 100e18)
-   - rootNet.updateMetadata(subnetId, "ipfs://...", "https://...")
 ```
 
 ---
@@ -353,7 +350,7 @@ contract MySubnetContract {
 
 ## 4. API Reference
 
-> Base URL: `https://api.awp.network` (or your self-hosted address)
+> Base URL: `https://tapi.awp.sh` (or your self-hosted address)
 
 ### 4.1 System
 
@@ -363,7 +360,7 @@ contract MySubnetContract {
 ```
 
 #### `GET /api/registry`
-Returns all 11 protocol contract addresses:
+Returns all 11 protocol contract addresses (excludes implementation contracts):
 ```json
 {
   "rootNet": "0x...",
@@ -492,9 +489,7 @@ Paginated user list.
     "owner": "0x...",
     "name": "My Subnet",
     "symbol": "MSUB",
-    "metadata_uri": "ipfs://...",
     "subnet_contract": "0x...",
-    "coordinator_url": "https://...",
     "alpha_token": "0x...",
     "lp_pool": "0x...",
     "status": "Active",
@@ -577,7 +572,7 @@ Projected emissions for 30/90/365 days:
 
 ### 4.9 Relay (Gasless Transactions)
 
-> Rate limit: 5 requests per IP per 4 hours. Requires `RELAYER_PRIVATE_KEY` configured on the server.
+> Rate limit: 100 requests per IP per 1 hour. Requires `RELAYER_PRIVATE_KEY` configured on the server.
 
 #### `POST /api/relay/register`
 Relayer submits `registerFor()` on-chain for the user (user signs EIP-712, relayer pays gas):
@@ -601,8 +596,8 @@ Relayer submits `bindFor()` on-chain for the agent:
 Fully gasless subnet registration — user signs two messages (ERC-2612 permit + EIP-712), relayer pays all gas:
 ```json
 // Request
-{"user": "0x...", "name": "EVO Alpha", "symbol": "EVO", "metadataURI": "ipfs://...",
- "subnetManager": "0x0000...0000", "coordinatorURL": "https://...",
+{"user": "0x...", "name": "EVO Alpha", "symbol": "EVO",
+ "subnetManager": "0x0000...0000",
  "salt": "0x...", "minStake": "0", "deadline": 1742400000,
  "permitSignature": "0x...(ERC-2612 AWP permit)",
  "registerSignature": "0x...(EIP-712 registerSubnet)"}
@@ -617,7 +612,7 @@ Fully gasless subnet registration — user signs two messages (ERC-2612 permit +
 Connect to receive real-time on-chain event push:
 
 ```javascript
-const ws = new WebSocket('wss://api.awp.network/ws/live');
+const ws = new WebSocket('wss://tapi.awp.sh/ws/live');
 
 // Optional: set event filters (only receive events you're interested in)
 ws.send(JSON.stringify({
@@ -646,9 +641,8 @@ ws.onmessage = (event) => {
 | `Allocated` | `{user, agent, subnetId, amount}` | ✅ |
 | `Deallocated` | `{user, agent, subnetId, amount}` | ✅ |
 | `Reallocated` | `{user, fromAgent, fromSubnet, toAgent, toSubnet, amount}` | ✅ |
-| `SubnetRegistered` | `{subnetId, owner, name, symbol, subnetManager, alphaToken, ...}` | |
+| `SubnetRegistered` | `{subnetId, owner, name, symbol, subnetManager, alphaToken}` | |
 | `LPCreated` | `{subnetId, poolId, awpAmount, alphaAmount}` | |
-| `MetadataUpdated` | `{subnetId, metadataURI, coordinatorURL}` | |
 | `SkillsURIUpdated` | `{subnetId, skillsURI}` | ✅ |
 | `MinStakeUpdated` | `{subnetId, minStake}` | ✅ |
 | `SubnetActivated` | `{subnetId}` | ✅ |
@@ -745,14 +739,18 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 
 | Contract | Address | Description |
 |----------|---------|-------------|
-| RootNet | `TBD` | Unified entry point (allocation + subnet management) |
-| AWPToken | `TBD` | Main token (ERC20Votes) |
-| SubnetNFT | `TBD` | Subnet NFT (ERC721) |
-| StakeNFT | `TBD` | Position NFT (ERC721, deposit/withdraw AWP) |
-| StakingVault | `TBD` | Pure allocation logic |
-| AWPEmission (Proxy) | `TBD` | Emission engine (UUPS proxy) |
-| Treasury | `TBD` | Treasury (TimelockController) |
-| LPManager | `TBD` | PancakeSwap V4 LP manager |
+| RootNet | `0x190E0E3128764913D54aD570993b21a38D1411F7` | Unified entry point (allocation + subnet management) |
+| AWPToken | `0x0000969dDC625E1c084ECE9079055Fbc50F400a1` | Main token (ERC20Votes) |
+| SubnetNFT | `0xbdfd26f499bd7972242bb765d8C3262d6d89fE63` | Subnet NFT (ERC721) |
+| StakeNFT | `0x3678463cd5EbA407b20CD1c296B6ECc58491C170` | Position NFT (ERC721, deposit/withdraw AWP) |
+| StakingVault | `0xbEe164bdE7F690E7bb73a0D84c1a87D1073545eE` | Pure allocation logic |
+| AWPEmission (Proxy) | `0xcc4fA866c0c49FE4763977C5302a6052C3f0d742` | Emission engine (UUPS proxy) |
+| Treasury | `0x710975eC607617fB4623Db9b86B5C218a92E7C7d` | Treasury (TimelockController) |
+| LPManager | `0x5372b30E2D14599F90Cb623fc673692B48E83404` | PancakeSwap V4 LP manager |
+| AccessManager | `0xcEa146F15db74f8801Bc8fD152EE0E7e07eDB3fD` | User/Agent registration |
+| AlphaTokenFactory | `0x7E3B68cf196FD8a972115685ea171b763B677499` | Alpha token deployer (CREATE2) |
+| AWPDAO | `0xe21097cB128b41611557356de7f55BCd25062579` | Governor |
+| SubnetManager (impl) | `0xE5771dC2a5a577CDFa6b939Af4F32Ad13CFc6D92` | Default subnet contract implementation |
 
 ---
 

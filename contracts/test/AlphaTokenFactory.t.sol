@@ -254,6 +254,7 @@ contract AlphaTokenTest is Test {
 
     function test_transferAndCall_toEOA() public {
         uint256 amount = 100 * 1e18;
+        vm.etch(bob, ""); // Ensure bob is EOA (no code) — needed for fork tests
 
         vm.prank(admin);
         token.mint(alice, amount);

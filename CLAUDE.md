@@ -19,7 +19,7 @@ docs/architecture.md — Read the relevant section before starting any task.
 - Indexer → Redis Pub/Sub → API WebSocket
 - Indexer uses 15-block confirmation depth to avoid chain reorgs
 
-## Core Architecture (12 contracts)
+## Core Architecture (13 contracts)
 - RootNet.sol = Unified entry: subnet management + staking allocation. No deposit/withdraw — staking via StakeNFT. No epoch logic (epoch moved to AWPEmission). Gasless: registerFor, bindFor, registerSubnetFor, registerSubnetForWithPermit (fully gasless with ERC-2612 permit). Errors: NotTimelock, NotGuardian (distinct).
 - StakeNFT.sol = ERC721 position NFT (not Enumerable). Users deposit AWP with lock period (timestamp-based, lockDuration in seconds). Each position = NFT with (amount, lockEndTime, createdAt). NFTs are transferable. O(1) balance tracking via _userTotalStaked accumulator. getUserVotingPower requires caller to pass tokenIds. addToPosition blocked on expired locks (PositionExpired error).
 - StakingVault.sol = Pure allocation logic. Allocations are plain uint128. (user, agent, subnetId) triple; allocate/deallocate/reallocate all immediate. Auto-enumerates agent subnets via EnumerableSet — freezeAgentAllocations(user, agent) needs no caller-supplied list. allocate/reallocate reject subnetId=0.
@@ -30,13 +30,12 @@ docs/architecture.md — Read the relevant section before starting any task.
 - AccessManager / LPManager = onlyRootNet; StakeNFT = independent; AWPEmission = onlyTimelock (governance)
 
 ## Tokens
-- AWP: 10B MAX_SUPPLY; 50% minted in constructor; 50% AWPEmission mint on demand. mintAndCall(to, amount, data) triggers ERC1363 callback on recipient.
+- AWP: 10B MAX_SUPPLY; 200M (2%) minted in constructor; 98% AWPEmission mint on demand. mintAndCall(to, amount, data) triggers ERC1363 callback on recipient.
 - Alpha: 10B max per subnet, dual minter; standalone CREATE2 deployment (not proxy). `supplyAtLock` snapshot + `createdAt` reset at `setSubnetMinter` — subnet minters can mint immediately after activation.
 
 ## Gas Optimization Design
 - settleEpoch(limit) (AWPEmission) iterates recipients[] in bounded batches via mintAndCall
 - SubnetInfo on RootNet stores only lifecycle state (lpPool, status, createdAt, activatedAt) — identity data in SubnetNFT
-- Strings (metadataURI, coordinatorURL) recorded via events only, Indexer writes to DB
 - Allocations use plain uint128 mapping, no struct wrapper
 - RootNet manages activeSubnetIds locally with MAX_ACTIVE_SUBNETS = 10000 constant; AWPEmission has maxRecipients = 10000
 
@@ -59,7 +58,7 @@ docs/architecture.md — Read the relevant section before starting any task.
 - If subnetManager == address(0) and defaultSubnetManagerImpl is set, auto-deploys SubnetManager proxy via ERC1967Proxy
 - AWP transferFrom(user → LPManager); Alpha mint(LPManager)
 - setSubnetMinter(sc) permanently locks minter to subnet manager
-- SubnetParams: name, symbol, metadataURI, subnetManager, coordinatorURL, salt, minStake
+- SubnetParams: name, symbol, subnetManager, salt, minStake, skillsURI
 - registerSubnetFor: gasless EIP-712 subnet registration (requires prior AWP approve)
 - registerSubnetForWithPermit: fully gasless — ERC-2612 permit + EIP-712 in one tx (user signs two messages, zero gas)
 - SubnetNFT.mint stores identity (name, subnetManager, alphaToken) + initial minStake
@@ -72,17 +71,19 @@ docs/architecture.md — Read the relevant section before starting any task.
 - Epoch duration: 1 day (daily epochs, AWPEmission only)
 
 ## Deployment Sequence
-AWPToken(constructor mint 50%) → AlphaTokenFactory(deployer, vanityRule)
-→ Treasury → AWPDAO (6 params, no rootNet_) → grantRole + renounce
-→ RootNet(deployer, treasury, guardian) → SubnetNFT → AccessManager → StakingVault → StakeNFT(awpToken, stakingVault, rootNet) → LPManager
-→ AWPEmission impl → ERC1967Proxy(impl, initData with genesisTime_ and epochDuration_) → addMinter(awpEmissionProxy) → renounceAdmin
-→ AlphaTokenFactory.setAddresses → RootNet.initializeRegistry (deployer calls, then zeroed; 8 addresses)
+AWPToken(constructor mint 200M) → AlphaTokenFactory(deployer, vanityRule)
+→ Treasury → RootNet(deployer, treasury, guardian) → SubnetNFT → AccessManager → LPManager
+→ AWPEmission impl → ERC1967Proxy(impl, initData with genesisTime_ and epochDuration_)
+→ StakingVault → StakeNFT(awpToken, stakingVault, rootNet)
+→ SubnetManager impl
+→ AWPDAO (6 params, no rootNet_)
+→ grantRole(dao) + renounce + addMinter(awpEmissionProxy) + renounceAdmin + AlphaTokenFactory.setAddresses
+→ RootNet.initializeRegistry (deployer calls, then zeroed; 9 addresses)
 → AWP transfer distribution
-→ (Optional) Deploy SubnetManager impl → RootNet.setDefaultSubnetManagerImpl (Timelock)
 
 ## API Endpoints
-- REST: /api/registry (all 11 contract addresses), /api/users/*, /api/agents/*, /api/staking/*, /api/subnets/*, /api/emission/*, /api/tokens/*, /api/governance/*
-- Relay: POST /api/relay/register, /api/relay/bind, /api/relay/register-subnet (gasless EIP-712, rate-limited 5/IP/4h)
+- REST: /api/registry (all 11 contract addresses, excludes implementation contracts), /api/users/*, /api/agents/*, /api/staking/*, /api/subnets/*, /api/emission/*, /api/tokens/*, /api/governance/*
+- Relay: POST /api/relay/register, /api/relay/bind, /api/relay/register-subnet (gasless EIP-712, rate-limited 100/IP/1h, configurable via Redis)
 - Vanity: GET /api/vanity/mining-params, POST /api/vanity/upload-salts, GET /api/vanity/salts, GET /api/vanity/salts/count, POST /api/vanity/compute-salt (DB pool first, cast fallback)
 - WebSocket: WS /ws/live
 
@@ -90,7 +91,10 @@ AWPToken(constructor mint 50%) → AlphaTokenFactory(deployer, vanityRule)
 - alpha_price:{subnetId} → JSON, TTL=10m
 - awp_info → JSON, TTL=1m
 - emission_current → JSON, TTL=30s
-- relay_ratelimit:{ip} → counter, TTL=4h (atomic Lua INCR+EXPIRE)
+- ratelimit:config → hash, persistent, hot-updatable rate limit configs (admin.sh)
+- rl:relay:{ip} → counter, TTL=1h (atomic Lua INCR+EXPIRE)
+- rl:upload_salts:{ip} → counter, TTL=1h (5 uploads/hr/IP)
+- rl:compute_salt:{ip} → counter, TTL=1h (20 compute/hr/IP)
 - channel: chain_events → Pub/Sub
 
 ## Bug Prevention
@@ -111,5 +115,6 @@ AWPToken(constructor mint 50%) → AlphaTokenFactory(deployer, vanityRule)
 - settleEpoch has nonReentrant
 - DB lp_pool is nullable (SubnetRegistered precedes LPCreated)
 - DB vanity_salts: salt pool with CREATE2 + vanityRule verification on upload; FOR UPDATE SKIP LOCKED on claim
-- SubnetNFT stores identity on-chain; metadataURI/coordinatorURL in events only (notification mechanism)
+- SubnetNFT stores identity on-chain (name, subnetManager, alphaToken, skillsURI, minStake)
 - Permit2 BSC mainnet: 0x31c2F6fcFf4F8759b3Bd5Bf0e1084A055615c768
+- admin.sh: Hot-update rate limits, manage salt pool, view system status (scripts/admin.sh)

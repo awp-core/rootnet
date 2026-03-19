@@ -61,7 +61,7 @@ contract AWPTokenTest is Test {
     address public minter;
 
     uint256 constant MAX_SUPPLY = 10_000_000_000 * 1e18;
-    uint256 constant INITIAL_MINT = 5_000_000_000 * 1e18;
+    uint256 constant INITIAL_MINT = 200_000_000 * 1e18;
 
     function setUp() public {
         deployer = makeAddr("deployer");
@@ -288,6 +288,7 @@ contract AWPTokenTest is Test {
 
     function test_transferAndCall_toEOA() public {
         uint256 amount = 100 * 1e18;
+        vm.etch(alice, ""); // Ensure alice is EOA (no code) — needed for fork tests
 
         vm.prank(deployer);
         bool success = token.transferAndCall(alice, amount, "");
@@ -324,6 +325,7 @@ contract AWPTokenTest is Test {
 
     function test_approveAndCall_toEOA() public {
         uint256 amount = 200 * 1e18;
+        vm.etch(alice, ""); // Ensure alice is EOA (no code) — needed for fork tests
 
         vm.prank(deployer);
         bool success = token.approveAndCall(alice, amount, "");

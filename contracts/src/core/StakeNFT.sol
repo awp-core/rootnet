@@ -7,6 +7,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IStakeNFT} from "../interfaces/IStakeNFT.sol";
 import {IStakingVault} from "../interfaces/IStakingVault.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /// @title StakeNFT — ERC721 NFT-based staking positions
 /// @notice Each stake position is an ERC721 token with locked AWP amount and expiry.
@@ -14,7 +15,7 @@ import {IStakingVault} from "../interfaces/IStakingVault.sol";
 /// @dev Key design: _userTotalStaked accumulator provides O(1) balance checks for allocation validation.
 ///      Transfer hook (_update override) maintains accumulator consistency and checks allocation coverage.
 ///      getUserVotingPower requires caller to pass tokenIds (no on-chain enumeration).
-contract StakeNFT is ERC721, IStakeNFT {
+contract StakeNFT is ERC721, ReentrancyGuard, IStakeNFT {
     using SafeERC20 for IERC20;
 
     // ── Immutables ──
@@ -166,7 +167,7 @@ contract StakeNFT is ERC721, IStakeNFT {
     }
 
     /// @inheritdoc IStakeNFT
-    function withdraw(uint256 tokenId) external {
+    function withdraw(uint256 tokenId) external nonReentrant {
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
 
         Position memory pos = positions[tokenId];
@@ -174,19 +175,18 @@ contract StakeNFT is ERC721, IStakeNFT {
 
         uint256 amount = pos.amount;
 
-        // Check BEFORE burn: remaining staked amount must cover allocations
+        // Check: remaining staked amount must cover allocations
         if (_userTotalStaked[msg.sender] - amount < IStakingVault(stakingVault).userTotalAllocated(msg.sender)) {
             revert InsufficientUnallocated();
         }
 
-        // Transfer AWP back to user
-        awpToken.safeTransfer(msg.sender, amount);
-
-        // Burn NFT — _update handles _userTotalStaked accumulator
+        // CEI: burn NFT + delete storage BEFORE external transfer
         _burn(tokenId);
         delete positions[tokenId];
-
         emit Withdrawn(msg.sender, tokenId, amount);
+
+        // Transfer AWP back to user (after all state changes)
+        awpToken.safeTransfer(msg.sender, amount);
     }
 
     // ══════════════════════════════════════════════

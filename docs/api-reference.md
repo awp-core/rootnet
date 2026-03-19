@@ -83,7 +83,6 @@
 | `banSubnet(uint256 subnetId)` | Timelock | Active/Paused → Banned |
 | `unbanSubnet(uint256 subnetId)` | Timelock | Banned → Active |
 | `deregisterSubnet(uint256 subnetId)` | Timelock | Delete subnet (after immunity period) |
-| `updateMetadata(uint256 subnetId, string metadataURI, string coordinatorURL, string skillsURI)` | NFT Owner | Update metadata + skills (event only) |
 
 #### Governance Parameters
 
@@ -92,6 +91,7 @@
 | `setInitialAlphaPrice(uint256 price)` | Timelock | Set LP creation price (min 1e12) |
 | `setGuardian(address g)` | Timelock | Update guardian address |
 | `setImmunityPeriod(uint256 p)` | Timelock | Set deregister immunity period |
+| `setSubnetManagerImpl(address impl)` | Timelock | Set/update default SubnetManager impl |
 
 #### View Functions
 
@@ -202,8 +202,8 @@
 | `getVotingPower(uint256 tokenId)` | `uint256` | Voting power: amount * sqrt(min(remainingTime, 54 weeks) / 7 days) |
 | `getUserVotingPower(address user, uint256[] tokenIds)` | `uint256` | Total voting power for user's NFTs |
 | `totalVotingPower()` | `uint256` | Total voting power across all positions |
-| `getPositionForVoting(uint256 tokenId)` | `(uint256 amount, uint64 lockEndTime, uint64 createdAt)` | Position data for voting calculations |
-| `remainingTime(uint256 tokenId)` | `uint256` | Remaining lock time in seconds for position |
+| `getPositionForVoting(uint256 tokenId)` | `(address owner, uint128 amount, uint64 lockEndTime, uint64 createdAt, uint64 remainingSeconds, uint256 votingPower)` | Position data for voting calculations |
+| `remainingTime(uint256 tokenId)` | `uint64` | Remaining lock time in seconds for position |
 
 #### Events
 
@@ -236,7 +236,7 @@
 
 ### 1.5 AWPToken
 
-> ERC20 + ERC1363 + Votes. 10B MAX_SUPPLY. 50% minted in constructor, 50% via AWPEmission.
+> ERC20 + ERC1363 + Votes. 10B MAX_SUPPLY. 200M (2%) minted in constructor; remainder via AWPEmission.
 
 | Function | Access | Description |
 |----------|--------|-------------|
@@ -302,7 +302,7 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 
 | Function | Access | Description |
 |----------|--------|-------------|
-| `mint(address to, uint256 tokenId)` | RootNet | Mint on subnet registration |
+| `mint(address to, uint256 tokenId, string name_, address subnetManager_, address alphaToken_, uint128 minStake_, string skillsURI_)` | RootNet | Mint on subnet registration |
 | `burn(uint256 tokenId)` | RootNet | Burn on deregister |
 | Standard ERC721 | Anyone | `transferFrom`, `approve`, `ownerOf`, etc. |
 
@@ -340,7 +340,7 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 
 ## 2. REST API
 
-> Base URL: `https://api.awp.network/api`
+> Base URL: `https://tapi.awp.sh/api`
 
 ### 2.1 System
 
@@ -382,6 +382,7 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 | GET | `/staking/user/{address}/frozen` | Frozen allocations |
 | GET | `/staking/agent/{agent}/subnet/{subnetId}` | Agent's total stake on subnet |
 | GET | `/staking/agent/{agent}/subnets` | Agent's stakes across all subnets |
+| GET | `/staking/user/{address}/pending` | Pending operations (returns `[]`) |
 | GET | `/staking/subnet/{subnetId}/total` | Subnet total staked |
 
 ### 2.5 Subnets
@@ -393,6 +394,8 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 | GET | `/subnets/{subnetId}/earnings?page=1&limit=20` | AWP emission history |
 | GET | `/subnets/{subnetId}/skills` | Subnet skills file URI |
 | GET | `/subnets/{subnetId}/agents/{agent}` | Agent info on subnet |
+
+> Subnet response includes: `subnet_id`, `owner`, `name`, `symbol`, `subnet_contract`, `skills_uri`, `alpha_token`, `lp_pool`, `status`, `created_at`, `activated_at`, `min_stake`, `immunity_ends_at` (nullable), `burned` (boolean).
 
 ### 2.6 Emission [DRAFT]
 
@@ -420,12 +423,13 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 
 ### 2.10 Relay (Gasless Transactions)
 
-> Rate limit: 5 requests per IP per 4 hours (shared across both endpoints)
+> Rate limit: 100 requests per IP per 1 hour (shared across all three relay endpoints)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/relay/register` | Gasless user registration via EIP-712 signature |
 | POST | `/relay/bind` | Gasless agent bind via EIP-712 signature |
+| POST | `/relay/register-subnet` | Fully gasless subnet registration via ERC-2612 permit + EIP-712 |
 
 **POST /relay/register request:**
 ```json
@@ -437,7 +441,19 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 {"agent": "0x...", "principal": "0x...", "deadline": 1742400000, "signature": "0x...130 hex chars (65 bytes)"}
 ```
 
-**Response (both):**
+**POST /relay/register-subnet request:**
+```json
+{
+  "user": "0x...", "name": "EVO Alpha", "symbol": "EVO",
+  "subnetManager": "0x0000...0000", "salt": "0x...",
+  "minStake": "0", "skillsUri": "https://example.com/skills.md",
+  "deadline": 1742400000,
+  "permitSignature": "0x...65 bytes (ERC-2612 AWP permit)",
+  "registerSignature": "0x...65 bytes (EIP-712 registerSubnet)"
+}
+```
+
+**Response (all three):**
 ```json
 {"txHash": "0x..."}
 ```
@@ -476,7 +492,7 @@ The returned `salt` is passed as `SubnetParams.salt` in `registerSubnet()`.
 **Endpoint:** `WS /ws/live`
 
 ```javascript
-const ws = new WebSocket('wss://api.awp.network/ws/live');
+const ws = new WebSocket('wss://tapi.awp.sh/ws/live');
 ws.send(JSON.stringify({ subscribe: ["RecipientAWPDistributed", "EpochSettled"] }));
 ws.onmessage = (e) => console.log(JSON.parse(e.data));
 ```
@@ -496,8 +512,6 @@ ws.onmessage = (e) => console.log(JSON.parse(e.data));
 enum SubnetStatus { Pending, Active, Paused, Banned }
 
 struct SubnetInfo {
-    address subnetContract;
-    address alphaToken;
     bytes32 lpPool;          // PancakeSwap V4 PoolId
     SubnetStatus status;
     uint64 createdAt;
@@ -507,11 +521,10 @@ struct SubnetInfo {
 struct SubnetParams {
     string name;             // 1-64 bytes
     string symbol;           // 1-16 bytes
-    string metadataURI;
-    address subnetContract;  // must not be zero
-    string coordinatorURL;
-    string skillsURI;        // skills file URI (e.g. IPFS link)
+    address subnetManager;   // address(0) = auto-deploy SubnetManager proxy
     bytes32 salt;            // CREATE2 salt for Alpha token address; bytes32(0) = use subnetId as salt
+    uint128 minStake;        // Minimum stake requirement for agents (0 = no minimum)
+    string skillsURI;        // Skills file URI (IPFS/HTTPS)
 }
 
 struct AgentInfo {
@@ -539,15 +552,19 @@ struct AgentInfo {
 | `Allocated` | `address indexed user, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator` |
 | `Deallocated` | `address indexed user, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator` |
 | `Reallocated` | `address indexed user, address fromAgent, uint256 fromSubnet, address toAgent, uint256 toSubnet, uint256 amount, address operator` |
-| `SubnetRegistered` | `uint256 indexed subnetId, address indexed owner, string name, string symbol, string metadataURI, address subnetContract, address alphaToken, string coordinatorURL, string skillsURI` |
+| `SubnetRegistered` | `uint256 indexed subnetId, address indexed owner, string name, string symbol, address subnetManager, address alphaToken` |
 | `LPCreated` | `uint256 indexed subnetId, bytes32 poolId, uint256 awpAmount, uint256 alphaAmount` |
-| `MetadataUpdated` | `uint256 indexed subnetId, string metadataURI, string coordinatorURL, string skillsURI` |
 | `SubnetActivated` | `uint256 indexed subnetId` |
 | `SubnetPaused` | `uint256 indexed subnetId` |
 | `SubnetResumed` | `uint256 indexed subnetId` |
 | `SubnetBanned` | `uint256 indexed subnetId` |
 | `SubnetUnbanned` | `uint256 indexed subnetId` |
 | `SubnetDeregistered` | `uint256 indexed subnetId` |
+| `GuardianUpdated` | `address indexed oldGuardian, address indexed newGuardian` |
+| `InitialAlphaPriceUpdated` | `uint256 newPrice` |
+| `ImmunityPeriodUpdated` | `uint256 newPeriod` |
+| `AlphaTokenFactoryUpdated` | `address indexed newFactory` |
+| `DefaultSubnetManagerImplUpdated` | `address indexed newImpl` |
 
 ### StakingVault Events
 
@@ -588,14 +605,15 @@ struct AgentInfo {
 | `NotManager()` | Agent is not a Manager |
 | `NotRegistered()` | Caller not registered as user |
 | `InvalidSubnetParams()` | name/symbol length invalid |
-| `SubnetContractRequired()` | subnetContract is zero address |
+| `SubnetManagerRequired()` | subnetManager is zero address |
 | `NotOwner()` | Non-NFT holder calling lifecycle function |
 | `InvalidSubnetStatus()` | Status precondition not met |
 | `MaxActiveSubnetsReached()` | Active count >= 10,000 |
 | `ImmunityNotExpired()` | Deregister during immunity period |
 | `InvalidAgent()` | Agent doesn't belong to user |
-| `NotBound()` | Agent is not bound (on unbind attempt) |
 | `PriceTooLow()` | initialAlphaPrice < 1e12 |
+| `PriceTooHigh()` | initialAlphaPrice exceeds maximum |
+| `InsufficientMinStake()` | Allocation results in agent stake below subnet minStake |
 | `ExpiredSignature()` | Gasless signature expired |
 | `InvalidSignature()` | Gasless signature invalid |
 

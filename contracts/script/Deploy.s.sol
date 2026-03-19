@@ -15,6 +15,7 @@ import {RootNet} from "../src/RootNet.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
+import {SubnetManager} from "../src/subnets/SubnetManager.sol";
 
 /// @title Deploy — Deterministic deployment via CREATE2 factory (0x4e59b44847b379578588920cA78FbF26c0B4956C)
 /// @dev Each contract has its own salt read from .env (e.g. SALT_AWP_TOKEN, SALT_ROOTNET, etc.)
@@ -47,8 +48,6 @@ contract Deploy is Script {
 
         // Read addresses from environment
         address guardian = vm.envAddress("GUARDIAN");
-        address teamVesting = vm.envAddress("TEAM_VESTING");
-        address investorVesting = vm.envAddress("INVESTOR_VESTING");
         address liquidityPool = vm.envAddress("LIQUIDITY_POOL");
         address airdropAddr = vm.envAddress("AIRDROP");
         address poolManager = vm.envAddress("POOL_MANAGER");
@@ -69,6 +68,7 @@ contract Deploy is Script {
         bytes32 saltVault = _readSalt("SALT_STAKING_VAULT");
         bytes32 saltStakeNFT = _readSalt("SALT_STAKE_NFT");
         bytes32 saltDAO = _readSalt("SALT_DAO");
+        bytes32 saltSubnetMgrImpl = _readSalt("SALT_SUBNET_MANAGER_IMPL");
 
         console.log("Deployer:", deployer);
 
@@ -180,9 +180,19 @@ contract Deploy is Script {
         console.log("StakeNFT:", address(stakeNft));
 
         // ═══════════════════════════════════════════════
-        //  Step 10: AWPDAO
+        //  Step 10: SubnetManager implementation (shared by all auto-deployed subnet proxies)
         // ═══════════════════════════════════════════════
-        AWPDAO dao = AWPDAO(payable(_create2(
+        SubnetManager subnetMgrImpl = SubnetManager(_create2(
+            saltSubnetMgrImpl,
+            abi.encodePacked(type(SubnetManager).creationCode)
+        ));
+        console.log("SubnetManager impl:", address(subnetMgrImpl));
+
+        // ═══════════════════════════════════════════════
+        //  Step 11: AWPDAO
+        // ═══════════════════════════════════════════════
+        AWPDAO dao; // scoped to avoid stack-too-deep
+        dao = AWPDAO(payable(_create2(
             saltDAO,
             abi.encodePacked(type(AWPDAO).creationCode, abi.encode(
                 address(stakeNft), address(awp),
@@ -193,7 +203,7 @@ contract Deploy is Script {
         console.log("AWPDAO:", address(dao));
 
         // ═══════════════════════════════════════════════
-        //  Step 11: Roles + Admin
+        //  Step 12: Roles + Admin
         // ═══════════════════════════════════════════════
         treasury.grantRole(treasury.PROPOSER_ROLE(), address(dao));
         treasury.grantRole(treasury.CANCELLER_ROLE(), address(dao));
@@ -208,22 +218,21 @@ contract Deploy is Script {
         console.log("Factory configured");
 
         // ═══════════════════════════════════════════════
-        //  Step 12: Initialize registry
+        //  Step 13: Initialize registry
         // ═══════════════════════════════════════════════
         rootNet.initializeRegistry(
             address(awp), address(nft), address(factory), address(emission),
-            address(lp), address(access), address(vault), address(stakeNft)
+            address(lp), address(access), address(vault), address(stakeNft),
+            address(subnetMgrImpl)
         );
         console.log("Registry initialized");
 
         // ═══════════════════════════════════════════════
-        //  Step 13: Token distribution
+        //  Step 14: Token distribution
         // ═══════════════════════════════════════════════
-        awp.transfer(address(treasury), 2_000_000_000 * 1e18);
-        awp.transfer(teamVesting, 1_000_000_000 * 1e18);
-        awp.transfer(investorVesting, 750_000_000 * 1e18);
-        awp.transfer(liquidityPool, 1_000_000_000 * 1e18);
-        awp.transfer(airdropAddr, 250_000_000 * 1e18);
+        awp.transfer(address(treasury), 90_000_000 * 1e18);
+        awp.transfer(liquidityPool, 10_000_000 * 1e18);
+        awp.transfer(airdropAddr, 100_000_000 * 1e18);
         console.log("Tokens distributed");
 
         vm.stopBroadcast();

@@ -28,6 +28,11 @@ type Keeper struct {
 	redis       *redis.Client
 	logger      *slog.Logger
 	cancel      context.CancelFunc
+
+	// Cached RPC results — shared between trySettleEpoch and updateTokenPrices within the same tick
+	cachedCurrentEpoch *big.Int
+	cachedSettledEpoch *big.Int
+	cacheTime          time.Time
 }
 
 // emissionInfo is used to cache the current emission info in Redis
@@ -117,6 +122,25 @@ func (k *Keeper) auth() (*bind.TransactOpts, error) {
 	return auth, nil
 }
 
+// fetchEpochs returns cached currentEpoch and settledEpoch, refreshing from RPC if stale (>10s)
+func (k *Keeper) fetchEpochs() (currentEpoch, settledEpoch *big.Int, err error) {
+	if time.Since(k.cacheTime) < 10*time.Second && k.cachedCurrentEpoch != nil {
+		return k.cachedCurrentEpoch, k.cachedSettledEpoch, nil
+	}
+	currentEpoch, err = k.awpEmission.CurrentEpoch(nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("CurrentEpoch: %w", err)
+	}
+	settledEpoch, err = k.awpEmission.SettledEpoch(nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("SettledEpoch: %w", err)
+	}
+	k.cachedCurrentEpoch = currentEpoch
+	k.cachedSettledEpoch = settledEpoch
+	k.cacheTime = time.Now()
+	return currentEpoch, settledEpoch, nil
+}
+
 // trySettleEpoch attempts to settle the current epoch (calls AWPEmission.SettleEpoch)
 func (k *Keeper) trySettleEpoch(ctx context.Context) {
 	settleProgress, err := k.awpEmission.SettleProgress(nil)
@@ -132,16 +156,10 @@ func (k *Keeper) trySettleEpoch(ctx context.Context) {
 		return
 	}
 
-	// Compare settledEpoch vs currentEpoch (both from AWPEmission)
-	settledEpoch, err := k.awpEmission.SettledEpoch(nil)
+	// Compare settledEpoch vs currentEpoch (cached, shared with updateTokenPrices)
+	currentEpoch, settledEpoch, err := k.fetchEpochs()
 	if err != nil {
-		k.logger.Error("failed to read SettledEpoch", "error", err)
-		return
-	}
-
-	currentEpoch, err := k.awpEmission.CurrentEpoch(nil)
-	if err != nil {
-		k.logger.Error("failed to read CurrentEpoch from AWPEmission", "error", err)
+		k.logger.Error("failed to fetch epoch data", "error", err)
 		return
 	}
 
@@ -177,17 +195,10 @@ func (k *Keeper) sendSettleEpoch(ctx context.Context) {
 
 // updateTokenPrices updates token-related caches in Redis
 func (k *Keeper) updateTokenPrices(ctx context.Context) {
-	// Read current epoch from AWPEmission (time-based)
-	currentEpoch, err := k.awpEmission.CurrentEpoch(nil)
+	// Read epoch data (cached, shared with trySettleEpoch — avoids redundant RPC calls)
+	currentEpoch, settledEpoch, err := k.fetchEpochs()
 	if err != nil {
-		k.logger.Error("failed to read CurrentEpoch from AWPEmission", "error", err)
-		return
-	}
-
-	// Read settled epoch from AWPEmission
-	settledEpoch, err := k.awpEmission.SettledEpoch(nil)
-	if err != nil {
-		k.logger.Error("failed to read SettledEpoch", "error", err)
+		k.logger.Error("failed to fetch epoch data", "error", err)
 		return
 	}
 

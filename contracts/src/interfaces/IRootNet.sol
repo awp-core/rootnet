@@ -34,15 +34,14 @@ interface IRootNet {
         address owner;
     }
 
-    /// @notice Subnet registration parameters (contains strings; stored via events only, not on-chain)
+    /// @notice Subnet registration parameters
     struct SubnetParams {
         string name;           // Alpha Token name
         string symbol;         // Alpha Token symbol
-        string metadataURI;    // IPFS metadata URI
         address subnetManager; // Subnet contract address (0 = auto-deploy SubnetManager proxy)
-        string coordinatorURL; // Coordinator service URL
         bytes32 salt;          // CREATE2 salt for vanity Alpha token address (0 = use subnetId)
         uint128 minStake;      // Minimum stake requirement for agents (0 = no minimum)
+        string skillsURI;      // Skills file URI (set at registration, updatable later via SubnetNFT)
     }
 
     // ── User events ──
@@ -77,18 +76,21 @@ interface IRootNet {
         address indexed owner,
         string name,
         string symbol,
-        string metadataURI,
         address subnetManager,
-        address alphaToken,
-        string coordinatorURL
+        address alphaToken
     );
     event LPCreated(uint256 indexed subnetId, bytes32 poolId, uint256 awpAmount, uint256 alphaAmount);
-    /// @dev Off-chain notification only — no data stored on-chain. Indexer writes to DB.
-    event MetadataUpdated(uint256 indexed subnetId, string metadataURI, string coordinatorURL);
     event SubnetActivated(uint256 indexed subnetId);
     event SubnetPaused(uint256 indexed subnetId);
     event SubnetResumed(uint256 indexed subnetId);
     event SubnetBanned(uint256 indexed subnetId);
     event SubnetUnbanned(uint256 indexed subnetId);
     event SubnetDeregistered(uint256 indexed subnetId);
+
+    // ── Governance parameter events ──
+    event GuardianUpdated(address indexed newGuardian);
+    event InitialAlphaPriceUpdated(uint256 newPrice);
+    event ImmunityPeriodUpdated(uint256 newPeriod);
+    event AlphaTokenFactoryUpdated(address indexed newFactory);
+    event DefaultSubnetManagerImplUpdated(address indexed newImpl);
 }

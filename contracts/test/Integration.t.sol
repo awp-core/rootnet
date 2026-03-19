@@ -36,9 +36,6 @@ contract IntegrationTest is EmissionSigningHelper {
 
     address deployer = address(0xD);
     address guardian = address(0xE);
-    address teamVesting = address(0xF1);
-    address investorVesting = address(0xF2);
-    address liquidityPool = address(0xF3);
     address airdrop = address(0xF4);
 
     address owner1 = address(0x101);
@@ -65,8 +62,8 @@ contract IntegrationTest is EmissionSigningHelper {
 
         // Step 1: AWPToken
         awp = new AWPToken("AWP Token", "AWP", deployer);
-        assertEq(awp.totalSupply(), 5_000_000_000 * 1e18);
-        assertEq(awp.balanceOf(deployer), 5_000_000_000 * 1e18);
+        assertEq(awp.totalSupply(), 200_000_000 * 1e18);
+        assertEq(awp.balanceOf(deployer), 200_000_000 * 1e18);
 
         // Step 2: AlphaTokenFactory (CREATE2-based)
         factory = new AlphaTokenFactory(deployer, 0);
@@ -81,7 +78,7 @@ contract IntegrationTest is EmissionSigningHelper {
         rootNet = new RootNet(deployer, address(treasury), guardian);
 
         // Step 6-7: Sub-contracts
-        nft = new SubnetNFT("AWP Subnet", "CXSUB", address(rootNet));
+        nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(rootNet));
         access = new AccessManager(address(rootNet));
         lp = new MockLPManager(address(rootNet), address(awp));
 
@@ -129,7 +126,7 @@ contract IntegrationTest is EmissionSigningHelper {
         // Step 15: Renounce Treasury admin role
         treasury.renounceRole(treasury.DEFAULT_ADMIN_ROLE(), deployer);
 
-        // Step 16: Initialize registry (9 params including stakeNFT)
+        // Step 16: Initialize registry
         rootNet.initializeRegistry(
             address(awp),
             address(nft),
@@ -138,15 +135,13 @@ contract IntegrationTest is EmissionSigningHelper {
             address(lp),
             address(access),
             address(vault),
-            address(stakeNFT)
+            address(stakeNFT),
+            address(0) // no default SubnetManager impl in integration tests
         );
 
-        // Steps 17-21: Distribute tokens
-        awp.transfer(address(treasury), 2_000_000_000 * 1e18);
-        awp.transfer(teamVesting, 1_000_000_000 * 1e18);
-        awp.transfer(investorVesting, 750_000_000 * 1e18);
-        awp.transfer(liquidityPool, 1_000_000_000 * 1e18);
-        awp.transfer(airdrop, 250_000_000 * 1e18);
+        // Distribute tokens: Treasury 90M, Airdrop 100M (10M remains with deployer for tests)
+        awp.transfer(address(treasury), 90_000_000 * 1e18);
+        awp.transfer(airdrop, 100_000_000 * 1e18);
 
         vm.stopPrank();
 
@@ -159,8 +154,8 @@ contract IntegrationTest is EmissionSigningHelper {
         emission.setOracleConfig(oracleList, 2);
 
         // Verify post-deployment state
-        assertEq(awp.balanceOf(deployer), 0);
-        assertEq(awp.balanceOf(address(treasury)), 2_000_000_000 * 1e18);
+        assertEq(awp.balanceOf(deployer), 10_000_000 * 1e18);
+        assertEq(awp.balanceOf(address(treasury)), 90_000_000 * 1e18);
         assertTrue(awp.minters(address(emission)));
         assertFalse(awp.minters(deployer));
         assertTrue(rootNet.registryInitialized());
@@ -229,11 +224,10 @@ contract IntegrationTest is EmissionSigningHelper {
             IRootNet.SubnetParams({
                 name: "TestSubnet",
                 symbol: "TSUB",
-                metadataURI: "ipfs://meta",
                 subnetManager: subnetManager1,
-                coordinatorURL: "https://coord.test",
                 salt: bytes32(0),
-                minStake: 0
+                minStake: 0,
+                skillsURI: ""
             })
         );
         vm.stopPrank();
@@ -291,7 +285,7 @@ contract IntegrationTest is EmissionSigningHelper {
 
         // DAO receives 50% of emission
         uint256 treasuryBal = awp.balanceOf(address(treasury));
-        assertTrue(treasuryBal > 2_000_000_000 * 1e18);
+        assertTrue(treasuryBal > 90_000_000 * 1e18);
 
         // 11. Third epoch (verify continued decay)
         _submitWeight(subnetManager1, uint96(1000));
@@ -316,10 +310,10 @@ contract IntegrationTest is EmissionSigningHelper {
         awp.approve(address(rootNet), 2_000_000 * 1e18);
 
         uint256 subnet1 = rootNet.registerSubnet(
-            IRootNet.SubnetParams("Sub1", "S1", "", subnetManager1, "", bytes32(0), 0)
+            IRootNet.SubnetParams("Sub1", "S1", subnetManager1, bytes32(0), 0, "")
         );
         uint256 subnet2 = rootNet.registerSubnet(
-            IRootNet.SubnetParams("Sub2", "S2", "", subnetManager2, "", bytes32(0), 0)
+            IRootNet.SubnetParams("Sub2", "S2", subnetManager2, bytes32(0), 0, "")
         );
 
         rootNet.activateSubnet(subnet1);
@@ -368,7 +362,7 @@ contract IntegrationTest is EmissionSigningHelper {
         vm.expectRevert(StakeNFT.LockNotExpired.selector);
         stakeNFT.withdraw(tokenId);
 
-        // Advance past lock (lockEndEpoch = 0 + 1 + 1 = 2)
+        // Advance past 1-day timestamp lock
         _settleOneEpoch();
         _settleOneEpoch();
 
@@ -393,7 +387,7 @@ contract IntegrationTest is EmissionSigningHelper {
         vm.startPrank(owner1);
         awp.approve(address(rootNet), 1_000_000 * 1e18);
         uint256 subnetId = rootNet.registerSubnet(
-            IRootNet.SubnetParams("Sub", "SUB", "", subnetManager1, "", bytes32(0), 0)
+            IRootNet.SubnetParams("Sub", "SUB", subnetManager1, bytes32(0), 0, "")
         );
         rootNet.activateSubnet(subnetId);
         awp.approve(address(stakeNFT), 500_000 * 1e18);
@@ -424,7 +418,7 @@ contract IntegrationTest is EmissionSigningHelper {
         vm.startPrank(owner1);
         awp.approve(address(rootNet), 1_000_000 * 1e18);
         uint256 subnetId = rootNet.registerSubnet(
-            IRootNet.SubnetParams("Sub", "SUB", "", subnetManager1, "", bytes32(0), 0)
+            IRootNet.SubnetParams("Sub", "SUB", subnetManager1, bytes32(0), 0, "")
         );
         rootNet.activateSubnet(subnetId);
         vm.stopPrank();
@@ -454,17 +448,17 @@ contract IntegrationTest is EmissionSigningHelper {
     /// @notice Test batch emission (many subnets)
     function test_batchSettle() public {
         vm.prank(airdrop);
-        awp.transfer(owner1, 200_000_000 * 1e18);
+        awp.transfer(owner1, 10_000_000 * 1e18);
 
         vm.prank(owner1);
         rootNet.register();
 
         vm.startPrank(owner1);
-        awp.approve(address(rootNet), 200_000_000 * 1e18);
+        awp.approve(address(rootNet), 10_000_000 * 1e18);
 
         for (uint256 i = 0; i < 3; i++) {
             address sc = address(uint160(0x400 + i));
-            rootNet.registerSubnet(IRootNet.SubnetParams("Sub", "SUB", "", sc, "", bytes32(0), 0));
+            rootNet.registerSubnet(IRootNet.SubnetParams("Sub", "SUB", sc, bytes32(0), 0, ""));
             rootNet.activateSubnet(i + 1);
         }
         vm.stopPrank();
@@ -533,7 +527,7 @@ contract IntegrationTest is EmissionSigningHelper {
         vm.startPrank(owner1);
         awp.approve(address(rootNet), 1_000_000 * 1e18);
         uint256 subnetId = rootNet.registerSubnet(
-            IRootNet.SubnetParams("Sub", "SUB", "", subnetManager1, "", bytes32(0), 0)
+            IRootNet.SubnetParams("Sub", "SUB", subnetManager1, bytes32(0), 0, "")
         );
         rootNet.activateSubnet(subnetId);
         // Deposit via StakeNFT

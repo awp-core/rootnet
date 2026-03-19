@@ -148,7 +148,7 @@ awp-rootnet/
                                                │              │           │
                                          PancakeSwap V4   mint AWP   deposit/withdraw AWP
 
-Contracts: 11
+Contracts: 13
 
 Emission Model:
   → AWPEmission is a generic address→weight distribution engine (weight management, epoch settlement, batch minting, decay)
@@ -198,16 +198,14 @@ Inter-contract Permissions:
 ```
 AWP:
   Total Supply: 10,000,000,000 (10B), MAX_SUPPLY hard cap
-    → 50% minted in constructor to deployer (distributed via transfer)
-    → 50% minted on demand by AWPEmission (exponential decay, ~99% in 4 years)
+    → 200M (2%) minted in constructor to deployer (distributed via transfer)
+    → 98% minted on demand by AWPEmission (exponential decay, ~99% in 4 years)
 
   Allocation:
-    50%  5B   → Mining emission (AWPEmission mint on demand, exponential decay, ~99% in 4 years)
-    20%  2B   → DAO Treasury (initial funds)
-    10%  1B   → Team (4-year vesting, 1-year cliff)
-    7.5% 750M → Investors (2-year vesting, 6-month cliff)
-    10%  1B   → Initial liquidity (AWP/BNB main pool)
-    2.5% 250M → Airdrop + early contributors
+    98%  9.8B → Mining emission (AWPEmission mint on demand, exponential decay, ~99% in 4 years)
+    0.9% 90M  → DAO Treasury (initial funds)
+    0.1% 10M  → Initial liquidity (AWP/BNB main pool)
+    1.0% 100M → Airdrop + early contributors
 
   Mining Emission Curve:
     Each epoch, AWPEmission mints AWP with exponential decay:
@@ -232,7 +230,7 @@ AWP:
       → No on-chain e^x needed, just multiplication
 
   Per-Epoch AWP Distribution:
-    50% → Subnets (by governanceWeight, AWPEmission mints to subnetContract)
+    50% → Subnets (by governanceWeight, AWPEmission mints to subnetManager)
     50% → DAO Treasury (equal match, AWPEmission mints to Treasury)
     
     Example D1:
@@ -263,7 +261,7 @@ Inherits: ERC20, ERC20Permit, ERC20Votes, ERC20Burnable
 Implements: IERC1363 (transferAndCall / approveAndCall)
 
 MAX_SUPPLY = 10_000_000_000 * 1e18
-INITIAL_MINT = 5_000_000_000 * 1e18                    // 50% non-mining portion
+INITIAL_MINT = 200_000_000 * 1e18                      // 2% non-mining portion
 
 Storage:
   mapping(address => bool) public minters;
@@ -271,7 +269,7 @@ Storage:
 
 constructor(name, symbol, deployer)
   → admin = deployer
-  → _mint(deployer, INITIAL_MINT)                      // 50% minted directly to deployer for distribution via transfer
+  → _mint(deployer, INITIAL_MINT)                      // 2% minted directly to deployer for distribution via transfer
 
 /// @notice Add a minter (admin only)
 addMinter(address minter) external
@@ -432,13 +430,11 @@ Storage:
   uint256 public immutable epochDuration;                  // Set in initialize (86400 = 1 day)
   // currentEpoch() = (block.timestamp - genesisTime) / epochDuration
 
-  address public rootNet;
-
   modifier onlyTimelock() { require(msg.sender == treasury); _; }
 
 Functions:
 
-  initialize(awpToken, treasury, rootNet, initialDailyEmission, genesisTime_, epochDuration_) external initializer
+  initialize(awpToken_, treasury_, initialDailyEmission_, genesisTime_, epochDuration_) external initializer
     → genesisTime = genesisTime_
     → epochDuration = epochDuration_
     // Note: oracles and threshold configured post-deploy via setOracleConfig
@@ -670,9 +666,9 @@ Functions:
     → subnetTotalStake[fromSubnetId] -= amount
     → subnetTotalStake[toSubnetId] += amount
 
-  // Deallocate agent's specified subnets immediately (on removeAgent)
-  deallocateAgent(address user, address agent, uint256[] subnetIds) external onlyRootNet
-    → for each subnetId in subnetIds:
+  // Freeze all agent allocations immediately (on removeAgent); auto-enumerates via _agentSubnets
+  freezeAgentAllocations(address user, address agent) external onlyRootNet
+    → for each subnetId in _agentSubnets[agent]:
         amt = allocations[user][agent][subnetId]
         if amt > 0:
           allocations[user][agent][subnetId] = 0
@@ -783,10 +779,15 @@ Inherits: ERC721 (~50 lines)
 modifier onlyRootNet()
 
 Storage:
-  string public baseURI;                     // e.g. "https://api.awp.network/subnets/"
+  string public baseURI;                     // e.g. "https://tapi.awp.sh/subnets/"
 
-mint(to, tokenId) external onlyRootNet
+mint(to, tokenId, name, subnetManager, alphaToken, skillsURI, minStake) external onlyRootNet
+  → stores immutable: name, subnetManager, alphaToken
+  → stores owner-updatable: skillsURI, minStake
+  → if minStake > 0: emit MinStakeUpdated(tokenId, 0, minStake)
 burn(tokenId) external onlyRootNet
+setSkillsURI(tokenId, uri) external → onlyOwner; emit SkillsURIUpdated
+setMinStake(tokenId, minStake) external → onlyOwner; emit MinStakeUpdated
 setBaseURI(string uri) external onlyRootNet
 tokenURI(tokenId) → string.concat(baseURI, Strings.toString(tokenId))
 Overrides: _update, supportsInterface
@@ -826,24 +827,22 @@ Storage:
 
   // Note: Epoch logic has been moved to AWPEmission. RootNet no longer has genesisTime/epochDuration/currentEpoch().
 
-  // Subnet data (on-chain stores only essential data; name/symbol/metadataURI/coordinatorURL recorded via events, stored in DB)
+  // Subnet data (on-chain stores only essential data)
   struct SubnetInfo {
-    address subnetContract;                            // Subnet contract (has Alpha mint permission + receives AWP emission)
-    address alphaToken;
     bytes32 lpPool;                                    // Pool identifier (bytes32, not address)
     SubnetStatus status;
     uint64 createdAt; uint64 activatedAt; uint64 immunityEndsAt;
   }
+  // Note: subnetManager + alphaToken stored in SubnetNFT (on-chain identity)
   enum SubnetStatus { Pending, Active, Paused, Banned }
 
   struct SubnetParams {
-    string name;                                       // Alpha Token name (stored in event, not on-chain)
+    string name;                                       // Alpha Token name (stored in SubnetNFT on-chain)
     string symbol;                                     // Alpha Token symbol (stored in event)
-    string metadataURI;                                // IPFS URI (stored in event)
-    address subnetContract;                            // Subnet contract address
-    string coordinatorURL;                             // Coordinator service URL (stored in event)
-    string skillsURI;                                  // Skills description URI (stored in event)
+    address subnetManager;                             // Subnet contract address (0 = auto-deploy)
     bytes32 salt;                                      // CREATE2 salt for vanity address (0 = use subnetId)
+    uint128 minStake;                                  // Minimum stake requirement (stored in SubnetNFT)
+    string skillsURI;                                  // Skills description URI (stored in SubnetNFT)
   }
 
   mapping(uint256 => SubnetInfo) public subnets;
@@ -932,13 +931,13 @@ Functions:
   //  Agent Management (Owner or Manager)
   // ═══════════════
 
-  removeAgent(address agent, uint256[] subnetIds) external nonReentrant
+  removeAgent(address agent) external nonReentrant whenNotPaused
     → user = _resolveOwnerOrManager()
-    → stakingVault.deallocateAgent(user, agent, subnetIds)
+    → stakingVault.freezeAgentAllocations(user, agent)
     → accessManager.removeAgent(user, agent, msg.sender)
     → emit AgentRemoved(user, agent, msg.sender)
 
-  setManager(address agent, bool _isManager) external
+  setManager(address agent, bool _isManager) external whenNotPaused
     → user = _resolveOwnerOrManager()
     → accessManager.setManager(user, agent, _isManager, msg.sender)
     → emit ManagerUpdated(user, agent, _isManager, msg.sender)
@@ -978,7 +977,7 @@ Functions:
   registerSubnet(SubnetParams calldata params) external nonReentrant whenNotPaused → uint256
     → require(bytes(params.name).length > 0 && bytes(params.name).length <= 64)
     → require(bytes(params.symbol).length > 0 && bytes(params.symbol).length <= 16)
-    → require(params.subnetContract != address(0), "Subnet contract required")
+    → // subnetManager == address(0) auto-deploys SubnetManager proxy if defaultSubnetManagerImpl is set
     → // Does not require msg.sender to be registered
     →
     → // 1. Calculate LP creation cost
@@ -987,9 +986,10 @@ Functions:
     → // 2. AWP transferred directly from user to LPManager (does not pass through RootNet)
     → IERC20(awpToken).transferFrom(msg.sender, lpManager, lpAWPAmount)
     →
-    → // 3. Mint NFT
+    → // 3. Mint NFT (stores identity + initial minStake on-chain)
     → uint256 subnetId = _nextSubnetId++
-    → ISubnetNFT(subnetNFT).mint(msg.sender, subnetId)
+    → ISubnetNFT(subnetNFT).mint(msg.sender, subnetId, params.name, params.subnetManager, alphaToken, params.skillsURI, params.minStake)
+    →   // If params.minStake > 0, emits MinStakeUpdated(subnetId, 0, params.minStake)
     →
     → // 4. Deploy Alpha Token (admin = RootNet)
     → address alphaToken = IAlphaTokenFactory(alphaTokenFactory)
@@ -1003,25 +1003,23 @@ Functions:
         .createPoolAndAddLiquidity(alphaToken, lpAWPAmount, INITIAL_ALPHA_MINT)
     →
     → // 7. Set subnet contract as sole minter + RootNet gives up mint (permanently locked)
-    → IAlphaToken(alphaToken).setSubnetMinter(params.subnetContract)
-    →   // Internal: minters[subnetContract] = true, minters[RootNet] = false, mintersLocked = true
+    → IAlphaToken(alphaToken).setSubnetMinter(params.subnetManager)
+    →   // Internal: minters[subnetManager] = true, minters[RootNet] = false, mintersLocked = true
     →
-    → // 8. Store (no strings stored on-chain; recorded via events)
+    → // 8. Store lifecycle state (identity data stored in SubnetNFT)
     → subnets[subnetId] = SubnetInfo(
-        subnetContract=params.subnetContract,
-        alphaToken=alphaToken, lpPool=poolId,
-        status=Pending, createdAt=now, immunityEndsAt=now+immunityPeriod)
+        lpPool=poolId, status=Pending, createdAt=now, activatedAt=0, immunityEndsAt=now+immunityPeriod)
     → // AWPEmission is NOT notified; subnet starts Pending and is not yet in activeSubnetIds
     → emit SubnetRegistered(subnetId, msg.sender, params.name, params.symbol,
-          params.metadataURI, params.subnetContract, alphaToken, params.coordinatorURL)
+          params.subnetManager, alphaToken)
     → emit LPCreated(subnetId, pool, lpAWPAmount, INITIAL_ALPHA_MINT)
     → return subnetId
 
   // ═══════════════
   //  Subnet Lifecycle
   // ═══════════════
-  // ⚠️ subnetContract is immutable after registration
-  // ⚠️ Alpha minter locked at registration (only subnetContract); cannot add/remove
+  // ⚠️ subnetManager is immutable after registration (stored in SubnetNFT)
+  // ⚠️ Alpha minter locked at registration (only subnetManager); cannot add/remove
 
   activateSubnet(uint256 subnetId) external
     → require(ownerOf == msg.sender && status == Pending)
@@ -1044,9 +1042,10 @@ Functions:
 
   banSubnet(uint256 subnetId) external onlyTimelock
     → require(status == Active || status == Paused)
-    → address sc = subnets[subnetId].subnetContract
+    → address sc = ISubnetNFT(subnetNFT).subnetManager(subnetId)
+    → address alphaToken = ISubnetNFT(subnetNFT).alphaToken(subnetId)
     → if (sc != address(0)):
-        IAlphaToken(subnets[subnetId].alphaToken).setMinterPaused(sc, true)
+        IAlphaToken(alphaToken).setMinterPaused(sc, true)
     → activeSubnetIds.remove(subnetId)                     // Local tracking only; no AWPEmission call
     → status = Banned
     → emit SubnetBanned(subnetId)
@@ -1054,17 +1053,18 @@ Functions:
   unbanSubnet(uint256 subnetId) external onlyTimelock
     → require(status == Banned)
     → require(activeSubnetIds.length() < MAX_ACTIVE_SUBNETS)
-    → address sc = subnets[subnetId].subnetContract
+    → address sc = ISubnetNFT(subnetNFT).subnetManager(subnetId)
+    → address alphaToken = ISubnetNFT(subnetNFT).alphaToken(subnetId)
     → if (sc != address(0)):
-        IAlphaToken(subnets[subnetId].alphaToken).setMinterPaused(sc, false)
+        IAlphaToken(alphaToken).setMinterPaused(sc, false)
     → status = Active
     → activeSubnetIds.add(subnetId)                        // Local tracking only; no AWPEmission call
     → emit SubnetUnbanned(subnetId)
 
   deregisterSubnet(uint256 subnetId) external onlyTimelock
     → require(block.timestamp > immunityEndsAt)
-    → address sc = subnets[subnetId].subnetContract
-    → address alphaToken = subnets[subnetId].alphaToken
+    → address sc = ISubnetNFT(subnetNFT).subnetManager(subnetId)
+    → address alphaToken = ISubnetNFT(subnetNFT).alphaToken(subnetId)
     → if (sc != address(0)):
         IAlphaToken(alphaToken).setMinterPaused(sc, true)
     → activeSubnetIds.remove(subnetId)                     // Local tracking only; no AWPEmission call
@@ -1076,11 +1076,8 @@ Functions:
   //  Subnet Parameters
   // ═══════════════
 
-  // Owner (no metadata stored on-chain; emits event for Indexer to write to DB)
-  updateMetadata(uint256 subnetId, string metadataURI, string coordinatorURL) external
-    → require(ownerOf == msg.sender)
-    → emit MetadataUpdated(subnetId, metadataURI, coordinatorURL)
-  // ⚠️ subnetContract is immutable (permanently locked at registration)
+  // ⚠️ subnetManager is immutable (permanently locked at registration)
+  // skillsURI and minStake are updatable via SubnetNFT (setSkillsURI, setMinStake)
 
   // DAO
   setInitialAlphaPrice(uint256 price) external onlyTimelock
@@ -1132,10 +1129,8 @@ Events:
   // Note: Deposited/Withdrawn/PositionIncreased events now emit from StakeNFT
   // Note: WithdrawRequested/WithdrawCancelled removed (no cooldown in StakeNFT model)
   SubnetRegistered(uint256 indexed subnetId, address indexed owner, string name,
-                   string symbol, string metadataURI, address subnetContract,
-                   address alphaToken, string coordinatorURL)
+                   string symbol, address subnetManager, address alphaToken)
   LPCreated(uint256 indexed subnetId, address pool, uint256 awpAmount, uint256 alphaAmount)
-  MetadataUpdated(uint256 indexed subnetId, string metadataURI, string coordinatorURL)
   SubnetActivated(uint256 indexed subnetId)
   SubnetPaused(uint256 indexed subnetId)
   SubnetResumed(uint256 indexed subnetId)
@@ -1201,7 +1196,7 @@ Different subnet types have different Coordinator logic:
 
 ```
 Step 1:  AWPToken("AWP Token", "AWP", deployer)
-         → constructor mints 5B to deployer
+         → constructor mints 200M to deployer
 Step 2:  (skipped — no AlphaToken impl deployment needed; CREATE2 deploys inline)
 Step 3:  AlphaTokenFactory(deployer, vanityRule)                // vanityRule=0 to disable
 Step 4:  Treasury(172800, [], [address(0)], deployer)
@@ -1209,34 +1204,32 @@ Step 5:  AWPDAO(awpToken, treasury, stakeNFT, ...)  // 6 params, no rootNet
 Step 6:  Treasury.grantRole(PROPOSER+CANCELLER, awpDAO)
 Step 7:  Treasury.renounceRole(ADMIN, deployer)
 Step 8:  RootNet(deployer, treasury, guardian)  // No epochDuration (epoch moved to AWPEmission)
-Step 9:  SubnetNFT("AWP Subnet", "CXSUB", rootNet)
+Step 9:  SubnetNFT("AWP Subnet", "AWPSUB", rootNet)
 Step 10: AccessManager(rootNet)
 Step 11: StakingVault(rootNet, stakeNFT)
 Step 11b: StakeNFT(awpToken, stakingVault, rootNet)
 Step 12: LPManager(rootNet, poolManager, positionManager, awpToken)
 Step 13a: AWPEmission impl = new AWPEmission()                  // 部署实现合约（不初始化）
-Step 13b: initData = AWPEmission.initialize.selector(awpToken, treasury, rootNet,
+Step 13b: initData = AWPEmission.initialize.selector(awpToken, treasury,
                        initialDailyEmission=15_800_000e18, genesisTime_, epochDuration_=86400)
           awpEmission = new ERC1967Proxy(impl, initData)         // 部署 UUPS 代理并初始化
           // Note: oracles and threshold configured post-deploy via AWPEmission.setOracleConfig()
 Step 14: AWPToken.addMinter(awpEmission)                         // 代理地址获得铸币权                        // Emission contract gets mint permission
 Step 15: AWPToken.renounceAdmin()                               // Permanently lock minter list
 Step 16: AlphaTokenFactory.setAddresses(rootNet)
-Step 17: RootNet.initializeRegistry(all addresses, including awpEmission and stakeNFT — 10 addresses total)
+Step 17: RootNet.initializeRegistry(all addresses, including awpEmission and stakeNFT — 9 addresses total)
 
 // After all contracts deployed, deployer distributes non-mining portion via transfer:
-Step 18: AWPToken.transfer(treasury, 2_000_000_000e18)          // 20% DAO Treasury
-Step 19: AWPToken.transfer(teamVesting, 1_000_000_000e18)       // 10% Team
-Step 20: AWPToken.transfer(investorVesting, 750_000_000e18)     // 7.5% Investors
-Step 21: AWPToken.transfer(liquidityPool, 1_000_000_000e18)     // 10% Initial liquidity
-Step 22: AWPToken.transfer(airdrop, 250_000_000e18)             // 2.5% Airdrop
+Step 18: AWPToken.transfer(treasury, 90_000_000e18)             // 0.9% DAO Treasury
+Step 19: AWPToken.transfer(liquidityPool, 10_000_000e18)        // 0.1% Initial liquidity
+Step 20: AWPToken.transfer(airdrop, 100_000_000e18)             // 1.0% Airdrop
 
 // At this point:
 // AWPToken minters = { awpEmission } (sole minter)
 // AWPToken admin = address(0) (permanently locked)
-// AWPToken totalSupply = 5B (deployer has transferred everything out)
-// Remaining 5B minted by AWPEmission via exponential decay (~99% in 4 years)
-// Deployer was never a minter; only received 5B in constructor for distribution via transfer
+// AWPToken totalSupply = 200M (deployer has transferred everything out)
+// Remaining 9.8B minted by AWPEmission via exponential decay (~99% in 4 years)
+// Deployer was never a minter; only received 200M in constructor for distribution via transfer
 ```
 
 ---
@@ -1334,10 +1327,8 @@ CREATE TABLE subnets (
     owner            CHAR(42) NOT NULL,
     name             VARCHAR(64) NOT NULL,
     symbol           VARCHAR(16) NOT NULL,
-    metadata_uri     TEXT,
     governance_weight INTEGER NOT NULL DEFAULT 0,
     subnet_contract  CHAR(42) NOT NULL,
-    coordinator_url  TEXT,
     alpha_token      CHAR(42) NOT NULL,
     lp_pool          CHAR(42),
     status           VARCHAR(16) NOT NULL DEFAULT 'Pending',
@@ -1481,7 +1472,7 @@ func NewRouter(h *handler.Handler, ws *ws.Hub) chi.Router {
             r.Get("/awp", h.GetAWPInfo)
             // Returns: { totalSupply, maxSupply, circulatingSupply, holders }
             r.Get("/alpha/{subnetId}", h.GetAlphaInfo)
-            // Returns: { totalSupply, maxSupply, subnetContract, minterPaused }
+            // Returns: { totalSupply, maxSupply, subnetManager, minterPaused }
             r.Get("/alpha/{subnetId}/price", h.GetAlphaPrice)
             // Returns: { priceInAWP, lpPool, reserve0, reserve1 } (read from PancakeSwap)
         })
@@ -1545,10 +1536,9 @@ func (idx *Indexer) Run(ctx context.Context) error {
 //   Deallocated          → UPDATE stake_allocations SET amount = amount - ? + UPDATE user_balances
 //   Reallocated          → UPDATE stake_allocations for both from/to triples + UPDATE user_balances
 //   (PendingOperationsExecuted removed — no freeze/pending mechanism)
-//   SubnetRegistered     → INSERT subnets (+ name, symbol, metadata_uri, coordinator_url, alpha_token from event)
+//   SubnetRegistered     → INSERT subnets (+ name, symbol, alpha_token from event)
 //                          immunity_ends_at = block.timestamp + RootNet.immunityPeriod()
 //   LPCreated            → UPDATE subnets SET lp_pool
-//   MetadataUpdated      → UPDATE subnets SET metadata_uri, coordinator_url
 //   SubnetActivated      → UPDATE subnets SET status='Active', activated_at
 //   SubnetPaused/Resumed → UPDATE subnets SET status
 //   SubnetBanned/Unbanned → UPDATE subnets SET status
@@ -1704,7 +1694,7 @@ Phase 3 — Frontend (Week 5)
 | Agent self-registration | AccessManager → RootNet | ✅ |
 | User/Agent address mutual exclusion | AccessManager | ✅ |
 | Manager manages Agents + allocation | RootNet + AccessManager | ✅ |
-| Agent removal deallocates stake | StakingVault deallocateAgent | ✅ |
+| Agent removal freezes stake | StakingVault freezeAgentAllocations | ✅ |
 | Staking deposit/withdraw (NFT positions) | StakeNFT (ERC721) | ✅ |
 | Staking allocate/deallocate (immediate) | StakingVault → RootNet | ✅ |
 | Staking reallocate (immediate) | StakingVault → RootNet | ✅ |

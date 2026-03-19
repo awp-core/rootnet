@@ -11,6 +11,7 @@ import (
 
 	"github.com/cortexia/rootnet/api/internal/chain"
 	"github.com/cortexia/rootnet/api/internal/db/gen"
+	"github.com/cortexia/rootnet/api/internal/ratelimit"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -22,11 +23,12 @@ type VanityHandler struct {
 	timeout      time.Duration
 	sem          chan struct{} // concurrency limiter semaphore
 	queries      *gen.Queries  // DB queries (salt pool)
+	limiter      *ratelimit.Limiter
 	logger       *slog.Logger
 }
 
 // NewVanityHandler creates a VanityHandler
-func NewVanityHandler(factoryAddr string, initCodeHash string, rule chain.VanityRule, queries *gen.Queries, logger *slog.Logger) *VanityHandler {
+func NewVanityHandler(factoryAddr string, initCodeHash string, rule chain.VanityRule, queries *gen.Queries, limiter *ratelimit.Limiter, logger *slog.Logger) *VanityHandler {
 	return &VanityHandler{
 		factoryAddr:  factoryAddr,
 		initCodeHash: initCodeHash,
@@ -34,6 +36,7 @@ func NewVanityHandler(factoryAddr string, initCodeHash string, rule chain.Vanity
 		timeout:      120 * time.Second,
 		sem:          make(chan struct{}, 2),
 		queries:      queries,
+		limiter:      limiter,
 		logger:       logger,
 	}
 }
@@ -58,13 +61,21 @@ type computeSaltResponse struct {
 // ComputeSalt POST /api/vanity/compute-salt — get a salt matching the vanityRule
 // Tries DB salt pool first; falls back to cast create2 live mining if pool is empty
 func (vh *VanityHandler) ComputeSalt(w http.ResponseWriter, r *http.Request) {
+	// Rate limit (hot-updatable via Redis: HSET ratelimit:config compute_salt "20:3600")
+	ip := ratelimit.GetClientIP(r)
+	exceeded, _ := vh.limiter.CheckIP(r.Context(), "compute_salt", ip)
+	if exceeded {
+		vh.writeError(w, http.StatusTooManyRequests, vh.limiter.FormatError(r.Context(), "compute_salt"))
+		return
+	}
+	defer vh.limiter.RecordSuccess("compute_salt", ip)
+
 	start := time.Now()
 	ctx := r.Context()
 
-	// 1. Get a random available salt from DB pool (not marked used — Indexer marks via SubnetRegistered event)
-	// Frontend can cache multiple salts to reduce collision probability
+	// 1. Claim a salt from DB pool (atomic UPDATE+RETURNING with FOR UPDATE SKIP LOCKED)
 	if vh.queries != nil {
-		row, err := vh.queries.GetRandomAvailableSalt(ctx)
+		row, err := vh.queries.ClaimRandomSalt(ctx)
 		if err == nil {
 			vh.writeJSON(w, http.StatusOK, computeSaltResponse{
 				Salt:    row.Salt,

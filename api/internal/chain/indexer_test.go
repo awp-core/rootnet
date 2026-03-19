@@ -491,9 +491,8 @@ func TestIndexerScenario_SubnetRegistered(t *testing.T) {
 		Owner:          "0xaaaa000000000000000000000000000000000001",
 		Name:           "TestSubnet",
 		Symbol:         "TST",
-		MetadataUri:    pgtype.Text{String: "https://example.com/meta.json", Valid: true},
 		SubnetContract: "0xbbbb000000000000000000000000000000000001",
-		CoordinatorUrl: pgtype.Text{String: "https://coordinator.example.com", Valid: true},
+		MinStake:       pgtype.Numeric{Int: big.NewInt(0), Exp: 0, Valid: true},
 		AlphaToken:     "0xcccc000000000000000000000000000000000001",
 		LpPool:         pgtype.Text{Valid: false},
 		CreatedAt:      200,
@@ -520,9 +519,6 @@ func TestIndexerScenario_SubnetRegistered(t *testing.T) {
 	if subnet.Status != "Pending" {
 		t.Fatalf("newly registered subnet should have Pending status, got: %s", subnet.Status)
 	}
-	if !subnet.MetadataUri.Valid || subnet.MetadataUri.String != "https://example.com/meta.json" {
-		t.Fatalf("MetadataUri mismatch: %v", subnet.MetadataUri)
-	}
 	if subnet.LpPool.Valid {
 		t.Fatal("newly registered subnet LpPool should be NULL")
 	}
@@ -541,9 +537,8 @@ func TestIndexerScenario_SubnetLifecycle(t *testing.T) {
 		Owner:          "0xaaaa000000000000000000000000000000000010",
 		Name:           "LifecycleNet",
 		Symbol:         "LCN",
-		MetadataUri:    pgtype.Text{Valid: false},
 		SubnetContract: "0xbbbb000000000000000000000000000000000010",
-		CoordinatorUrl: pgtype.Text{Valid: false},
+		MinStake:       pgtype.Numeric{Int: big.NewInt(0), Exp: 0, Valid: true},
 		AlphaToken:     "0xcccc000000000000000000000000000000000010",
 		LpPool:         pgtype.Text{Valid: false},
 		CreatedAt:      300,
@@ -653,7 +648,7 @@ func TestIndexerScenario_SubnetLifecycle(t *testing.T) {
 	}
 }
 
-func TestIndexerScenario_SubnetLPAndMetadata(t *testing.T) {
+func TestIndexerScenario_SubnetLP(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 
@@ -663,9 +658,8 @@ func TestIndexerScenario_SubnetLPAndMetadata(t *testing.T) {
 		Owner:          "0xaaaa000000000000000000000000000000000020",
 		Name:           "LPTestNet",
 		Symbol:         "LPT",
-		MetadataUri:    pgtype.Text{Valid: false},
 		SubnetContract: "0xbbbb000000000000000000000000000000000020",
-		CoordinatorUrl: pgtype.Text{Valid: false},
+		MinStake:       pgtype.Numeric{Int: big.NewInt(0), Exp: 0, Valid: true},
 		AlphaToken:     "0xcccc000000000000000000000000000000000020",
 		LpPool:         pgtype.Text{Valid: false},
 		CreatedAt:      400,
@@ -688,27 +682,6 @@ func TestIndexerScenario_SubnetLPAndMetadata(t *testing.T) {
 	}
 	if !subnet.LpPool.Valid || subnet.LpPool.String != lpPoolAddr {
 		t.Fatalf("LpPool mismatch: %v", subnet.LpPool)
-	}
-
-	// Simulate MetadataUpdated event
-	err = db.q.UpdateSubnetMetadata(ctx, gen.UpdateSubnetMetadataParams{
-		SubnetID:       20,
-		MetadataUri:    pgtype.Text{String: "ipfs://newmeta", Valid: true},
-		CoordinatorUrl: pgtype.Text{String: "https://new-coord.example.com", Valid: true},
-	})
-	if err != nil {
-		t.Fatalf("UpdateSubnetMetadata failed: %v", err)
-	}
-
-	subnet, err = db.q.GetSubnet(ctx, 20)
-	if err != nil {
-		t.Fatalf("GetSubnet failed: %v", err)
-	}
-	if subnet.MetadataUri.String != "ipfs://newmeta" {
-		t.Fatalf("MetadataUri mismatch: %s", subnet.MetadataUri.String)
-	}
-	if subnet.CoordinatorUrl.String != "https://new-coord.example.com" {
-		t.Fatalf("CoordinatorUrl mismatch: %s", subnet.CoordinatorUrl.String)
 	}
 }
 

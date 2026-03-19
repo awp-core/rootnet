@@ -10,6 +10,7 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/ut
 import {IERC1363Receiver} from "../interfaces/IERC1363Receiver.sol";
 import {LiquidityAmounts} from "infinity-periphery/src/pool-cl/libraries/LiquidityAmounts.sol";
 import {TickMath} from "infinity-core/src/pool-cl/libraries/TickMath.sol";
+import {FullMath} from "infinity-core/src/pool-cl/libraries/FullMath.sol";
 
 interface IAlphaToken {
     function mint(address to, uint256 amount) external;
@@ -67,6 +68,7 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
     uint24 public constant POOL_FEE = 10000;
     int24 public constant TICK_SPACING = 200;
     int24 public constant MIN_TICK = -887200;
+    int24 public constant MAX_TICK = 887200;
 
     // ── Action codes ──
     uint8 private constant ACT_CL_MINT_POSITION = 0x02;
@@ -84,6 +86,9 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
 
     mapping(uint32 => bytes32) public merkleRoots;
     mapping(uint32 => mapping(address => bool)) public claimed;
+
+    /// @dev Reserved storage gap for future upgrades
+    uint256[44] private __gap;
 
     event MerkleRootSet(uint32 indexed epoch, bytes32 merkleRoot);
     event Claimed(uint32 indexed epoch, address indexed account, uint256 amount);
@@ -222,11 +227,24 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
     function _addSingleSidedLiquidity(uint256 amount) internal {
         (, int24 currentTick,,) = ICLPoolManager(CL_POOL_MANAGER).getSlot0(poolId);
 
-        int24 tickUpper = (currentTick / TICK_SPACING) * TICK_SPACING;
-        if (tickUpper >= currentTick) tickUpper -= TICK_SPACING;
-        int24 tickLower = MIN_TICK;
+        // Floor-align currentTick to TICK_SPACING
+        int24 aligned = (currentTick / TICK_SPACING) * TICK_SPACING;
+        if (aligned > currentTick) aligned -= TICK_SPACING;
 
         bool awpIs0 = address(awpToken) < address(alphaToken);
+
+        int24 tickLower;
+        int24 tickUpper;
+        if (awpIs0) {
+            // AWP is token0: single-sided deposit requires range ABOVE current price
+            tickLower = aligned + TICK_SPACING;
+            tickUpper = MAX_TICK;
+        } else {
+            // AWP is token1: single-sided deposit requires range BELOW current price
+            tickUpper = aligned < currentTick ? aligned : aligned - TICK_SPACING;
+            tickLower = MIN_TICK;
+        }
+
         uint160 sqrtLower = TickMath.getSqrtRatioAtTick(tickLower);
         uint160 sqrtUpper = TickMath.getSqrtRatioAtTick(tickUpper);
 
@@ -262,9 +280,21 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
 
         bool zeroForOne = address(awpToken) < address(alphaToken);
 
+        // Read current pool price for slippage protection
+        (uint160 sqrtPriceX96,,,) = ICLPoolManager(CL_POOL_MANAGER).getSlot0(poolId);
+        uint256 expectedOut;
+        if (zeroForOne) {
+            // Selling token0 for token1: expectedOut = amount * sqrtPrice^2 / 2^192
+            expectedOut = FullMath.mulDiv(amount, uint256(sqrtPriceX96) * uint256(sqrtPriceX96), 1 << 192);
+        } else {
+            // Selling token1 for token0: expectedOut = amount * 2^192 / sqrtPrice^2
+            expectedOut = FullMath.mulDiv(amount, 1 << 192, uint256(sqrtPriceX96) * uint256(sqrtPriceX96));
+        }
+        uint128 minOut = uint128(expectedOut * 95 / 100); // 5% slippage tolerance
+
         bytes memory actions = abi.encodePacked(ACT_CL_SWAP_EXACT_IN_SINGLE, ACT_SETTLE_ALL, ACT_TAKE_ALL);
         bytes[] memory params = new bytes[](3);
-        params[0] = abi.encode(poolKey, zeroForOne, uint128(amount), uint128(0), bytes(""));
+        params[0] = abi.encode(poolKey, zeroForOne, uint128(amount), minOut, bytes(""));
         params[1] = abi.encode(address(awpToken), amount);
         params[2] = abi.encode(address(alphaToken), 0);
 
