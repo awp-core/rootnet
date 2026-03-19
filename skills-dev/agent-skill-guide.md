@@ -271,7 +271,7 @@ When registering or updating your subnet, include the URL:
 
 ```javascript
 // At registration
-await rootNet.registerSubnet({
+await awpRegistry.registerSubnet({
   name: "MyProject",
   symbol: "MYP",
   subnetManager: "0x...",

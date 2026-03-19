@@ -6,8 +6,8 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 /// @title SubnetNFT — Subnet NFT with on-chain metadata
 /// @notice Each subnet = one NFT. Carries immutable identity (name, subnetManager, alphaToken)
-///         plus owner-updatable fields (skillsURI, minStake). Status/lifecycle managed by RootNet.
-/// @dev tokenId = subnetId, assigned by RootNet's _nextSubnetId++.
+///         plus owner-updatable fields (skillsURI, minStake). Status/lifecycle managed by AWPRegistry.
+/// @dev tokenId = subnetId, assigned by AWPRegistry's _nextSubnetId++.
 contract SubnetNFT is ERC721 {
     using Strings for uint256;
 
@@ -34,8 +34,8 @@ contract SubnetNFT is ERC721 {
         address owner;
     }
 
-    /// @notice RootNet contract address (immutable)
-    address public immutable rootNet;
+    /// @notice AWPRegistry contract address (immutable)
+    address public immutable awpRegistry;
 
     /// @dev NFT metadata base URI
     string private _baseTokenURI;
@@ -46,27 +46,27 @@ contract SubnetNFT is ERC721 {
     /// @dev tokenId => owner-updatable metadata
     mapping(uint256 => SubnetMeta) private _meta;
 
-    error NotRootNet();
+    error NotAWPRegistry();
     error NotTokenOwner();
     error TokenNotExist();
 
     event SkillsURIUpdated(uint256 indexed tokenId, string skillsURI);
     event MinStakeUpdated(uint256 indexed tokenId, uint128 minStake);
 
-    modifier onlyRootNet() {
-        if (msg.sender != rootNet) revert NotRootNet();
+    modifier onlyAWPRegistry() {
+        if (msg.sender != awpRegistry) revert NotAWPRegistry();
         _;
     }
 
-    constructor(string memory name_, string memory symbol_, address rootNet_) ERC721(name_, symbol_) {
-        rootNet = rootNet_;
+    constructor(string memory name_, string memory symbol_, address awpRegistry_) ERC721(name_, symbol_) {
+        awpRegistry = awpRegistry_;
     }
 
     // ═══════════════════════════════════════════════
-    // ── RootNet-only writes ──
+    // ── AWPRegistry-only writes ──
     // ═══════════════════════════════════════════════
 
-    /// @notice Mint subnet NFT with identity data + initial metadata (called by RootNet during registerSubnet)
+    /// @notice Mint subnet NFT with identity data + initial metadata (called by AWPRegistry during registerSubnet)
     function mint(
         address to,
         uint256 tokenId,
@@ -75,7 +75,7 @@ contract SubnetNFT is ERC721 {
         address alphaToken_,
         uint128 minStake_,
         string calldata skillsURI_
-    ) external onlyRootNet {
+    ) external onlyAWPRegistry {
         _mint(to, tokenId);
         _identity[tokenId] = SubnetIdentity({
             name: name_,
@@ -92,15 +92,15 @@ contract SubnetNFT is ERC721 {
         }
     }
 
-    /// @notice Burn subnet NFT (called by RootNet on deregister)
-    function burn(uint256 tokenId) external onlyRootNet {
+    /// @notice Burn subnet NFT (called by AWPRegistry on deregister)
+    function burn(uint256 tokenId) external onlyAWPRegistry {
         _burn(tokenId);
         delete _identity[tokenId];
         delete _meta[tokenId];
     }
 
     /// @notice Set the base URI for NFT metadata
-    function setBaseURI(string memory uri) external onlyRootNet {
+    function setBaseURI(string memory uri) external onlyAWPRegistry {
         _baseTokenURI = uri;
     }
 

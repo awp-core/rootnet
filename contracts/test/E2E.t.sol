@@ -29,7 +29,7 @@ contract E2ETest is EmissionSigningHelper {
     StakeNFT stakeNFT;
     SubnetNFT nft;
     MockLPManager lp;
-    AWPRegistry rootNet;
+    AWPRegistry awpRegistry;
     Treasury treasury;
     AWPDAO dao;
 
@@ -75,9 +75,9 @@ contract E2ETest is EmissionSigningHelper {
         e[0] = address(0);
         treasury = new Treasury(1, p, e, deployer);
 
-        rootNet = new AWPRegistry(deployer, address(treasury), guardian);
-        nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(rootNet));
-        lp = new MockLPManager(address(rootNet), address(awp));
+        awpRegistry = new AWPRegistry(deployer, address(treasury), guardian);
+        nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(awpRegistry));
+        lp = new MockLPManager(address(awpRegistry), address(awp));
 
         // Deploy AWPEmission (UUPS proxy)
         AWPEmission emissionImpl = new AWPEmission();
@@ -90,11 +90,11 @@ contract E2ETest is EmissionSigningHelper {
 
         awp.addMinter(address(emission));
         awp.renounceAdmin();
-        factory.setAddresses(address(rootNet));
+        factory.setAddresses(address(awpRegistry));
 
         // Deploy StakingVault + StakeNFT
-        vault = new StakingVault(address(rootNet));
-        stakeNFT = new StakeNFT(address(awp), address(vault), address(rootNet));
+        vault = new StakingVault(address(awpRegistry));
+        stakeNFT = new StakeNFT(address(awp), address(vault), address(awpRegistry));
 
         // Deploy AWPDAO
         dao = new AWPDAO(
@@ -110,7 +110,7 @@ contract E2ETest is EmissionSigningHelper {
         treasury.renounceRole(treasury.DEFAULT_ADMIN_ROLE(), deployer);
 
         // Initialize registry (no accessManager)
-        rootNet.initializeRegistry(
+        awpRegistry.initializeRegistry(
             address(awp), address(nft), address(factory), address(emission),
             address(lp), address(vault), address(stakeNFT), address(0), ""
         );
@@ -143,32 +143,32 @@ contract E2ETest is EmissionSigningHelper {
 
     function _registerUser(address user) internal {
         vm.prank(user);
-        rootNet.register();
+        awpRegistry.register();
     }
 
     function _bindAgent(address agent, address target) internal {
         vm.prank(agent);
-        rootNet.bind(target);
+        awpRegistry.bind(target);
     }
 
     function _registerSubnet(address owner, address sc) internal returns (uint256) {
         vm.startPrank(owner);
-        awp.approve(address(rootNet), LP_COST);
-        uint256 id = rootNet.registerSubnet(
+        awp.approve(address(awpRegistry), LP_COST);
+        uint256 id = awpRegistry.registerSubnet(
             IAWPRegistry.SubnetParams("Subnet", "SUB", sc, bytes32(0), 0, "")
         );
         vm.stopPrank();
         return id;
     }
 
-    /// @dev Deposit AWP via StakeNFT and allocate via RootNet (explicit staker)
+    /// @dev Deposit AWP via StakeNFT and allocate via AWPRegistry (explicit staker)
     function _depositAndAllocate(address staker, address agent, uint256 subnetId, uint256 deposit, uint256 alloc)
         internal
     {
         vm.startPrank(staker);
         awp.approve(address(stakeNFT), deposit);
         stakeNFT.deposit(deposit, 52 weeks);
-        rootNet.allocate(staker, agent, subnetId, alloc);
+        awpRegistry.allocate(staker, agent, subnetId, alloc);
         vm.stopPrank();
     }
 
@@ -216,7 +216,7 @@ contract E2ETest is EmissionSigningHelper {
         uint256 sid = _registerSubnet(alice, subnetC1);
 
         vm.prank(alice);
-        rootNet.activateSubnet(sid);
+        awpRegistry.activateSubnet(sid);
 
         vm.prank(alice);
         nft.transferFrom(alice, bob, sid);
@@ -224,15 +224,15 @@ contract E2ETest is EmissionSigningHelper {
 
         vm.prank(alice);
         vm.expectRevert(AWPRegistry.NotOwner.selector);
-        rootNet.pauseSubnet(sid);
+        awpRegistry.pauseSubnet(sid);
 
         vm.prank(bob);
-        rootNet.pauseSubnet(sid);
-        assertFalse(rootNet.isSubnetActive(sid));
+        awpRegistry.pauseSubnet(sid);
+        assertFalse(awpRegistry.isSubnetActive(sid));
 
         vm.prank(bob);
-        rootNet.resumeSubnet(sid);
-        assertTrue(rootNet.isSubnetActive(sid));
+        awpRegistry.resumeSubnet(sid);
+        assertTrue(awpRegistry.isSubnetActive(sid));
     }
 
     // ════════════════════════════════════════════
@@ -245,13 +245,13 @@ contract E2ETest is EmissionSigningHelper {
         _bindAgent(agentB, alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
-        rootNet.activateSubnet(sid);
+        awpRegistry.activateSubnet(sid);
 
         _depositAndAllocate(alice, agentA, sid, 10_000 * 1e18, 8_000 * 1e18);
 
         // Reallocate 5000 from agentA -> agentB (immediate)
         vm.prank(alice);
-        rootNet.reallocate(alice, agentA, sid, agentB, sid, 5_000 * 1e18);
+        awpRegistry.reallocate(alice, agentA, sid, agentB, sid, 5_000 * 1e18);
 
         assertEq(vault.getAgentStake(alice, agentA, sid), 3_000 * 1e18);
         assertEq(vault.getAgentStake(alice, agentB, sid), 5_000 * 1e18);
@@ -267,37 +267,37 @@ contract E2ETest is EmissionSigningHelper {
         uint256 sid = _registerSubnet(alice, subnetC1);
 
         vm.prank(alice);
-        rootNet.activateSubnet(sid);
-        assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
+        awpRegistry.activateSubnet(sid);
+        assertEq(uint256(awpRegistry.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
 
         vm.prank(alice);
-        rootNet.pauseSubnet(sid);
-        assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Paused));
+        awpRegistry.pauseSubnet(sid);
+        assertEq(uint256(awpRegistry.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Paused));
 
         vm.prank(alice);
-        rootNet.resumeSubnet(sid);
-        assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
+        awpRegistry.resumeSubnet(sid);
+        assertEq(uint256(awpRegistry.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
 
         vm.prank(address(treasury));
-        rootNet.banSubnet(sid);
-        assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Banned));
+        awpRegistry.banSubnet(sid);
+        assertEq(uint256(awpRegistry.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Banned));
 
-        AlphaToken alpha = AlphaToken(rootNet.getSubnetFull(sid).alphaToken);
+        AlphaToken alpha = AlphaToken(awpRegistry.getSubnetFull(sid).alphaToken);
         assertTrue(alpha.minterPaused(subnetC1));
 
         vm.prank(address(treasury));
-        rootNet.unbanSubnet(sid);
-        assertEq(uint256(rootNet.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
+        awpRegistry.unbanSubnet(sid);
+        assertEq(uint256(awpRegistry.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
         assertFalse(alpha.minterPaused(subnetC1));
 
         vm.warp(block.timestamp + 31 days);
         vm.prank(address(treasury));
-        rootNet.deregisterSubnet(sid);
+        awpRegistry.deregisterSubnet(sid);
 
         vm.expectRevert();
         nft.ownerOf(sid);
         vm.expectRevert();
-        rootNet.getSubnetFull(sid);
+        awpRegistry.getSubnetFull(sid);
     }
 
     // ════════════════════════════════════════════
@@ -308,7 +308,7 @@ contract E2ETest is EmissionSigningHelper {
         _registerUser(alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
-        rootNet.activateSubnet(sid);
+        awpRegistry.activateSubnet(sid);
 
         uint256 stakeAmount = 40_000_000 * 1e18;
         vm.startPrank(alice);
@@ -359,7 +359,7 @@ contract E2ETest is EmissionSigningHelper {
         _registerUser(alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
-        rootNet.activateSubnet(sid);
+        awpRegistry.activateSubnet(sid);
 
         _submitWeight(subnetC1, uint96(100));
 
@@ -392,8 +392,8 @@ contract E2ETest is EmissionSigningHelper {
         uint256 sid1 = _registerSubnet(alice, subnetC1);
         uint256 sid2 = _registerSubnet(alice, subnetC2);
         vm.startPrank(alice);
-        rootNet.activateSubnet(sid1);
-        rootNet.activateSubnet(sid2);
+        awpRegistry.activateSubnet(sid1);
+        awpRegistry.activateSubnet(sid2);
         vm.stopPrank();
 
         {
@@ -430,13 +430,13 @@ contract E2ETest is EmissionSigningHelper {
         _bindAgent(agentA, alice);
         _bindAgent(agentB, agentA);
 
-        assertEq(rootNet.boundTo(agentA), alice);
-        assertEq(rootNet.boundTo(agentB), agentA);
+        assertEq(awpRegistry.boundTo(agentA), alice);
+        assertEq(awpRegistry.boundTo(agentB), agentA);
 
         // resolveRecipient should walk to alice
         vm.prank(alice);
-        rootNet.setRecipient(charlie);
-        assertEq(rootNet.resolveRecipient(agentB), charlie);
+        awpRegistry.setRecipient(charlie);
+        assertEq(awpRegistry.resolveRecipient(agentB), charlie);
     }
 
     // ════════════════════════════════════════════
@@ -447,7 +447,7 @@ contract E2ETest is EmissionSigningHelper {
         _registerUser(alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
-        rootNet.activateSubnet(sid);
+        awpRegistry.activateSubnet(sid);
         _submitWeight(subnetC1, uint96(100));
 
         _settleEpoch();
@@ -468,8 +468,8 @@ contract E2ETest is EmissionSigningHelper {
         uint256 sid = _registerSubnet(alice, subnetC1);
         uint256 sid2 = _registerSubnet(alice, subnetC2);
         vm.startPrank(alice);
-        rootNet.activateSubnet(sid);
-        rootNet.activateSubnet(sid2);
+        awpRegistry.activateSubnet(sid);
+        awpRegistry.activateSubnet(sid2);
         vm.stopPrank();
 
         {
@@ -493,8 +493,8 @@ contract E2ETest is EmissionSigningHelper {
 
         uint256 sid3 = _registerSubnet(alice, subnetC3);
         vm.prank(alice);
-        rootNet.activateSubnet(sid3);
-        assertTrue(rootNet.isSubnetActive(sid3));
+        awpRegistry.activateSubnet(sid3);
+        assertTrue(awpRegistry.isSubnetActive(sid3));
     }
 
     // ════════════════════════════════════════════
@@ -505,13 +505,13 @@ contract E2ETest is EmissionSigningHelper {
         _registerUser(alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
-        rootNet.activateSubnet(sid);
+        awpRegistry.activateSubnet(sid);
 
         _depositAndAllocate(alice, agentA, sid, 10_000 * 1e18, 5_000 * 1e18);
 
         // Deallocate all
         vm.prank(alice);
-        rootNet.deallocate(alice, agentA, sid, 5_000 * 1e18);
+        awpRegistry.deallocate(alice, agentA, sid, 5_000 * 1e18);
 
         assertEq(vault.getAgentStake(alice, agentA, sid), 0);
         assertEq(vault.userTotalAllocated(alice), 0);
@@ -525,12 +525,12 @@ contract E2ETest is EmissionSigningHelper {
         _registerUser(alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
-        rootNet.activateSubnet(sid);
+        awpRegistry.activateSubnet(sid);
 
         vm.startPrank(bob);
         awp.approve(address(stakeNFT), 20_000 * 1e18);
         stakeNFT.deposit(20_000 * 1e18, 52 weeks);
-        rootNet.allocate(bob, agentB, sid, 15_000 * 1e18);
+        awpRegistry.allocate(bob, agentB, sid, 15_000 * 1e18);
         vm.stopPrank();
 
         assertEq(stakeNFT.getUserTotalStaked(bob), 20_000 * 1e18);
@@ -546,16 +546,16 @@ contract E2ETest is EmissionSigningHelper {
         _bindAgent(agentA, alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
-        rootNet.activateSubnet(sid);
+        awpRegistry.activateSubnet(sid);
 
-        assertEq(rootNet.resolveRecipient(alice), alice);
+        assertEq(awpRegistry.resolveRecipient(alice), alice);
 
         vm.prank(alice);
-        rootNet.setRecipient(bob);
-        assertEq(rootNet.resolveRecipient(alice), bob);
+        awpRegistry.setRecipient(bob);
+        assertEq(awpRegistry.resolveRecipient(alice), bob);
 
         _depositAndAllocate(alice, agentA, sid, 1_000 * 1e18, 500 * 1e18);
-        AWPRegistry.AgentInfo memory info = rootNet.getAgentInfo(agentA, sid);
+        AWPRegistry.AgentInfo memory info = awpRegistry.getAgentInfo(agentA, sid);
         assertEq(info.rewardRecipient, bob);
     }
 
@@ -570,8 +570,8 @@ contract E2ETest is EmissionSigningHelper {
         uint256 sid1 = _registerSubnet(alice, subnetC1);
         uint256 sid2 = _registerSubnet(alice, subnetC2);
         vm.startPrank(alice);
-        rootNet.activateSubnet(sid1);
-        rootNet.activateSubnet(sid2);
+        awpRegistry.activateSubnet(sid1);
+        awpRegistry.activateSubnet(sid2);
         vm.stopPrank();
 
         {
@@ -595,7 +595,7 @@ contract E2ETest is EmissionSigningHelper {
 
         // Alice deallocates
         vm.prank(alice);
-        rootNet.deallocate(alice, agentA, sid1, 3_000 * 1e18);
+        awpRegistry.deallocate(alice, agentA, sid1, 3_000 * 1e18);
 
         _submitWeights(
             _toArray2(subnetC1, subnetC2),
@@ -605,7 +605,7 @@ contract E2ETest is EmissionSigningHelper {
 
         // Bob deallocates
         vm.prank(bob);
-        rootNet.deallocate(bob, agentB, sid2, 5_000 * 1e18);
+        awpRegistry.deallocate(bob, agentB, sid2, 5_000 * 1e18);
 
         _submitWeights(
             _toArray2(subnetC1, subnetC2),
@@ -624,15 +624,15 @@ contract E2ETest is EmissionSigningHelper {
 
     function test_e2e_agentUnbind() public {
         _bindAgent(agentA, alice);
-        assertEq(rootNet.boundTo(agentA), alice);
+        assertEq(awpRegistry.boundTo(agentA), alice);
 
         vm.prank(agentA);
-        rootNet.unbind();
-        assertEq(rootNet.boundTo(agentA), address(0));
+        awpRegistry.unbind();
+        assertEq(awpRegistry.boundTo(agentA), address(0));
 
         // agentA can re-bind
         _bindAgent(agentA, alice);
-        assertEq(rootNet.boundTo(agentA), alice);
+        assertEq(awpRegistry.boundTo(agentA), alice);
     }
 
     // ════════════════════════════════════════════
@@ -643,8 +643,8 @@ contract E2ETest is EmissionSigningHelper {
         _registerUser(alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
 
-        AlphaToken alpha = AlphaToken(rootNet.getSubnetFull(sid).alphaToken);
-        assertFalse(alpha.minters(address(rootNet)));
+        AlphaToken alpha = AlphaToken(awpRegistry.getSubnetFull(sid).alphaToken);
+        assertFalse(alpha.minters(address(awpRegistry)));
         assertTrue(alpha.mintersLocked());
 
         vm.warp(block.timestamp + 10 days);
@@ -653,16 +653,16 @@ contract E2ETest is EmissionSigningHelper {
         assertEq(alpha.balanceOf(alice), 1_000_000 * 1e18);
 
         vm.prank(alice);
-        rootNet.activateSubnet(sid);
+        awpRegistry.activateSubnet(sid);
         vm.prank(address(treasury));
-        rootNet.banSubnet(sid);
+        awpRegistry.banSubnet(sid);
 
         vm.prank(subnetC1);
         vm.expectRevert(AlphaToken.MinterPaused.selector);
         alpha.mint(alice, 100);
 
         vm.prank(address(treasury));
-        rootNet.unbanSubnet(sid);
+        awpRegistry.unbanSubnet(sid);
         vm.warp(block.timestamp + 1 days);
         vm.prank(subnetC1);
         alpha.mint(alice, 500_000 * 1e18);
@@ -677,22 +677,22 @@ contract E2ETest is EmissionSigningHelper {
         _registerUser(alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
-        rootNet.activateSubnet(sid);
+        awpRegistry.activateSubnet(sid);
         _depositAndAllocate(alice, agentA, sid, 10_000 * 1e18, 5_000 * 1e18);
 
         vm.prank(guardian);
-        rootNet.pause();
+        awpRegistry.pause();
 
         // User operations blocked
         vm.startPrank(alice);
         vm.expectRevert();
-        rootNet.register();
+        awpRegistry.register();
         vm.expectRevert();
-        rootNet.allocate(alice, agentA, sid, 100);
+        awpRegistry.allocate(alice, agentA, sid, 100);
         vm.expectRevert();
-        rootNet.deallocate(alice, agentA, sid, 100);
+        awpRegistry.deallocate(alice, agentA, sid, 100);
         vm.expectRevert();
-        rootNet.activateSubnet(sid);
+        awpRegistry.activateSubnet(sid);
         vm.stopPrank();
 
         // Emission unaffected
@@ -702,10 +702,10 @@ contract E2ETest is EmissionSigningHelper {
 
         // Unpause
         vm.prank(address(treasury));
-        rootNet.unpause();
+        awpRegistry.unpause();
 
         vm.prank(alice);
-        rootNet.deallocate(alice, agentA, sid, 1_000 * 1e18);
+        awpRegistry.deallocate(alice, agentA, sid, 1_000 * 1e18);
         assertEq(vault.getAgentStake(alice, agentA, sid), 4_000 * 1e18);
     }
 
@@ -721,20 +721,20 @@ contract E2ETest is EmissionSigningHelper {
 
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
-        rootNet.activateSubnet(sid);
+        awpRegistry.activateSubnet(sid);
 
         _depositAndAllocate(alice, agentA, sid, 5_000 * 1e18, 3_000 * 1e18);
         _depositAndAllocate(bob, agentB, sid, 2_000 * 1e18, 2_000 * 1e18);
 
         vm.prank(alice);
-        rootNet.setRecipient(charlie);
+        awpRegistry.setRecipient(charlie);
 
         address[] memory agents = new address[](3);
         agents[0] = agentA;
         agents[1] = agentB;
         agents[2] = address(0x9999);
 
-        AWPRegistry.AgentInfo[] memory infos = rootNet.getAgentsInfo(agents, sid);
+        AWPRegistry.AgentInfo[] memory infos = awpRegistry.getAgentsInfo(agents, sid);
 
         assertEq(infos.length, 3);
         assertEq(infos[0].root, alice);
@@ -759,7 +759,7 @@ contract E2ETest is EmissionSigningHelper {
         (address agent, uint256 agentPk) = makeAddrAndKey("gaslessAgent");
 
         uint256 deadline = block.timestamp + 1 hours;
-        uint256 nonce = rootNet.nonces(agent);
+        uint256 nonce = awpRegistry.nonces(agent);
 
         bytes32 structHash = keccak256(abi.encode(
             keccak256("Bind(address agent,address target,uint256 nonce,uint256 deadline)"),
@@ -770,9 +770,9 @@ contract E2ETest is EmissionSigningHelper {
 
         address relayer = address(0x9999);
         vm.prank(relayer);
-        rootNet.bindFor(agent, alice, deadline, v, r, s);
+        awpRegistry.bindFor(agent, alice, deadline, v, r, s);
 
-        assertEq(rootNet.boundTo(agent), alice);
+        assertEq(awpRegistry.boundTo(agent), alice);
     }
 
     // ════════════════════════════════════════════
@@ -791,7 +791,7 @@ contract E2ETest is EmissionSigningHelper {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(agentPk, digest);
 
         vm.expectRevert(AWPRegistry.ExpiredSignature.selector);
-        rootNet.bindFor(agent, alice, deadline, v, r, s);
+        awpRegistry.bindFor(agent, alice, deadline, v, r, s);
     }
 
     // ════════════════════════════════════════════
@@ -805,8 +805,8 @@ contract E2ETest is EmissionSigningHelper {
         uint256 sid1 = _registerSubnet(alice, subnetC1);
         uint256 sid2 = _registerSubnet(alice, subnetC2);
         vm.startPrank(alice);
-        rootNet.activateSubnet(sid1);
-        rootNet.activateSubnet(sid2);
+        awpRegistry.activateSubnet(sid1);
+        awpRegistry.activateSubnet(sid2);
         vm.stopPrank();
 
         _depositAndAllocate(alice, agentA, sid1, 1_000 * 1e18, 500 * 1e18);
@@ -814,9 +814,9 @@ contract E2ETest is EmissionSigningHelper {
 
         // Reallocate
         vm.prank(alice);
-        rootNet.reallocate(alice, agentA, sid1, agentA, sid2, 200 * 1e18);
+        awpRegistry.reallocate(alice, agentA, sid1, agentA, sid2, 200 * 1e18);
         vm.prank(bob);
-        rootNet.reallocate(bob, agentB, sid1, agentB, sid2, 100 * 1e18);
+        awpRegistry.reallocate(bob, agentB, sid1, agentB, sid2, 100 * 1e18);
 
         assertEq(vault.getAgentStake(alice, agentA, sid1), 300 * 1e18);
         assertEq(vault.getAgentStake(alice, agentA, sid2), 200 * 1e18);
@@ -843,12 +843,12 @@ contract E2ETest is EmissionSigningHelper {
         ];
 
         vm.startPrank(alice);
-        awp.approve(address(rootNet), LP_COST * 5);
+        awp.approve(address(awpRegistry), LP_COST * 5);
         for (uint256 i = 0; i < 5; i++) {
-            rootNet.registerSubnet(
+            awpRegistry.registerSubnet(
                 IAWPRegistry.SubnetParams("S", "S", scs[i], bytes32(0), 0, "")
             );
-            rootNet.activateSubnet(i + 1);
+            awpRegistry.activateSubnet(i + 1);
         }
         vm.stopPrank();
 
@@ -878,27 +878,27 @@ contract E2ETest is EmissionSigningHelper {
         _registerUser(alice);
         uint256 sid = _registerSubnet(alice, subnetC1);
         vm.prank(alice);
-        rootNet.activateSubnet(sid);
+        awpRegistry.activateSubnet(sid);
 
         _depositAndAllocate(alice, agentA, sid, 10_000 * 1e18, 5_000 * 1e18);
 
         // Grant delegate to bob
         vm.prank(alice);
-        rootNet.grantDelegate(bob);
+        awpRegistry.grantDelegate(bob);
 
         // Bob can deallocate on behalf of alice
         vm.prank(bob);
-        rootNet.deallocate(alice, agentA, sid, 2_000 * 1e18);
+        awpRegistry.deallocate(alice, agentA, sid, 2_000 * 1e18);
         assertEq(vault.getAgentStake(alice, agentA, sid), 3_000 * 1e18);
 
         // Revoke delegation
         vm.prank(alice);
-        rootNet.revokeDelegate(bob);
+        awpRegistry.revokeDelegate(bob);
 
         // Bob can no longer operate
         vm.prank(bob);
         vm.expectRevert(AWPRegistry.NotAuthorized.selector);
-        rootNet.deallocate(alice, agentA, sid, 1_000 * 1e18);
+        awpRegistry.deallocate(alice, agentA, sid, 1_000 * 1e18);
     }
 
     // ── EIP-712 helpers ──
@@ -910,7 +910,7 @@ contract E2ETest is EmissionSigningHelper {
                 keccak256("AWPRegistry"),
                 keccak256("1"),
                 block.chainid,
-                address(rootNet)
+                address(awpRegistry)
             )
         );
         return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));

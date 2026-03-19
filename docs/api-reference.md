@@ -630,7 +630,7 @@ struct AgentInfo {
 | `NothingToUpdate()` | No changes to apply to position |
 | `LockCannotShorten()` | New lock end time is earlier than current |
 | `LockMustExceedCurrentTime()` | Lock end time must be in the future |
-| `NotRootNet()` | Caller is not the AWPRegistry contract |
+| `NotAWPRegistry()` | Caller is not the AWPRegistry contract |
 
 ### API HTTP Codes
 

@@ -106,7 +106,7 @@ forge script script/Deploy.s.sol --rpc-url $ETH_RPC_URL --broadcast --verify
 | 2 | AlphaToken (impl not needed) | No longer deployed separately — CREATE2 full deployment |
 | 3 | AlphaTokenFactory | CREATE2 deployer with optional vanity rule |
 | 4 | Treasury | TimelockController (2-day delay) |
-| 5 | AWPDAO | Custom NFT-based voting (6 params, no rootNet dependency) |
+| 5 | AWPDAO | Custom NFT-based voting (6 params, no awpRegistry dependency) |
 | 6 | Grant roles | DAO gets PROPOSER + CANCELLER on Treasury |
 | 7 | Renounce admin | Treasury admin permanently locked |
 | 8 | AWPRegistry | Unified entry (deployer, treasury, guardian) |

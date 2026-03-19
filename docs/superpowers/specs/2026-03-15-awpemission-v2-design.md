@@ -71,7 +71,7 @@ function initialize(
     __UUPSUpgradeable_init();
     __ReentrancyGuard_init();
     __EIP712_init("AWPEmission", "2");
-    rootNet = rootNet_;
+    awpRegistry = rootNet_;
     awpToken = IAWPToken(awpToken_);
     treasury = treasury_;
     currentDailyEmission = initialDailyEmission_;
@@ -81,7 +81,7 @@ function initialize(
 ```
 
 **Storage changes:**
-- `rootNet`: `immutable` → regular state variable (proxy incompatible with immutable)
+- `awpRegistry`: `immutable` → regular state variable (proxy incompatible with immutable)
 - `awpToken`: `immutable` → regular state variable
 - New: `address[] public oracles` — registered oracle addresses
 - New: `uint256 public oracleThreshold` — minimum valid signatures required (M)
@@ -224,7 +224,7 @@ Same pattern with simplified parameters.
 ### 5. Keeper Changes
 
 **keeper.go:**
-- Remove `rootNet` field entirely (already done in optimization pass)
+- Remove `awpRegistry` field entirely (already done in optimization pass)
 - No changes needed — Keeper already reads from AWPEmission and calls `AWPEmission.SettleEpoch()`
 
 ### 6. Indexer Changes
@@ -278,7 +278,7 @@ Same pattern with simplified parameters.
 ```
 // Slot 0-N: inherited from Initializable, UUPSUpgradeable, ReentrancyGuard
 // Existing AWPEmission V1 state (preserved in exact order):
-address public rootNet;
+address public awpRegistry;
 IAWPToken public awpToken;
 address public treasury;
 uint256 public epochDuration;

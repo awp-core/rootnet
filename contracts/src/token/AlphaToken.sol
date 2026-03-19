@@ -24,7 +24,7 @@ contract AlphaToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable
     /// @notice Subnet ID this token belongs to
     uint256 public subnetId;
 
-    /// @notice Admin address (RootNet), responsible for minter management and pause control
+    /// @notice Admin address (AWPRegistry), responsible for minter management and pause control
     address public admin;
 
     /// @notice Minter whitelist
@@ -72,7 +72,7 @@ contract AlphaToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable
     /// @param name_     Token name
     /// @param symbol_   Token symbol
     /// @param subnetId_ Subnet ID
-    /// @param admin_    Admin address (typically RootNet); also acts as minter in the initial phase
+    /// @param admin_    Admin address (typically AWPRegistry); also acts as minter in the initial phase
     /// @dev Can only be called once (enforced by the initializer modifier); admin_ is automatically added to the minter list
     function initialize(string memory name_, string memory symbol_, uint256 subnetId_, address admin_)
         external

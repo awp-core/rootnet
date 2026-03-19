@@ -39,7 +39,7 @@ interface IPermit2Uni {
 contract LPManagerUni {
     using SafeERC20 for IERC20;
 
-    address public immutable rootNet;
+    address public immutable awpRegistry;
     address public immutable poolManager;
     address public immutable positionManager;
     address public immutable permit2;
@@ -55,16 +55,16 @@ contract LPManagerUni {
     mapping(address => bytes32) public alphaTokenToPoolId;
     mapping(address => uint256) public alphaTokenToTokenId;
 
-    error NotRootNet();
+    error NotAWPRegistry();
     error PoolAlreadyExists();
 
-    modifier onlyRootNet() {
-        if (msg.sender != rootNet) revert NotRootNet();
+    modifier onlyAWPRegistry() {
+        if (msg.sender != awpRegistry) revert NotAWPRegistry();
         _;
     }
 
-    constructor(address rootNet_, address poolManager_, address positionManager_, address permit2_, address awpToken_) {
-        rootNet = rootNet_;
+    constructor(address awpRegistry_, address poolManager_, address positionManager_, address permit2_, address awpToken_) {
+        awpRegistry = awpRegistry_;
         poolManager = poolManager_;
         positionManager = positionManager_;
         permit2 = permit2_;
@@ -73,7 +73,7 @@ contract LPManagerUni {
 
     function createPoolAndAddLiquidity(address alphaToken, uint256 awpAmount, uint256 alphaAmount)
         external
-        onlyRootNet
+        onlyAWPRegistry
         returns (bytes32 poolId, uint256 lpTokenId)
     {
         if (alphaTokenToPoolId[alphaToken] != bytes32(0)) revert PoolAlreadyExists();

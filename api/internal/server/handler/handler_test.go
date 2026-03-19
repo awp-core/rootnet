@@ -1014,14 +1014,14 @@ func TestGetSubnetAgentInfoNotFound(t *testing.T) {
 func TestGetCurrentEmissionCacheMiss(t *testing.T) {
 	env := newTestEnv(t)
 	rr := env.request("GET", "/api/emission/current", "")
-	if rr.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	// When keeper is not running, Redis has no emission_current cache → 503
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 (no keeper cache), got %d: %s", rr.Code, rr.Body.String())
 	}
 	var resp map[string]any
 	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
-	// Cache miss should return empty object
-	if len(resp) != 0 {
-		t.Errorf("expected empty object on cache miss, got %d keys", len(resp))
+	if resp["error"] == nil {
+		t.Errorf("expected error message in response")
 	}
 }
 

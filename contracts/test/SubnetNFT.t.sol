@@ -8,12 +8,12 @@ import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.s
 contract SubnetNFTTest is Test {
     SubnetNFT public nft;
 
-    address public rootNet = makeAddr("rootNet");
+    address public awpRegistry = makeAddr("awpRegistry");
     address public alice = makeAddr("alice");
     address public bob = makeAddr("bob");
 
     function setUp() public {
-        nft = new SubnetNFT("AWP Subnet", "SUBNET", rootNet);
+        nft = new SubnetNFT("AWP Subnet", "SUBNET", awpRegistry);
     }
 
     // ──────────────────────────────────────────────
@@ -23,7 +23,7 @@ contract SubnetNFTTest is Test {
     function test_constructor() public view {
         assertEq(nft.name(), "AWP Subnet");
         assertEq(nft.symbol(), "SUBNET");
-        assertEq(nft.rootNet(), rootNet);
+        assertEq(nft.awpRegistry(), awpRegistry);
     }
 
     // ──────────────────────────────────────────────
@@ -31,7 +31,7 @@ contract SubnetNFTTest is Test {
     // ──────────────────────────────────────────────
 
     function test_mint_success() public {
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
 
         assertEq(nft.ownerOf(1), alice);
@@ -39,7 +39,7 @@ contract SubnetNFTTest is Test {
     }
 
     function test_mint_multipleTokens() public {
-        vm.startPrank(rootNet);
+        vm.startPrank(awpRegistry);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
         nft.mint(alice, 2, "Test", address(0x1), address(0x2), 0, "");
         nft.mint(bob, 3, "Test", address(0x1), address(0x2), 0, "");
@@ -51,14 +51,14 @@ contract SubnetNFTTest is Test {
         assertEq(nft.ownerOf(3), bob);
     }
 
-    function test_mint_onlyRootNet() public {
+    function test_mint_onlyAWPRegistry() public {
         vm.prank(alice);
-        vm.expectRevert(SubnetNFT.NotRootNet.selector);
+        vm.expectRevert(SubnetNFT.NotAWPRegistry.selector);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
     }
 
     function test_mint_duplicateTokenId_reverts() public {
-        vm.startPrank(rootNet);
+        vm.startPrank(awpRegistry);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
 
         vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721InvalidSender.selector, address(0)));
@@ -71,7 +71,7 @@ contract SubnetNFTTest is Test {
     // ──────────────────────────────────────────────
 
     function test_burn_success() public {
-        vm.startPrank(rootNet);
+        vm.startPrank(awpRegistry);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
         nft.burn(1);
         vm.stopPrank();
@@ -84,17 +84,17 @@ contract SubnetNFTTest is Test {
     }
 
     function test_burn_nonexistentToken_reverts() public {
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, uint256(999)));
         nft.burn(999);
     }
 
-    function test_burn_onlyRootNet() public {
-        vm.prank(rootNet);
+    function test_burn_onlyAWPRegistry() public {
+        vm.prank(awpRegistry);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
 
         vm.prank(alice);
-        vm.expectRevert(SubnetNFT.NotRootNet.selector);
+        vm.expectRevert(SubnetNFT.NotAWPRegistry.selector);
         nft.burn(1);
     }
 
@@ -103,7 +103,7 @@ contract SubnetNFTTest is Test {
     // ──────────────────────────────────────────────
 
     function test_setBaseURI_success() public {
-        vm.startPrank(rootNet);
+        vm.startPrank(awpRegistry);
         nft.mint(alice, 42, "Test", address(0x1), address(0x2), 0, "");
         nft.setBaseURI("https://api.cortexia.io/subnet/");
         vm.stopPrank();
@@ -112,7 +112,7 @@ contract SubnetNFTTest is Test {
     }
 
     function test_setBaseURI_updateURI() public {
-        vm.startPrank(rootNet);
+        vm.startPrank(awpRegistry);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
         nft.setBaseURI("https://old.example.com/");
         assertEq(nft.tokenURI(1), "https://old.example.com/1");
@@ -123,9 +123,9 @@ contract SubnetNFTTest is Test {
         assertEq(nft.tokenURI(1), "https://new.example.com/meta/1");
     }
 
-    function test_setBaseURI_onlyRootNet() public {
+    function test_setBaseURI_onlyAWPRegistry() public {
         vm.prank(alice);
-        vm.expectRevert(SubnetNFT.NotRootNet.selector);
+        vm.expectRevert(SubnetNFT.NotAWPRegistry.selector);
         nft.setBaseURI("https://evil.com/");
     }
 
@@ -134,7 +134,7 @@ contract SubnetNFTTest is Test {
     // ──────────────────────────────────────────────
 
     function test_tokenURI_emptyBaseURI() public {
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         nft.mint(alice, 7, "Test", address(0x1), address(0x2), 0, "");
 
         // when baseURI is empty, tokenURI returns empty + tokenId.toString()
@@ -142,7 +142,7 @@ contract SubnetNFTTest is Test {
     }
 
     function test_tokenURI_withBaseURI() public {
-        vm.startPrank(rootNet);
+        vm.startPrank(awpRegistry);
         nft.setBaseURI("ipfs://QmHash/");
         nft.mint(alice, 100, "Test", address(0x1), address(0x2), 0, "");
         vm.stopPrank();
@@ -156,7 +156,7 @@ contract SubnetNFTTest is Test {
     }
 
     function test_tokenURI_afterBurn_reverts() public {
-        vm.startPrank(rootNet);
+        vm.startPrank(awpRegistry);
         nft.mint(alice, 5, "Test", address(0x1), address(0x2), 0, "");
         nft.burn(5);
         vm.stopPrank();
@@ -170,7 +170,7 @@ contract SubnetNFTTest is Test {
     // ──────────────────────────────────────────────
 
     function test_transferFrom() public {
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
 
         vm.prank(alice);
@@ -180,7 +180,7 @@ contract SubnetNFTTest is Test {
     }
 
     function test_approve_and_transferFrom() public {
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
 
         vm.prank(alice);
@@ -197,7 +197,7 @@ contract SubnetNFTTest is Test {
     // ──────────────────────────────────────────────
 
     function test_setSkillsURI_success() public {
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
 
         vm.prank(alice);
@@ -208,7 +208,7 @@ contract SubnetNFTTest is Test {
     }
 
     function test_setSkillsURI_onlyOwner() public {
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
 
         vm.prank(bob);
@@ -221,7 +221,7 @@ contract SubnetNFTTest is Test {
     // ──────────────────────────────────────────────
 
     function test_setMinStake_success() public {
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
 
         vm.prank(alice);
@@ -231,7 +231,7 @@ contract SubnetNFTTest is Test {
     }
 
     function test_setMinStake_onlyOwner() public {
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
 
         vm.prank(bob);
@@ -244,7 +244,7 @@ contract SubnetNFTTest is Test {
     // ──────────────────────────────────────────────
 
     function test_mint_withSkillsURI() public {
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 500, "https://skills.io");
 
         SubnetNFT.SubnetData memory data = nft.getSubnetData(1);

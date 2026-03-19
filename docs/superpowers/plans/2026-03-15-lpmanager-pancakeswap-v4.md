@@ -101,7 +101,7 @@ pragma solidity ^0.8.20;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract MockLPManager {
-    address public immutable rootNet;
+    address public immutable awpRegistry;
     IERC20 public immutable awpToken;
     mapping(address => bytes32) public alphaTokenToPool;
 
@@ -109,12 +109,12 @@ contract MockLPManager {
     error PoolAlreadyExists();
 
     modifier onlyAWPRegistry() {
-        if (msg.sender != rootNet) revert NotAWPRegistry();
+        if (msg.sender != awpRegistry) revert NotAWPRegistry();
         _;
     }
 
     constructor(address rootNet_, address awpToken_) {
-        rootNet = rootNet_;
+        awpRegistry = rootNet_;
         awpToken = IERC20(awpToken_);
     }
 
@@ -138,7 +138,7 @@ contract MockLPManager {
 
 Complete rewrite per spec. Key elements:
 - Inline interfaces: `ICLPoolManager` (initialize without hookData), `ICLPositionManager` (modifyLiquidities, nextTokenId), `IPermit2` (approve), `PoolKey` struct
-- Constructor: 5 params (rootNet, clPoolManager, clPositionManager, permit2, awpToken)
+- Constructor: 5 params (awpRegistry, clPoolManager, clPositionManager, permit2, awpToken)
 - Constants: POOL_FEE=10000, TICK_SPACING=200, MIN_TICK=-887200, MAX_TICK=887200, MIN_SQRT_RATIO=4295128739, MAX_SQRT_RATIO=1461446703485210103287273052203988822378723970342
 - Storage: `alphaTokenToPoolId` (bytes32), `alphaTokenToTokenId` (uint256)
 - `createPoolAndAddLiquidity`: sort tokens, construct PoolKey, compute sqrtPriceX96 via `Math.sqrt(amt1) << 96 / Math.sqrt(amt0)`, initialize pool, forceApprove + Permit2.approve, compute liquidity via `_getLiquidityForAmounts`, encode CL_MINT_POSITION(0x02) + SETTLE_PAIR(0x0d) payload, call modifyLiquidities, compute PoolId via assembly keccak256
@@ -157,7 +157,7 @@ Complete rewrite per spec. Key elements:
 Change LPManager constructor from 4 params to 5:
 ```solidity
 LPManager lp = new LPManager(
-    address(rootNet),
+    address(awpRegistry),
     0xa0FfB9c1CE1Fe56963B0321B32E7A0302114058b,  // CLPoolManager
     0x55f4c8abA71A1e923edC303eb4fEfF14608cC226,  // CLPositionManager
     0x31c2F6fcFf4F8759b3Bd5Bf0e1084A055615c768,  // Permit2
@@ -205,7 +205,7 @@ Replace `LPManager` import with `MockLPManager`. Change setUp:
 ```solidity
 import {MockLPManager} from "./helpers/MockLPManager.sol";
 // ...
-lp = new MockLPManager(address(rootNet), address(awp));
+lp = new MockLPManager(address(awpRegistry), address(awp));
 ```
 
 Update any assertions that reference `lpPool` as `address` to `bytes32`.
@@ -251,26 +251,26 @@ contract LPManagerForkTest is Test {
     AWPToken awp;
     AlphaToken alphaImpl;
     LPManager lp;
-    address rootNet;
+    address awpRegistry;
     address deployer;
 
     function setUp() public {
         deployer = makeAddr("deployer");
-        rootNet = makeAddr("rootNet");
+        awpRegistry = makeAddr("rootNet");
 
         vm.startPrank(deployer);
         awp = new AWPToken("AWP", "AWP", deployer);
 
         // Deploy Alpha token (use implementation directly, not clone)
         alphaImpl = new AlphaToken();
-        alphaImpl.initialize("Alpha", "ALPHA", rootNet);
+        alphaImpl.initialize("Alpha", "ALPHA", awpRegistry);
 
-        // Mint Alpha to rootNet for LP
-        vm.startPrank(rootNet);
-        alphaImpl.mint(rootNet, 100_000_000 * 1e18);
+        // Mint Alpha to awpRegistry for LP
+        vm.startPrank(awpRegistry);
+        alphaImpl.mint(awpRegistry, 100_000_000 * 1e18);
 
         // Deploy real LPManager
-        lp = new LPManager(rootNet, CL_POOL_MANAGER, CL_POSITION_MANAGER, PERMIT2, address(awp));
+        lp = new LPManager(awpRegistry, CL_POOL_MANAGER, CL_POSITION_MANAGER, PERMIT2, address(awp));
 
         // Transfer tokens to LPManager (simulating AWPRegistry.registerSubnet flow)
         uint256 awpAmount = 1_000_000 * 1e18;
@@ -278,7 +278,7 @@ contract LPManagerForkTest is Test {
 
         vm.startPrank(deployer);
         awp.transfer(address(lp), awpAmount);
-        vm.startPrank(rootNet);
+        vm.startPrank(awpRegistry);
         alphaImpl.transfer(address(lp), alphaAmount);
         vm.stopPrank();
     }
@@ -286,13 +286,13 @@ contract LPManagerForkTest is Test {
 ```
 
 Tests to implement:
-- `test_createPoolAndAddLiquidity`: Call from rootNet, verify poolId != 0, tokenId > 0, tokens transferred out of LPManager
+- `test_createPoolAndAddLiquidity`: Call from awpRegistry, verify poolId != 0, tokenId > 0, tokens transferred out of LPManager
 - `test_createPool_revertsDoubleCreate`: Create same Alpha pool twice → PoolAlreadyExists
 - `test_createPool_revertsNonAWPRegistry`: User calls → NotAWPRegistry
 - `test_tokenOrdering`: Verify works regardless of AWP vs Alpha address ordering
 - `test_swapAfterPoolCreation`: After creating pool, verify swap works via CLPoolManager
 
-Each test calls `lp.createPoolAndAddLiquidity(address(alphaImpl), awpAmount, alphaAmount)` from rootNet prank.
+Each test calls `lp.createPoolAndAddLiquidity(address(alphaImpl), awpAmount, alphaAmount)` from awpRegistry prank.
 
 - [ ] **Step 2: Run fork tests**
 
@@ -315,15 +315,15 @@ git commit -m "test: MockLPManager for unit tests, fork tests for PancakeSwap V4
 ### Task 10: Regenerate Go bindings
 
 **Files:**
-- Regenerate: `api/internal/chain/bindings/root_net.go`
+- Regenerate: `api/internal/chain/bindings/awp_registry.go`
 
 - [ ] **Step 1: Regenerate AWPRegistry binding**
 
 The SubnetInfo struct changed (lpPool: address → bytes32), LPCreated event changed. Regenerate:
 ```bash
 cd /home/ubuntu/code/Cortexia/contracts
-/home/ubuntu/.foundry/bin/forge inspect AWPRegistry abi --json > /tmp/rootnet_abi.json
-/home/ubuntu/go/bin/abigen --abi /tmp/rootnet_abi.json --pkg bindings --type AWPRegistry --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/root_net.go
+/home/ubuntu/.foundry/bin/forge inspect AWPRegistry abi --json > /tmp/awp_registry_abi.json
+/home/ubuntu/go/bin/abigen --abi /tmp/awp_registry_abi.json --pkg bindings --type AWPRegistry --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/awp_registry.go
 ```
 
 - [ ] **Step 2: Update indexer if LPCreated parsing needs changes**

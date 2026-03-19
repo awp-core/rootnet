@@ -62,7 +62,7 @@ IAWPRegistry.SubnetParams memory params = IAWPRegistry.SubnetParams({
     salt: bytes32(0),            // 0 = use subnetId as CREATE2 salt (default)
     minStake: 0                  // Minimum stake for agents (0 = no minimum)
 });
-uint256 subnetId = rootNet.registerSubnet(params);
+uint256 subnetId = awpRegistry.registerSubnet(params);
 ```
 
 ```javascript
@@ -140,7 +140,7 @@ The factory will deploy the Alpha token at the vanity address and then validate 
 After registration, the subnet status is `Pending`. The NFT Owner must manually activate it:
 
 ```solidity
-rootNet.activateSubnet(subnetId);
+awpRegistry.activateSubnet(subnetId);
 // Status: Pending → Active
 // Added to AWPRegistry's activeSubnetIds set
 ```
@@ -647,7 +647,7 @@ AWPRegistry.AgentInfo[] memory infos = awpRegistry.getAgentsInfo(agents, subnetI
 uint256 epoch = awpEmission.currentEpoch();
 
 // Check if subnet is active
-bool active = rootNet.isSubnetActive(subnetId);
+bool active = awpRegistry.isSubnetActive(subnetId);
 
 // Query emission weight
 uint96 weight = awpEmission.getWeight(subnetManagerAddress);

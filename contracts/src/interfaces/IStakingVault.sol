@@ -5,10 +5,10 @@ pragma solidity ^0.8.20;
 /// @notice Deposit/withdraw moved to StakeNFT. StakingVault manages allocations only.
 ///         Allocations are immediate — no pending/dual-slot mechanism.
 interface IStakingVault {
-    // ── Setup (RootNet only, one-time) ──
+    // ── Setup (AWPRegistry only, one-time) ──
     function setStakeNFT(address stakeNFT_) external;
 
-    // ── Write (RootNet only) ──
+    // ── Write (AWPRegistry only) ──
     function allocate(address user, address agent, uint256 subnetId, uint256 amount) external;
     function deallocate(address user, address agent, uint256 subnetId, uint256 amount) external;
     function reallocate(

@@ -27,9 +27,9 @@ contract TestDeploy is Script {
         e[0] = address(0);
         Treasury treasury = new Treasury(0, p, e, deployer);
 
-        AWPRegistry rootNet = new AWPRegistry(deployer, address(treasury), address(0x99));
-        SubnetNFT nft = new SubnetNFT("AWPSUB", "AWPSUB", address(rootNet));
-        LPManager lp = new LPManager(address(rootNet), address(0), address(0), address(0), address(awp));
+        AWPRegistry awpRegistry = new AWPRegistry(deployer, address(treasury), address(0x99));
+        SubnetNFT nft = new SubnetNFT("AWPSUB", "AWPSUB", address(awpRegistry));
+        LPManager lp = new LPManager(address(awpRegistry), address(0), address(0), address(0), address(awp));
 
         AWPEmission em;
         {
@@ -39,19 +39,19 @@ contract TestDeploy is Script {
         }
 
         // Deploy StakingVault, then StakeNFT
-        StakingVault sv = new StakingVault(address(rootNet));
-        StakeNFT stakeNft = new StakeNFT(address(awp), address(sv), address(rootNet));
+        StakingVault sv = new StakingVault(address(awpRegistry));
+        StakeNFT stakeNft = new StakeNFT(address(awp), address(sv), address(awpRegistry));
 
         awp.addMinter(address(em));
         awp.renounceAdmin();
-        factory.setAddresses(address(rootNet));
-        rootNet.initializeRegistry(address(awp), address(nft), address(factory), address(em), address(lp), address(sv), address(stakeNft), address(0), "");
+        factory.setAddresses(address(awpRegistry));
+        awpRegistry.initializeRegistry(address(awp), address(nft), address(factory), address(em), address(lp), address(sv), address(stakeNft), address(0), "");
 
         vm.stopBroadcast();
 
         // Output addresses to console
         console.log("AWPToken", address(awp));
-        console.log("AWPRegistry", address(rootNet));
+        console.log("AWPRegistry", address(awpRegistry));
         console.log("SubnetNFT", address(nft));
         console.log("StakingVault", address(sv));
         console.log("StakeNFT", address(stakeNft));

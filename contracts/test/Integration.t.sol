@@ -28,7 +28,7 @@ contract IntegrationTest is EmissionSigningHelper {
     StakeNFT stakeNFT;
     SubnetNFT nft;
     MockLPManager lp;
-    AWPRegistry rootNet;
+    AWPRegistry awpRegistry;
     Treasury treasury;
     AWPDAO dao;
 
@@ -71,11 +71,11 @@ contract IntegrationTest is EmissionSigningHelper {
         treasury = new Treasury(0, proposers, executors, deployer);
 
         // Step 5: AWPRegistry
-        rootNet = new AWPRegistry(deployer, address(treasury), guardian);
+        awpRegistry = new AWPRegistry(deployer, address(treasury), guardian);
 
         // Step 6-7: Sub-contracts
-        nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(rootNet));
-        lp = new MockLPManager(address(rootNet), address(awp));
+        nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(awpRegistry));
+        lp = new MockLPManager(address(awpRegistry), address(awp));
 
         // Step 8: AWPEmission (UUPS proxy)
         AWPEmission emissionImpl = new AWPEmission();
@@ -93,11 +93,11 @@ contract IntegrationTest is EmissionSigningHelper {
         awp.renounceAdmin();
 
         // Step 11: Configure factory
-        factory.setAddresses(address(rootNet));
+        factory.setAddresses(address(awpRegistry));
 
         // Step 12: Deploy StakingVault + StakeNFT
-        vault = new StakingVault(address(rootNet));
-        stakeNFT = new StakeNFT(address(awp), address(vault), address(rootNet));
+        vault = new StakingVault(address(awpRegistry));
+        stakeNFT = new StakeNFT(address(awp), address(vault), address(awpRegistry));
 
         // Step 13: AWPDAO
         dao = new AWPDAO(
@@ -117,7 +117,7 @@ contract IntegrationTest is EmissionSigningHelper {
         treasury.renounceRole(treasury.DEFAULT_ADMIN_ROLE(), deployer);
 
         // Step 16: Initialize registry (no accessManager)
-        rootNet.initializeRegistry(
+        awpRegistry.initializeRegistry(
             address(awp),
             address(nft),
             address(factory),
@@ -148,7 +148,7 @@ contract IntegrationTest is EmissionSigningHelper {
         assertEq(awp.balanceOf(address(treasury)), 90_000_000 * 1e18);
         assertTrue(awp.minters(address(emission)));
         assertFalse(awp.minters(deployer));
-        assertTrue(rootNet.registryInitialized());
+        assertTrue(awpRegistry.registryInitialized());
     }
 
     function _settleOneEpoch() internal {
@@ -196,18 +196,18 @@ contract IntegrationTest is EmissionSigningHelper {
 
         // 1. Register user
         vm.prank(owner1);
-        rootNet.register();
-        assertTrue(rootNet.isRegistered(owner1));
+        awpRegistry.register();
+        assertTrue(awpRegistry.isRegistered(owner1));
 
         // 2. Bind Agent
         vm.prank(agent1);
-        rootNet.bind(owner1);
-        assertEq(rootNet.boundTo(agent1), owner1);
+        awpRegistry.bind(owner1);
+        assertEq(awpRegistry.boundTo(agent1), owner1);
 
         // 3. Register subnet
         vm.startPrank(owner1);
-        awp.approve(address(rootNet), 1_000_000 * 1e18);
-        uint256 subnetId = rootNet.registerSubnet(
+        awp.approve(address(awpRegistry), 1_000_000 * 1e18);
+        uint256 subnetId = awpRegistry.registerSubnet(
             IAWPRegistry.SubnetParams({
                 name: "TestSubnet",
                 symbol: "TSUB",
@@ -221,14 +221,14 @@ contract IntegrationTest is EmissionSigningHelper {
         assertEq(subnetId, 1);
 
         // Verify Alpha Token
-        AlphaToken alpha = AlphaToken(rootNet.getSubnetFull(subnetId).alphaToken);
+        AlphaToken alpha = AlphaToken(awpRegistry.getSubnetFull(subnetId).alphaToken);
         assertTrue(alpha.mintersLocked());
         assertTrue(alpha.minters(subnetManager1));
 
         // 4. Activate subnet
         vm.prank(owner1);
-        rootNet.activateSubnet(subnetId);
-        assertTrue(rootNet.isSubnetActive(subnetId));
+        awpRegistry.activateSubnet(subnetId);
+        assertTrue(awpRegistry.isSubnetActive(subnetId));
 
         // 5. Set governance weight for epoch 1
         _submitWeight(subnetManager1, uint96(1000));
@@ -239,14 +239,14 @@ contract IntegrationTest is EmissionSigningHelper {
         stakeNFT.deposit(500_000 * 1e18, 52 weeks);
 
         // 7. Allocate to agent1/subnet1 (explicit staker)
-        rootNet.allocate(owner1, agent1, subnetId, 300_000 * 1e18);
+        awpRegistry.allocate(owner1, agent1, subnetId, 300_000 * 1e18);
         vm.stopPrank();
 
         assertEq(vault.getAgentStake(owner1, agent1, subnetId), 300_000 * 1e18);
         assertEq(vault.getSubnetTotalStake(subnetId), 300_000 * 1e18);
 
         // 8. Query Agent info
-        AWPRegistry.AgentInfo memory agentInfo = rootNet.getAgentInfo(agent1, subnetId);
+        AWPRegistry.AgentInfo memory agentInfo = awpRegistry.getAgentInfo(agent1, subnetId);
         assertEq(agentInfo.root, owner1);
         assertTrue(agentInfo.isValid);
         assertEq(agentInfo.stake, 300_000 * 1e18);
@@ -276,20 +276,20 @@ contract IntegrationTest is EmissionSigningHelper {
         awp.transfer(owner1, 3_000_000 * 1e18);
 
         vm.prank(owner1);
-        rootNet.register();
+        awpRegistry.register();
 
         vm.startPrank(owner1);
-        awp.approve(address(rootNet), 2_000_000 * 1e18);
+        awp.approve(address(awpRegistry), 2_000_000 * 1e18);
 
-        uint256 subnet1 = rootNet.registerSubnet(
+        uint256 subnet1 = awpRegistry.registerSubnet(
             IAWPRegistry.SubnetParams("Sub1", "S1", subnetManager1, bytes32(0), 0, "")
         );
-        uint256 subnet2 = rootNet.registerSubnet(
+        uint256 subnet2 = awpRegistry.registerSubnet(
             IAWPRegistry.SubnetParams("Sub2", "S2", subnetManager2, bytes32(0), 0, "")
         );
 
-        rootNet.activateSubnet(subnet1);
-        rootNet.activateSubnet(subnet2);
+        awpRegistry.activateSubnet(subnet1);
+        awpRegistry.activateSubnet(subnet2);
         vm.stopPrank();
 
         {
@@ -316,7 +316,7 @@ contract IntegrationTest is EmissionSigningHelper {
         awp.transfer(owner1, 1_000_000 * 1e18);
 
         vm.startPrank(owner1);
-        rootNet.register();
+        awpRegistry.register();
 
         awp.approve(address(stakeNFT), 500_000 * 1e18);
         uint256 tokenId = stakeNFT.deposit(500_000 * 1e18, 1 days);
@@ -344,20 +344,20 @@ contract IntegrationTest is EmissionSigningHelper {
         awp.transfer(owner1, 2_000_000 * 1e18);
 
         vm.prank(owner1);
-        rootNet.register();
+        awpRegistry.register();
 
         vm.startPrank(owner1);
-        awp.approve(address(rootNet), 1_000_000 * 1e18);
-        uint256 subnetId = rootNet.registerSubnet(
+        awp.approve(address(awpRegistry), 1_000_000 * 1e18);
+        uint256 subnetId = awpRegistry.registerSubnet(
             IAWPRegistry.SubnetParams("Sub", "SUB", subnetManager1, bytes32(0), 0, "")
         );
-        rootNet.activateSubnet(subnetId);
+        awpRegistry.activateSubnet(subnetId);
         awp.approve(address(stakeNFT), 500_000 * 1e18);
         stakeNFT.deposit(500_000 * 1e18, 52 weeks);
-        rootNet.allocate(owner1, agent1, subnetId, 300_000 * 1e18);
+        awpRegistry.allocate(owner1, agent1, subnetId, 300_000 * 1e18);
 
         // Deallocate all
-        rootNet.deallocate(owner1, agent1, subnetId, 300_000 * 1e18);
+        awpRegistry.deallocate(owner1, agent1, subnetId, 300_000 * 1e18);
         vm.stopPrank();
 
         assertEq(vault.getAgentStake(owner1, agent1, subnetId), 0);
@@ -370,29 +370,29 @@ contract IntegrationTest is EmissionSigningHelper {
         awp.transfer(owner1, 2_000_000 * 1e18);
 
         vm.prank(owner1);
-        rootNet.register();
+        awpRegistry.register();
 
         // Register subnet
         vm.startPrank(owner1);
-        awp.approve(address(rootNet), 1_000_000 * 1e18);
-        uint256 subnetId = rootNet.registerSubnet(
+        awp.approve(address(awpRegistry), 1_000_000 * 1e18);
+        uint256 subnetId = awpRegistry.registerSubnet(
             IAWPRegistry.SubnetParams("Sub", "SUB", subnetManager1, bytes32(0), 0, "")
         );
-        rootNet.activateSubnet(subnetId);
+        awpRegistry.activateSubnet(subnetId);
         awp.approve(address(stakeNFT), 500_000 * 1e18);
         stakeNFT.deposit(500_000 * 1e18, 52 weeks);
         // Grant delegate to agent1
-        rootNet.grantDelegate(agent1);
+        awpRegistry.grantDelegate(agent1);
         vm.stopPrank();
 
         // agent1 allocates on behalf of owner1
         vm.prank(agent1);
-        rootNet.allocate(owner1, agent2, subnetId, 100_000 * 1e18);
+        awpRegistry.allocate(owner1, agent2, subnetId, 100_000 * 1e18);
         assertEq(vault.getAgentStake(owner1, agent2, subnetId), 100_000 * 1e18);
 
         // agent1 deallocates on behalf of owner1
         vm.prank(agent1);
-        rootNet.deallocate(owner1, agent2, subnetId, 50_000 * 1e18);
+        awpRegistry.deallocate(owner1, agent2, subnetId, 50_000 * 1e18);
         assertEq(vault.getAgentStake(owner1, agent2, subnetId), 50_000 * 1e18);
     }
 
@@ -402,15 +402,15 @@ contract IntegrationTest is EmissionSigningHelper {
         awp.transfer(owner1, 10_000_000 * 1e18);
 
         vm.prank(owner1);
-        rootNet.register();
+        awpRegistry.register();
 
         vm.startPrank(owner1);
-        awp.approve(address(rootNet), 10_000_000 * 1e18);
+        awp.approve(address(awpRegistry), 10_000_000 * 1e18);
 
         for (uint256 i = 0; i < 3; i++) {
             address sc = address(uint160(0x400 + i));
-            rootNet.registerSubnet(IAWPRegistry.SubnetParams("Sub", "SUB", sc, bytes32(0), 0, ""));
-            rootNet.activateSubnet(i + 1);
+            awpRegistry.registerSubnet(IAWPRegistry.SubnetParams("Sub", "SUB", sc, bytes32(0), 0, ""));
+            awpRegistry.activateSubnet(i + 1);
         }
         vm.stopPrank();
 
@@ -443,16 +443,16 @@ contract IntegrationTest is EmissionSigningHelper {
     /// @notice Test pause protection
     function test_pauseProtection() public {
         vm.prank(guardian);
-        rootNet.pause();
+        awpRegistry.pause();
 
         vm.prank(owner1);
         vm.expectRevert();
-        rootNet.register();
+        awpRegistry.register();
 
         vm.prank(address(treasury));
-        rootNet.unpause();
+        awpRegistry.unpause();
 
         vm.prank(owner1);
-        rootNet.register();
+        awpRegistry.register();
     }
 }

@@ -102,16 +102,16 @@ contract Deploy is Script {
         console.log("Treasury:", address(treasury));
 
         // Step 4: AWPRegistry
-        AWPRegistry rootNet = AWPRegistry(_create2(
+        AWPRegistry awpRegistry = AWPRegistry(_create2(
             saltAWPRegistry,
             abi.encodePacked(type(AWPRegistry).creationCode, abi.encode(deployer, address(treasury), guardian))
         ));
-        console.log("AWPRegistry:", address(rootNet));
+        console.log("AWPRegistry:", address(awpRegistry));
 
         // Step 5: SubnetNFT
         SubnetNFT nft = SubnetNFT(_create2(
             saltSubnetNFT,
-            abi.encodePacked(type(SubnetNFT).creationCode, abi.encode("AWP Subnet", "AWPSUB", address(rootNet)))
+            abi.encodePacked(type(SubnetNFT).creationCode, abi.encode("AWP Subnet", "AWPSUB", address(awpRegistry)))
         ));
         console.log("SubnetNFT:", address(nft));
 
@@ -120,13 +120,13 @@ contract Deploy is Script {
         if (block.chainid == 56 || block.chainid == 97) {
             lpAddr = _create2(
                 saltLPManager,
-                abi.encodePacked(type(LPManager).creationCode, abi.encode(address(rootNet), poolManager, positionManager, permit2Addr, address(awp)))
+                abi.encodePacked(type(LPManager).creationCode, abi.encode(address(awpRegistry), poolManager, positionManager, permit2Addr, address(awp)))
             );
             console.log("LPManager (PancakeSwap):", lpAddr);
         } else {
             lpAddr = _create2(
                 saltLPManager,
-                abi.encodePacked(type(LPManagerUni).creationCode, abi.encode(address(rootNet), poolManager, positionManager, permit2Addr, address(awp)))
+                abi.encodePacked(type(LPManagerUni).creationCode, abi.encode(address(awpRegistry), poolManager, positionManager, permit2Addr, address(awp)))
             );
             console.log("LPManager (Uniswap):", lpAddr);
         }
@@ -151,13 +151,13 @@ contract Deploy is Script {
         // Step 8: StakingVault + StakeNFT
         StakingVault vault = StakingVault(_create2(
             saltVault,
-            abi.encodePacked(type(StakingVault).creationCode, abi.encode(address(rootNet)))
+            abi.encodePacked(type(StakingVault).creationCode, abi.encode(address(awpRegistry)))
         ));
         console.log("StakingVault:", address(vault));
 
         StakeNFT stakeNft = StakeNFT(_create2(
             saltStakeNFT,
-            abi.encodePacked(type(StakeNFT).creationCode, abi.encode(address(awp), address(vault), address(rootNet)))
+            abi.encodePacked(type(StakeNFT).creationCode, abi.encode(address(awp), address(vault), address(awpRegistry)))
         ));
         console.log("StakeNFT:", address(stakeNft));
 
@@ -200,7 +200,7 @@ contract Deploy is Script {
         awp.renounceAdmin();
         console.log("AWP minter set + admin locked");
 
-        factory.setAddresses(address(rootNet));
+        factory.setAddresses(address(awpRegistry));
         console.log("Factory configured");
 
         // Step 12: Initialize registry (no accessManager)
@@ -214,7 +214,7 @@ contract Deploy is Script {
             // Uniswap V4: 7-field dexConfig (extra: stateView)
             dexCfg = abi.encode(poolManager, positionManager, clSwapRouter, permit2Addr, uint24(POOL_FEE), int24(TICK_SPACING), stateView);
         }
-        rootNet.initializeRegistry(
+        awpRegistry.initializeRegistry(
             address(awp), address(nft), address(factory), address(emission),
             lpAddr, address(vault), address(stakeNft),
             address(subnetMgrImpl), dexCfg
@@ -232,7 +232,7 @@ contract Deploy is Script {
         // Verification
         require(awp.admin() == address(0), "Admin should be renounced");
         require(awp.minters(address(emission)), "Emission should be minter");
-        require(rootNet.registryInitialized(), "Registry should be initialized");
+        require(awpRegistry.registryInitialized(), "Registry should be initialized");
 
         console.log("=== Deployment Complete ===");
     }

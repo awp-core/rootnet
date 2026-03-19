@@ -1,7 +1,7 @@
 # AWPRegistry Implementation Guide — Claude Code Development Document
 
 > **Version**: 9.0  
-> **Project**: awp-rootnet  
+> **Project**: awp-registry  
 > **Stack**: Solidity 0.8.24 (Foundry) + Go 1.26 (Chi + sqlc + pgx) + PostgreSQL  
 > **Target**: BSC Testnet → BSC Mainnet  
 > **Principle**: Maximize reuse of OpenZeppelin 5.x
@@ -11,7 +11,7 @@
 ## 1. Project Structure
 
 ```
-awp-rootnet/
+awp-registry/
 ├── CLAUDE.md
 ├── docs/
 │   └── architecture.md
@@ -77,7 +77,7 @@ awp-rootnet/
 │   │   ├── chain/
 │   │   │   ├── client.go                  # go-ethereum RPC client
 │   │   │   ├── bindings/                  # abigen-generated contract bindings
-│   │   │   │   ├── rootnet.go
+│   │   │   │   ├── awp_registry.go
 │   │   │   │   ├── awptoken.go
 │   │   │   │   ├── alphatoken.go
 │   │   │   │   ├── subnetnft.go
@@ -365,8 +365,8 @@ Vanity rule encoding (per position, 8 positions packed into uint64):
 Functions:
   constructor(deployer, vanityRule)
     → No implementation parameter (no Clones)
-  setAddresses(rootNet) onlyOwner → configured=true → renounceOwnership()
-  deploy(subnetId, name, symbol, admin, salt) → require(msg.sender == rootNet)
+  setAddresses(awpRegistry) onlyOwner → configured=true → renounceOwnership()
+  deploy(subnetId, name, symbol, admin, salt) → require(msg.sender == awpRegistry)
     → effectiveSalt = (salt == bytes32(0)) ? bytes32(subnetId) : salt
     → new AlphaToken{salt: effectiveSalt}()
     → token.initialize(name, symbol, subnetId, admin)
@@ -731,7 +731,7 @@ Overrides: _update, supportsInterface
 modifier onlyAWPRegistry()
 
 Storage:
-  rootNet, poolManager, positionManager, awpToken: address
+  awpRegistry, poolManager, positionManager, awpToken: address
 
 Functions:
   /// Create LP at registration (two-sided, full range, one-time)
@@ -878,7 +878,7 @@ Functions:
   // ═══════════════
   //  Subnet Registration (AWP payment + auto LP)
   // ═══════════════
-  // ⚠️ Prerequisite: User must first call AWPToken.approve(rootNet, lpAWPAmount)
+  // ⚠️ Prerequisite: User must first call AWPToken.approve(awpRegistry, lpAWPAmount)
 
   registerSubnet(SubnetParams calldata params) external nonReentrant whenNotPaused → uint256
     → require(bytes(params.name).length > 0 && bytes(params.name).length <= 64)
@@ -1051,7 +1051,7 @@ Events:
 ```
 AWPDAO: Inherits OZ Governor, GovernorSettings, GovernorTimelockControl.
   Overrides _getVotes and _countVote for StakeNFT-based voting (no delegate/checkpoint).
-  No rootNet dependency (removed).
+  No awpRegistry dependency (removed).
   → Voters submit tokenId[] arrays (StakeNFT position NFTs)
   → Voting power = amount * sqrt(min(remainingTime, 54 weeks) / 7 days)
   → Anti-manipulation: only NFTs with createdAt < proposalCreatedAt can vote (timestamp-based)
@@ -1105,7 +1105,7 @@ Step 1:  AWPToken("AWP Token", "AWP", deployer)
 Step 2:  (skipped — no AlphaToken impl deployment needed; CREATE2 deploys inline)
 Step 3:  AlphaTokenFactory(deployer, vanityRule)                // vanityRule=0 to disable
 Step 4:  Treasury(172800, [], [address(0)], deployer)
-Step 5:  AWPDAO(awpToken, treasury, stakeNFT, ...)  // 6 params, no rootNet
+Step 5:  AWPDAO(awpToken, treasury, stakeNFT, ...)  // 6 params, no awpRegistry
 Step 6:  Treasury.grantRole(PROPOSER+CANCELLER, awpDAO)
 Step 7:  Treasury.renounceRole(ADMIN, deployer)
 Step 8:  AWPRegistry(deployer, treasury, guardian)  // No epochDuration (epoch moved to AWPEmission)
@@ -1183,7 +1183,7 @@ Build:
 API is a read-only service + on-chain data indexer.
 
 Write operations handled by frontend direct-to-chain:
-  Frontend wagmi/viem → useWriteContract({ address: rootNet, abi, functionName, args })
+  Frontend wagmi/viem → useWriteContract({ address: awpRegistry, abi, functionName, args })
   → User signs in wallet → Sent directly to BSC
   → Does not pass through backend (no /tx/ routes)
 
@@ -1521,7 +1521,7 @@ Pub/Sub (Indexer publishes, API subscribes):
 generate:
 	sqlc generate
 	cd ../contracts && forge build
-	abigen --abi out/AWPRegistry.sol/AWPRegistry.json --pkg bindings --out internal/chain/bindings/rootnet.go
+	abigen --abi out/AWPRegistry.sol/AWPRegistry.json --pkg bindings --out internal/chain/bindings/awp_registry.go
 	abigen --abi out/AWPToken.sol/AWPToken.json --pkg bindings --out internal/chain/bindings/awptoken.go
 	# ... other contracts
 

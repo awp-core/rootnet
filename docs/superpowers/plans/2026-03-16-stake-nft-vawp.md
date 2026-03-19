@@ -110,7 +110,7 @@ mapping(uint256 => uint256) public subnetTotalStake;
 // agentSubnets tracking for freezeAgentAllocations
 mapping(address => mapping(address => EnumerableSet.UintSet)) private agentSubnets;
 
-address public immutable rootNet;
+address public immutable awpRegistry;
 address public stakeNFT;
 ```
 
@@ -361,8 +361,8 @@ cd /home/ubuntu/code/Cortexia/api && /home/ubuntu/go/bin/sqlc generate
 cd /home/ubuntu/code/Cortexia/contracts
 /home/ubuntu/.foundry/bin/forge inspect StakeNFT abi --json > /tmp/stake_nft_abi.json
 /home/ubuntu/go/bin/abigen --abi /tmp/stake_nft_abi.json --pkg bindings --type StakeNFT --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/stake_n_f_t.go
-/home/ubuntu/.foundry/bin/forge inspect AWPRegistry abi --json > /tmp/rootnet_abi.json
-/home/ubuntu/go/bin/abigen --abi /tmp/rootnet_abi.json --pkg bindings --type AWPRegistry --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/root_net.go
+/home/ubuntu/.foundry/bin/forge inspect AWPRegistry abi --json > /tmp/awp_registry_abi.json
+/home/ubuntu/go/bin/abigen --abi /tmp/awp_registry_abi.json --pkg bindings --type AWPRegistry --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/awp_registry.go
 /home/ubuntu/.foundry/bin/forge inspect AWPDAO abi --json > /tmp/awpdao_abi.json
 /home/ubuntu/go/bin/abigen --abi /tmp/awpdao_abi.json --pkg bindings --type AWPDAO --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/a_w_p_d_a_o.go
 ```

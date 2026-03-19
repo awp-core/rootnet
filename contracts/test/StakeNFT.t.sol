@@ -15,14 +15,14 @@ contract StakeNFTTest is Test {
 
     address deployer = address(0xD);
     address treasury = address(0xE);
-    address rootNet; // will be address(this) for access control
+    address awpRegistry; // will be address(this) for access control
     address user1 = address(0x1);
     address user2 = address(0x2);
 
     uint256 constant VOTE_WEIGHT_DIVISOR = 7 days;
 
     function setUp() public {
-        rootNet = address(this);
+        awpRegistry = address(this);
 
         vm.startPrank(deployer);
 
@@ -34,8 +34,8 @@ contract StakeNFTTest is Test {
         address predictedVault = vm.computeCreateAddress(deployer, deployerNonce);
         address predictedStakeNFT = vm.computeCreateAddress(deployer, deployerNonce + 1);
 
-        vault = new StakingVault(rootNet);
-        stakeNFT = new StakeNFT(address(awp), address(vault), rootNet);
+        vault = new StakingVault(awpRegistry);
+        stakeNFT = new StakeNFT(address(awp), address(vault), awpRegistry);
         vm.stopPrank();
         vault.setStakeNFT(address(stakeNFT));
         vm.startPrank(deployer);
@@ -194,14 +194,14 @@ contract StakeNFTTest is Test {
     }
 
     function test_withdraw_insufficientUnallocated_reverts() public {
-        // Deposit and allocate via rootNet
+        // Deposit and allocate via awpRegistry
         vm.startPrank(user1);
         awp.approve(address(stakeNFT), 1000 * 1e18);
         uint256 tokenId = stakeNFT.deposit(1000 * 1e18, 1 days);
         vm.stopPrank();
 
-        // Simulate allocation via rootNet
-        vm.prank(rootNet);
+        // Simulate allocation via awpRegistry
+        vm.prank(awpRegistry);
         vault.allocate(user1, address(0x99), 1, 500 * 1e18);
 
         // Advance past lock
@@ -235,8 +235,8 @@ contract StakeNFTTest is Test {
         uint256 tokenId = stakeNFT.deposit(1000 * 1e18, 52 weeks);
         vm.stopPrank();
 
-        // Allocate some stake via rootNet
-        vm.prank(rootNet);
+        // Allocate some stake via awpRegistry
+        vm.prank(awpRegistry);
         vault.allocate(user1, address(0x99), 1, 500 * 1e18);
 
         // Transfer should fail: user1 has 1000 staked, 500 allocated, transfer would leave 0 staked
@@ -303,14 +303,14 @@ contract StakeNFTTest is Test {
         assertEq(vp, 0);
     }
 
-    // ── depositFor (only RootNet) ──
+    // ── depositFor (only AWPRegistry) ──
 
-    function test_depositFor_onlyRootNet() public {
+    function test_depositFor_onlyAWPRegistry() public {
         vm.prank(user1);
         awp.approve(address(stakeNFT), 1000 * 1e18);
 
         vm.prank(user2);
-        vm.expectRevert(StakeNFT.NotRootNet.selector);
+        vm.expectRevert(StakeNFT.NotAWPRegistry.selector);
         stakeNFT.depositFor(user1, 1000 * 1e18, 52 weeks);
     }
 
@@ -318,7 +318,7 @@ contract StakeNFTTest is Test {
         vm.prank(user1);
         awp.approve(address(stakeNFT), 1000 * 1e18);
 
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         uint256 tokenId = stakeNFT.depositFor(user1, 1000 * 1e18, 52 weeks);
 
         assertEq(stakeNFT.ownerOf(tokenId), user1);

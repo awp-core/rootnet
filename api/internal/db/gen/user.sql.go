@@ -35,11 +35,11 @@ func (q *Queries) ClearUserBinding(ctx context.Context, address string) error {
 }
 
 const getUser = `-- name: GetUser :one
-SELECT address, bound_to, recipient, registered_at FROM users WHERE address = $1
+SELECT address, bound_to, recipient, registered_at FROM users WHERE LOWER(address) = LOWER($1)
 `
 
-func (q *Queries) GetUser(ctx context.Context, address string) (User, error) {
-	row := q.db.QueryRow(ctx, getUser, address)
+func (q *Queries) GetUser(ctx context.Context, lower string) (User, error) {
+	row := q.db.QueryRow(ctx, getUser, lower)
 	var i User
 	err := row.Scan(
 		&i.Address,
@@ -146,6 +146,22 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 	return items, nil
 }
 
+const setUserRegisteredAt = `-- name: SetUserRegisteredAt :exec
+INSERT INTO users (address, registered_at) VALUES ($1, $2)
+ON CONFLICT (address) DO UPDATE SET registered_at = EXCLUDED.registered_at
+WHERE users.registered_at = 0
+`
+
+type SetUserRegisteredAtParams struct {
+	Address      string `json:"address"`
+	RegisteredAt int64  `json:"registered_at"`
+}
+
+func (q *Queries) SetUserRegisteredAt(ctx context.Context, arg SetUserRegisteredAtParams) error {
+	_, err := q.db.Exec(ctx, setUserRegisteredAt, arg.Address, arg.RegisteredAt)
+	return err
+}
+
 const subtractUserAllocated = `-- name: SubtractUserAllocated :exec
 UPDATE user_balances SET total_allocated = GREATEST(total_allocated - $2, 0) WHERE user_address = $1
 `
@@ -204,21 +220,5 @@ type UpsertUserRecipientParams struct {
 
 func (q *Queries) UpsertUserRecipient(ctx context.Context, arg UpsertUserRecipientParams) error {
 	_, err := q.db.Exec(ctx, upsertUserRecipient, arg.Address, arg.Recipient)
-	return err
-}
-
-const setUserRegisteredAt = `-- name: SetUserRegisteredAt :exec
-INSERT INTO users (address, registered_at) VALUES ($1, $2)
-ON CONFLICT (address) DO UPDATE SET registered_at = EXCLUDED.registered_at
-WHERE users.registered_at = 0
-`
-
-type SetUserRegisteredAtParams struct {
-	Address      string `json:"address"`
-	RegisteredAt int64  `json:"registered_at"`
-}
-
-func (q *Queries) SetUserRegisteredAt(ctx context.Context, arg SetUserRegisteredAtParams) error {
-	_, err := q.db.Exec(ctx, setUserRegisteredAt, arg.Address, arg.RegisteredAt)
 	return err
 }

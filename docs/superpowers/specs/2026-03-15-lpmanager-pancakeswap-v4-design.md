@@ -142,7 +142,7 @@ struct PoolKey {
 
 **Storage:**
 ```solidity
-address public immutable rootNet;
+address public immutable awpRegistry;
 address public immutable clPoolManager;
 address public immutable clPositionManager;
 address public immutable permit2;
@@ -337,7 +337,7 @@ subnets[subnetId] = SubnetInfo({
 ```solidity
 // Production:
 lp = new LPManager(
-    address(rootNet),
+    address(awpRegistry),
     0xa0FfB9c1CE1Fe56963B0321B32E7A0302114058b,  // CLPoolManager
     0x55f4c8abA71A1e923edC303eb4fEfF14608cC226,  // CLPositionManager
     0x31c2F6fcFf4F8759b3Bd5Bf0e1084A055615c768,  // Permit2
@@ -373,7 +373,7 @@ Tests:
 ### Existing tests update
 
 E2E.t.sol, Integration.t.sol, AWPRegistry.t.sol:
-- Replace `new LPManager(rootNet, address(0), address(0), awp)` with `new MockLPManager(rootNet, awp)`
+- Replace `new LPManager(awpRegistry, address(0), address(0), awp)` with `new MockLPManager(awpRegistry, awp)`
 - Update any assertions on `lpPool` from `address` to `bytes32` type
 - LPCreated event parameter changes if lpPool type changes
 

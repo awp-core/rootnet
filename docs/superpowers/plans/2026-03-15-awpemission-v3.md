@@ -286,7 +286,7 @@ git commit -m "test: update all tests for AWPEmission V3 address-based distribut
 
 **Files:**
 - Regenerate: `api/internal/chain/bindings/a_w_p_emission.go`
-- Regenerate: `api/internal/chain/bindings/root_net.go`
+- Regenerate: `api/internal/chain/bindings/awp_registry.go`
 - Modify: `api/internal/chain/keeper.go`
 
 - [ ] **Step 1: Regenerate bindings**
@@ -295,8 +295,8 @@ git commit -m "test: update all tests for AWPEmission V3 address-based distribut
 cd /home/ubuntu/code/Cortexia/contracts
 /home/ubuntu/.foundry/bin/forge inspect AWPEmission abi --json > /tmp/awp_emission_abi.json
 /home/ubuntu/go/bin/abigen --abi /tmp/awp_emission_abi.json --pkg bindings --type AWPEmission --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/a_w_p_emission.go
-/home/ubuntu/.foundry/bin/forge inspect AWPRegistry abi --json > /tmp/rootnet_abi.json
-/home/ubuntu/go/bin/abigen --abi /tmp/rootnet_abi.json --pkg bindings --type AWPRegistry --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/root_net.go
+/home/ubuntu/.foundry/bin/forge inspect AWPRegistry abi --json > /tmp/awp_registry_abi.json
+/home/ubuntu/go/bin/abigen --abi /tmp/awp_registry_abi.json --pkg bindings --type AWPRegistry --out /home/ubuntu/code/Cortexia/api/internal/chain/bindings/awp_registry.go
 ```
 
 - [ ] **Step 2: Update keeper.go**

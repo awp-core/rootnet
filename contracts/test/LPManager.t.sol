@@ -15,7 +15,7 @@ contract LPManagerForkTest is Test {
     AlphaToken public alphaToken;
 
     address public deployer = makeAddr("deployer");
-    address public rootNet = makeAddr("rootNet");
+    address public awpRegistry = makeAddr("awpRegistry");
     address public user = makeAddr("user");
 
     // BSC PancakeSwap V4 addresses
@@ -42,9 +42,9 @@ contract LPManagerForkTest is Test {
         alphaToken.mint(deployer, ALPHA_LP_AMOUNT);
 
         // Deploy LPManager (5-parameter constructor)
-        lpManager = new LPManager(rootNet, CL_POOL_MANAGER, CL_POSITION_MANAGER, PERMIT2, address(awpToken));
+        lpManager = new LPManager(awpRegistry, CL_POOL_MANAGER, CL_POSITION_MANAGER, PERMIT2, address(awpToken));
 
-        // Transfer tokens to LPManager (simulating RootNet behavior)
+        // Transfer tokens to LPManager (simulating AWPRegistry behavior)
         awpToken.transfer(address(lpManager), AWP_LP_AMOUNT);
         alphaToken.transfer(address(lpManager), ALPHA_LP_AMOUNT);
 
@@ -56,7 +56,7 @@ contract LPManagerForkTest is Test {
         uint256 awpBefore = awpToken.balanceOf(address(lpManager));
         uint256 alphaBefore = alphaToken.balanceOf(address(lpManager));
 
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         (bytes32 poolId, uint256 lpTokenId) = lpManager.createPoolAndAddLiquidity(
             address(alphaToken), AWP_LP_AMOUNT, ALPHA_LP_AMOUNT
         );
@@ -79,18 +79,18 @@ contract LPManagerForkTest is Test {
 
     /// @notice Creating a pool for the same Alpha token twice should revert
     function test_revertsDoubleCreate() public {
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         lpManager.createPoolAndAddLiquidity(address(alphaToken), AWP_LP_AMOUNT, ALPHA_LP_AMOUNT);
 
-        vm.prank(rootNet);
+        vm.prank(awpRegistry);
         vm.expectRevert(LPManager.PoolAlreadyExists.selector);
         lpManager.createPoolAndAddLiquidity(address(alphaToken), AWP_LP_AMOUNT, ALPHA_LP_AMOUNT);
     }
 
-    /// @notice Non-RootNet calls should revert
-    function test_revertsNonRootNet() public {
+    /// @notice Non-AWPRegistry calls should revert
+    function test_revertsNonAWPRegistry() public {
         vm.prank(user);
-        vm.expectRevert(LPManager.NotRootNet.selector);
+        vm.expectRevert(LPManager.NotAWPRegistry.selector);
         lpManager.createPoolAndAddLiquidity(address(alphaToken), AWP_LP_AMOUNT, ALPHA_LP_AMOUNT);
     }
 }

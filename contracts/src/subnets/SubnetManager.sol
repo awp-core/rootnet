@@ -45,7 +45,7 @@ interface IPermit2 {
 }
 
 /// @title SubnetManager — Reference subnet contract (proxy-compatible)
-/// @notice Deployed behind ERC1967Proxy by RootNet when subnetManager is not provided.
+/// @notice Deployed behind ERC1967Proxy by AWPRegistry when subnetManager is not provided.
 ///         Implementation is shared; each proxy gets its own storage via initialize().
 /// @dev Three roles via OZ AccessControl:
 ///   - MERKLE_ROLE:   Submit Merkle roots → claim mints Alpha to users

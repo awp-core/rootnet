@@ -12,7 +12,7 @@ interface IAWPRegistry {
         Banned    // Banned (DAO governance)
     }
 
-    /// @notice Subnet lifecycle state (stored in RootNet; identity data in SubnetNFT)
+    /// @notice Subnet lifecycle state (stored in AWPRegistry; identity data in SubnetNFT)
     struct SubnetInfo {
         bytes32 lpPool;           // PancakeSwap V4 LP pool ID
         SubnetStatus status;      // Current lifecycle status
@@ -20,7 +20,7 @@ interface IAWPRegistry {
         uint64 activatedAt;       // Activation timestamp
     }
 
-    /// @notice Full subnet view (combines RootNet state + SubnetNFT identity)
+    /// @notice Full subnet view (combines AWPRegistry state + SubnetNFT identity)
     struct SubnetFullInfo {
         address subnetManager;
         address alphaToken;
