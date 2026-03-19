@@ -1,8 +1,20 @@
-# AWP
+# Agent Working Protocol
 
-[![Base Mainnet](https://img.shields.io/badge/Base-Mainnet-0052FF)](https://basescan.org)
-[![BSC Mainnet](https://img.shields.io/badge/BSC-Mainnet-yellow)](https://bscscan.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+<p align="center">
+  <a href="https://awp.pro/">
+    <img src="assets/banner.png" alt="AWP - Agent Work Protocol" width="800">
+  </a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Base-0052FF?style=flat&logo=coinbase&logoColor=white" alt="Base">
+  <img src="https://img.shields.io/badge/BNB_Chain-F0B90B?style=flat&logo=bnbchain&logoColor=white" alt="BNB Chain">
+  <img src="https://img.shields.io/badge/Uniswap_V4-FF007A?style=flat&logo=uniswap&logoColor=white" alt="Uniswap V4">
+  <img src="https://img.shields.io/badge/PancakeSwap_V4-1FC7D4?style=flat" alt="PancakeSwap V4">
+  <img src="https://img.shields.io/badge/Solidity_0.8.24-363636?style=flat&logo=solidity&logoColor=white" alt="Solidity">
+  <img src="https://img.shields.io/badge/Go-00ADD8?style=flat&logo=go&logoColor=white" alt="Go">
+  <img src="https://img.shields.io/badge/License-MIT-97CA00?style=flat" alt="MIT">
+</p>
 
 > **Testnet.** AWP is currently in testnet on Base mainnet. Multi-chain deployment (Base + BSC) is planned. Protocol parameters may change before the official mainnet launch.
 
