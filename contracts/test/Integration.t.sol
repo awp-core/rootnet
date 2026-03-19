@@ -136,7 +136,8 @@ contract IntegrationTest is EmissionSigningHelper {
             address(access),
             address(vault),
             address(stakeNFT),
-            address(0) // no default SubnetManager impl in integration tests
+            address(0), // no default SubnetManager impl in integration tests
+            "" // no dexConfig in integration tests
         );
 
         // Distribute tokens: Treasury 90M, Airdrop 100M (10M remains with deployer for tests)

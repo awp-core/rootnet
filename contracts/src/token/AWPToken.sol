@@ -3,18 +3,17 @@ pragma solidity ^0.8.20;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
-import {ERC20Votes} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Votes.sol";
 import {ERC20Burnable} from "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
-import {Nonces} from "@openzeppelin/contracts/utils/Nonces.sol";
 import {IERC1363Receiver, IERC1363Spender} from "../interfaces/IERC1363Receiver.sol";
 
 /// @title AWPToken — AWP main token
-/// @notice ERC20Votes + minter model + ERC1363 callbacks
+/// @notice ERC20Permit + minter model + ERC1363 callbacks
 /// @dev Total supply capped at 10 billion (MAX_SUPPLY = 10B × 1e18).
 ///      Constructor pre-mints INITIAL_MINT to the deployer for distribution; remainder minted on-demand by AWPEmission.
 ///      Minter management flow: admin → addMinter(awpEmission) → renounceAdmin(); minter list is then permanently immutable.
-///      Inherits ERC20Votes for on-chain governance voting; inherits ERC20Burnable for token burns.
-contract AWPToken is ERC20, ERC20Permit, ERC20Votes, ERC20Burnable {
+///      Inherits ERC20Permit for gasless approvals (ERC-2612); inherits ERC20Burnable for token burns.
+///      NOTE: ERC20Votes intentionally omitted — AWPDAO uses StakeNFT position-based voting, not ERC20 checkpoints.
+contract AWPToken is ERC20, ERC20Permit, ERC20Burnable {
     /// @notice AWP maximum supply: 10 billion tokens (18 decimals)
     uint256 public constant MAX_SUPPLY = 10_000_000_000 * 1e18;
 
@@ -53,37 +52,30 @@ contract AWPToken is ERC20, ERC20Permit, ERC20Votes, ERC20Burnable {
 
     /// @notice Add a minter (admin only)
     /// @param minter Address to authorize as minter (typically the AWPEmission contract)
-    /// @dev May be called multiple times before renounceAdmin(); list is permanently locked after renounce
     function addMinter(address minter) external {
         if (msg.sender != admin) revert NotAdmin();
-        // Zero address may not be a minter
-        if (minter == address(0)) revert NotMinter();
         minters[minter] = true;
     }
 
-    /// @notice Admin renounces control (minter list is permanently locked after this call)
-    /// @dev Sets admin to address(0); addMinter() and renounceAdmin() can no longer be called
+    /// @notice Permanently renounce admin privileges — no new minters can ever be added
     function renounceAdmin() external {
         if (msg.sender != admin) revert NotAdmin();
         admin = address(0);
     }
 
-    /// @notice Mint tokens (authorized minters only)
+    /// @notice Mint new AWP tokens (only authorized minters)
     /// @param to     Recipient address
     /// @param amount Amount to mint (18 decimals)
-    /// @dev Checks total supply does not exceed MAX_SUPPLY before minting
     function mint(address to, uint256 amount) external {
         if (!minters[msg.sender]) revert NotMinter();
         if (totalSupply() + amount > MAX_SUPPLY) revert ExceedsMaxSupply();
         _mint(to, amount);
     }
 
-    /// @notice Mint tokens and notify the receiving contract (ERC1363-style callback)
+    /// @notice Mint and notify the receiver via ERC1363 callback (used by AWPEmission.settleEpoch)
     /// @param to     Recipient address
-    /// @param amount Amount to mint
+    /// @param amount Amount to mint (18 decimals)
     /// @param data   Additional data passed to the receiver's onTransferReceived callback
-    /// @dev Combines mint + ERC1363 callback in one call. If recipient is a contract,
-    ///      calls onTransferReceived. Used by AWPEmission to auto-trigger SubnetManager strategies.
     function mintAndCall(address to, uint256 amount, bytes calldata data) external {
         if (!minters[msg.sender]) revert NotMinter();
         if (totalSupply() + amount > MAX_SUPPLY) revert ExceedsMaxSupply();
@@ -128,22 +120,5 @@ contract AWPToken is ERC20, ERC20Permit, ERC20Votes, ERC20Burnable {
             if (retval != IERC1363Spender.onApprovalReceived.selector) revert InvalidCallback();
         }
         return true;
-    }
-
-    // ── Required overrides (resolve diamond inheritance between ERC20 and ERC20Votes) ──
-
-    /// @dev Override _update to update both ERC20 balances and ERC20Votes voting power
-    /// @param from  Sender address
-    /// @param to    Recipient address
-    /// @param value Transfer amount
-    function _update(address from, address to, uint256 value) internal override(ERC20, ERC20Votes) {
-        super._update(from, to, value);
-    }
-
-    /// @dev Override nonces to resolve conflict between ERC20Permit and Nonces
-    /// @param owner Address to query
-    /// @return Current nonce value
-    function nonces(address owner) public view override(ERC20Permit, Nonces) returns (uint256) {
-        return super.nonces(owner);
     }
 }

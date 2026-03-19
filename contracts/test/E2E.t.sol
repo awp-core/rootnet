@@ -119,7 +119,7 @@ contract E2ETest is EmissionSigningHelper {
         // Initialize registry (including stakeNFT + default SubnetManager impl)
         rootNet.initializeRegistry(
             address(awp), address(nft), address(factory), address(emission),
-            address(lp), address(access), address(vault), address(stakeNFT), address(0)
+            address(lp), address(access), address(vault), address(stakeNFT), address(0), ""
         );
 
         vm.stopPrank();

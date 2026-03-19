@@ -60,15 +60,13 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
 
     enum AWPStrategy { Reserve, AddLiquidity, BuybackBurn }
 
-    // ── PancakeSwap V4 BSC mainnet ──
-    address public constant CL_POOL_MANAGER = 0xa0FfB9c1CE1Fe56963B0321B32E7A0302114058b;
-    address public constant CL_POSITION_MANAGER = 0x55f4c8abA71A1e923edC303eb4fEfF14608cC226;
-    address public constant CL_SWAP_ROUTER = 0x1b81D678ffb9C0263b24A97847620C99d213eB14;
-    address public constant PERMIT2 = 0x31c2F6fcFf4F8759b3Bd5Bf0e1084A055615c768;
-    uint24 public constant POOL_FEE = 10000;
-    int24 public constant TICK_SPACING = 200;
-    int24 public constant MIN_TICK = -887200;
-    int24 public constant MAX_TICK = 887200;
+    // ── DEX addresses (set via initialize, chain-agnostic) ──
+    address public clPoolManager;
+    address public clPositionManager;
+    address public clSwapRouter;
+    address public permit2;
+    uint24 public poolFee;
+    int24 public tickSpacing;
 
     // ── Action codes ──
     uint8 private constant ACT_CL_MINT_POSITION = 0x02;
@@ -88,7 +86,7 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
     mapping(uint32 => mapping(address => bool)) public claimed;
 
     /// @dev Reserved storage gap for future upgrades
-    uint256[44] private __gap;
+    uint256[38] private __gap;
 
     event MerkleRootSet(uint32 indexed epoch, bytes32 merkleRoot);
     event Claimed(uint32 indexed epoch, address indexed account, uint256 amount);
@@ -110,14 +108,39 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
     }
 
     /// @notice Initialize (called once via proxy constructor)
-    function initialize(address alphaToken_, address awpToken_, bytes32 poolId_, address admin_) external initializer {
+    /// @param alphaToken_ Alpha token address
+    /// @param awpToken_ AWP token address
+    /// @param poolId_ LP pool ID (bytes32)
+    /// @param admin_ Admin address (receives DEFAULT_ADMIN_ROLE)
+    /// @param dexConfig_ ABI-encoded DEX configuration:
+    ///        (address clPoolManager, address clPositionManager, address clSwapRouter, address permit2, uint24 poolFee, int24 tickSpacing)
+    function initialize(
+        address alphaToken_, address awpToken_, bytes32 poolId_, address admin_,
+        bytes calldata dexConfig_
+    ) external initializer {
         __AccessControl_init();
         __ReentrancyGuard_init();
-
 
         alphaToken = IAlphaToken(alphaToken_);
         awpToken = IERC20(awpToken_);
         poolId = poolId_;
+
+        // Decode DEX addresses and pool parameters (chain-agnostic)
+        (
+            address clPoolManager_,
+            address clPositionManager_,
+            address clSwapRouter_,
+            address permit2_,
+            uint24 poolFee_,
+            int24 tickSpacing_
+        ) = abi.decode(dexConfig_, (address, address, address, address, uint24, int24));
+
+        clPoolManager = clPoolManager_;
+        clPositionManager = clPositionManager_;
+        clSwapRouter = clSwapRouter_;
+        permit2 = permit2_;
+        poolFee = poolFee_;
+        tickSpacing = tickSpacing_;
 
         (address c0, address c1) = awpToken_ < alphaToken_
             ? (awpToken_, alphaToken_)
@@ -126,9 +149,9 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
             currency0: c0,
             currency1: c1,
             hooks: address(0),
-            poolManager: CL_POOL_MANAGER,
-            fee: POOL_FEE,
-            parameters: bytes32(uint256(int256(TICK_SPACING)) << 16)
+            poolManager: clPoolManager_,
+            fee: poolFee_,
+            parameters: bytes32(uint256(int256(tickSpacing_)) << 16)
         });
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
@@ -225,11 +248,16 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
     // ═══════════════════════════════════════════════
 
     function _addSingleSidedLiquidity(uint256 amount) internal {
-        (, int24 currentTick,,) = ICLPoolManager(CL_POOL_MANAGER).getSlot0(poolId);
+        (, int24 currentTick,,) = ICLPoolManager(clPoolManager).getSlot0(poolId);
 
-        // Floor-align currentTick to TICK_SPACING
-        int24 aligned = (currentTick / TICK_SPACING) * TICK_SPACING;
-        if (aligned > currentTick) aligned -= TICK_SPACING;
+        // Floor-align currentTick to tickSpacing
+        int24 ts = tickSpacing;
+        int24 aligned = (currentTick / ts) * ts;
+        if (aligned > currentTick) aligned -= ts;
+
+        // Compute min/max tick aligned to tickSpacing
+        int24 minTick = (-887272 / ts) * ts;
+        int24 maxTick = (887272 / ts) * ts;
 
         bool awpIs0 = address(awpToken) < address(alphaToken);
 
@@ -237,12 +265,12 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
         int24 tickUpper;
         if (awpIs0) {
             // AWP is token0: single-sided deposit requires range ABOVE current price
-            tickLower = aligned + TICK_SPACING;
-            tickUpper = MAX_TICK;
+            tickLower = aligned + ts;
+            tickUpper = maxTick;
         } else {
             // AWP is token1: single-sided deposit requires range BELOW current price
-            tickUpper = aligned < currentTick ? aligned : aligned - TICK_SPACING;
-            tickLower = MIN_TICK;
+            tickUpper = aligned < currentTick ? aligned : aligned - ts;
+            tickLower = minTick;
         }
 
         uint160 sqrtLower = TickMath.getSqrtRatioAtTick(tickLower);
@@ -252,10 +280,10 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
             ? LiquidityAmounts.getLiquidityForAmount0(sqrtLower, sqrtUpper, amount)
             : LiquidityAmounts.getLiquidityForAmount1(sqrtLower, sqrtUpper, amount);
 
-        IERC20(address(awpToken)).forceApprove(PERMIT2, amount);
-        IPermit2(PERMIT2).approve(address(awpToken), CL_POSITION_MANAGER, uint160(amount), uint48(block.timestamp + 600));
+        IERC20(address(awpToken)).forceApprove(permit2, amount);
+        IPermit2(permit2).approve(address(awpToken), clPositionManager, uint160(amount), uint48(block.timestamp + 600));
 
-        uint256 tokenId = ICLPositionManager(CL_POSITION_MANAGER).nextTokenId();
+        uint256 tokenId = ICLPositionManager(clPositionManager).nextTokenId();
         bytes memory actions = abi.encodePacked(ACT_CL_MINT_POSITION, ACT_SETTLE_PAIR);
         bytes[] memory params = new bytes[](2);
         params[0] = abi.encode(
@@ -266,7 +294,7 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
         );
         params[1] = abi.encode(poolKey.currency0, poolKey.currency1);
 
-        ICLPositionManager(CL_POSITION_MANAGER).modifyLiquidities(abi.encode(actions, params), block.timestamp);
+        ICLPositionManager(clPositionManager).modifyLiquidities(abi.encode(actions, params), block.timestamp);
         emit LiquidityAdded(tokenId, amount);
     }
 
@@ -275,13 +303,13 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
     // ═══════════════════════════════════════════════
 
     function _buybackAndBurn(uint256 amount) internal {
-        IERC20(address(awpToken)).forceApprove(PERMIT2, amount);
-        IPermit2(PERMIT2).approve(address(awpToken), CL_SWAP_ROUTER, uint160(amount), uint48(block.timestamp + 600));
+        IERC20(address(awpToken)).forceApprove(permit2, amount);
+        IPermit2(permit2).approve(address(awpToken), clSwapRouter, uint160(amount), uint48(block.timestamp + 600));
 
         bool zeroForOne = address(awpToken) < address(alphaToken);
 
         // Read current pool price for slippage protection
-        (uint160 sqrtPriceX96,,,) = ICLPoolManager(CL_POOL_MANAGER).getSlot0(poolId);
+        (uint160 sqrtPriceX96,,,) = ICLPoolManager(clPoolManager).getSlot0(poolId);
         uint256 expectedOut;
         if (zeroForOne) {
             // Selling token0 for token1: expectedOut = amount * sqrtPrice^2 / 2^192
@@ -299,7 +327,7 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
         params[2] = abi.encode(address(alphaToken), 0);
 
         uint256 before = alphaToken.balanceOf(address(this));
-        ICLSwapRouter(CL_SWAP_ROUTER).executeActions(abi.encode(actions, params));
+        ICLSwapRouter(clSwapRouter).executeActions(abi.encode(actions, params));
         uint256 received = alphaToken.balanceOf(address(this)) - before;
 
         if (received > 0) alphaToken.burn(received);

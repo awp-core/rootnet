@@ -45,6 +45,12 @@ var revertErrors = map[string]string{
 	"0x05d14037": "not owner or manager",
 	"0x27f5ce6b": "unknown address",
 	"0x5e03d55f": "cannot remove self",
+	"0x9cba1f30": "address is already a registered user (cannot bind as agent)",
+	"0x425b78ae": "address is already an agent (cannot register as user)",
+	"0xcd69fa68": "cannot bind to yourself",
+	"0x390772fc": "not the agent owner",
+	"0x373d7529": "cannot revoke own delegation",
+	"0x9c8d2cd2": "invalid reward recipient",
 	// StakeNFT errors
 	"0x6855a802": "lock not expired",
 	"0x2bff29a6": "position expired",

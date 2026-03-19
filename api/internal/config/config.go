@@ -17,7 +17,7 @@ type Config struct {
 
 	// Chain
 	ChainID         int64  `env:"CHAIN_ID" envDefault:"56"` // BSC Mainnet
-	RPCURL          string `env:"RPC_URL" envDefault:"https://bsc-testnet-rpc.publicnode.com"`
+	RPCURL          string `env:"RPC_URL,required"` // No default — must be explicitly set for target chain
 	RootNetAddress  string `env:"ROOTNET_ADDRESS"`
 	SubnetNFTAddress string `env:"SUBNETNFT_ADDRESS"`
 	DAOAddress      string `env:"DAO_ADDRESS"`

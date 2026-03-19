@@ -47,7 +47,7 @@ contract TestDeploy is Script {
         awp.addMinter(address(em));
         awp.renounceAdmin();
         factory.setAddresses(address(rootNet));
-        rootNet.initializeRegistry(address(awp), address(nft), address(factory), address(em), address(lp), address(am), address(sv), address(stakeNft), address(0));
+        rootNet.initializeRegistry(address(awp), address(nft), address(factory), address(em), address(lp), address(am), address(sv), address(stakeNft), address(0), "");
 
         vm.stopBroadcast();
 

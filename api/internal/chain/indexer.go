@@ -89,13 +89,13 @@ func (idx *Indexer) Run(ctx context.Context) error {
 	}
 }
 
-// poll executes one complete scan cycle
+// poll executes one complete scan cycle using optimistic indexing with parent hash verification.
+// No fixed confirmation depth — processes up to chain tip, detects reorgs via block hash chain.
 func (idx *Indexer) poll(ctx context.Context) error {
 	// 1. Read the last synced block
 	q := gen.New(idx.pool)
 	state, err := q.GetSyncState(ctx, syncKey)
 	if err != nil {
-		// On first run sync_states may have no record; start from deploy block
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("failed to read sync state: %w", err)
 		}
@@ -107,22 +107,28 @@ func (idx *Indexer) poll(ctx context.Context) error {
 	}
 	fromBlock := uint64(state.LastBlock) + 1
 
-	// 2. Get the latest block number on-chain
+	// 2. Get the latest block number on-chain (no confirmation depth — process up to tip)
 	latestBlock, err := idx.chain.BlockNumber(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get latest block: %w", err)
 	}
 	if fromBlock > latestBlock {
-		return nil // already at the latest, nothing to do
+		return nil
 	}
 
-	// Confirmation depth: lag behind chain tip to avoid reorg-affected blocks
-	const confirmationDepth = 15
-	if latestBlock > confirmationDepth {
-		latestBlock -= confirmationDepth
-	}
-	if fromBlock > latestBlock {
-		return nil
+	// 3. Reorg detection: verify the parent hash chain before processing new blocks
+	if fromBlock > 1 {
+		reorgBlock, err := idx.detectReorg(ctx, q, fromBlock-1)
+		if err != nil {
+			return fmt.Errorf("reorg detection failed: %w", err)
+		}
+		if reorgBlock > 0 {
+			slog.Warn("reorg detected, rolling back", "forkPoint", reorgBlock)
+			if err := idx.rollback(ctx, reorgBlock); err != nil {
+				return fmt.Errorf("reorg rollback failed: %w", err)
+			}
+			fromBlock = uint64(reorgBlock) + 1
+		}
 	}
 
 	// Limit single query range to avoid RPC restrictions
@@ -134,7 +140,7 @@ func (idx *Indexer) poll(ctx context.Context) error {
 
 	slog.Info("scanning blocks", "from", fromBlock, "to", toBlock)
 
-	// 3. Filter logs from RootNet, AWPEmission, StakeNFT, SubnetNFT, and AWPDAO contracts
+	// 4. Filter logs from all monitored contracts
 	logs, err := idx.chain.Eth.FilterLogs(ctx, ethereum.FilterQuery{
 		FromBlock: new(big.Int).SetUint64(fromBlock),
 		ToBlock:   new(big.Int).SetUint64(toBlock),
@@ -144,7 +150,7 @@ func (idx *Indexer) poll(ctx context.Context) error {
 		return fmt.Errorf("failed to filter logs: %w", err)
 	}
 
-	// 4. Process all events within a PostgreSQL transaction
+	// 5. Process all events within a PostgreSQL transaction
 	tx, err := idx.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin database transaction: %w", err)
@@ -166,12 +172,22 @@ func (idx *Indexer) poll(ctx context.Context) error {
 		events = append(events, evts...)
 	}
 
-	// 5. Update sync progress
+	// 6. Record block hashes for reorg detection
+	if err := idx.recordBlockHashes(ctx, qtx, fromBlock, toBlock); err != nil {
+		return fmt.Errorf("failed to record block hashes: %w", err)
+	}
+
+	// 7. Update sync progress
 	if err := qtx.UpsertSyncState(ctx, gen.UpsertSyncStateParams{
 		ContractName: syncKey,
 		LastBlock:    int64(toBlock),
 	}); err != nil {
 		return fmt.Errorf("failed to update sync state: %w", err)
+	}
+
+	// Prune old block hashes (keep last 256 blocks to limit DB growth)
+	if int64(toBlock) > 256 {
+		_ = qtx.PruneIndexedBlocks(ctx, int64(toBlock)-256)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -192,6 +208,91 @@ func (idx *Indexer) poll(ctx context.Context) error {
 
 	slog.Info("scan complete", "blocks", toBlock-fromBlock+1, "logs", len(logs), "events", len(events))
 	return nil
+}
+
+// detectReorg walks back from lastBlock checking stored block hashes against the chain.
+// Returns the fork point block number (>0 if reorg detected, 0 if no reorg).
+// Since we store one hash per batch (toBlock only), ErrNoRows for intermediate blocks
+// is expected and skipped — the walk-back continues until it finds a stored hash to verify.
+func (idx *Indexer) detectReorg(ctx context.Context, q *gen.Queries, lastBlock uint64) (int64, error) {
+	const maxReorgDepth = 64
+	mismatchSeen := false
+
+	for i := uint64(0); i < maxReorgDepth && lastBlock > i; i++ {
+		checkBlock := lastBlock - i
+		storedHash, err := q.GetIndexedBlockHash(ctx, int64(checkBlock))
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				continue // no hash stored for this block (not a batch boundary), skip
+			}
+			return 0, fmt.Errorf("get indexed block hash %d: %w", checkBlock, err)
+		}
+
+		// Fetch actual block hash from chain
+		header, err := idx.chain.Eth.HeaderByNumber(ctx, new(big.Int).SetUint64(checkBlock))
+		if err != nil {
+			return 0, fmt.Errorf("get header for block %d: %w", checkBlock, err)
+		}
+
+		chainHash := header.Hash().Hex()
+		if strings.EqualFold(strings.TrimSpace(storedHash), chainHash) {
+			if !mismatchSeen {
+				return 0, nil // latest stored hash matches, no reorg
+			}
+			// Found the common ancestor — everything after this was reorged
+			return int64(checkBlock), nil
+		}
+		mismatchSeen = true
+		slog.Warn("block hash mismatch", "block", checkBlock, "stored", storedHash, "chain", chainHash)
+	}
+
+	if !mismatchSeen {
+		return 0, nil // no stored hashes found within lookback range (first run)
+	}
+	// All stored hashes diverged — deep reorg, reset to earliest checked block
+	return int64(lastBlock - maxReorgDepth + 1), nil
+}
+
+// rollback resets the indexer state to the given fork point atomically within a transaction.
+// Since all DB writes use ON CONFLICT DO UPDATE (upserts), re-indexing from the fork point
+// will overwrite any stale data. We only need to reset the sync cursor and clean up block hashes.
+func (idx *Indexer) rollback(ctx context.Context, forkPoint int64) error {
+	tx, err := idx.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin rollback tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	qtx := gen.New(tx)
+	if err := qtx.UpsertSyncState(ctx, gen.UpsertSyncStateParams{
+		ContractName: syncKey,
+		LastBlock:    forkPoint,
+	}); err != nil {
+		return fmt.Errorf("reset sync state: %w", err)
+	}
+	if err := qtx.DeleteIndexedBlocksAfter(ctx, forkPoint); err != nil {
+		return fmt.Errorf("delete indexed blocks after %d: %w", forkPoint, err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit rollback tx: %w", err)
+	}
+	slog.Info("rollback complete", "forkPoint", forkPoint)
+	return nil
+}
+
+// recordBlockHashes stores the hash of the last block in the batch for reorg detection.
+// Only 1 RPC call per poll cycle. This is sufficient because blockchain is a hash chain —
+// a reorg at any depth propagates to change all subsequent block hashes.
+func (idx *Indexer) recordBlockHashes(ctx context.Context, q *gen.Queries, fromBlock, toBlock uint64) error {
+	header, err := idx.chain.Eth.HeaderByNumber(ctx, new(big.Int).SetUint64(toBlock))
+	if err != nil {
+		return fmt.Errorf("get header for block %d: %w", toBlock, err)
+	}
+	return q.UpsertIndexedBlock(ctx, gen.UpsertIndexedBlockParams{
+		BlockNumber: int64(toBlock),
+		BlockHash:   header.Hash().Hex(),
+	})
 }
 
 // processLog parses a single log entry and performs the corresponding database writes, returning Redis events to publish

@@ -29,3 +29,16 @@ SELECT contract_name, last_block FROM sync_states WHERE contract_name = $1;
 -- name: UpsertSyncState :exec
 INSERT INTO sync_states (contract_name, last_block) VALUES ($1, $2)
 ON CONFLICT (contract_name) DO UPDATE SET last_block = EXCLUDED.last_block;
+
+-- name: UpsertIndexedBlock :exec
+INSERT INTO indexed_blocks (block_number, block_hash) VALUES ($1, $2)
+ON CONFLICT (block_number) DO UPDATE SET block_hash = EXCLUDED.block_hash;
+
+-- name: GetIndexedBlockHash :one
+SELECT block_hash FROM indexed_blocks WHERE block_number = $1;
+
+-- name: DeleteIndexedBlocksAfter :exec
+DELETE FROM indexed_blocks WHERE block_number > $1;
+
+-- name: PruneIndexedBlocks :exec
+DELETE FROM indexed_blocks WHERE block_number < $1;

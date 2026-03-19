@@ -53,6 +53,7 @@ contract Deploy is Script {
         address poolManager = vm.envAddress("POOL_MANAGER");
         address positionManager = vm.envAddress("POSITION_MANAGER");
         address permit2Addr = vm.envAddress("PERMIT2");
+        address clSwapRouter = vm.envAddress("CL_SWAP_ROUTER");
         uint64 vanityRule = uint64(vm.envOr("VANITY_RULE", uint256(0)));
 
         // Read per-contract salts (pre-mined off-chain for vanity addresses)
@@ -220,10 +221,13 @@ contract Deploy is Script {
         // ═══════════════════════════════════════════════
         //  Step 13: Initialize registry
         // ═══════════════════════════════════════════════
+        uint24 POOL_FEE = 10000;
+        int24 TICK_SPACING = 200;
+        bytes memory dexCfg = abi.encode(poolManager, positionManager, clSwapRouter, permit2Addr, uint24(POOL_FEE), int24(TICK_SPACING));
         rootNet.initializeRegistry(
             address(awp), address(nft), address(factory), address(emission),
             address(lp), address(access), address(vault), address(stakeNft),
-            address(subnetMgrImpl)
+            address(subnetMgrImpl), dexCfg
         );
         console.log("Registry initialized");
 

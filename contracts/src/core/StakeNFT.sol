@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IStakeNFT} from "../interfaces/IStakeNFT.sol";
@@ -95,6 +96,21 @@ contract StakeNFT is ERC721, ReentrancyGuard, IStakeNFT {
 
     /// @inheritdoc IStakeNFT
     function deposit(uint256 amount, uint64 lockDuration) external returns (uint256 tokenId) {
+        return _deposit(msg.sender, msg.sender, amount, lockDuration);
+    }
+
+    /// @notice Gasless deposit: user signs ERC-2612 permit off-chain, no prior approve tx needed
+    /// @param amount AWP amount to deposit
+    /// @param lockDuration Lock duration in seconds
+    /// @param deadline Permit expiry timestamp
+    /// @param v Permit signature v
+    /// @param r Permit signature r
+    /// @param s Permit signature s
+    function depositWithPermit(
+        uint256 amount, uint64 lockDuration,
+        uint256 deadline, uint8 v, bytes32 r, bytes32 s
+    ) external returns (uint256 tokenId) {
+        IERC20Permit(address(awpToken)).permit(msg.sender, address(this), amount, deadline, v, r, s);
         return _deposit(msg.sender, msg.sender, amount, lockDuration);
     }
 

@@ -92,7 +92,8 @@ contract RootNetTest is Test {
             address(access),
             address(vault),
             address(stakeNFT),
-            address(0) // no default SubnetManager impl in unit tests
+            address(0), // no default SubnetManager impl in unit tests
+            "" // no dexConfig in unit tests
         );
 
         // Give users some AWP
@@ -108,7 +109,7 @@ contract RootNetTest is Test {
         vm.expectRevert(RootNet.NotDeployer.selector);
         rootNet.initializeRegistry(
             address(awp), address(nft), address(factory), address(emission),
-            address(lp), address(access), address(vault), address(stakeNFT), address(0)
+            address(lp), address(access), address(vault), address(stakeNFT), address(0), ""
         );
     }
 

@@ -228,43 +228,9 @@ contract AWPTokenTest is Test {
         token.burnFrom(alice, 500 * 1e18);
     }
 
-    // ── ERC20Votes tests ──
+    // ── ERC20Permit nonces test ──
 
-    function test_votes_delegateToSelf() public {
-        vm.prank(deployer);
-        token.delegate(deployer);
-
-        assertEq(token.getVotes(deployer), INITIAL_MINT);
-    }
-
-    function test_votes_delegateToOther() public {
-        vm.prank(deployer);
-        token.delegate(alice);
-
-        assertEq(token.getVotes(alice), INITIAL_MINT);
-        assertEq(token.getVotes(deployer), 0);
-    }
-
-    function test_votes_transferUpdatesDelegatedVotes() public {
-        vm.prank(deployer);
-        token.delegate(deployer);
-
-        uint256 transferAmount = 1000 * 1e18;
-
-        vm.prank(deployer);
-        token.transfer(alice, transferAmount);
-
-        // alice has not delegated, so voting power is 0
-        assertEq(token.getVotes(deployer), INITIAL_MINT - transferAmount);
-        assertEq(token.getVotes(alice), 0);
-
-        // alice gains voting power after self-delegating
-        vm.prank(alice);
-        token.delegate(alice);
-        assertEq(token.getVotes(alice), transferAmount);
-    }
-
-    function test_votes_noncesWork() public view {
+    function test_noncesWork() public view {
         assertEq(token.nonces(deployer), 0);
     }
 

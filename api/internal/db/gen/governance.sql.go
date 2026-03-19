@@ -194,3 +194,47 @@ func (q *Queries) UpsertSyncState(ctx context.Context, arg UpsertSyncStateParams
 	_, err := q.db.Exec(ctx, upsertSyncState, arg.ContractName, arg.LastBlock)
 	return err
 }
+
+const upsertIndexedBlock = `-- name: UpsertIndexedBlock :exec
+INSERT INTO indexed_blocks (block_number, block_hash) VALUES ($1, $2)
+ON CONFLICT (block_number) DO UPDATE SET block_hash = EXCLUDED.block_hash
+`
+
+type UpsertIndexedBlockParams struct {
+	BlockNumber int64  `json:"block_number"`
+	BlockHash   string `json:"block_hash"`
+}
+
+func (q *Queries) UpsertIndexedBlock(ctx context.Context, arg UpsertIndexedBlockParams) error {
+	_, err := q.db.Exec(ctx, upsertIndexedBlock, arg.BlockNumber, arg.BlockHash)
+	return err
+}
+
+const getIndexedBlockHash = `-- name: GetIndexedBlockHash :one
+SELECT block_hash FROM indexed_blocks WHERE block_number = $1
+`
+
+func (q *Queries) GetIndexedBlockHash(ctx context.Context, blockNumber int64) (string, error) {
+	row := q.db.QueryRow(ctx, getIndexedBlockHash, blockNumber)
+	var blockHash string
+	err := row.Scan(&blockHash)
+	return blockHash, err
+}
+
+const deleteIndexedBlocksAfter = `-- name: DeleteIndexedBlocksAfter :exec
+DELETE FROM indexed_blocks WHERE block_number > $1
+`
+
+func (q *Queries) DeleteIndexedBlocksAfter(ctx context.Context, blockNumber int64) error {
+	_, err := q.db.Exec(ctx, deleteIndexedBlocksAfter, blockNumber)
+	return err
+}
+
+const pruneIndexedBlocks = `-- name: PruneIndexedBlocks :exec
+DELETE FROM indexed_blocks WHERE block_number < $1
+`
+
+func (q *Queries) PruneIndexedBlocks(ctx context.Context, blockNumber int64) error {
+	_, err := q.db.Exec(ctx, pruneIndexedBlocks, blockNumber)
+	return err
+}

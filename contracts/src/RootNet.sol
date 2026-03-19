@@ -58,6 +58,9 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     address public guardian;
     /// @notice Default subnet implementation address (for auto-deploying subnet contracts via proxy)
     address public defaultSubnetManagerImpl;
+    /// @notice ABI-encoded DEX configuration passed to SubnetManager.initialize()
+    ///         (clPoolManager, clPositionManager, clSwapRouter, permit2, poolFee, tickSpacing)
+    bytes public dexConfig;
 
     /// @dev Deployer address; used only for initializeRegistry, zeroed immediately after the call
     address private _deployer;
@@ -224,6 +227,8 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     /// @param stakingVault_ Staking vault contract address
     /// @param stakeNFT_ StakeNFT contract address
     /// @param defaultSubnetManagerImpl_ Default SubnetManager implementation (address(0) = disabled)
+    /// @param dexConfig_ ABI-encoded DEX config for auto-deployed SubnetManagers
+    ///        (clPoolManager, clPositionManager, clSwapRouter, permit2, poolFee, tickSpacing)
     function initializeRegistry(
         address awpToken_,
         address subnetNFT_,
@@ -233,7 +238,8 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
         address accessManager_,
         address stakingVault_,
         address stakeNFT_,
-        address defaultSubnetManagerImpl_
+        address defaultSubnetManagerImpl_,
+        bytes calldata dexConfig_
     ) external {
         // Only the deployer may call
         if (msg.sender != _deployer) revert NotDeployer();
@@ -249,6 +255,7 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
         stakingVault = stakingVault_;
         stakeNFT = stakeNFT_;
         defaultSubnetManagerImpl = defaultSubnetManagerImpl_;
+        dexConfig = dexConfig_;
 
         // Link StakingVault → StakeNFT (one-time setter, resolves CREATE2 circular dependency)
         IStakingVault(stakingVault).setStakeNFT(stakeNFT);
@@ -774,8 +781,8 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
         address sc;
         if (autoDeploySubnet) {
             bytes memory initData = abi.encodeWithSignature(
-                "initialize(address,address,bytes32,address)",
-                alphaToken, awpToken, poolId, user
+                "initialize(address,address,bytes32,address,bytes)",
+                alphaToken, awpToken, poolId, user, dexConfig
             );
             sc = address(new ERC1967Proxy(defaultSubnetManagerImpl, initData));
         } else {
@@ -991,6 +998,12 @@ contract RootNet is IRootNet, Pausable, ReentrancyGuard, EIP712 {
     function setSubnetManagerImpl(address impl) external onlyTimelock {
         defaultSubnetManagerImpl = impl;
         emit DefaultSubnetManagerImplUpdated(impl);
+    }
+
+    /// @notice Update DEX configuration for future auto-deployed SubnetManagers (only Timelock)
+    /// @param dexConfig_ ABI-encoded: (clPoolManager, clPositionManager, clSwapRouter, permit2, poolFee, tickSpacing)
+    function setDexConfig(bytes calldata dexConfig_) external onlyTimelock {
+        dexConfig = dexConfig_;
     }
 
     // ═══════════════════════════════════════════════

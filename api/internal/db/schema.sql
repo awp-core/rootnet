@@ -101,3 +101,9 @@ CREATE TABLE sync_states (
     contract_name VARCHAR(64) PRIMARY KEY,
     last_block    BIGINT NOT NULL DEFAULT 0
 );
+
+-- Block hash chain for reorg detection (optimistic indexing with parent hash verification)
+CREATE TABLE indexed_blocks (
+    block_number BIGINT PRIMARY KEY,
+    block_hash   CHAR(66) NOT NULL  -- 0x-prefixed hex
+);

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
+	"sync"
 	"time"
 
 	"github.com/cortexia/rootnet/api/internal/chain/bindings"
@@ -30,6 +31,7 @@ type Keeper struct {
 	cancel      context.CancelFunc
 
 	// Cached RPC results — shared between trySettleEpoch and updateTokenPrices within the same tick
+	cacheMu            sync.Mutex
 	cachedCurrentEpoch *big.Int
 	cachedSettledEpoch *big.Int
 	cacheTime          time.Time
@@ -122,8 +124,12 @@ func (k *Keeper) auth() (*bind.TransactOpts, error) {
 	return auth, nil
 }
 
-// fetchEpochs returns cached currentEpoch and settledEpoch, refreshing from RPC if stale (>10s)
+// fetchEpochs returns cached currentEpoch and settledEpoch, refreshing from RPC if stale (>10s).
+// Thread-safe: protected by cacheMu since trySettleEpoch and updateTokenPrices run in concurrent cron goroutines.
 func (k *Keeper) fetchEpochs() (currentEpoch, settledEpoch *big.Int, err error) {
+	k.cacheMu.Lock()
+	defer k.cacheMu.Unlock()
+
 	if time.Since(k.cacheTime) < 10*time.Second && k.cachedCurrentEpoch != nil {
 		return k.cachedCurrentEpoch, k.cachedSettledEpoch, nil
 	}
