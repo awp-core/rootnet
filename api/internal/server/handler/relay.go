@@ -137,7 +137,9 @@ func (rh *RelayHandler) checkRateLimit(r *http.Request) (bool, error) {
 func (rh *RelayHandler) writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		rh.logger.Error("failed to encode JSON response", "error", err)
+	}
 }
 
 func (rh *RelayHandler) writeError(w http.ResponseWriter, status int, msg string) {
@@ -522,6 +524,10 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 	}
 	if len(req.Symbol) > 16 {
 		rh.writeError(w, http.StatusBadRequest, "symbol exceeds 16 bytes")
+		return
+	}
+	if len(req.SkillsURI) > 2048 {
+		rh.writeError(w, http.StatusBadRequest, "skillsUri exceeds 2048 bytes")
 		return
 	}
 	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() {

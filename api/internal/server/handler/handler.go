@@ -76,7 +76,7 @@ func (h *Handler) parsePageParams(r *http.Request) (limit, offset int) {
 	}
 
 	if v := r.URL.Query().Get("page"); v != "" {
-		if page, err := strconv.Atoi(v); err == nil && page >= 1 {
+		if page, err := strconv.Atoi(v); err == nil && page >= 1 && page <= 10000 {
 			offset = (page - 1) * limit
 		}
 	}
@@ -87,6 +87,19 @@ func (h *Handler) parsePageParams(r *http.Request) (limit, offset int) {
 // normalizeAddr converts an address to lowercase for consistency
 func normalizeAddr(addr string) string {
 	return strings.ToLower(addr)
+}
+
+// isValidAddress checks if a string is a valid Ethereum address (0x + 40 hex chars)
+func isValidAddress(addr string) bool {
+	if len(addr) != 42 || addr[:2] != "0x" {
+		return false
+	}
+	for _, c := range addr[2:] {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return true
 }
 
 // Health is the health-check endpoint
@@ -151,11 +164,12 @@ type checkAddressResponse struct {
 
 // GetNonce returns the EIP-712 nonce for an address (used for gasless relay signature construction)
 func (h *Handler) GetNonce(w http.ResponseWriter, r *http.Request) {
-	address := normalizeAddr(chi.URLParam(r, "address"))
-	if address == "" || len(address) != 42 {
+	raw := chi.URLParam(r, "address")
+	if !isValidAddress(raw) {
 		h.writeError(w, http.StatusBadRequest, "invalid address")
 		return
 	}
+	address := normalizeAddr(raw)
 	if h.chain == nil {
 		h.writeError(w, http.StatusServiceUnavailable, "chain reader not available")
 		return
@@ -171,11 +185,12 @@ func (h *Handler) GetNonce(w http.ResponseWriter, r *http.Request) {
 
 // CheckAddress checks whether an address is registered and returns binding/recipient info (V2)
 func (h *Handler) CheckAddress(w http.ResponseWriter, r *http.Request) {
-	address := normalizeAddr(chi.URLParam(r, "address"))
-	if address == "" || len(address) != 42 {
+	raw := chi.URLParam(r, "address")
+	if !isValidAddress(raw) {
 		h.writeError(w, http.StatusBadRequest, "invalid address parameter")
 		return
 	}
+	address := normalizeAddr(raw)
 
 	ctx := r.Context()
 	resp := checkAddressResponse{}

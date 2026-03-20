@@ -44,7 +44,9 @@ func NewVanityHandler(factoryAddr string, initCodeHash string, rule chain.Vanity
 func (vh *VanityHandler) writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		vh.logger.Error("failed to encode JSON response", "error", err)
+	}
 }
 
 func (vh *VanityHandler) writeError(w http.ResponseWriter, status int, msg string) {

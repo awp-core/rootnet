@@ -10,7 +10,7 @@ INSERT INTO users (address, recipient) VALUES ($1, $2)
 ON CONFLICT (address) DO UPDATE SET recipient = EXCLUDED.recipient;
 
 -- name: GetUser :one
-SELECT address, bound_to, recipient, registered_at FROM users WHERE LOWER(address) = LOWER($1);
+SELECT address, bound_to, recipient, registered_at FROM users WHERE address = $1;
 
 -- name: ListUsers :many
 SELECT address, bound_to, recipient, registered_at FROM users ORDER BY registered_at DESC LIMIT $1 OFFSET $2;

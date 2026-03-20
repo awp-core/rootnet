@@ -261,12 +261,14 @@ func (h *Hub) readPump(ctx context.Context, client *Client) {
 			continue
 		}
 
-		if len(fm.Subscribe) > 0 {
-			// Update the client's event filters
+		if len(fm.Subscribe) > 0 && len(fm.Subscribe) <= 50 {
+			// Update the client's event filters (max 50 event types)
 			h.mu.Lock()
 			client.filters = make(map[string]bool, len(fm.Subscribe))
 			for _, eventType := range fm.Subscribe {
-				client.filters[eventType] = true
+				if len(eventType) <= 64 { // max 64 chars per event type name
+					client.filters[eventType] = true
+				}
 			}
 			h.mu.Unlock()
 			h.logger.Debug("client updated filters", "filters", fm.Subscribe)

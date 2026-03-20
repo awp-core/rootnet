@@ -98,7 +98,9 @@ func (l *Limiter) CheckAndIncrement(ctx context.Context, name string, ip string)
 
 	result, err := luaCheckAndIncr.Run(ctx, l.rdb, []string{key}, int(cfg.Window.Seconds()), cfg.Limit).Int64()
 	if err != nil {
-		return false, err
+		// Fail-closed: treat Redis errors as "exceeded" to prevent abuse during outages
+		l.logger.Error("rate limit Redis error, blocking request (fail-closed)", "name", name, "error", err)
+		return true, err
 	}
 	return result == 1, nil
 }

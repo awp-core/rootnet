@@ -36,11 +36,11 @@ func (q *Queries) ClearUserBinding(ctx context.Context, address string) error {
 }
 
 const getUser = `-- name: GetUser :one
-SELECT address, bound_to, recipient, registered_at FROM users WHERE LOWER(address) = LOWER($1)
+SELECT address, bound_to, recipient, registered_at FROM users WHERE address = $1
 `
 
-func (q *Queries) GetUser(ctx context.Context, lower string) (User, error) {
-	row := q.db.QueryRow(ctx, getUser, lower)
+func (q *Queries) GetUser(ctx context.Context, address string) (User, error) {
+	row := q.db.QueryRow(ctx, getUser, address)
 	var i User
 	err := row.Scan(
 		&i.Address,
