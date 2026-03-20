@@ -72,7 +72,7 @@ func (q *Queries) GetAgentSubnetStake(ctx context.Context, arg GetAgentSubnetSta
 
 const getAgentSubnets = `-- name: GetAgentSubnets :many
 SELECT subnet_id, amount FROM stake_allocations
-WHERE agent_address = $1 AND amount > 0 AND frozen = FALSE ORDER BY subnet_id
+WHERE agent_address = $1 AND amount > 0 AND frozen = FALSE ORDER BY subnet_id LIMIT 500
 `
 
 type GetAgentSubnetsRow struct {
@@ -186,7 +186,7 @@ func (q *Queries) GetAllocationsByUser(ctx context.Context, arg GetAllocationsBy
 
 const getFrozenByUser = `-- name: GetFrozenByUser :many
 SELECT user_address, agent_address, subnet_id, amount FROM stake_allocations
-WHERE user_address = $1 AND frozen = TRUE AND amount > 0
+WHERE user_address = $1 AND frozen = TRUE AND amount > 0 LIMIT 500
 `
 
 type GetFrozenByUserRow struct {

@@ -12,7 +12,8 @@ import (
 )
 
 const addUserAllocated = `-- name: AddUserAllocated :exec
-UPDATE user_balances SET total_allocated = total_allocated + $2, updated_block = $3 WHERE user_address = $1
+INSERT INTO user_balances (user_address, total_allocated, updated_block) VALUES ($1, $2, $3)
+ON CONFLICT (user_address) DO UPDATE SET total_allocated = user_balances.total_allocated + EXCLUDED.total_allocated, updated_block = EXCLUDED.updated_block
 `
 
 type AddUserAllocatedParams struct {
@@ -80,7 +81,7 @@ func (q *Queries) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsersByBoundTo = `-- name: GetUsersByBoundTo :many
 SELECT address, bound_to, recipient, registered_at FROM users
-WHERE bound_to = $1 ORDER BY address
+WHERE bound_to = $1 ORDER BY address LIMIT 500
 `
 
 func (q *Queries) GetUsersByBoundTo(ctx context.Context, boundTo string) ([]User, error) {

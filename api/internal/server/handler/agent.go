@@ -122,10 +122,18 @@ func (h *Handler) BatchAgentInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.SubnetID <= 0 {
+		h.writeError(w, http.StatusBadRequest, "subnetId must be a positive integer")
+		return
+	}
+
 	ctx := r.Context()
 	results := make([]agentInfoItem, 0, len(req.Agents))
 
 	for _, addr := range req.Agents {
+		if !isValidAddress(addr) {
+			continue
+		}
 		addr = normalizeAddr(addr)
 		user, err := h.queries.GetUser(ctx, addr)
 		if err != nil {
@@ -162,6 +170,9 @@ func parseSubnetID(r *http.Request) (int64, error) {
 	id, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
 		return 0, errors.New("subnetId must be an integer")
+	}
+	if id <= 0 {
+		return 0, errors.New("subnetId must be a positive integer")
 	}
 	return id, nil
 }

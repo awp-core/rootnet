@@ -17,6 +17,12 @@ func (h *Handler) ListProposals(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if status != "" {
+		// Validate status filter
+		validStatuses := map[string]bool{"Active": true, "Canceled": true, "Defeated": true, "Succeeded": true, "Queued": true, "Expired": true, "Executed": true}
+		if !validStatuses[status] {
+			h.writeError(w, http.StatusBadRequest, "invalid status filter: must be one of Active, Canceled, Defeated, Succeeded, Queued, Expired, Executed")
+			return
+		}
 		// Filter by status
 		proposals, err := h.queries.ListProposalsByStatus(ctx, gen.ListProposalsByStatusParams{
 			Status: status,

@@ -39,7 +39,7 @@ func (q *Queries) GetStakePosition(ctx context.Context, tokenID int64) (StakePos
 }
 
 const getUserStakePositions = `-- name: GetUserStakePositions :many
-SELECT token_id, owner, amount, lock_end_time, created_at, burned FROM stake_positions WHERE owner = $1 AND burned = FALSE ORDER BY token_id
+SELECT token_id, owner, amount, lock_end_time, created_at, burned FROM stake_positions WHERE owner = $1 AND burned = FALSE ORDER BY token_id LIMIT 500
 `
 
 func (q *Queries) GetUserStakePositions(ctx context.Context, owner string) ([]StakePosition, error) {

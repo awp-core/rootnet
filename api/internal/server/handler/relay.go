@@ -133,19 +133,6 @@ func (rh *RelayHandler) checkRateLimit(r *http.Request) (bool, error) {
 	return rh.limiter.CheckAndIncrement(r.Context(), "relay", ratelimit.GetClientIP(r))
 }
 
-// preCheckNonce reads the on-chain nonce and compares with the expected nonce from the signature.
-// Returns error if nonce mismatch (stale signature). Prevents wasting gas on guaranteed-to-revert txs.
-func (rh *RelayHandler) preCheckNonce(user common.Address, expectedNonce uint64) error {
-	onChainNonce, err := rh.relayer.CheckNonce(user)
-	if err != nil {
-		return nil // RPC failure — skip pre-check, let the tx attempt proceed
-	}
-	if onChainNonce.Uint64() != expectedNonce {
-		return fmt.Errorf("nonce mismatch: expected %d, on-chain %d", expectedNonce, onChainNonce.Uint64())
-	}
-	return nil
-}
-
 
 func (rh *RelayHandler) writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")

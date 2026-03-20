@@ -41,7 +41,7 @@ WHERE agent_address = $1 AND subnet_id = $2 AND frozen = FALSE;
 
 -- name: GetAgentSubnets :many
 SELECT subnet_id, amount FROM stake_allocations
-WHERE agent_address = $1 AND amount > 0 AND frozen = FALSE ORDER BY subnet_id;
+WHERE agent_address = $1 AND amount > 0 AND frozen = FALSE ORDER BY subnet_id LIMIT 500;
 
 -- name: GetSubnetTotalStake :one
 SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_allocations
@@ -49,7 +49,7 @@ WHERE subnet_id = $1 AND frozen = FALSE;
 
 -- name: GetFrozenByUser :many
 SELECT user_address, agent_address, subnet_id, amount FROM stake_allocations
-WHERE user_address = $1 AND frozen = TRUE AND amount > 0;
+WHERE user_address = $1 AND frozen = TRUE AND amount > 0 LIMIT 500;
 
 -- name: DeleteFrozenAllocations :exec
 DELETE FROM stake_allocations WHERE user_address = $1 AND frozen = TRUE;
