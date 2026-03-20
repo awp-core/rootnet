@@ -70,7 +70,7 @@ uint256 subnetId = awpRegistry.registerSubnet(params);
 const { writeContract } = useWriteContract();
 await writeContract({
   address: AWP_REGISTRY_ADDRESS,
-  abi: rootNetABI,
+  abi: awpRegistryABI,
   functionName: 'registerSubnet',
   args: [{ name, symbol, subnetManager: '0x0000000000000000000000000000000000000000',
             salt: '0x00...00', minStake: 0n }]
@@ -673,7 +673,7 @@ Runtime Incremental Updates:
 
 Reward Distribution:
   1. Calculate reward ratio based on agent stake and contribution score
-  2. Query rewardRecipient: GET /api/agents/batch-info or on-chain awpRegistry.getAgentInfo(agent, subnetId)
+  2. Query rewardRecipient: POST /api/agents/batch-info or on-chain awpRegistry.getAgentInfo(agent, subnetId)
   3. Transfer AWP/Alpha to the rewardRecipient address
 ```
 
@@ -707,16 +707,13 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 
 | Contract | Address | Description |
 |----------|---------|-------------|
-| AWPRegistry | `0x190E0E3128764913D54aD570993b21a38D1411F7` | Unified entry point (allocation + subnet management) |
-| AWPToken | `0x0000969dDC625E1c084ECE9079055Fbc50F400a1` | Main token (ERC20Votes) |
-| SubnetNFT | `0xbdfd26f499bd7972242bb765d8C3262d6d89fE63` | Subnet NFT (ERC721) |
-| StakeNFT | `0x3678463cd5EbA407b20CD1c296B6ECc58491C170` | Position NFT (ERC721, deposit/withdraw AWP) |
-| StakingVault | `0xbEe164bdE7F690E7bb73a0D84c1a87D1073545eE` | Pure allocation logic |
-| AWPEmission (Proxy) | `0xcc4fA866c0c49FE4763977C5302a6052C3f0d742` | Emission engine (UUPS proxy) |
-| Treasury | `0x710975eC607617fB4623Db9b86B5C218a92E7C7d` | Treasury (TimelockController) |
-| LPManager | `0x5372b30E2D14599F90Cb623fc673692B48E83404` | PancakeSwap V4 LP manager |
-| AlphaTokenFactory | `0x7E3B68cf196FD8a972115685ea171b763B677499` | Alpha token deployer (CREATE2) |
-| AWPDAO | `0xe21097cB128b41611557356de7f55BCd25062579` | Governor |
+| AWPToken | `0x0000d0e38e9c6ba147b0098bb42007b942ef00a1` | Main token (ERC20Votes) |
+| AWPRegistry | `0x00003a7fa04c3af3adba2dc3c6622277501400b1` | Unified entry point (allocation + subnet management) |
+| SubnetNFT | `0x0f86ec2f2fbf234b00b18e66e7c5e00518091cda` | Subnet NFT (ERC721) |
+| AlphaTokenFactory | `0x3ebe3168c898f4b05ebf0c0d17f4739e111e5164` | Alpha token deployer (CREATE2) |
+| StakeNFT | `0x4f7e8d4487c0c514b72ed0e35ed707cb8acdce39` | Position NFT (ERC721, deposit/withdraw AWP) |
+| AWPDAO | `0x7171211da849a2c569643fb1e8f5399ddd71939a` | Governor |
+| Treasury | `0x9ee82684e4214edb405d930001e9058d1913d994` | Treasury (TimelockController) |
 | SubnetManager (impl) | `0xE5771dC2a5a577CDFa6b939Af4F32Ad13CFc6D92` | Default subnet contract implementation |
 
 ---

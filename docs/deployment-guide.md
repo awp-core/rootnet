@@ -3,7 +3,7 @@
 ## Table of Contents
 
 1. [Prerequisites](#1-prerequisites)
-2. [Contract Deployment (BSC)](#2-contract-deployment-bsc)
+2. [Contract Deployment (Base / BSC)](#2-contract-deployment-base--bsc)
 3. [Database Setup](#3-database-setup)
 4. [Backend Services](#4-backend-services)
 5. [Configuration Reference](#5-configuration-reference)
@@ -58,7 +58,7 @@ Permit2:            0x31c2F6fcFf4F8759b3Bd5Bf0e1084A055615c768
 
 ---
 
-## 2. Contract Deployment (BSC)
+## 2. Contract Deployment (Base / BSC)
 
 ### 2.1 Prepare Environment
 
@@ -245,7 +245,7 @@ AWP_REGISTRY_ADDRESS=0x...
 AWP_TOKEN_ADDRESS=0x...
 AWP_EMISSION_ADDRESS=0x...
 STAKING_VAULT_ADDRESS=0x...
-STAKENFT_ADDRESS=0x...
+STAKE_NFT_ADDRESS=0x...
 SUBNETNFT_ADDRESS=0x...
 DAO_ADDRESS=0x...
 TREASURY_ADDRESS=0x...
@@ -355,10 +355,15 @@ sudo systemctl start awp-api awp-indexer awp-keeper
 | `AWP_TOKEN_ADDRESS` | keeper | — | AWP token address |
 | `AWP_EMISSION_ADDRESS` | indexer, keeper | — | AWPEmission proxy address |
 | `STAKING_VAULT_ADDRESS` | indexer | — | StakingVault address |
-| `STAKENFT_ADDRESS` | indexer | — | StakeNFT address |
+| `STAKE_NFT_ADDRESS` | indexer | — | StakeNFT address |
 | `SUBNETNFT_ADDRESS` | indexer | — | SubnetNFT address |
 | `DAO_ADDRESS` | indexer | — | AWPDAO address |
 | `TREASURY_ADDRESS` | api | — | Treasury (Timelock) address |
+| `LP_MANAGER_ADDRESS` | indexer | — | LPManager contract address |
+| `ALPHA_FACTORY_ADDRESS` | api | — | AlphaTokenFactory contract address |
+| `CHAIN_ID` | api, indexer, keeper | — | Chain ID (e.g., 8453 for Base, 56 for BSC) |
+| `TRUST_PROXY` | api | `false` | Trust reverse proxy headers (X-Forwarded-For) |
+| `DEPLOY_BLOCK` | indexer | `0` | Block number to start indexing from |
 | `KEEPER_PRIVATE_KEY` | keeper | — | Hex private key for signing settle transactions |
 
 ### 5.2 Contract Constants
