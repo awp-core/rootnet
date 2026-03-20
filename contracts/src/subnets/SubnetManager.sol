@@ -155,6 +155,9 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
         });
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
+        _grantRole(MERKLE_ROLE, admin_);
+        _grantRole(STRATEGY_ROLE, admin_);
+        _grantRole(TRANSFER_ROLE, admin_);
     }
 
     // ═══════════════════════════════════════════════

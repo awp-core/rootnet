@@ -101,6 +101,9 @@ contract SubnetManagerUni is SubnetManager {
         });
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
+        _grantRole(MERKLE_ROLE, admin_);
+        _grantRole(STRATEGY_ROLE, admin_);
+        _grantRole(TRANSFER_ROLE, admin_);
     }
 
     /// @dev Override: use Uni V4 PoolKey and StateView for single-sided liquidity
