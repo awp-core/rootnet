@@ -31,7 +31,7 @@ WHERE recipient = $1 ORDER BY epoch_id DESC LIMIT $2 OFFSET $3;
 -- name: GetSubnetEarningsByID :many
 SELECT r.epoch_id, r.recipient, r.awp_amount
 FROM recipient_awp_distributions r
-JOIN subnets s ON LOWER(r.recipient) = LOWER(s.subnet_contract)
+JOIN subnets s ON r.recipient = s.subnet_contract
 WHERE s.subnet_id = $1
 ORDER BY r.epoch_id DESC LIMIT $2 OFFSET $3;
 

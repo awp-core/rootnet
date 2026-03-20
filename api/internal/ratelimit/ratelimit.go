@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -31,6 +32,11 @@ type Limiter struct {
 	rdb      *redis.Client
 	logger   *slog.Logger
 	defaults map[string]Config // compiled defaults (fallback)
+
+	// In-process config cache (reduces 1 Redis RTT per rate-limited request)
+	cacheMu   sync.RWMutex
+	cache     map[string]Config
+	cacheTime time.Time
 }
 
 const configKey = "ratelimit:config"
@@ -74,17 +80,44 @@ func NewLimiter(rdb *redis.Client, logger *slog.Logger) *Limiter {
 }
 
 // GetConfig reads the current config for a limiter name.
-// Returns the Redis-stored value if present, otherwise the compiled default.
+// Uses a 10-second in-process cache to avoid a Redis RTT on every rate-limited request.
 func (l *Limiter) GetConfig(ctx context.Context, name string) Config {
-	val, err := l.rdb.HGet(ctx, configKey, name).Result()
-	if err == nil {
-		if cfg, ok := parseConfig(val); ok {
+	// Check in-process cache first (10s TTL)
+	l.cacheMu.RLock()
+	if l.cache != nil && time.Since(l.cacheTime) < 10*time.Second {
+		if cfg, ok := l.cache[name]; ok {
+			l.cacheMu.RUnlock()
 			return cfg
 		}
-		l.logger.Warn("invalid rate limit config in Redis, using default", "name", name, "value", val)
 	}
-	if def, ok := l.defaults[name]; ok {
-		return def
+	l.cacheMu.RUnlock()
+
+	// Cache miss or expired — read all configs from Redis in one call
+	l.cacheMu.Lock()
+	defer l.cacheMu.Unlock()
+	// Double-check after acquiring write lock
+	if l.cache != nil && time.Since(l.cacheTime) < 10*time.Second {
+		if cfg, ok := l.cache[name]; ok {
+			return cfg
+		}
+	}
+	newCache := make(map[string]Config)
+	for k, v := range l.defaults {
+		newCache[k] = v
+	}
+	all, err := l.rdb.HGetAll(ctx, configKey).Result()
+	if err == nil {
+		for k, v := range all {
+			if cfg, ok := parseConfig(v); ok {
+				newCache[k] = cfg
+			}
+		}
+	}
+	l.cache = newCache
+	l.cacheTime = time.Now()
+
+	if cfg, ok := newCache[name]; ok {
+		return cfg
 	}
 	return Config{Limit: 100, Window: time.Hour} // ultimate fallback
 }

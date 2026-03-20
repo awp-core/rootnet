@@ -198,15 +198,19 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	// 6. Publish events to Redis (after successful transaction commit)
-	for _, evt := range events {
-		payload, err := json.Marshal(evt)
-		if err != nil {
-			slog.Error("failed to serialize Redis event", "type", evt.Type, "error", err)
-			continue
+	// 6. Publish events to Redis via pipeline (single round-trip for all events)
+	if len(events) > 0 {
+		pipe := idx.rds.Pipeline()
+		for _, evt := range events {
+			payload, err := json.Marshal(evt)
+			if err != nil {
+				slog.Error("failed to serialize Redis event", "type", evt.Type, "error", err)
+				continue
+			}
+			pipe.Publish(ctx, redisChannel, payload)
 		}
-		if err := idx.rds.Publish(ctx, redisChannel, payload).Err(); err != nil {
-			slog.Error("failed to publish Redis event", "type", evt.Type, "error", err)
+		if _, err := pipe.Exec(ctx); err != nil {
+			slog.Error("failed to publish Redis events", "count", len(events), "error", err)
 		}
 	}
 

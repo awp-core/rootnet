@@ -167,7 +167,7 @@ func newVanityHandler(cfg *config.Config, queries *gen.Queries, limiter *ratelim
 }
 
 // wireChainReader creates a lightweight chain client for on-chain reads (nonce, etc.)
-func wireChainReader(h *handler.Handler, cfg *config.Config, logger *slog.Logger) {
+func wireChainReader(lc fx.Lifecycle, h *handler.Handler, cfg *config.Config, logger *slog.Logger) {
 	addrs := map[string]string{
 		"AWPRegistry":  cfg.AWPRegistryAddress,
 		"AWPToken":     cfg.AWPTokenAddress,
@@ -185,6 +185,12 @@ func wireChainReader(h *handler.Handler, cfg *config.Config, logger *slog.Logger
 		return
 	}
 	h.SetChainReader(client)
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			client.Close()
+			return nil
+		},
+	})
 	logger.Info("chain reader connected for on-chain queries")
 }
 
