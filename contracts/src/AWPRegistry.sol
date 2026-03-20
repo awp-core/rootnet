@@ -811,6 +811,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
 
     /// @notice Set the default subnet implementation (only Timelock may call)
     function setSubnetManagerImpl(address impl) external onlyTimelock {
+        if (impl == address(0)) revert InvalidAddress();
         defaultSubnetManagerImpl = impl;
         emit DefaultSubnetManagerImplUpdated(impl);
     }
@@ -818,6 +819,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     /// @notice Update DEX configuration for future auto-deployed SubnetManagers (only Timelock)
     function setDexConfig(bytes calldata dexConfig_) external onlyTimelock {
         dexConfig = dexConfig_;
+        emit DexConfigUpdated();
     }
 
     // ═══════════════════════════════════════════════

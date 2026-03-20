@@ -92,4 +92,5 @@ interface IAWPRegistry {
     event ImmunityPeriodUpdated(uint256 newPeriod);
     event AlphaTokenFactoryUpdated(address indexed newFactory);
     event DefaultSubnetManagerImplUpdated(address indexed newImpl);
+    event DexConfigUpdated();
 }
