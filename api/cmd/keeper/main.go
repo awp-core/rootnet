@@ -73,7 +73,9 @@ func newKeeper(client *ethclient.Client, rdb *redis.Client, cfg *config.Config, 
 		return nil, fmt.Errorf("invalid keeper private key: %w", err)
 	}
 
-	chainID, err := client.ChainID(context.Background())
+	chainCtx, chainCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer chainCancel()
+	chainID, err := client.ChainID(chainCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get chain ID: %w", err)
 	}

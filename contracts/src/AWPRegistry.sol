@@ -436,14 +436,14 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
 
     /// @notice Grant delegate authorization to another address
     /// @param delegate Address to authorize
-    function grantDelegate(address delegate) external {
+    function grantDelegate(address delegate) external whenNotPaused {
         delegates[msg.sender][delegate] = true;
         emit DelegateGranted(msg.sender, delegate);
     }
 
     /// @notice Revoke delegate authorization
     /// @param delegate Address to de-authorize
-    function revokeDelegate(address delegate) external {
+    function revokeDelegate(address delegate) external whenNotPaused {
         if (delegate == msg.sender) revert CannotRevokeSelf();
         delegates[msg.sender][delegate] = false;
         emit DelegateRevoked(msg.sender, delegate);

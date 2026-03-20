@@ -230,6 +230,12 @@ contract AWPDAO is
     //  Quorum and threshold
     // ═══════════════════════════════════════════════
 
+    /// @notice Update quorum percentage (only via governance through Timelock)
+    function setQuorumPercent(uint256 newQuorumPercent) external onlyGovernance {
+        require(newQuorumPercent > 0 && newQuorumPercent <= 100, "Invalid quorum percent");
+        quorumPercent = newQuorumPercent;
+    }
+
     /// @notice Quorum = totalVotingPower * quorumPercent / 100
     /// @dev Uses stakeNFT.totalVotingPower() which only counts properly deposited AWP,
     ///      not accidentally-sent tokens.

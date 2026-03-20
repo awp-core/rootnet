@@ -14,7 +14,7 @@ type Config struct {
 
 	// HTTP server
 	HTTPAddr    string `env:"HTTP_ADDR" envDefault:":8080"`
-	TrustProxy  bool   `env:"TRUST_PROXY" envDefault:"true"` // Trust X-Forwarded-For; set to false if not behind a reverse proxy
+	TrustProxy  bool   `env:"TRUST_PROXY" envDefault:"false"` // Set to true ONLY when behind a trusted reverse proxy (nginx/caddy)
 
 	// Chain
 	ChainID         int64  `env:"CHAIN_ID,required"` // No default — must match target chain

@@ -237,6 +237,7 @@ contract Deploy is Script {
         require(awp.admin() == address(0), "Admin should be renounced");
         require(awp.minters(address(emission)), "Emission should be minter");
         require(awpRegistry.registryInitialized(), "Registry should be initialized");
+        require(awp.balanceOf(deployer) == 0, "Deployer should have 0 AWP remaining");
 
         console.log("=== Deployment Complete ===");
     }
