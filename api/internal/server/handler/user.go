@@ -12,7 +12,7 @@ import (
 // userDetailResponse is the response type for user details including balance and bound agents (V2)
 type userDetailResponse struct {
 	User    gen.User         `json:"user"`
-	Balance *gen.UserBalance `json:"balance,omitempty"`
+	Balance *gen.GetUserBalanceRow `json:"balance,omitempty"`
 	Agents  []gen.User       `json:"agents"`
 }
 

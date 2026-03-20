@@ -162,9 +162,9 @@ contract SubnetManagerUni is SubnetManager {
         (uint160 sqrtPriceX96,,,) = IStateView(stateView).getSlot0(poolId);
         uint256 expectedOut;
         if (zeroForOne) {
-            expectedOut = FullMath.mulDiv(amount, uint256(sqrtPriceX96) * uint256(sqrtPriceX96), 1 << 192);
+            expectedOut = FullMath.mulDiv(FullMath.mulDiv(amount, sqrtPriceX96, 1 << 96), sqrtPriceX96, 1 << 96);
         } else {
-            expectedOut = FullMath.mulDiv(amount, 1 << 192, uint256(sqrtPriceX96) * uint256(sqrtPriceX96));
+            expectedOut = FullMath.mulDiv(FullMath.mulDiv(amount, 1 << 96, sqrtPriceX96), 1 << 96, sqrtPriceX96);
         }
         uint128 minOut = uint128(expectedOut * 95 / 100); // 5% slippage tolerance
 

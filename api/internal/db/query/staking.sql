@@ -1,17 +1,18 @@
--- name: TruncateStakeAllocations :exec
-TRUNCATE stake_allocations;
+-- name: DeleteStakeAllocationsAfterBlock :exec
+DELETE FROM stake_allocations WHERE updated_block > $1;
 
--- name: TruncateUserBalances :exec
-TRUNCATE user_balances;
+-- name: DeleteUserBalancesAfterBlock :exec
+DELETE FROM user_balances WHERE updated_block > $1;
 
 -- name: UpsertStakeAllocation :exec
-INSERT INTO stake_allocations (user_address, agent_address, subnet_id, amount, frozen)
-VALUES ($1, $2, $3, $4, FALSE)
+INSERT INTO stake_allocations (user_address, agent_address, subnet_id, amount, frozen, updated_block)
+VALUES ($1, $2, $3, $4, FALSE, $5)
 ON CONFLICT (user_address, agent_address, subnet_id) DO UPDATE SET
-  amount = stake_allocations.amount + EXCLUDED.amount;
+  amount = stake_allocations.amount + EXCLUDED.amount,
+  updated_block = EXCLUDED.updated_block;
 
 -- name: SubtractStakeAllocation :exec
-UPDATE stake_allocations SET amount = GREATEST(amount - $4, 0)
+UPDATE stake_allocations SET amount = GREATEST(amount - $4, 0), updated_block = $5
 WHERE user_address = $1 AND agent_address = $2 AND subnet_id = $3;
 
 -- name: SetStakeAllocationFrozen :exec

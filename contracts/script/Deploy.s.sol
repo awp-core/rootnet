@@ -194,9 +194,11 @@ contract Deploy is Script {
         // Step 11: Roles + Admin
         treasury.grantRole(treasury.PROPOSER_ROLE(), address(dao));
         treasury.grantRole(treasury.CANCELLER_ROLE(), address(dao));
-        treasury.renounceRole(treasury.EXECUTOR_ROLE(), deployer);
         treasury.renounceRole(treasury.DEFAULT_ADMIN_ROLE(), deployer);
-        console.log("Roles granted + Treasury admin + executor renounced");
+        // NOTE: EXECUTOR_ROLE is granted to address(0) (open execution) by design.
+        // Anyone can execute queued proposals after the timelock delay.
+        // Deployer was never granted EXECUTOR_ROLE, so no renounce needed.
+        console.log("Roles granted + Treasury admin renounced (open executor by design)");
 
         awp.addMinter(address(emission));
         awp.renounceAdmin();

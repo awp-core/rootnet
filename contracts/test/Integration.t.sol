@@ -258,8 +258,11 @@ contract IntegrationTest is EmissionSigningHelper {
         _settleOneEpoch();
 
         uint256 subnetBal = awp.balanceOf(subnetManager1);
+        // Epoch 0 (no decay, weights promoted from epoch 1) + Epoch 1 (decayed)
+        uint256 epoch0Subnet = INITIAL_DAILY_EMISSION / 2;
         uint256 decayedEmission = INITIAL_DAILY_EMISSION * 996844 / 1000000;
-        assertEq(subnetBal, decayedEmission / 2);
+        uint256 epoch1Subnet = decayedEmission / 2;
+        assertEq(subnetBal, epoch0Subnet + epoch1Subnet);
 
         // DAO receives rest
         uint256 treasuryBal = awp.balanceOf(address(treasury));
@@ -429,15 +432,19 @@ contract IntegrationTest is EmissionSigningHelper {
         _settleOneEpoch();
         _settleOneEpoch();
 
+        // Epoch 0 (weights promoted from epoch 1) + Epoch 1 (decayed)
+        uint256 epoch0Pool = INITIAL_DAILY_EMISSION / 2;
         uint256 decayedEmission = INITIAL_DAILY_EMISSION * 996844 / 1000000;
-        uint256 subnetPool = decayedEmission / 2;
-        uint256 expected1 = subnetPool * 100 / 600;
-        uint256 expected2 = subnetPool * 200 / 600;
-        uint256 expected3 = subnetPool * 300 / 600;
+        uint256 epoch1Pool = decayedEmission / 2;
+        uint256 totalPool = epoch0Pool + epoch1Pool;
+        uint256 expected1 = totalPool * 100 / 600;
+        uint256 expected2 = totalPool * 200 / 600;
+        uint256 expected3 = totalPool * 300 / 600;
 
-        assertEq(awp.balanceOf(address(uint160(0x400))), expected1);
-        assertEq(awp.balanceOf(address(uint160(0x401))), expected2);
-        assertEq(awp.balanceOf(address(uint160(0x402))), expected3);
+        // Allow 1 wei rounding tolerance from integer division across two epochs
+        assertApproxEqAbs(awp.balanceOf(address(uint160(0x400))), expected1, 1);
+        assertApproxEqAbs(awp.balanceOf(address(uint160(0x401))), expected2, 1);
+        assertApproxEqAbs(awp.balanceOf(address(uint160(0x402))), expected3, 1);
     }
 
     /// @notice Test pause protection

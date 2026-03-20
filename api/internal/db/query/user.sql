@@ -28,13 +28,13 @@ ON CONFLICT (user_address) DO UPDATE SET
 SELECT user_address, total_allocated FROM user_balances WHERE user_address = $1;
 
 -- name: AddUserAllocated :exec
-UPDATE user_balances SET total_allocated = total_allocated + $2 WHERE user_address = $1;
+UPDATE user_balances SET total_allocated = total_allocated + $2, updated_block = $3 WHERE user_address = $1;
 
 -- name: SubtractUserAllocated :exec
-UPDATE user_balances SET total_allocated = GREATEST(total_allocated - $2, 0) WHERE user_address = $1;
+UPDATE user_balances SET total_allocated = GREATEST(total_allocated - $2, 0), updated_block = $3 WHERE user_address = $1;
 
 -- name: InitUserBalance :exec
-INSERT INTO user_balances (user_address, total_allocated) VALUES ($1, 0)
+INSERT INTO user_balances (user_address, total_allocated, updated_block) VALUES ($1, 0, 0)
 ON CONFLICT (user_address) DO NOTHING;
 
 -- name: SetUserRegisteredAt :exec

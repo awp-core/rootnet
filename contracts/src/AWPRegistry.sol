@@ -392,13 +392,13 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
         uint8 v, bytes32 r, bytes32 s
     ) external nonReentrant whenNotPaused {
         if (block.timestamp > deadline) revert ExpiredSignature();
+        if (_recipient == address(0)) revert InvalidAddress();
         bytes32 structHash = keccak256(abi.encode(
             SET_RECIPIENT_TYPEHASH, user, _recipient, nonces[user]++, deadline
         ));
         bytes32 digest = _hashTypedDataV4(structHash);
         address signer = ECDSA.recover(digest, v, r, s);
         if (signer != user) revert InvalidSignature();
-        if (_recipient == address(0)) revert InvalidAddress();
 
         // If this is the first time setting recipient (registration), increment counter
         bool firstTime = recipient[user] == address(0);

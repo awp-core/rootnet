@@ -12,16 +12,17 @@ import (
 )
 
 const addUserAllocated = `-- name: AddUserAllocated :exec
-UPDATE user_balances SET total_allocated = total_allocated + $2 WHERE user_address = $1
+UPDATE user_balances SET total_allocated = total_allocated + $2, updated_block = $3 WHERE user_address = $1
 `
 
 type AddUserAllocatedParams struct {
 	UserAddress    string         `json:"user_address"`
 	TotalAllocated pgtype.Numeric `json:"total_allocated"`
+	UpdatedBlock   int64          `json:"updated_block"`
 }
 
 func (q *Queries) AddUserAllocated(ctx context.Context, arg AddUserAllocatedParams) error {
-	_, err := q.db.Exec(ctx, addUserAllocated, arg.UserAddress, arg.TotalAllocated)
+	_, err := q.db.Exec(ctx, addUserAllocated, arg.UserAddress, arg.TotalAllocated, arg.UpdatedBlock)
 	return err
 }
 
@@ -54,9 +55,14 @@ const getUserBalance = `-- name: GetUserBalance :one
 SELECT user_address, total_allocated FROM user_balances WHERE user_address = $1
 `
 
-func (q *Queries) GetUserBalance(ctx context.Context, userAddress string) (UserBalance, error) {
+type GetUserBalanceRow struct {
+	UserAddress    string         `json:"user_address"`
+	TotalAllocated pgtype.Numeric `json:"total_allocated"`
+}
+
+func (q *Queries) GetUserBalance(ctx context.Context, userAddress string) (GetUserBalanceRow, error) {
 	row := q.db.QueryRow(ctx, getUserBalance, userAddress)
-	var i UserBalance
+	var i GetUserBalanceRow
 	err := row.Scan(&i.UserAddress, &i.TotalAllocated)
 	return i, err
 }
@@ -103,7 +109,7 @@ func (q *Queries) GetUsersByBoundTo(ctx context.Context, boundTo string) ([]User
 }
 
 const initUserBalance = `-- name: InitUserBalance :exec
-INSERT INTO user_balances (user_address, total_allocated) VALUES ($1, 0)
+INSERT INTO user_balances (user_address, total_allocated, updated_block) VALUES ($1, 0, 0)
 ON CONFLICT (user_address) DO NOTHING
 `
 
@@ -163,16 +169,17 @@ func (q *Queries) SetUserRegisteredAt(ctx context.Context, arg SetUserRegistered
 }
 
 const subtractUserAllocated = `-- name: SubtractUserAllocated :exec
-UPDATE user_balances SET total_allocated = GREATEST(total_allocated - $2, 0) WHERE user_address = $1
+UPDATE user_balances SET total_allocated = GREATEST(total_allocated - $2, 0), updated_block = $3 WHERE user_address = $1
 `
 
 type SubtractUserAllocatedParams struct {
 	UserAddress    string         `json:"user_address"`
 	TotalAllocated pgtype.Numeric `json:"total_allocated"`
+	UpdatedBlock   int64          `json:"updated_block"`
 }
 
 func (q *Queries) SubtractUserAllocated(ctx context.Context, arg SubtractUserAllocatedParams) error {
-	_, err := q.db.Exec(ctx, subtractUserAllocated, arg.UserAddress, arg.TotalAllocated)
+	_, err := q.db.Exec(ctx, subtractUserAllocated, arg.UserAddress, arg.TotalAllocated, arg.UpdatedBlock)
 	return err
 }
 

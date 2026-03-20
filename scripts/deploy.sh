@@ -314,7 +314,7 @@ fi
 
 # Compute AlphaToken initCodeHash
 # Read initcode hash from deployed AlphaTokenFactory (most reliable — includes Solidity metadata)
-ALPHA_INITCODE_HASH=$(cast call "$ALPHA_FACTORY" "ALPHA_BYTECODE_HASH()(bytes32)" --rpc-url "$ETH_RPC_URL" 2>/dev/null || echo "")
+ALPHA_INITCODE_HASH=$(cast call "$FACTORY_ADDRESS" "ALPHA_BYTECODE_HASH()(bytes32)" --rpc-url "$ETH_RPC_URL" 2>/dev/null || echo "")
 
 # ═══════════════════════════════════════════════
 #  STEP 5: GENERATE API .env

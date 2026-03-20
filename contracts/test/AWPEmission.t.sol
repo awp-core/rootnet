@@ -513,10 +513,12 @@ contract AWPEmissionTest is EmissionSigningHelper {
         assertEq(emission.settledEpoch(), 2);
 
         // 4 equal-weight recipients, each receives 1/4 of the subnet pool
-        // Emission for epoch 1 includes decay
+        // Epoch 0 (no decay) + Epoch 1 (with decay) — both distributed because
+        // activeEpoch is promoted to 1 during epoch 0 settlement (weights pre-submitted)
+        uint256 epoch0Pool = INITIAL_DAILY_EMISSION / 2;
         uint256 decayedEmission = INITIAL_DAILY_EMISSION * 996844 / 1000000;
-        uint256 subnetPool = decayedEmission / 2;
-        uint256 expected = subnetPool / 4;
+        uint256 epoch1Pool = decayedEmission / 2;
+        uint256 expected = (epoch0Pool + epoch1Pool) / 4;
         assertEq(awpToken.balanceOf(recipient1), expected);
         assertEq(awpToken.balanceOf(recipient2), expected);
         assertEq(awpToken.balanceOf(recipient3), expected);
@@ -807,13 +809,9 @@ contract AWPEmissionTest is EmissionSigningHelper {
         // activeEpoch is 0 initially
         assertEq(emission.activeEpoch(), 0);
 
-        // Settle epoch 0 — no weights for epoch 0, activeEpoch stays 0
+        // Settle epoch 0 — oracle submitted for epoch 1, so activeEpoch promoted to 1
+        // (settleEpoch checks _epochTotalWeight[settledEpoch + 1])
         _settleEpoch0();
-        assertEq(emission.activeEpoch(), 0);
-
-        // Settle epoch 1 — weights exist for epoch 1, activeEpoch promoted to 1
-        vm.warp(block.timestamp + EPOCH_DURATION + 1);
-        emission.settleEpoch(200);
         assertEq(emission.activeEpoch(), 1);
     }
 

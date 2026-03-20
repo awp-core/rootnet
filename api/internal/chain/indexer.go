@@ -277,12 +277,12 @@ func (idx *Indexer) rollback(ctx context.Context, forkPoint int64) error {
 	if err := qtx.DeleteIndexedBlocksAfter(ctx, forkPoint); err != nil {
 		return fmt.Errorf("delete indexed blocks after %d: %w", forkPoint, err)
 	}
-	// Truncate additive tables to prevent double-counting on replay
-	if err := qtx.TruncateStakeAllocations(ctx); err != nil {
-		return fmt.Errorf("truncate stake_allocations: %w", err)
+	// Delete only rows written after the fork point (scoped rollback, not global truncate)
+	if err := qtx.DeleteStakeAllocationsAfterBlock(ctx, forkPoint); err != nil {
+		return fmt.Errorf("delete stake_allocations after %d: %w", forkPoint, err)
 	}
-	if err := qtx.TruncateUserBalances(ctx); err != nil {
-		return fmt.Errorf("truncate user_balances: %w", err)
+	if err := qtx.DeleteUserBalancesAfterBlock(ctx, forkPoint); err != nil {
+		return fmt.Errorf("delete user_balances after %d: %w", forkPoint, err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -471,12 +471,14 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
 			SubnetID:     evt.SubnetId.Int64(),
 			Amount:       bigIntToNumeric(evt.Amount),
+			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("UpsertStakeAllocation: %w", err)
 		}
 		if err := q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
 			UserAddress:    strings.ToLower(evt.Staker.Hex()),
 			TotalAllocated: bigIntToNumeric(evt.Amount),
+			UpdatedBlock:   int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("AddUserAllocated: %w", err)
 		}
@@ -496,12 +498,14 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
 			SubnetID:     evt.SubnetId.Int64(),
 			Amount:       bigIntToNumeric(evt.Amount),
+			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("SubtractStakeAllocation: %w", err)
 		}
 		if err := q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{
 			UserAddress:    strings.ToLower(evt.Staker.Hex()),
 			TotalAllocated: bigIntToNumeric(evt.Amount),
+			UpdatedBlock:   int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("SubtractUserAllocated: %w", err)
 		}
@@ -522,6 +526,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			AgentAddress: strings.ToLower(evt.FromAgent.Hex()),
 			SubnetID:     evt.FromSubnet.Int64(),
 			Amount:       bigIntToNumeric(evt.Amount),
+			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("SubtractStakeAllocation(Reallocated): %w", err)
 		}
@@ -531,6 +536,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			AgentAddress: strings.ToLower(evt.ToAgent.Hex()),
 			SubnetID:     evt.ToSubnet.Int64(),
 			Amount:       bigIntToNumeric(evt.Amount),
+			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("UpsertStakeAllocation(Reallocated): %w", err)
 		}

@@ -132,6 +132,14 @@ contract AWPDAO is
         revert UsecastVoteWithParams();
     }
 
+    function castVoteBySig(uint256, uint8, address, bytes memory) public pure override returns (uint256) {
+        revert UsecastVoteWithParams();
+    }
+
+    function castVoteWithReasonAndParamsBySig(uint256, uint8, address, string calldata, bytes memory, bytes memory) public pure override returns (uint256) {
+        revert UsecastVoteWithParams();
+    }
+
     /// @notice Get vote tallies for a proposal
     function proposalVotes(uint256 proposalId)
         public
