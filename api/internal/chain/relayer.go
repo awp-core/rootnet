@@ -39,12 +39,18 @@ func NewRelayer(
 		return nil, fmt.Errorf("bind AWPRegistry: %w", err)
 	}
 	return &Relayer{
-		client:      client,
-		awpRegistry: awpRegistry,
-		key:         key,
+		client:        client,
+		awpRegistry:   awpRegistry,
+		key:           key,
 		chainID:     chainID,
 		logger:      logger,
 	}, nil
+}
+
+// CheckNonce reads the on-chain nonce for an address and returns it.
+// Used by relay handlers to pre-check that a signature's nonce is still valid before submitting.
+func (r *Relayer) CheckNonce(user common.Address) (*big.Int, error) {
+	return r.awpRegistry.Nonces(nil, user)
 }
 
 func (r *Relayer) auth(ctx context.Context) (*bind.TransactOpts, error) {

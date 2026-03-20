@@ -74,6 +74,7 @@ func NewLimiter(rdb *redis.Client, logger *slog.Logger) *Limiter {
 			"upload_salts":     {Limit: 5, Window: 1 * time.Hour},
 			"compute_salt":     {Limit: 20, Window: 1 * time.Hour},
 			"batch_agent_info": {Limit: 30, Window: 1 * time.Hour},
+			"nonce":            {Limit: 60, Window: 1 * time.Hour},
 			"ws_connect":       {Limit: 10, Window: 0}, // 0 = concurrent count, not time-windowed
 		},
 	}

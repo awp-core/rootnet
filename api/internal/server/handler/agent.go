@@ -27,11 +27,12 @@ type batchAgentInfoRequest struct {
 
 // GetAgentsByOwner returns all agents (addresses) bound to a given owner
 func (h *Handler) GetAgentsByOwner(w http.ResponseWriter, r *http.Request) {
-	owner := normalizeAddr(chi.URLParam(r, "owner"))
-	if owner == "" {
-		h.writeError(w, http.StatusBadRequest, "missing owner parameter")
+	raw := chi.URLParam(r, "owner")
+	if !isValidAddress(raw) {
+		h.writeError(w, http.StatusBadRequest, "invalid owner address")
 		return
 	}
+	owner := normalizeAddr(raw)
 
 	agents, err := h.queries.GetUsersByBoundTo(r.Context(), owner)
 	if err != nil {
@@ -45,11 +46,12 @@ func (h *Handler) GetAgentsByOwner(w http.ResponseWriter, r *http.Request) {
 
 // GetAgentDetail returns details for a single agent (user record with binding info)
 func (h *Handler) GetAgentDetail(w http.ResponseWriter, r *http.Request) {
-	agentAddr := normalizeAddr(chi.URLParam(r, "agent"))
-	if agentAddr == "" {
-		h.writeError(w, http.StatusBadRequest, "missing agent parameter")
+	raw := chi.URLParam(r, "agent")
+	if !isValidAddress(raw) {
+		h.writeError(w, http.StatusBadRequest, "invalid agent address")
 		return
 	}
+	agentAddr := normalizeAddr(raw)
 
 	user, err := h.queries.GetUser(r.Context(), agentAddr)
 	if err != nil {
@@ -67,11 +69,12 @@ func (h *Handler) GetAgentDetail(w http.ResponseWriter, r *http.Request) {
 
 // LookupAgent looks up the owner (boundTo) of an agent by agent address
 func (h *Handler) LookupAgent(w http.ResponseWriter, r *http.Request) {
-	agentAddr := normalizeAddr(chi.URLParam(r, "agent"))
-	if agentAddr == "" {
-		h.writeError(w, http.StatusBadRequest, "missing agent parameter")
+	raw := chi.URLParam(r, "agent")
+	if !isValidAddress(raw) {
+		h.writeError(w, http.StatusBadRequest, "invalid agent address")
 		return
 	}
+	agentAddr := normalizeAddr(raw)
 
 	user, err := h.queries.GetUser(r.Context(), agentAddr)
 	if err != nil {
@@ -95,9 +98,11 @@ func (h *Handler) LookupAgent(w http.ResponseWriter, r *http.Request) {
 // BatchAgentInfo returns batch agent info along with each agent's stake in the specified subnet
 func (h *Handler) BatchAgentInfo(w http.ResponseWriter, r *http.Request) {
 	ip := ratelimit.GetClientIP(r)
-	if exceeded, _ := h.limiter.CheckAndIncrement(r.Context(), "batch_agent_info", ip); exceeded {
+	if exceeded, err := h.limiter.CheckAndIncrement(r.Context(), "batch_agent_info", ip); exceeded {
 		h.writeError(w, http.StatusTooManyRequests, "rate limit exceeded")
 		return
+	} else if err != nil {
+		h.logger.Error("batch_agent_info rate limit error", "error", err)
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, 65536) // max ~100 addresses

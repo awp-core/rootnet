@@ -65,9 +65,11 @@ type computeSaltResponse struct {
 func (vh *VanityHandler) ComputeSalt(w http.ResponseWriter, r *http.Request) {
 	// Rate limit (hot-updatable via Redis: HSET ratelimit:config compute_salt "20:3600")
 	ip := ratelimit.GetClientIP(r)
-	if exceeded, _ := vh.limiter.CheckAndIncrement(r.Context(), "compute_salt", ip); exceeded {
+	if exceeded, err := vh.limiter.CheckAndIncrement(r.Context(), "compute_salt", ip); exceeded {
 		vh.writeError(w, http.StatusTooManyRequests, vh.limiter.FormatError(r.Context(), "compute_salt"))
 		return
+	} else if err != nil {
+		vh.logger.Error("compute_salt rate limit error", "error", err)
 	}
 
 	start := time.Now()

@@ -19,11 +19,12 @@ type balanceResponse struct {
 
 // GetBalance returns a user's staking balance derived from stake_positions and user_balances
 func (h *Handler) GetBalance(w http.ResponseWriter, r *http.Request) {
-	address := normalizeAddr(chi.URLParam(r, "address"))
-	if address == "" {
-		h.writeError(w, http.StatusBadRequest, "missing address parameter")
+	raw := chi.URLParam(r, "address")
+	if !isValidAddress(raw) {
+		h.writeError(w, http.StatusBadRequest, "invalid address")
 		return
 	}
+	address := normalizeAddr(raw)
 
 	ctx := r.Context()
 
@@ -79,11 +80,12 @@ func (h *Handler) GetBalance(w http.ResponseWriter, r *http.Request) {
 
 // GetStakePositions returns a user's active stake NFT positions
 func (h *Handler) GetStakePositions(w http.ResponseWriter, r *http.Request) {
-	address := normalizeAddr(chi.URLParam(r, "address"))
-	if address == "" {
-		h.writeError(w, http.StatusBadRequest, "missing address parameter")
+	rawAddr := chi.URLParam(r, "address")
+	if !isValidAddress(rawAddr) {
+		h.writeError(w, http.StatusBadRequest, "invalid address")
 		return
 	}
+	address := normalizeAddr(rawAddr)
 
 	positions, err := h.queries.GetUserStakePositions(r.Context(), address)
 	if err != nil {
@@ -97,11 +99,12 @@ func (h *Handler) GetStakePositions(w http.ResponseWriter, r *http.Request) {
 
 // GetAllocations returns a paginated list of stake allocations for a user
 func (h *Handler) GetAllocations(w http.ResponseWriter, r *http.Request) {
-	address := normalizeAddr(chi.URLParam(r, "address"))
-	if address == "" {
-		h.writeError(w, http.StatusBadRequest, "missing address parameter")
+	rawAddr := chi.URLParam(r, "address")
+	if !isValidAddress(rawAddr) {
+		h.writeError(w, http.StatusBadRequest, "invalid address")
 		return
 	}
+	address := normalizeAddr(rawAddr)
 
 	limit, offset := h.parsePageParams(r)
 
@@ -127,11 +130,12 @@ func (h *Handler) GetPending(w http.ResponseWriter, r *http.Request) {
 
 // GetFrozen returns a user's frozen stake allocations
 func (h *Handler) GetFrozen(w http.ResponseWriter, r *http.Request) {
-	address := normalizeAddr(chi.URLParam(r, "address"))
-	if address == "" {
-		h.writeError(w, http.StatusBadRequest, "missing address parameter")
+	rawAddr := chi.URLParam(r, "address")
+	if !isValidAddress(rawAddr) {
+		h.writeError(w, http.StatusBadRequest, "invalid address")
 		return
 	}
+	address := normalizeAddr(rawAddr)
 
 	frozen, err := h.queries.GetFrozenByUser(r.Context(), address)
 	if err != nil {
@@ -145,11 +149,12 @@ func (h *Handler) GetFrozen(w http.ResponseWriter, r *http.Request) {
 
 // GetAgentSubnetStake returns the stake amount for an agent in a given subnet
 func (h *Handler) GetAgentSubnetStake(w http.ResponseWriter, r *http.Request) {
-	agentAddr := normalizeAddr(chi.URLParam(r, "agent"))
-	if agentAddr == "" {
-		h.writeError(w, http.StatusBadRequest, "missing agent parameter")
+	rawAgent := chi.URLParam(r, "agent")
+	if !isValidAddress(rawAgent) {
+		h.writeError(w, http.StatusBadRequest, "invalid agent address")
 		return
 	}
+	agentAddr := normalizeAddr(rawAgent)
 
 	subnetID, err := parseSubnetID(r)
 	if err != nil {
@@ -176,11 +181,12 @@ func (h *Handler) GetAgentSubnetStake(w http.ResponseWriter, r *http.Request) {
 
 // GetAgentSubnets returns all subnets an agent participates in along with their stake amounts
 func (h *Handler) GetAgentSubnets(w http.ResponseWriter, r *http.Request) {
-	agentAddr := normalizeAddr(chi.URLParam(r, "agent"))
-	if agentAddr == "" {
-		h.writeError(w, http.StatusBadRequest, "missing agent parameter")
+	rawAgent := chi.URLParam(r, "agent")
+	if !isValidAddress(rawAgent) {
+		h.writeError(w, http.StatusBadRequest, "invalid agent address")
 		return
 	}
+	agentAddr := normalizeAddr(rawAgent)
 
 	subnets, err := h.queries.GetAgentSubnets(r.Context(), agentAddr)
 	if err != nil {

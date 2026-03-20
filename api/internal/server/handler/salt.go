@@ -49,9 +49,11 @@ func (h *Handler) UploadSalts(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB — enforce before rate limit
 
 	ip := ratelimit.GetClientIP(r)
-	if exceeded, _ := h.limiter.CheckAndIncrement(r.Context(), "upload_salts", ip); exceeded {
+	if exceeded, err := h.limiter.CheckAndIncrement(r.Context(), "upload_salts", ip); exceeded {
 		h.writeError(w, http.StatusTooManyRequests, h.limiter.FormatError(r.Context(), "upload_salts"))
 		return
+	} else if err != nil {
+		h.logger.Error("upload_salts rate limit error", "error", err)
 	}
 
 	var req uploadSaltRequest

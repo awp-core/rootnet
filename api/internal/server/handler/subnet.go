@@ -99,11 +99,12 @@ func (h *Handler) GetSubnetAgentInfo(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	agentAddr := normalizeAddr(chi.URLParam(r, "agent"))
-	if agentAddr == "" {
-		h.writeError(w, http.StatusBadRequest, "missing agent parameter")
+	rawAgent := chi.URLParam(r, "agent")
+	if !isValidAddress(rawAgent) {
+		h.writeError(w, http.StatusBadRequest, "invalid agent address")
 		return
 	}
+	agentAddr := normalizeAddr(rawAgent)
 	ctx := r.Context()
 
 	total, err := h.queries.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{

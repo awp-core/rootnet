@@ -164,6 +164,15 @@ type checkAddressResponse struct {
 
 // GetNonce returns the EIP-712 nonce for an address (used for gasless relay signature construction)
 func (h *Handler) GetNonce(w http.ResponseWriter, r *http.Request) {
+	// Rate limit nonce lookups to prevent abuse as an oracle
+	ip := ratelimit.GetClientIP(r)
+	if exceeded, err := h.limiter.CheckAndIncrement(r.Context(), "nonce", ip); exceeded {
+		h.writeError(w, http.StatusTooManyRequests, h.limiter.FormatError(r.Context(), "nonce"))
+		return
+	} else if err != nil {
+		h.logger.Error("nonce rate limit error", "error", err)
+	}
+
 	raw := chi.URLParam(r, "address")
 	if !isValidAddress(raw) {
 		h.writeError(w, http.StatusBadRequest, "invalid address")
