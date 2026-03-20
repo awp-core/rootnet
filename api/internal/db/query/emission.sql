@@ -18,7 +18,8 @@ SELECT epoch_id, start_time, daily_emission, dao_emission FROM epochs
 ORDER BY epoch_id DESC LIMIT 1;
 
 -- name: UpdateEpochDAO :exec
-UPDATE epochs SET dao_emission = $2 WHERE epoch_id = $1;
+INSERT INTO epochs (epoch_id, start_time, daily_emission, dao_emission) VALUES ($1, 0, 0, $2)
+ON CONFLICT (epoch_id) DO UPDATE SET dao_emission = EXCLUDED.dao_emission;
 
 -- name: InsertRecipientAWPDistribution :exec
 INSERT INTO recipient_awp_distributions (epoch_id, recipient, awp_amount) VALUES ($1, $2, $3)

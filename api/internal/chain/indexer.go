@@ -566,6 +566,13 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 				minStake = nftData.MinStake
 			}
 		}
+		// Read on-chain createdAt (block.timestamp, not block number)
+		var createdAtTs int64
+		if subnetInfo, err := idx.chain.AWPRegistry.GetSubnet(nil, evt.SubnetId); err == nil {
+			createdAtTs = int64(subnetInfo.CreatedAt)
+		} else {
+			createdAtTs = int64(lg.BlockNumber) // fallback to block number if RPC fails
+		}
 		if err := q.InsertSubnet(ctx, gen.InsertSubnetParams{
 			SubnetID:       evt.SubnetId.Int64(),
 			Owner:          strings.ToLower(evt.Owner.Hex()),
@@ -576,7 +583,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			MinStake:       bigIntToNumeric(minStake),
 			AlphaToken:     strings.ToLower(evt.AlphaToken.Hex()),
 			LpPool:         pgtype.Text{Valid: false},
-			CreatedAt:      int64(lg.BlockNumber),
+			CreatedAt:      createdAtTs,
 			ImmunityEndsAt: pgtype.Int8{Valid: false},
 		}); err != nil {
 			return nil, fmt.Errorf("InsertSubnet: %w", err)
@@ -617,9 +624,16 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// SubnetActivated
 	if evt, err := awpRegistry.ParseSubnetActivated(lg); err == nil {
+		// Read on-chain activatedAt (block.timestamp)
+		var activatedAtTs int64
+		if subnetInfo, err := idx.chain.AWPRegistry.GetSubnet(nil, evt.SubnetId); err == nil {
+			activatedAtTs = int64(subnetInfo.ActivatedAt)
+		} else {
+			activatedAtTs = int64(lg.BlockNumber) // fallback
+		}
 		if err := q.UpdateSubnetActivated(ctx, gen.UpdateSubnetActivatedParams{
 			SubnetID:    evt.SubnetId.Int64(),
-			ActivatedAt: pgtype.Int8{Int64: int64(lg.BlockNumber), Valid: true},
+			ActivatedAt: pgtype.Int8{Int64: activatedAtTs, Valid: true},
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetActivated: %w", err)
 		}
@@ -808,7 +822,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	if evt, err := awpEmission.ParseAllocationsSubmitted(lg); err == nil {
 		addrs := make([]string, len(evt.Recipients))
 		for i, a := range evt.Recipients {
-			addrs[i] = a.Hex()
+			addrs[i] = strings.ToLower(a.Hex())
 		}
 		ws := make([]string, len(evt.Weights))
 		for i, w := range evt.Weights {
@@ -825,7 +839,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	if evt, err := awpEmission.ParseOracleConfigUpdated(lg); err == nil {
 		addrs := make([]string, len(evt.Oracles))
 		for i, o := range evt.Oracles {
-			addrs[i] = o.Hex()
+			addrs[i] = strings.ToLower(o.Hex())
 		}
 		return []redisEvent{makeEvent("OracleConfigUpdated", lg, map[string]interface{}{
 			"oracles":   addrs,
@@ -867,6 +881,9 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return []redisEvent{makeEvent("DefaultSubnetManagerImplUpdated", lg, map[string]interface{}{
 				"newImpl": newImpl.Hex(),
 			})}, nil
+		// DexConfigUpdated()
+		case common.HexToHash("0xaf06d41ee280e7c0649c5447e17c66f71908440d4a6a8ab4f5210b89c640925b"):
+			return []redisEvent{makeEvent("DexConfigUpdated", lg, map[string]interface{}{})}, nil
 		}
 	}
 
