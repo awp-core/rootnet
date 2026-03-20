@@ -247,8 +247,17 @@ AWP_EMISSION_ADDRESS=0x...
 STAKING_VAULT_ADDRESS=0x...
 STAKE_NFT_ADDRESS=0x...
 SUBNETNFT_ADDRESS=0x...
+LP_MANAGER_ADDRESS=0x...
+ALPHA_FACTORY_ADDRESS=0x...
 DAO_ADDRESS=0x...
 TREASURY_ADDRESS=0x...
+
+# Relay (optional — enables /api/relay/*)
+RELAYER_PRIVATE_KEY=abcdef1234...  # No 0x prefix
+
+# Vanity (optional — enables /api/vanity/*)
+ALPHA_INITCODE_HASH=0x...
+VANITY_RULE=0x...
 
 # Keeper only
 KEEPER_PRIVATE_KEY=abcdef1234...  # No 0x prefix
@@ -350,7 +359,7 @@ sudo systemctl start awp-api awp-indexer awp-keeper
 | `DATABASE_URL` | api, indexer | `postgres://postgres:postgres@localhost:5432/awp?sslmode=disable` | PostgreSQL connection string |
 | `REDIS_URL` | api, indexer, keeper | `redis://localhost:6379/0` | Redis connection string |
 | `HTTP_ADDR` | api | `:8080` | HTTP listen address |
-| `RPC_URL` | indexer, keeper | `https://bsc-testnet-rpc.publicnode.com` | BSC JSON-RPC endpoint |
+| `RPC_URL` | indexer, keeper | — | BSC JSON-RPC endpoint (required, no default) |
 | `AWP_REGISTRY_ADDRESS` | indexer | — | AWPRegistry contract address |
 | `AWP_TOKEN_ADDRESS` | keeper | — | AWP token address |
 | `AWP_EMISSION_ADDRESS` | indexer, keeper | — | AWPEmission proxy address |
@@ -365,6 +374,9 @@ sudo systemctl start awp-api awp-indexer awp-keeper
 | `TRUST_PROXY` | api | `false` | Trust reverse proxy headers (X-Forwarded-For) |
 | `DEPLOY_BLOCK` | indexer | `0` | Block number to start indexing from |
 | `KEEPER_PRIVATE_KEY` | keeper | — | Hex private key for signing settle transactions |
+| `RELAYER_PRIVATE_KEY` | api | — | Hex private key for gasless relay (enables `/api/relay/*`) |
+| `ALPHA_INITCODE_HASH` | api | — | `keccak256(AlphaToken.creationCode)` hex (enables vanity mining) |
+| `VANITY_RULE` | api | — | `AlphaTokenFactory.vanityRule()` uint64 hex (e.g. `0x0A01FFFF0C0A0F0E`) |
 
 ### 5.2 Contract Constants
 

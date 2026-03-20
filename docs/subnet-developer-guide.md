@@ -285,9 +285,9 @@ claimed(uint32 epoch, address account) → bool  // Alias for isClaimed
 
 ---
 
-## 3. Subnet Contract Development
+## 4. Subnet Contract Development
 
-### 3.1 Default SubnetManager (auto-deployed)
+### 4.1 Default SubnetManager (auto-deployed)
 
 If you pass `subnetManager = address(0)` during registration, AWPRegistry auto-deploys a **SubnetManager** proxy with built-in features:
 
@@ -306,7 +306,7 @@ IAccessControl(subnetManager).grantRole(MERKLE_ROLE, operatorAddress);
 IAccessControl(subnetManager).grantRole(STRATEGY_ROLE, operatorAddress);
 ```
 
-### 3.2 Custom Subnet Contract (advanced)
+### 4.2 Custom Subnet Contract (advanced)
 
 If you need custom logic, deploy your own contract and pass its address as `subnetManager`:
 
@@ -329,7 +329,7 @@ contract MySubnetContract {
 }
 ```
 
-### 3.2 Key Permissions
+### 4.3 Key Permissions
 
 | Permission | Who Holds It | Description |
 |------------|-------------|-------------|
@@ -338,7 +338,7 @@ contract MySubnetContract {
 | AWP emission receipt | Oracle-assigned | Your address must be in the oracle's `submitAllocations` list to receive AWP |
 | Alpha MAX_SUPPLY | 10B | Independent cap per subnet |
 
-### 3.3 Ban and Unban
+### 4.4 Ban and Unban
 
 - **Ban**: After a DAO proposal passes, Treasury (Timelock) calls `banSubnet(subnetId)` → your Alpha minting is paused, subnet removed from AWPRegistry's active list
 - **Unban**: Treasury calls `unbanSubnet(subnetId)` → status restores to **Active**, re-added to active list
@@ -348,11 +348,11 @@ contract MySubnetContract {
 
 ---
 
-## 4. API Reference
+## 5. API Reference
 
 > Base URL: `https://tapi.awp.sh` (or your self-hosted address)
 
-### 4.1 System
+### 5.1 System
 
 #### `GET /api/health`
 ```json
@@ -376,7 +376,7 @@ Returns all 9 protocol contract addresses (excludes implementation contracts):
 }
 ```
 
-### 4.2 Users
+### 5.2 Users
 
 #### `GET /api/users/{address}`
 ```json
@@ -405,7 +405,7 @@ Paginated user list.
 }
 ```
 
-### 4.3 Staking
+### 5.3 Staking
 
 #### `GET /api/staking/user/{address}/balance`
 ```json
@@ -448,7 +448,7 @@ Paginated user list.
 {"total": "50000000000000000000000"}
 ```
 
-### 4.5 Subnets
+### 5.4 Subnets
 
 #### `GET /api/subnets/?status=Active&page=1&limit=20`
 ```json
@@ -485,7 +485,7 @@ Subnet AWP emission history (queried by subnet contract address from `recipient_
 {"agent": "0x...", "subnetId": 1, "stake": "5000000000000000000000"}
 ```
 
-### 4.6 Emission
+### 5.5 Emission
 
 #### `GET /api/emission/current`
 Read from Redis cache (updated by Keeper every 30 seconds):
@@ -513,7 +513,7 @@ Projected emissions for 30/90/365 days:
 ]
 ```
 
-### 4.7 Tokens
+### 5.6 Tokens
 
 #### `GET /api/tokens/awp`
 ```json
@@ -530,7 +530,7 @@ Projected emissions for 30/90/365 days:
 {"priceInAWP": "0.015", "reserve0": "...", "reserve1": "...", "updatedAt": "..."}
 ```
 
-### 4.8 Governance
+### 5.7 Governance
 
 #### `GET /api/governance/proposals?status=Active&page=1&limit=20`
 #### `GET /api/governance/proposals/{proposalId}`
@@ -539,7 +539,7 @@ Projected emissions for 30/90/365 days:
 {"treasuryAddress": "0x..."}
 ```
 
-### 4.9 Relay (Gasless Transactions)
+### 5.8 Relay (Gasless Transactions)
 
 > Rate limit: 100 requests per IP per 1 hour. Requires `RELAYER_PRIVATE_KEY` configured on the server.
 
@@ -574,7 +574,7 @@ Fully gasless subnet registration — user signs two messages (ERC-2612 permit +
 {"txHash": "0x..."}
 ```
 
-### 4.10 WebSocket
+### 5.9 WebSocket
 
 #### `WS /ws/live`
 
@@ -628,9 +628,9 @@ ws.onmessage = (event) => {
 
 ---
 
-## 5. Contract Interaction Reference
+## 6. Contract Interaction Reference
 
-### 5.1 On-Chain Reads (view functions, no gas)
+### 6.1 On-Chain Reads (view functions, no gas)
 
 ```solidity
 // Query full subnet info (combines AWPRegistry state + SubnetNFT identity)
@@ -658,7 +658,7 @@ subnetNFT.setSkillsURI(subnetId, "ipfs://QmNewSkills...");
 subnetNFT.setMinStake(subnetId, 100e18); // 100 AWP minimum
 ```
 
-### 5.2 Recommended Coordinator Data Sync Pattern
+### 6.2 Recommended Coordinator Data Sync Pattern
 
 ```
 Cold Start:
@@ -677,7 +677,7 @@ Reward Distribution:
   3. Transfer AWP/Alpha to the rewardRecipient address
 ```
 
-### 5.3 Emission Timeline [DRAFT]
+### 6.3 Emission Timeline [DRAFT]
 
 > **The emission mechanism has not been finalized. The timeline below is preliminary.**
 
@@ -703,7 +703,7 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 
 ---
 
-## 6. Contract Addresses (fill after deployment)
+## 7. Contract Addresses (fill after deployment)
 
 | Contract | Address | Description |
 |----------|---------|-------------|
@@ -718,7 +718,7 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 
 ---
 
-## 7. Error Code Reference
+## 8. Error Code Reference
 
 ### Contract Custom Errors
 
@@ -758,7 +758,7 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 
 ---
 
-## 8. Development Checklist
+## 9. Development Checklist
 
 ### Subnet Contract Development
 

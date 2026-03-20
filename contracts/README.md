@@ -32,7 +32,9 @@ forge test --gas-report
 forge script script/Deploy.s.sol --rpc-url $ETH_RPC_URL --broadcast
 ```
 
-## Contracts (14)
+## Contracts (11 deployed per chain)
+
+> The protocol deploys 11 contracts per chain. `SubnetManager` / `SubnetManagerUni` and `LPManager` / `LPManagerUni` are chain-specific variants (PancakeSwap V4 for BSC, Uniswap V4 for Base/Ethereum) — only one variant is deployed per chain.
 
 | Contract | Description |
 |----------|-------------|

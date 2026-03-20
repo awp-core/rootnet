@@ -183,7 +183,7 @@ psql -U postgres -d awp -f internal/db/schema.sql
 
 # Start all 3 processes (source api/.env first)
 set -a && source .env && set +a
-./bin/api &       # HTTP + WebSocket (:8001)
+./bin/api &       # HTTP + WebSocket (:8080 default)
 ./bin/indexer &   # On-chain event scanner
 ./bin/keeper &    # Epoch settlement + cache updates
 ```
