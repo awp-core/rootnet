@@ -42,6 +42,7 @@ func main() {
 			newRouterParams,
 			server.NewRouter,
 		),
+		fx.Invoke(wireChainReader),
 		fx.Invoke(startServer),
 	).Run()
 }
@@ -165,9 +166,38 @@ func newVanityHandler(cfg *config.Config, queries *gen.Queries, limiter *ratelim
 	return handler.NewVanityHandler(cfg.AlphaFactoryAddress, cfg.AlphaInitCodeHash, rule, queries, limiter, logger)
 }
 
+// wireChainReader creates a lightweight chain client for on-chain reads (nonce, etc.)
+func wireChainReader(lc fx.Lifecycle, h *handler.Handler, cfg *config.Config, logger *slog.Logger) {
+	addrs := map[string]string{
+		"AWPRegistry":  cfg.AWPRegistryAddress,
+		"AWPToken":     cfg.AWPTokenAddress,
+		"AWPEmission":  cfg.AWPEmissionAddress,
+		"StakingVault": cfg.StakingVaultAddress,
+		"SubnetNFT":    cfg.SubnetNFTAddress,
+		"AWPDAO":       cfg.DAOAddress,
+		"StakeNFT":     cfg.StakeNFTAddress,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client, err := chain.NewClient(ctx, cfg.RPCURL, addrs)
+	if err != nil {
+		logger.Warn("chain reader unavailable, /api/nonce endpoint disabled", "error", err)
+		return
+	}
+	h.SetChainReader(client)
+	lc.Append(fx.Hook{
+		OnStop: func(ctx context.Context) error {
+			client.Close()
+			return nil
+		},
+	})
+	logger.Info("chain reader connected for on-chain queries")
+}
+
 // newRouterParams assembles RouterParams
-func newRouterParams(h *handler.Handler, hub *ws.Hub, rh *handler.RelayHandler, vh *handler.VanityHandler) server.RouterParams {
+func newRouterParams(cfg *config.Config, h *handler.Handler, hub *ws.Hub, rh *handler.RelayHandler, vh *handler.VanityHandler) server.RouterParams {
 	return server.RouterParams{
+		Config:        cfg,
 		Handler:       h,
 		Hub:           hub,
 		RelayHandler:  rh,

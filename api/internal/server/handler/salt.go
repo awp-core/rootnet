@@ -46,15 +46,15 @@ func (h *Handler) GetMiningParams(w http.ResponseWriter, r *http.Request) {
 // UploadSalts POST /api/vanity/upload-salts — batch upload pre-mined salts
 // Each salt is verified: 1) CREATE2 address correctness 2) vanityRule compliance
 func (h *Handler) UploadSalts(w http.ResponseWriter, r *http.Request) {
-	// Rate limit (hot-updatable via Redis: HSET ratelimit:config upload_salts "5:3600")
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB — enforce before rate limit
+
 	ip := ratelimit.GetClientIP(r)
-	exceeded, _ := h.limiter.CheckIP(r.Context(), "upload_salts", ip)
-	if exceeded {
+	if exceeded, err := h.limiter.CheckAndIncrement(r.Context(), "upload_salts", ip); exceeded {
 		h.writeError(w, http.StatusTooManyRequests, h.limiter.FormatError(r.Context(), "upload_salts"))
 		return
+	} else if err != nil {
+		h.logger.Error("upload_salts rate limit error", "error", err)
 	}
-
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB
 
 	var req uploadSaltRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -115,9 +115,6 @@ func (h *Handler) UploadSalts(w http.ResponseWriter, r *http.Request) {
 		}
 		inserted++
 	}
-
-	// Record upload for rate limiting
-	h.limiter.Record(r.Context(), "upload_salts", ip)
 
 	h.writeJSON(w, http.StatusOK, map[string]int{"inserted": inserted, "rejected": rejected})
 }

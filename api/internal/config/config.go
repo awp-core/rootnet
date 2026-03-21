@@ -13,7 +13,8 @@ type Config struct {
 	RedisURL string `env:"REDIS_URL" envDefault:"redis://localhost:6379/0"`
 
 	// HTTP server
-	HTTPAddr string `env:"HTTP_ADDR" envDefault:":8080"`
+	HTTPAddr    string `env:"HTTP_ADDR" envDefault:":8080"`
+	TrustProxy  bool   `env:"TRUST_PROXY" envDefault:"false"` // Set to true ONLY when behind a trusted reverse proxy (nginx/caddy)
 
 	// Chain
 	ChainID         int64  `env:"CHAIN_ID,required"` // No default — must match target chain

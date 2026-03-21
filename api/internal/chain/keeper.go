@@ -30,6 +30,9 @@ type Keeper struct {
 	logger      *slog.Logger
 	cancel      context.CancelFunc
 
+	// Serializes sendSettleEpoch to prevent concurrent nonce collisions
+	txMu sync.Mutex
+
 	// Cached RPC results — shared between trySettleEpoch and updateTokenPrices within the same tick
 	cacheMu            sync.Mutex
 	cachedCurrentEpoch *big.Int
@@ -180,6 +183,9 @@ func (k *Keeper) trySettleEpoch(ctx context.Context) {
 
 // sendSettleEpoch sends the settle-epoch transaction (calls AWPEmission.SettleEpoch)
 func (k *Keeper) sendSettleEpoch(ctx context.Context) {
+	k.txMu.Lock()
+	defer k.txMu.Unlock()
+
 	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 

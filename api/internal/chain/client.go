@@ -143,6 +143,15 @@ func (c *Client) BlockNumber(ctx context.Context) (uint64, error) {
 	return c.Eth.BlockNumber(ctx)
 }
 
+// GetNonce reads the EIP-712 nonce for an address from AWPRegistry (implements handler.ChainReader)
+func (c *Client) GetNonce(addr string) (uint64, error) {
+	nonce, err := c.AWPRegistry.Nonces(nil, common.HexToAddress(addr))
+	if err != nil {
+		return 0, err
+	}
+	return nonce.Uint64(), nil
+}
+
 // Close closes the underlying RPC connection
 func (c *Client) Close() {
 	c.Eth.Close()

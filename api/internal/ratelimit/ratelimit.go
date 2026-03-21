@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -31,9 +32,36 @@ type Limiter struct {
 	rdb      *redis.Client
 	logger   *slog.Logger
 	defaults map[string]Config // compiled defaults (fallback)
+
+	// In-process config cache (reduces 1 Redis RTT per rate-limited request)
+	cacheMu   sync.RWMutex
+	cache     map[string]Config
+	cacheTime time.Time
 }
 
 const configKey = "ratelimit:config"
+
+// Package-level Lua scripts (allocated once, SHA1 cached by go-redis)
+var (
+	luaCheckAndIncr = redis.NewScript(`
+		local count = redis.call('INCR', KEYS[1])
+		if count == 1 then
+			redis.call('EXPIRE', KEYS[1], ARGV[1])
+		end
+		if count > tonumber(ARGV[2]) then
+			redis.call('DECR', KEYS[1])
+			return 1
+		end
+		return 0
+	`)
+	luaIncr = redis.NewScript(`
+		local count = redis.call('INCR', KEYS[1])
+		if count == 1 then
+			redis.call('EXPIRE', KEYS[1], ARGV[1])
+		end
+		return count
+	`)
+)
 
 // NewLimiter creates a Limiter with default configurations.
 // Defaults are used when the Redis config key is absent.
@@ -42,80 +70,75 @@ func NewLimiter(rdb *redis.Client, logger *slog.Logger) *Limiter {
 		rdb:    rdb,
 		logger: logger,
 		defaults: map[string]Config{
-			"relay":         {Limit: 100, Window: 1 * time.Hour},
-			"upload_salts":  {Limit: 5, Window: 1 * time.Hour},
-			"compute_salt":  {Limit: 20, Window: 1 * time.Hour},
-			"ws_connect":    {Limit: 10, Window: 0}, // 0 = concurrent count, not time-windowed
+			"relay":            {Limit: 100, Window: 1 * time.Hour},
+			"upload_salts":     {Limit: 5, Window: 1 * time.Hour},
+			"compute_salt":     {Limit: 20, Window: 1 * time.Hour},
+			"batch_agent_info": {Limit: 30, Window: 1 * time.Hour},
+			"nonce":            {Limit: 60, Window: 1 * time.Hour},
+			"ws_connect":       {Limit: 10, Window: 0}, // 0 = concurrent count, not time-windowed
 		},
 	}
 }
 
 // GetConfig reads the current config for a limiter name.
-// Returns the Redis-stored value if present, otherwise the compiled default.
+// Uses a 10-second in-process cache to avoid a Redis RTT on every rate-limited request.
 func (l *Limiter) GetConfig(ctx context.Context, name string) Config {
-	val, err := l.rdb.HGet(ctx, configKey, name).Result()
-	if err == nil {
-		if cfg, ok := parseConfig(val); ok {
+	// Check in-process cache first (10s TTL)
+	l.cacheMu.RLock()
+	if l.cache != nil && time.Since(l.cacheTime) < 10*time.Second {
+		if cfg, ok := l.cache[name]; ok {
+			l.cacheMu.RUnlock()
 			return cfg
 		}
-		l.logger.Warn("invalid rate limit config in Redis, using default", "name", name, "value", val)
 	}
-	if def, ok := l.defaults[name]; ok {
-		return def
+	l.cacheMu.RUnlock()
+
+	// Cache miss or expired — read all configs from Redis in one call
+	l.cacheMu.Lock()
+	defer l.cacheMu.Unlock()
+	// Double-check after acquiring write lock
+	if l.cache != nil && time.Since(l.cacheTime) < 10*time.Second {
+		if cfg, ok := l.cache[name]; ok {
+			return cfg
+		}
+	}
+	newCache := make(map[string]Config)
+	for k, v := range l.defaults {
+		newCache[k] = v
+	}
+	all, err := l.rdb.HGetAll(ctx, configKey).Result()
+	if err == nil {
+		for k, v := range all {
+			if cfg, ok := parseConfig(v); ok {
+				newCache[k] = cfg
+			}
+		}
+	}
+	l.cache = newCache
+	l.cacheTime = time.Now()
+
+	if cfg, ok := newCache[name]; ok {
+		return cfg
 	}
 	return Config{Limit: 100, Window: time.Hour} // ultimate fallback
 }
 
-// CheckIP checks if IP has exceeded the rate limit (read-only).
-func (l *Limiter) CheckIP(ctx context.Context, name string, ip string) (bool, error) {
+// CheckAndIncrement atomically checks the rate limit and increments the counter in a single
+// Lua script. Returns (exceeded bool, err). This prevents TOCTOU races where concurrent
+// requests all see count=0 before any increment.
+func (l *Limiter) CheckAndIncrement(ctx context.Context, name string, ip string) (bool, error) {
 	cfg := l.GetConfig(ctx, name)
 	key := fmt.Sprintf("rl:%s:%s", name, ip)
-	count, err := l.rdb.Get(ctx, key).Int64()
-	if err == redis.Nil {
-		return false, nil
-	}
+
+	result, err := luaCheckAndIncr.Run(ctx, l.rdb, []string{key}, int(cfg.Window.Seconds()), cfg.Limit).Int64()
 	if err != nil {
-		return false, err
+		// Fail-closed: treat Redis errors as "exceeded" to prevent abuse during outages
+		l.logger.Error("rate limit Redis error, blocking request (fail-closed)", "name", name, "error", err)
+		return true, err
 	}
-	return count >= int64(cfg.Limit), nil
+	return result == 1, nil
 }
 
-// RecordSuccess increments the rate limit counter for a successful operation.
-// Uses background context so the increment is not cancelled by client disconnect.
-func (l *Limiter) RecordSuccess(name string, ip string) {
-	cfg := l.GetConfig(context.Background(), name)
-	key := fmt.Sprintf("rl:%s:%s", name, ip)
-
-	luaScript := redis.NewScript(`
-		local count = redis.call('INCR', KEYS[1])
-		if count == 1 then
-			redis.call('EXPIRE', KEYS[1], ARGV[1])
-		end
-		return count
-	`)
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := luaScript.Run(ctx, l.rdb, []string{key}, int(cfg.Window.Seconds())).Err(); err != nil {
-		l.logger.Error("failed to record rate limit", "name", name, "error", err)
-	}
-}
-
-// Record increments the counter immediately (for non-success-only counting like upload-salts).
-func (l *Limiter) Record(ctx context.Context, name string, ip string) {
-	cfg := l.GetConfig(ctx, name)
-	key := fmt.Sprintf("rl:%s:%s", name, ip)
-
-	luaScript := redis.NewScript(`
-		local count = redis.call('INCR', KEYS[1])
-		if count == 1 then
-			redis.call('EXPIRE', KEYS[1], ARGV[1])
-		end
-		return count
-	`)
-	if err := luaScript.Run(ctx, l.rdb, []string{key}, int(cfg.Window.Seconds())).Err(); err != nil {
-		l.logger.Error("failed to record rate limit", "name", name, "error", err)
-	}
-}
 
 // FormatError returns a user-friendly rate limit exceeded message.
 func (l *Limiter) FormatError(ctx context.Context, name string) string {

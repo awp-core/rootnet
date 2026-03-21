@@ -1,11 +1,18 @@
+-- name: DeleteStakeAllocationsAfterBlock :exec
+DELETE FROM stake_allocations WHERE updated_block > $1;
+
+-- name: DeleteUserBalancesAfterBlock :exec
+DELETE FROM user_balances WHERE updated_block > $1;
+
 -- name: UpsertStakeAllocation :exec
-INSERT INTO stake_allocations (user_address, agent_address, subnet_id, amount, frozen)
-VALUES ($1, $2, $3, $4, FALSE)
+INSERT INTO stake_allocations (user_address, agent_address, subnet_id, amount, frozen, updated_block)
+VALUES ($1, $2, $3, $4, FALSE, $5)
 ON CONFLICT (user_address, agent_address, subnet_id) DO UPDATE SET
-  amount = stake_allocations.amount + EXCLUDED.amount;
+  amount = stake_allocations.amount + EXCLUDED.amount,
+  updated_block = EXCLUDED.updated_block;
 
 -- name: SubtractStakeAllocation :exec
-UPDATE stake_allocations SET amount = GREATEST(amount - $4, 0)
+UPDATE stake_allocations SET amount = GREATEST(amount - $4, 0), updated_block = $5
 WHERE user_address = $1 AND agent_address = $2 AND subnet_id = $3;
 
 -- name: SetStakeAllocationFrozen :exec
@@ -34,7 +41,7 @@ WHERE agent_address = $1 AND subnet_id = $2 AND frozen = FALSE;
 
 -- name: GetAgentSubnets :many
 SELECT subnet_id, amount FROM stake_allocations
-WHERE agent_address = $1 AND amount > 0 AND frozen = FALSE ORDER BY subnet_id;
+WHERE agent_address = $1 AND amount > 0 AND frozen = FALSE ORDER BY subnet_id LIMIT 500;
 
 -- name: GetSubnetTotalStake :one
 SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_allocations
@@ -42,7 +49,7 @@ WHERE subnet_id = $1 AND frozen = FALSE;
 
 -- name: GetFrozenByUser :many
 SELECT user_address, agent_address, subnet_id, amount FROM stake_allocations
-WHERE user_address = $1 AND frozen = TRUE AND amount > 0;
+WHERE user_address = $1 AND frozen = TRUE AND amount > 0 LIMIT 500;
 
 -- name: DeleteFrozenAllocations :exec
 DELETE FROM stake_allocations WHERE user_address = $1 AND frozen = TRUE;

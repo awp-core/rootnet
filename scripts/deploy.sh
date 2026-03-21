@@ -313,7 +313,8 @@ if [[ -z "$DRY_RUN" ]]; then
 fi
 
 # Compute AlphaToken initCodeHash
-ALPHA_INITCODE_HASH=$(cast keccak "$(jq -r '.bytecode.object' out/AlphaToken.sol/AlphaToken.json)" 2>/dev/null || echo "")
+# Read initcode hash from deployed AlphaTokenFactory (most reliable — includes Solidity metadata)
+ALPHA_INITCODE_HASH=$(cast call "$FACTORY_ADDRESS" "ALPHA_BYTECODE_HASH()(bytes32)" --rpc-url "$ETH_RPC_URL" 2>/dev/null || echo "")
 
 # ═══════════════════════════════════════════════
 #  STEP 5: GENERATE API .env
@@ -403,8 +404,11 @@ else
     CHAIN_ID="${CHAIN_ID:-$(cast chain-id --rpc-url "$ETH_RPC_URL" 2>/dev/null || echo "56")}"
     VERIFIER_URL=""
     case "$CHAIN_ID" in
-        56) VERIFIER_URL="https://api.bscscan.com/api" ;;
-        97) VERIFIER_URL="https://api-testnet.bscscan.com/api" ;;
+        56)    VERIFIER_URL="https://api.bscscan.com/api" ;;
+        97)    VERIFIER_URL="https://api-testnet.bscscan.com/api" ;;
+        8453)  VERIFIER_URL="https://api.basescan.org/api" ;;
+        84532) VERIFIER_URL="https://api-sepolia.basescan.org/api" ;;
+        1)     VERIFIER_URL="https://api.etherscan.io/api" ;;
     esac
     VF="--etherscan-api-key $ETHERSCAN_API_KEY"
     [[ -n "$VERIFIER_URL" ]] && VF="$VF --verifier-url $VERIFIER_URL"

@@ -10,7 +10,7 @@ INSERT INTO users (address, recipient) VALUES ($1, $2)
 ON CONFLICT (address) DO UPDATE SET recipient = EXCLUDED.recipient;
 
 -- name: GetUser :one
-SELECT address, bound_to, recipient, registered_at FROM users WHERE LOWER(address) = LOWER($1);
+SELECT address, bound_to, recipient, registered_at FROM users WHERE address = $1;
 
 -- name: ListUsers :many
 SELECT address, bound_to, recipient, registered_at FROM users ORDER BY registered_at DESC LIMIT $1 OFFSET $2;
@@ -28,13 +28,14 @@ ON CONFLICT (user_address) DO UPDATE SET
 SELECT user_address, total_allocated FROM user_balances WHERE user_address = $1;
 
 -- name: AddUserAllocated :exec
-UPDATE user_balances SET total_allocated = total_allocated + $2 WHERE user_address = $1;
+INSERT INTO user_balances (user_address, total_allocated, updated_block) VALUES ($1, $2, $3)
+ON CONFLICT (user_address) DO UPDATE SET total_allocated = user_balances.total_allocated + EXCLUDED.total_allocated, updated_block = EXCLUDED.updated_block;
 
 -- name: SubtractUserAllocated :exec
-UPDATE user_balances SET total_allocated = GREATEST(total_allocated - $2, 0) WHERE user_address = $1;
+UPDATE user_balances SET total_allocated = GREATEST(total_allocated - $2, 0), updated_block = $3 WHERE user_address = $1;
 
 -- name: InitUserBalance :exec
-INSERT INTO user_balances (user_address, total_allocated) VALUES ($1, 0)
+INSERT INTO user_balances (user_address, total_allocated, updated_block) VALUES ($1, 0, 0)
 ON CONFLICT (user_address) DO NOTHING;
 
 -- name: SetUserRegisteredAt :exec
@@ -44,4 +45,4 @@ WHERE users.registered_at = 0;
 
 -- name: GetUsersByBoundTo :many
 SELECT address, bound_to, recipient, registered_at FROM users
-WHERE bound_to = $1 ORDER BY address;
+WHERE bound_to = $1 ORDER BY address LIMIT 500;

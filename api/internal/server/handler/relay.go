@@ -127,20 +127,19 @@ func NewRelayHandler(relayer *chain.Relayer, limiter *ratelimit.Limiter, logger 
 	}
 }
 
-// checkRateLimit checks relay IP rate limit (read-only pre-check), returns true if exceeded.
+// checkRateLimit atomically checks and increments the relay IP rate limit.
+// Returns true if exceeded (counter NOT incremented when exceeded).
 func (rh *RelayHandler) checkRateLimit(r *http.Request) (bool, error) {
-	return rh.limiter.CheckIP(r.Context(), "relay", ratelimit.GetClientIP(r))
+	return rh.limiter.CheckAndIncrement(r.Context(), "relay", ratelimit.GetClientIP(r))
 }
 
-// recordSuccessfulRelay increments the relay rate limit counter after a successful transaction.
-func (rh *RelayHandler) recordSuccessfulRelay(r *http.Request) {
-	rh.limiter.RecordSuccess("relay", ratelimit.GetClientIP(r))
-}
 
 func (rh *RelayHandler) writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		rh.logger.Error("failed to encode JSON response", "error", err)
+	}
 }
 
 func (rh *RelayHandler) writeError(w http.ResponseWriter, status int, msg string) {
@@ -277,7 +276,6 @@ func (rh *RelayHandler) RelayRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rh.recordSuccessfulRelay(r)
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
@@ -336,7 +334,6 @@ func (rh *RelayHandler) RelayBind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rh.recordSuccessfulRelay(r)
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
@@ -395,7 +392,6 @@ func (rh *RelayHandler) RelaySetRecipient(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	rh.recordSuccessfulRelay(r)
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
@@ -433,7 +429,6 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
 		return
 	}
-	rh.recordSuccessfulRelay(r)
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
@@ -471,7 +466,6 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
 		return
 	}
-	rh.recordSuccessfulRelay(r)
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
@@ -503,7 +497,6 @@ func (rh *RelayHandler) RelayActivateSubnet(w http.ResponseWriter, r *http.Reque
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
 		return
 	}
-	rh.recordSuccessfulRelay(r)
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
@@ -531,6 +524,10 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 	}
 	if len(req.Symbol) > 16 {
 		rh.writeError(w, http.StatusBadRequest, "symbol exceeds 16 bytes")
+		return
+	}
+	if len(req.SkillsURI) > 2048 {
+		rh.writeError(w, http.StatusBadRequest, "skillsUri exceeds 2048 bytes")
 		return
 	}
 	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() {
@@ -606,6 +603,5 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	rh.recordSuccessfulRelay(r)
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }

@@ -23,7 +23,13 @@ Returns all protocol contract addresses + chainId:
   "lpManager": "0x...",
   "alphaTokenFactory": "0x...",
   "dao": "0x...",
-  "treasury": "0x..."
+  "treasury": "0x...",
+  "eip712Domain": {
+    "name": "AWPRegistry",
+    "version": "1",
+    "chainId": 8453,
+    "verifyingContract": "0x..."
+  }
 }
 ```
 

@@ -1,9 +1,9 @@
 # AWPRegistry Implementation Guide — Claude Code Development Document
 
-> **Version**: 9.0  
-> **Project**: awp-registry  
-> **Stack**: Solidity 0.8.24 (Foundry) + Go 1.26 (Chi + sqlc + pgx) + PostgreSQL  
-> **Target**: BSC Testnet → BSC Mainnet  
+> **Version**: 9.0
+> **Project**: AWP
+> **Stack**: Solidity 0.8.24 (Foundry) + Go 1.26 (Chi + sqlc + pgx) + PostgreSQL
+> **Target**: Base Mainnet + BSC Mainnet
 > **Principle**: Maximize reuse of OpenZeppelin 5.x
 
 ---
@@ -88,7 +88,7 @@ awp-registry/
 │   │   ├── db/
 │   │   │   ├── query/                     # sqlc SQL files
 │   │   │   │   ├── user.sql
-│   │   │   │   ├── agent.sql
+│   │   │   │   ├── agent.sql              # Replaced by user.sql with bound_to/recipient columns
 │   │   │   │   ├── subnet.sql
 │   │   │   │   ├── staking.sql
 │   │   │   │   ├── emission.sql

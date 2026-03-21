@@ -88,11 +88,11 @@ const subnet = await client.readContract({
 ```javascript
 const info = await client.readContract({
   address: AWP_REGISTRY,
-  abi: parseAbi(['function getAgentInfo(address,uint256) view returns (address owner, bool isValid, uint256 stake, address rewardRecipient)']),
+  abi: parseAbi(['function getAgentInfo(address,uint256) view returns (address root, bool isValid, uint256 stake, address recipient)']),
   functionName: 'getAgentInfo',
   args: ['0xAgentAddress', 1n],
 });
-// info.owner, info.stake (BigInt, wei)
+// info.root, info.stake (BigInt, wei)
 ```
 
 ### Read emission state

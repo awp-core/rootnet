@@ -5,12 +5,14 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	"github.com/cortexia/rootnet/api/internal/config"
 	"github.com/cortexia/rootnet/api/internal/server/handler"
 	"github.com/cortexia/rootnet/api/internal/server/ws"
 )
 
 // RouterParams groups all dependencies for NewRouter
 type RouterParams struct {
+	Config        *config.Config
 	Handler       *handler.Handler
 	Hub           *ws.Hub
 	RelayHandler  *handler.RelayHandler  // nil if relayer not configured
@@ -24,10 +26,10 @@ func NewRouter(p RouterParams) chi.Router {
 	r := chi.NewRouter()
 
 	// Global middleware
-	// IMPORTANT: middleware.RealIP trusts X-Forwarded-For/X-Real-IP headers.
-	// This is safe ONLY behind a trusted reverse proxy (nginx) that sets these headers.
-	// If the API is directly Internet-facing, rate limiting can be bypassed via header spoofing.
-	r.Use(middleware.RealIP)
+	// RealIP trusts X-Forwarded-For/X-Real-IP headers — only enable behind a trusted reverse proxy.
+	if p.Config != nil && p.Config.TrustProxy {
+		r.Use(middleware.RealIP)
+	}
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
@@ -54,6 +56,7 @@ func NewRouter(p RouterParams) chi.Router {
 
 		// Address lookup
 		r.Get("/address/{address}/check", h.CheckAddress)
+		r.Get("/nonce/{address}", h.GetNonce)
 
 		// Agent nodes
 		r.Route("/agents", func(r chi.Router) {
