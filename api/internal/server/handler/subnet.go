@@ -17,6 +17,12 @@ func (h *Handler) ListSubnets(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if status != "" {
+		// Validate status filter
+		validStatuses := map[string]bool{"Pending": true, "Active": true, "Paused": true, "Banned": true}
+		if !validStatuses[status] {
+			h.writeError(w, http.StatusBadRequest, "invalid status filter: must be one of Pending, Active, Paused, Banned")
+			return
+		}
 		// Filter by status
 		subnets, err := h.queries.ListSubnetsByStatus(ctx, gen.ListSubnetsByStatusParams{
 			Status: status,
@@ -99,11 +105,12 @@ func (h *Handler) GetSubnetAgentInfo(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	agentAddr := normalizeAddr(chi.URLParam(r, "agent"))
-	if agentAddr == "" {
-		h.writeError(w, http.StatusBadRequest, "missing agent parameter")
+	rawAgent := chi.URLParam(r, "agent")
+	if !isValidAddress(rawAgent) {
+		h.writeError(w, http.StatusBadRequest, "invalid agent address")
 		return
 	}
+	agentAddr := normalizeAddr(rawAgent)
 	ctx := r.Context()
 
 	total, err := h.queries.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{

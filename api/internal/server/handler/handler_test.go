@@ -977,12 +977,12 @@ func TestGetSubnetAgentInfo(t *testing.T) {
 	// Insert allocation
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 		UserAddress:  "0xuser1",
-		AgentAddress: "0xagent1",
+		AgentAddress: "0x1111111111111111111111111111111111111111",
 		SubnetID:     1,
 		Amount:       numericFromInt64(5001),
 	})
 
-	rr := env.request("GET", "/api/subnets/1/agents/0xagent1", "")
+	rr := env.request("GET", "/api/subnets/1/agents/0x1111111111111111111111111111111111111111", "")
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
@@ -996,7 +996,7 @@ func TestGetSubnetAgentInfo(t *testing.T) {
 
 func TestGetSubnetAgentInfoNotFound(t *testing.T) {
 	env := newTestEnv(t)
-	rr := env.request("GET", "/api/subnets/999/agents/0xnonexistent", "")
+	rr := env.request("GET", "/api/subnets/999/agents/0x2222222222222222222222222222222222222222", "")
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}

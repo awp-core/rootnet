@@ -376,6 +376,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     /// @notice Set reward recipient for msg.sender
     /// @param addr Recipient address
     function setRecipient(address addr) external nonReentrant whenNotPaused {
+        if (addr == address(0)) revert InvalidAddress();
         bool firstTime = recipient[msg.sender] == address(0);
         recipient[msg.sender] = addr;
         if (firstTime) {
@@ -391,6 +392,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
         uint8 v, bytes32 r, bytes32 s
     ) external nonReentrant whenNotPaused {
         if (block.timestamp > deadline) revert ExpiredSignature();
+        if (_recipient == address(0)) revert InvalidAddress();
         bytes32 structHash = keccak256(abi.encode(
             SET_RECIPIENT_TYPEHASH, user, _recipient, nonces[user]++, deadline
         ));
@@ -434,14 +436,14 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
 
     /// @notice Grant delegate authorization to another address
     /// @param delegate Address to authorize
-    function grantDelegate(address delegate) external {
+    function grantDelegate(address delegate) external whenNotPaused {
         delegates[msg.sender][delegate] = true;
         emit DelegateGranted(msg.sender, delegate);
     }
 
     /// @notice Revoke delegate authorization
     /// @param delegate Address to de-authorize
-    function revokeDelegate(address delegate) external {
+    function revokeDelegate(address delegate) external whenNotPaused {
         if (delegate == msg.sender) revert CannotRevokeSelf();
         delegates[msg.sender][delegate] = false;
         emit DelegateRevoked(msg.sender, delegate);
@@ -698,7 +700,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     }
 
     /// @notice Pause a subnet: Active → Paused (only the NFT Owner may call)
-    function pauseSubnet(uint256 subnetId) external nonReentrant {
+    function pauseSubnet(uint256 subnetId) external nonReentrant whenNotPaused {
         if (ISubnetNFT(subnetNFT).ownerOf(subnetId) != msg.sender) revert NotOwner();
         SubnetInfo storage info = subnets[subnetId];
         if (info.status != SubnetStatus.Active) revert InvalidSubnetStatus();
@@ -759,7 +761,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     /// @notice Deregister a subnet: permanently delete subnet data (only Timelock; immunity period must have elapsed)
     function deregisterSubnet(uint256 subnetId) external onlyTimelock {
         SubnetInfo storage info = subnets[subnetId];
-        if (info.createdAt == 0) revert InvalidSubnetStatus();
+        if (info.status != SubnetStatus.Banned) revert InvalidSubnetStatus();
         uint256 immunityStart = info.activatedAt > 0 ? uint256(info.activatedAt) : uint256(info.createdAt);
         if (block.timestamp <= immunityStart + immunityPeriod) revert ImmunityNotExpired();
 
@@ -809,6 +811,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
 
     /// @notice Set the default subnet implementation (only Timelock may call)
     function setSubnetManagerImpl(address impl) external onlyTimelock {
+        if (impl == address(0)) revert InvalidAddress();
         defaultSubnetManagerImpl = impl;
         emit DefaultSubnetManagerImplUpdated(impl);
     }
@@ -816,6 +819,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     /// @notice Update DEX configuration for future auto-deployed SubnetManagers (only Timelock)
     function setDexConfig(bytes calldata dexConfig_) external onlyTimelock {
         dexConfig = dexConfig_;
+        emit DexConfigUpdated();
     }
 
     // ═══════════════════════════════════════════════

@@ -49,7 +49,7 @@
 |-----------|-------|
 | REST Base URL | `https://<api-host>/api` |
 | WebSocket URL | `wss://<api-host>/ws/live` |
-| HTTP Port | 8001 |
+| HTTP Port | 8080 (default) |
 
 ## Environment Variables (API Server)
 

@@ -140,7 +140,8 @@ contract Deploy is Script {
             ));
             console.log("AWPEmission impl:", address(emissionImpl));
 
-            bytes memory initData = abi.encodeCall(AWPEmission.initialize, (address(awp), address(treasury), INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION));
+            uint256 genesisTime = vm.envOr("GENESIS_TIME", block.timestamp);
+            bytes memory initData = abi.encodeCall(AWPEmission.initialize, (address(awp), address(treasury), INITIAL_DAILY_EMISSION, genesisTime, EPOCH_DURATION));
             emission = AWPEmission(_create2(
                 saltEmissionProxy,
                 abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(address(emissionImpl), initData))
@@ -194,7 +195,10 @@ contract Deploy is Script {
         treasury.grantRole(treasury.PROPOSER_ROLE(), address(dao));
         treasury.grantRole(treasury.CANCELLER_ROLE(), address(dao));
         treasury.renounceRole(treasury.DEFAULT_ADMIN_ROLE(), deployer);
-        console.log("Roles granted + Treasury admin renounced");
+        // NOTE: EXECUTOR_ROLE is granted to address(0) (open execution) by design.
+        // Anyone can execute queued proposals after the timelock delay.
+        // Deployer was never granted EXECUTOR_ROLE, so no renounce needed.
+        console.log("Roles granted + Treasury admin renounced (open executor by design)");
 
         awp.addMinter(address(emission));
         awp.renounceAdmin();
@@ -233,6 +237,7 @@ contract Deploy is Script {
         require(awp.admin() == address(0), "Admin should be renounced");
         require(awp.minters(address(emission)), "Emission should be minter");
         require(awpRegistry.registryInitialized(), "Registry should be initialized");
+        require(awp.balanceOf(deployer) == 0, "Deployer should have 0 AWP remaining");
 
         console.log("=== Deployment Complete ===");
     }

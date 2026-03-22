@@ -16,7 +16,7 @@ UPDATE stake_positions SET burned = TRUE WHERE token_id = $1;
 SELECT * FROM stake_positions WHERE token_id = $1;
 
 -- name: GetUserStakePositions :many
-SELECT * FROM stake_positions WHERE owner = $1 AND burned = FALSE ORDER BY token_id;
+SELECT * FROM stake_positions WHERE owner = $1 AND burned = FALSE ORDER BY token_id LIMIT 500;
 
 -- name: GetUserTotalStaked :one
 SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_positions WHERE owner = $1 AND burned = FALSE;

@@ -3,7 +3,7 @@
 ## Table of Contents
 
 1. [Prerequisites](#1-prerequisites)
-2. [Contract Deployment (BSC)](#2-contract-deployment-bsc)
+2. [Contract Deployment (Base / BSC)](#2-contract-deployment-base--bsc)
 3. [Database Setup](#3-database-setup)
 4. [Backend Services](#4-backend-services)
 5. [Configuration Reference](#5-configuration-reference)
@@ -58,7 +58,7 @@ Permit2:            0x31c2F6fcFf4F8759b3Bd5Bf0e1084A055615c768
 
 ---
 
-## 2. Contract Deployment (BSC)
+## 2. Contract Deployment (Base / BSC)
 
 ### 2.1 Prepare Environment
 
@@ -245,10 +245,19 @@ AWP_REGISTRY_ADDRESS=0x...
 AWP_TOKEN_ADDRESS=0x...
 AWP_EMISSION_ADDRESS=0x...
 STAKING_VAULT_ADDRESS=0x...
-STAKENFT_ADDRESS=0x...
+STAKE_NFT_ADDRESS=0x...
 SUBNETNFT_ADDRESS=0x...
+LP_MANAGER_ADDRESS=0x...
+ALPHA_FACTORY_ADDRESS=0x...
 DAO_ADDRESS=0x...
 TREASURY_ADDRESS=0x...
+
+# Relay (optional — enables /api/relay/*)
+RELAYER_PRIVATE_KEY=abcdef1234...  # No 0x prefix
+
+# Vanity (optional — enables /api/vanity/*)
+ALPHA_INITCODE_HASH=0x...
+VANITY_RULE=0x...
 
 # Keeper only
 KEEPER_PRIVATE_KEY=abcdef1234...  # No 0x prefix
@@ -350,16 +359,24 @@ sudo systemctl start awp-api awp-indexer awp-keeper
 | `DATABASE_URL` | api, indexer | `postgres://postgres:postgres@localhost:5432/awp?sslmode=disable` | PostgreSQL connection string |
 | `REDIS_URL` | api, indexer, keeper | `redis://localhost:6379/0` | Redis connection string |
 | `HTTP_ADDR` | api | `:8080` | HTTP listen address |
-| `RPC_URL` | indexer, keeper | `https://bsc-testnet-rpc.publicnode.com` | BSC JSON-RPC endpoint |
+| `RPC_URL` | indexer, keeper | — | BSC JSON-RPC endpoint (required, no default) |
 | `AWP_REGISTRY_ADDRESS` | indexer | — | AWPRegistry contract address |
 | `AWP_TOKEN_ADDRESS` | keeper | — | AWP token address |
 | `AWP_EMISSION_ADDRESS` | indexer, keeper | — | AWPEmission proxy address |
 | `STAKING_VAULT_ADDRESS` | indexer | — | StakingVault address |
-| `STAKENFT_ADDRESS` | indexer | — | StakeNFT address |
+| `STAKE_NFT_ADDRESS` | indexer | — | StakeNFT address |
 | `SUBNETNFT_ADDRESS` | indexer | — | SubnetNFT address |
 | `DAO_ADDRESS` | indexer | — | AWPDAO address |
 | `TREASURY_ADDRESS` | api | — | Treasury (Timelock) address |
+| `LP_MANAGER_ADDRESS` | indexer | — | LPManager contract address |
+| `ALPHA_FACTORY_ADDRESS` | api | — | AlphaTokenFactory contract address |
+| `CHAIN_ID` | api, indexer, keeper | — | Chain ID (e.g., 8453 for Base, 56 for BSC) |
+| `TRUST_PROXY` | api | `false` | Trust reverse proxy headers (X-Forwarded-For) |
+| `DEPLOY_BLOCK` | indexer | `0` | Block number to start indexing from |
 | `KEEPER_PRIVATE_KEY` | keeper | — | Hex private key for signing settle transactions |
+| `RELAYER_PRIVATE_KEY` | api | — | Hex private key for gasless relay (enables `/api/relay/*`) |
+| `ALPHA_INITCODE_HASH` | api | — | `keccak256(AlphaToken.creationCode)` hex (enables vanity mining) |
+| `VANITY_RULE` | api | — | `AlphaTokenFactory.vanityRule()` uint64 hex (e.g. `0x0A01FFFF0C0A0F0E`) |
 
 ### 5.2 Contract Constants
 

@@ -16,7 +16,7 @@ RETURNING salt, address;
 
 -- name: MarkSaltUsedByAddress :exec
 UPDATE vanity_salts SET used = TRUE, subnet_id = $1
-WHERE LOWER(address) = LOWER($2) AND used = FALSE;
+WHERE address = LOWER($2) AND used = FALSE;
 
 -- name: ListAvailableSalts :many
 SELECT salt, address FROM vanity_salts WHERE used = FALSE ORDER BY id LIMIT $1;

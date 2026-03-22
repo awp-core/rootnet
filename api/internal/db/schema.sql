@@ -30,13 +30,15 @@ CREATE TABLE stake_allocations (
     subnet_id     BIGINT NOT NULL,
     amount        NUMERIC(78,0) NOT NULL DEFAULT 0,
     frozen        BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_block BIGINT NOT NULL DEFAULT 0,
     PRIMARY KEY (user_address, agent_address, subnet_id)
 );
 CREATE INDEX idx_sa_subnet ON stake_allocations(subnet_id);
 
 CREATE TABLE user_balances (
     user_address    CHAR(42) PRIMARY KEY,
-    total_allocated NUMERIC(78,0) NOT NULL DEFAULT 0
+    total_allocated NUMERIC(78,0) NOT NULL DEFAULT 0,
+    updated_block   BIGINT NOT NULL DEFAULT 0
 );
 
 CREATE TABLE stake_positions (

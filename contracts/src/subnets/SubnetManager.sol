@@ -155,6 +155,9 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
         });
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
+        _grantRole(MERKLE_ROLE, admin_);
+        _grantRole(STRATEGY_ROLE, admin_);
+        _grantRole(TRANSFER_ROLE, admin_);
     }
 
     // ═══════════════════════════════════════════════
@@ -313,10 +316,12 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
         uint256 expectedOut;
         if (zeroForOne) {
             // Selling token0 for token1: expectedOut = amount * sqrtPrice^2 / 2^192
-            expectedOut = FullMath.mulDiv(amount, uint256(sqrtPriceX96) * uint256(sqrtPriceX96), 1 << 192);
+            // Split into two mulDiv to avoid sqrtPrice^2 overflow
+            expectedOut = FullMath.mulDiv(FullMath.mulDiv(amount, sqrtPriceX96, 1 << 96), sqrtPriceX96, 1 << 96);
         } else {
             // Selling token1 for token0: expectedOut = amount * 2^192 / sqrtPrice^2
-            expectedOut = FullMath.mulDiv(amount, 1 << 192, uint256(sqrtPriceX96) * uint256(sqrtPriceX96));
+            // Split: (amount * 2^96 / sqrtPrice) * 2^96 / sqrtPrice
+            expectedOut = FullMath.mulDiv(FullMath.mulDiv(amount, 1 << 96, sqrtPriceX96), 1 << 96, sqrtPriceX96);
         }
         uint128 minOut = uint128(expectedOut * 95 / 100); // 5% slippage tolerance
 

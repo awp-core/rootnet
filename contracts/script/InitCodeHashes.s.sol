@@ -82,8 +82,10 @@ contract InitCodeHashes is Script {
         _logHash("LPManager (Uniswap)", abi.encodePacked(type(LPManagerUni).creationCode, abi.encode(awpRegistry, poolManager, positionManager, permit2Addr, awp)));
         _logHash("StakingVault", abi.encodePacked(type(StakingVault).creationCode, abi.encode(awpRegistry)));
 
-        bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, treasury, INITIAL_DAILY_EMISSION, uint256(0), EPOCH_DURATION));
+        uint256 genesisTime = vm.envOr("GENESIS_TIME", uint256(0));
+        bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, treasury, INITIAL_DAILY_EMISSION, genesisTime, EPOCH_DURATION));
         _logHash("AWPEmission_proxy", abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(emissionImpl, initData)));
+        console.log("  (genesisTime used:", genesisTime, ")");
 
         // Tier 5: StakeNFT (depends on StakingVault + AWPRegistry + AWP)
         console.log("");

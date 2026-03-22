@@ -12,7 +12,7 @@ import (
 // userDetailResponse is the response type for user details including balance and bound agents (V2)
 type userDetailResponse struct {
 	User    gen.User         `json:"user"`
-	Balance *gen.UserBalance `json:"balance,omitempty"`
+	Balance *gen.GetUserBalanceRow `json:"balance,omitempty"`
 	Agents  []gen.User       `json:"agents"`
 }
 
@@ -47,11 +47,12 @@ func (h *Handler) GetUserCount(w http.ResponseWriter, r *http.Request) {
 
 // GetUser returns details for a single user including balance and bound agents (V2)
 func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
-	address := normalizeAddr(chi.URLParam(r, "address"))
-	if address == "" {
-		h.writeError(w, http.StatusBadRequest, "missing address parameter")
+	raw := chi.URLParam(r, "address")
+	if !isValidAddress(raw) {
+		h.writeError(w, http.StatusBadRequest, "invalid address")
 		return
 	}
+	address := normalizeAddr(raw)
 
 	ctx := r.Context()
 

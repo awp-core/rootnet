@@ -22,17 +22,39 @@ interface IStateView {
     function getSlot0(bytes32 id) external view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee);
 }
 
+/// @dev Uniswap V4 PoolManager — unlock + swap + settle + take
+interface IUniPoolManager {
+    struct SwapParams {
+        bool zeroForOne;
+        int256 amountSpecified;
+        uint160 sqrtPriceLimitX96;
+    }
+    function unlock(bytes calldata data) external returns (bytes memory);
+    function swap(UniPoolKey memory key, SwapParams memory params, bytes calldata hookData) external returns (int256);
+    function sync(address currency) external;
+    function settle() external payable returns (uint256);
+    function take(address currency, address to, uint256 amount) external;
+}
+
 /// @title SubnetManagerUni — SubnetManager variant for Uniswap V4 (Base, Ethereum, etc.)
 /// @notice Overrides initialize to construct Uniswap V4 PoolKey, and overrides all DEX
 ///         interaction functions to use the Uni V4 PoolKey format and StateView for reads.
 ///         dexConfig must encode 7 fields: (poolManager, positionManager, swapRouter, permit2, poolFee, tickSpacing, stateView)
 /// @dev Deploy this implementation for chains using Uniswap V4 (not PancakeSwap V4).
+///      _buybackAndBurn uses PoolManager.unlock + swap callback (PositionManager does NOT handle swap actions).
 contract SubnetManagerUni is SubnetManager {
     using SafeERC20 for IERC20;
 
-    // ── Uniswap V4 specific storage (uses gap space) ──
+    // ── Uniswap V4 specific storage ──
+    // NOTE: These are placed after SubnetManager's __gap[38], so they do NOT consume gap slots.
+    // SubnetManagerUni is a separate implementation — not an upgrade of SubnetManager.
+    // If SubnetManager is independently upgraded and expands into __gap, a new SubnetManagerUni
+    // implementation must be deployed with matching storage layout.
     address public stateView;
     UniPoolKey public uniPoolKey;
+
+    error NotPoolManager();
+    error SlippageExceeded();
 
     /// @notice Override initialize to construct Uniswap V4 PoolKey and decode stateView
     /// @dev dexConfig_ must be abi.encode(poolManager, positionManager, swapRouter, permit2, poolFee, tickSpacing, stateView)
@@ -79,6 +101,9 @@ contract SubnetManagerUni is SubnetManager {
         });
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
+        _grantRole(MERKLE_ROLE, admin_);
+        _grantRole(STRATEGY_ROLE, admin_);
+        _grantRole(TRANSFER_ROLE, admin_);
     }
 
     /// @dev Override: use Uni V4 PoolKey and StateView for single-sided liquidity
@@ -132,38 +157,74 @@ contract SubnetManagerUni is SubnetManager {
         emit LiquidityAdded(tokenId, amount);
     }
 
-    /// @dev Override: use Uni V4 PoolKey, StateView, and route swap through PositionManager
+    /// @dev Override: use PoolManager.unlock + swap callback (Uniswap V4 PositionManager does NOT handle swap actions)
     function _buybackAndBurn(uint256 amount) internal override {
-        IERC20(address(awpToken)).forceApprove(permit2, amount);
-        IPermit2(permit2).approve(address(awpToken), clPositionManager, uint160(amount), uint48(block.timestamp + 600));
-
         bool zeroForOne = address(awpToken) < address(alphaToken);
 
-        // Read current pool price from StateView
+        // Read current pool price from StateView for slippage protection
         (uint160 sqrtPriceX96,,,) = IStateView(stateView).getSlot0(poolId);
         uint256 expectedOut;
         if (zeroForOne) {
-            expectedOut = FullMath.mulDiv(amount, uint256(sqrtPriceX96) * uint256(sqrtPriceX96), 1 << 192);
+            expectedOut = FullMath.mulDiv(FullMath.mulDiv(amount, sqrtPriceX96, 1 << 96), sqrtPriceX96, 1 << 96);
         } else {
-            expectedOut = FullMath.mulDiv(amount, 1 << 192, uint256(sqrtPriceX96) * uint256(sqrtPriceX96));
+            expectedOut = FullMath.mulDiv(FullMath.mulDiv(amount, 1 << 96, sqrtPriceX96), 1 << 96, sqrtPriceX96);
         }
-        uint128 minOut = uint128(expectedOut * 95 / 100);
-
-        bytes memory actions = abi.encodePacked(ACT_CL_SWAP_EXACT_IN_SINGLE, ACT_SETTLE_ALL, ACT_TAKE_ALL);
-        bytes[] memory params = new bytes[](3);
-
-        // Encode with Uniswap V4 PoolKey
-        UniPoolKey memory pk = uniPoolKey;
-        params[0] = abi.encode(pk, zeroForOne, uint128(amount), minOut, bytes(""));
-        params[1] = abi.encode(address(awpToken), amount);
-        params[2] = abi.encode(address(alphaToken), 0);
+        uint128 minOut = uint128(expectedOut * 95 / 100); // 5% slippage tolerance
 
         uint256 before = alphaToken.balanceOf(address(this));
-        // Route through PositionManager (Uniswap V4)
-        ICLPositionManager(clPositionManager).modifyLiquidities(abi.encode(actions, params), block.timestamp);
-        uint256 received = alphaToken.balanceOf(address(this)) - before;
 
+        // Unlock PoolManager → triggers unlockCallback where swap + settle + take happen
+        IUniPoolManager(clPoolManager).unlock(abi.encode(amount, zeroForOne, minOut));
+
+        uint256 received = alphaToken.balanceOf(address(this)) - before;
         if (received > 0) alphaToken.burn(received);
         emit BuybackBurned(amount, received);
+    }
+
+    /// @dev Called by PoolManager during unlock — executes swap, settles input, takes output
+    function unlockCallback(bytes calldata data) external returns (bytes memory) {
+        if (msg.sender != clPoolManager) revert NotPoolManager();
+
+        (uint256 amount, bool zeroForOne, uint128 minOut) = abi.decode(data, (uint256, bool, uint128));
+
+        UniPoolKey memory pk = uniPoolKey;
+
+        // Execute swap via PoolManager (exact input)
+        int256 delta = IUniPoolManager(clPoolManager).swap(
+            pk,
+            IUniPoolManager.SwapParams({
+                zeroForOne: zeroForOne,
+                amountSpecified: -int256(amount), // negative = exact input
+                sqrtPriceLimitX96: zeroForOne
+                    ? TickMath.getSqrtRatioAtTick(TickMath.MIN_TICK) + 1
+                    : TickMath.getSqrtRatioAtTick(TickMath.MAX_TICK) - 1
+            }),
+            bytes("")
+        );
+
+        // Decode BalanceDelta: upper 128 bits = amount0, lower 128 bits = amount1
+        int128 delta0 = int128(delta >> 128);
+        int128 delta1 = int128(delta);
+
+        // Determine input/output amounts from deltas
+        // For zeroForOne: delta0 < 0 (we owe token0), delta1 > 0 (we receive token1)
+        // For !zeroForOne: delta0 > 0 (we receive token0), delta1 < 0 (we owe token1)
+        address inputCurrency = zeroForOne ? pk.currency0 : pk.currency1;
+        address outputCurrency = zeroForOne ? pk.currency1 : pk.currency0;
+        uint256 inputAmt = uint256(uint128(zeroForOne ? -delta0 : -delta1));
+        uint256 outputAmt = uint256(uint128(zeroForOne ? delta1 : delta0));
+
+        // Slippage check
+        if (outputAmt < minOut) revert SlippageExceeded();
+
+        // Settle input: sync balance → transfer tokens → settle diff
+        IUniPoolManager(clPoolManager).sync(inputCurrency);
+        IERC20(inputCurrency).safeTransfer(clPoolManager, inputAmt);
+        IUniPoolManager(clPoolManager).settle();
+
+        // Take output: PoolManager transfers tokens to us
+        IUniPoolManager(clPoolManager).take(outputCurrency, address(this), outputAmt);
+
+        return bytes("");
     }
 }

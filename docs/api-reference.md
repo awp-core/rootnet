@@ -3,7 +3,7 @@
 ## Table of Contents
 
 1. [Smart Contract API](#1-smart-contract-api)
-   - [AWPRegistry](#11-rootnet)
+   - [AWPRegistry](#11-awpregistry)
    - [AWPEmission](#12-awpemission)
    - [StakingVault](#13-stakingvault)
    - [StakeNFT](#13b-stakenft)
@@ -16,10 +16,10 @@
 2. [REST API](#2-rest-api)
    - [System](#21-system)
    - [Users](#22-users)
-   - [Agents](#23-agents)
-   - [Staking](#24-staking)
-   - [Subnets](#25-subnets)
-   - [Emission](#26-emission)
+   - [Agents](#24-agents)
+   - [Staking](#25-staking)
+   - [Subnets](#25-subnets-1)
+   - [Emission](#26-emission-draft)
    - [Tokens](#27-tokens)
    - [Governance](#28-governance)
    - [WebSocket](#29-websocket)
@@ -330,7 +330,7 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/health` | Health check → `{"status": "ok"}` |
-| GET | `/registry` | All protocol contract addresses (awpRegistry, awpToken, awpEmission, stakingVault, stakeNFT, subnetNFT, lpManager, alphaTokenFactory, dao, treasury). Per-subnet addresses (subnet_contract, alpha_token) are in `/subnets/{id}`. |
+| GET | `/registry` | All protocol contract addresses (awpRegistry, awpToken, awpEmission, stakingVault, stakeNFT, subnetNFT, lpManager, alphaTokenFactory, dao, treasury) plus `chainId` and `eip712Domain`. Per-subnet addresses (subnet_contract, alpha_token) are in `/subnets/{id}`. |
 
 ### 2.2 Users
 
@@ -341,13 +341,22 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 | GET | `/users/{address}` | User detail (balance, agents, reward recipient) |
 | GET | `/address/{address}/check` | Check registration status |
 
-### 2.3 Address Check
+### 2.4 Agents
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/address/{address}/check` | Check registration status: `{isRegistered, boundTo, recipient}` |
+| GET | `/agents/by-owner/{owner}` | List all agents owned by an address |
+| GET | `/agents/by-owner/{owner}/{agent}` | Get specific agent detail for an owner |
+| GET | `/agents/lookup/{agent}` | Lookup agent by agent address |
+| POST | `/agents/batch-info` | Batch query agent info (accepts JSON array of agent addresses) |
 
-### 2.4 Staking
+### 2.4b Nonce
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/nonce/{address}` | Get the current EIP-712 nonce for an address (used for gasless relay signatures) |
+
+### 2.5 Staking
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -405,6 +414,10 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 | POST | `/relay/bind` | Gasless tree-based bind via EIP-712 signature |
 | POST | `/relay/set-recipient` | Gasless set recipient via EIP-712 signature |
 | POST | `/relay/register-subnet` | Fully gasless subnet registration via ERC-2612 permit + EIP-712 |
+| POST | `/relay/register` | Gasless user registration via EIP-712 signature |
+| POST | `/relay/allocate` | Gasless stake allocation via EIP-712 signature |
+| POST | `/relay/deallocate` | Gasless stake deallocation via EIP-712 signature |
+| POST | `/relay/activate-subnet` | Gasless subnet activation via EIP-712 signature |
 
 **POST /relay/bind request:**
 ```json
@@ -574,8 +587,10 @@ struct AgentInfo {
 |-------|---------|
 | `NotDeployer()` | Non-deployer calls initializeRegistry |
 | `AlreadyInitialized()` | Registry already initialized |
-| `UnknownAddress()` | Invalid Timelock/Guardian caller or unknown updateAddress key |
-| `NotDelegate()` | Caller is not a delegate of the staker |
+| `ChainTooLong()` | Binding chain exceeds maximum depth |
+| `CannotRevokeSelf()` | Cannot revoke self as delegate |
+| `InvalidAddress()` | Zero or invalid address provided |
+| `NotAuthorized()` | Caller is not authorized (not staker or delegate) |
 | `CycleDetected()` | Binding would create a cycle in the tree |
 | `InvalidSubnetParams()` | name/symbol length invalid |
 | `SubnetManagerRequired()` | subnetManager is zero address |
@@ -583,10 +598,8 @@ struct AgentInfo {
 | `InvalidSubnetStatus()` | Status precondition not met |
 | `MaxActiveSubnetsReached()` | Active count >= 10,000 |
 | `ImmunityNotExpired()` | Deregister during immunity period |
-| `InvalidAgent()` | Agent is not valid |
 | `PriceTooLow()` | initialAlphaPrice < 1e12 |
 | `PriceTooHigh()` | initialAlphaPrice exceeds maximum |
-| `InsufficientMinStake()` | Allocation results in agent stake below subnet minStake |
 | `ExpiredSignature()` | Gasless signature expired |
 | `InvalidSignature()` | Gasless signature invalid |
 
@@ -628,6 +641,7 @@ struct AgentInfo {
 | `NotTokenOwner()` | Caller does not own the tokenId |
 | `InsufficientUnallocated()` | Withdraw exceeds unallocated balance |
 | `NothingToUpdate()` | No changes to apply to position |
+| `PositionExpired()` | addToPosition blocked on expired lock |
 | `LockCannotShorten()` | New lock end time is earlier than current |
 | `LockMustExceedCurrentTime()` | Lock end time must be in the future |
 | `NotAWPRegistry()` | Caller is not the AWPRegistry contract |
@@ -641,6 +655,7 @@ struct AgentInfo {
 | 404 | Not found |
 | 429 | Rate limit exceeded (relay endpoints) |
 | 500 | Internal error |
+| 503 | Service unavailable (keeper cache not ready) |
 
 ---
 

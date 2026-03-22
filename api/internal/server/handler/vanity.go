@@ -44,7 +44,9 @@ func NewVanityHandler(factoryAddr string, initCodeHash string, rule chain.Vanity
 func (vh *VanityHandler) writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		vh.logger.Error("failed to encode JSON response", "error", err)
+	}
 }
 
 func (vh *VanityHandler) writeError(w http.ResponseWriter, status int, msg string) {
@@ -63,12 +65,12 @@ type computeSaltResponse struct {
 func (vh *VanityHandler) ComputeSalt(w http.ResponseWriter, r *http.Request) {
 	// Rate limit (hot-updatable via Redis: HSET ratelimit:config compute_salt "20:3600")
 	ip := ratelimit.GetClientIP(r)
-	exceeded, _ := vh.limiter.CheckIP(r.Context(), "compute_salt", ip)
-	if exceeded {
+	if exceeded, err := vh.limiter.CheckAndIncrement(r.Context(), "compute_salt", ip); exceeded {
 		vh.writeError(w, http.StatusTooManyRequests, vh.limiter.FormatError(r.Context(), "compute_salt"))
 		return
+	} else if err != nil {
+		vh.logger.Error("compute_salt rate limit error", "error", err)
 	}
-	defer vh.limiter.RecordSuccess("compute_salt", ip)
 
 	start := time.Now()
 	ctx := r.Context()
@@ -112,7 +114,8 @@ func (vh *VanityHandler) ComputeSalt(w http.ResponseWriter, r *http.Request) {
 			vh.writeError(w, http.StatusRequestTimeout, "salt pool empty and mining timed out")
 			return
 		}
-		vh.writeError(w, http.StatusInternalServerError, err.Error())
+		vh.logger.Error("vanity salt mining failed", "error", err)
+		vh.writeError(w, http.StatusInternalServerError, "salt mining failed")
 		return
 	}
 

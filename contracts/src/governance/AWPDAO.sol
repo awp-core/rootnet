@@ -123,12 +123,22 @@ contract AWPDAO is
 
     /// @dev Block castVote (no params) — users must use castVoteWithReasonAndParams with tokenId array
     error UsecastVoteWithParams();
+    error InvalidQuorumPercent();
+    error ZeroTotalVotingPower();
 
     function castVote(uint256, uint8) public pure override returns (uint256) {
         revert UsecastVoteWithParams();
     }
 
     function castVoteWithReason(uint256, uint8, string calldata) public pure override returns (uint256) {
+        revert UsecastVoteWithParams();
+    }
+
+    function castVoteBySig(uint256, uint8, address, bytes memory) public pure override returns (uint256) {
+        revert UsecastVoteWithParams();
+    }
+
+    function castVoteWithReasonAndParamsBySig(uint256, uint8, address, string calldata, bytes memory, bytes memory) public pure override returns (uint256) {
         revert UsecastVoteWithParams();
     }
 
@@ -222,6 +232,12 @@ contract AWPDAO is
     //  Quorum and threshold
     // ═══════════════════════════════════════════════
 
+    /// @notice Update quorum percentage (only via governance through Timelock)
+    function setQuorumPercent(uint256 newQuorumPercent) external onlyGovernance {
+        if (newQuorumPercent == 0 || newQuorumPercent > 100) revert InvalidQuorumPercent();
+        quorumPercent = newQuorumPercent;
+    }
+
     /// @notice Quorum = totalVotingPower * quorumPercent / 100
     /// @dev Uses stakeNFT.totalVotingPower() which only counts properly deposited AWP,
     ///      not accidentally-sent tokens.
@@ -274,7 +290,7 @@ contract AWPDAO is
         uint256 proposalId = _propose(targets, values, calldatas, description, proposer);
         proposalCreatedAt[proposalId] = block.timestamp;
         uint256 totalVP = stakeNFT.totalVotingPower();
-        require(totalVP > 0, "Zero total voting power");
+        if (totalVP == 0) revert ZeroTotalVotingPower();
         proposalTotalVotingPower[proposalId] = totalVP;
         return proposalId;
     }
@@ -313,7 +329,7 @@ contract AWPDAO is
         uint256 proposalId = _propose(targets, values, calldatas, description, proposer);
         proposalCreatedAt[proposalId] = block.timestamp;
         uint256 totalVP = stakeNFT.totalVotingPower();
-        require(totalVP > 0, "Zero total voting power");
+        if (totalVP == 0) revert ZeroTotalVotingPower();
         proposalTotalVotingPower[proposalId] = totalVP;
         isSignalProposal[proposalId] = true;
 

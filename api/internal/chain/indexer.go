@@ -91,7 +91,11 @@ func (idx *Indexer) Run(ctx context.Context) error {
 
 // poll executes one complete scan cycle using optimistic indexing with parent hash verification.
 // No fixed confirmation depth — processes up to chain tip, detects reorgs via block hash chain.
-func (idx *Indexer) poll(ctx context.Context) error {
+func (idx *Indexer) poll(parentCtx context.Context) error {
+	// Per-poll timeout to prevent indefinite hangs on RPC failures
+	ctx, cancel := context.WithTimeout(parentCtx, 60*time.Second)
+	defer cancel()
+
 	// 1. Read the last synced block
 	q := gen.New(idx.pool)
 	state, err := q.GetSyncState(ctx, syncKey)
@@ -194,15 +198,19 @@ func (idx *Indexer) poll(ctx context.Context) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	// 6. Publish events to Redis (after successful transaction commit)
-	for _, evt := range events {
-		payload, err := json.Marshal(evt)
-		if err != nil {
-			slog.Error("failed to serialize Redis event", "type", evt.Type, "error", err)
-			continue
+	// 6. Publish events to Redis via pipeline (single round-trip for all events)
+	if len(events) > 0 {
+		pipe := idx.rds.Pipeline()
+		for _, evt := range events {
+			payload, err := json.Marshal(evt)
+			if err != nil {
+				slog.Error("failed to serialize Redis event", "type", evt.Type, "error", err)
+				continue
+			}
+			pipe.Publish(ctx, redisChannel, payload)
 		}
-		if err := idx.rds.Publish(ctx, redisChannel, payload).Err(); err != nil {
-			slog.Error("failed to publish Redis event", "type", evt.Type, "error", err)
+		if _, err := pipe.Exec(ctx); err != nil {
+			slog.Error("failed to publish Redis events", "count", len(events), "error", err)
 		}
 	}
 
@@ -254,12 +262,8 @@ func (idx *Indexer) detectReorg(ctx context.Context, q *gen.Queries, lastBlock u
 }
 
 // rollback resets the indexer state to the given fork point atomically within a transaction.
-// Since all DB writes use ON CONFLICT DO UPDATE (upserts), re-indexing from the fork point
-// will overwrite any stale data. We only need to reset the sync cursor and clean up block hashes.
-//
-// NOTE: Allocation tracking (stake_allocations) uses additive upserts and is NOT fully
-// idempotent on replay. After a reorg rollback, allocation amounts may drift from on-chain
-// state. A full re-sync from genesis is recommended if allocation accuracy is critical.
+// Allocation tracking uses additive upserts, so we must truncate stake_allocations and
+// user_balances on rollback to prevent double-counting when events are replayed.
 func (idx *Indexer) rollback(ctx context.Context, forkPoint int64) error {
 	tx, err := idx.pool.Begin(ctx)
 	if err != nil {
@@ -276,6 +280,13 @@ func (idx *Indexer) rollback(ctx context.Context, forkPoint int64) error {
 	}
 	if err := qtx.DeleteIndexedBlocksAfter(ctx, forkPoint); err != nil {
 		return fmt.Errorf("delete indexed blocks after %d: %w", forkPoint, err)
+	}
+	// Delete only rows written after the fork point (scoped rollback, not global truncate)
+	if err := qtx.DeleteStakeAllocationsAfterBlock(ctx, forkPoint); err != nil {
+		return fmt.Errorf("delete stake_allocations after %d: %w", forkPoint, err)
+	}
+	if err := qtx.DeleteUserBalancesAfterBlock(ctx, forkPoint); err != nil {
+		return fmt.Errorf("delete user_balances after %d: %w", forkPoint, err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -464,12 +475,14 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
 			SubnetID:     evt.SubnetId.Int64(),
 			Amount:       bigIntToNumeric(evt.Amount),
+			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("UpsertStakeAllocation: %w", err)
 		}
 		if err := q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
 			UserAddress:    strings.ToLower(evt.Staker.Hex()),
 			TotalAllocated: bigIntToNumeric(evt.Amount),
+			UpdatedBlock:   int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("AddUserAllocated: %w", err)
 		}
@@ -489,12 +502,14 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
 			SubnetID:     evt.SubnetId.Int64(),
 			Amount:       bigIntToNumeric(evt.Amount),
+			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("SubtractStakeAllocation: %w", err)
 		}
 		if err := q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{
 			UserAddress:    strings.ToLower(evt.Staker.Hex()),
 			TotalAllocated: bigIntToNumeric(evt.Amount),
+			UpdatedBlock:   int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("SubtractUserAllocated: %w", err)
 		}
@@ -515,6 +530,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			AgentAddress: strings.ToLower(evt.FromAgent.Hex()),
 			SubnetID:     evt.FromSubnet.Int64(),
 			Amount:       bigIntToNumeric(evt.Amount),
+			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("SubtractStakeAllocation(Reallocated): %w", err)
 		}
@@ -524,6 +540,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			AgentAddress: strings.ToLower(evt.ToAgent.Hex()),
 			SubnetID:     evt.ToSubnet.Int64(),
 			Amount:       bigIntToNumeric(evt.Amount),
+			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("UpsertStakeAllocation(Reallocated): %w", err)
 		}
@@ -540,17 +557,33 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// SubnetRegistered
 	if evt, err := awpRegistry.ParseSubnetRegistered(lg); err == nil {
+		// Read skillsURI and minStake from SubnetNFT on-chain (not included in event)
+		skillsURI := ""
+		minStake := big.NewInt(0)
+		if nftData, nftErr := idx.chain.SubnetNFT.GetSubnetData(nil, evt.SubnetId); nftErr == nil {
+			skillsURI = nftData.SkillsURI
+			if nftData.MinStake != nil {
+				minStake = nftData.MinStake
+			}
+		}
+		// Read on-chain createdAt (block.timestamp, not block number)
+		var createdAtTs int64
+		if subnetInfo, err := idx.chain.AWPRegistry.GetSubnet(nil, evt.SubnetId); err == nil {
+			createdAtTs = int64(subnetInfo.CreatedAt)
+		} else {
+			createdAtTs = int64(lg.BlockNumber) // fallback to block number if RPC fails
+		}
 		if err := q.InsertSubnet(ctx, gen.InsertSubnetParams{
 			SubnetID:       evt.SubnetId.Int64(),
 			Owner:          strings.ToLower(evt.Owner.Hex()),
 			Name:           evt.Name,
 			Symbol:         evt.Symbol,
 			SubnetContract: strings.ToLower(evt.SubnetManager.Hex()),
-			SkillsUri:      pgtype.Text{Valid: false},
-			MinStake:       bigIntToNumeric(big.NewInt(0)), // default 0; updated via SubnetNFT.MinStakeUpdated event
+			SkillsUri:      pgtype.Text{String: skillsURI, Valid: skillsURI != ""},
+			MinStake:       bigIntToNumeric(minStake),
 			AlphaToken:     strings.ToLower(evt.AlphaToken.Hex()),
 			LpPool:         pgtype.Text{Valid: false},
-			CreatedAt:      int64(lg.BlockNumber),
+			CreatedAt:      createdAtTs,
 			ImmunityEndsAt: pgtype.Int8{Valid: false},
 		}); err != nil {
 			return nil, fmt.Errorf("InsertSubnet: %w", err)
@@ -591,9 +624,16 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// SubnetActivated
 	if evt, err := awpRegistry.ParseSubnetActivated(lg); err == nil {
+		// Read on-chain activatedAt (block.timestamp)
+		var activatedAtTs int64
+		if subnetInfo, err := idx.chain.AWPRegistry.GetSubnet(nil, evt.SubnetId); err == nil {
+			activatedAtTs = int64(subnetInfo.ActivatedAt)
+		} else {
+			activatedAtTs = int64(lg.BlockNumber) // fallback
+		}
 		if err := q.UpdateSubnetActivated(ctx, gen.UpdateSubnetActivatedParams{
 			SubnetID:    evt.SubnetId.Int64(),
-			ActivatedAt: pgtype.Int8{Int64: int64(lg.BlockNumber), Valid: true},
+			ActivatedAt: pgtype.Int8{Int64: activatedAtTs, Valid: true},
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetActivated: %w", err)
 		}
@@ -782,7 +822,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	if evt, err := awpEmission.ParseAllocationsSubmitted(lg); err == nil {
 		addrs := make([]string, len(evt.Recipients))
 		for i, a := range evt.Recipients {
-			addrs[i] = a.Hex()
+			addrs[i] = strings.ToLower(a.Hex())
 		}
 		ws := make([]string, len(evt.Weights))
 		for i, w := range evt.Weights {
@@ -799,7 +839,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	if evt, err := awpEmission.ParseOracleConfigUpdated(lg); err == nil {
 		addrs := make([]string, len(evt.Oracles))
 		for i, o := range evt.Oracles {
-			addrs[i] = o.Hex()
+			addrs[i] = strings.ToLower(o.Hex())
 		}
 		return []redisEvent{makeEvent("OracleConfigUpdated", lg, map[string]interface{}{
 			"oracles":   addrs,
@@ -841,6 +881,9 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return []redisEvent{makeEvent("DefaultSubnetManagerImplUpdated", lg, map[string]interface{}{
 				"newImpl": newImpl.Hex(),
 			})}, nil
+		// DexConfigUpdated()
+		case common.HexToHash("0xaf06d41ee280e7c0649c5447e17c66f71908440d4a6a8ab4f5210b89c640925b"):
+			return []redisEvent{makeEvent("DexConfigUpdated", lg, map[string]interface{}{})}, nil
 		}
 	}
 

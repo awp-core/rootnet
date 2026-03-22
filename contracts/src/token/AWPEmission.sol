@@ -378,9 +378,10 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             epochEmissionLocked = currentDailyEmission > awpRemaining ? awpRemaining : currentDailyEmission;
             if (epochEmissionLocked == 0) revert MiningComplete();
 
-            // Promote activeEpoch if new weights were submitted for settledEpoch
-            if (_epochTotalWeight[settledEpoch] > 0) {
-                activeEpoch = settledEpoch;
+            // Promote activeEpoch if new weights were submitted for the epoch being settled
+            // Oracle writes to effectiveEpoch > settledEpoch, so check settledEpoch + 1
+            if (_epochTotalWeight[settledEpoch + 1] > 0) {
+                activeEpoch = settledEpoch + 1;
             }
 
             // Recipient pool = total emission × 50%

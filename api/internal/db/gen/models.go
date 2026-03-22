@@ -42,6 +42,7 @@ type StakeAllocation struct {
 	SubnetID     int64          `json:"subnet_id"`
 	Amount       pgtype.Numeric `json:"amount"`
 	Frozen       bool           `json:"frozen"`
+	UpdatedBlock int64          `json:"updated_block"`
 }
 
 type StakePosition struct {
@@ -85,6 +86,7 @@ type User struct {
 type UserBalance struct {
 	UserAddress    string         `json:"user_address"`
 	TotalAllocated pgtype.Numeric `json:"total_allocated"`
+	UpdatedBlock   int64          `json:"updated_block"`
 }
 
 type VanitySalt struct {

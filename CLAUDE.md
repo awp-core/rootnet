@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 ## Project
-AWP — Agent Mining protocol on BSC.
+AWP — Agent Mining protocol on Base (Uniswap V4) and BSC (PancakeSwap V4).
 
 ## Architecture Document
 docs/architecture.md — Read the relevant section before starting any task.
@@ -13,7 +13,7 @@ docs/architecture.md — Read the relevant section before starting any task.
 - Frontend: Next.js 14, Tailwind, wagmi/viem
 
 ## API Architecture
-- Backend is read-only + on-chain data indexer + gasless relay; two relay endpoints (bind, register-subnet)
+- Backend is read-only + on-chain data indexer + gasless relay; 7 relay endpoints (bind, set-recipient, register, allocate, deallocate, activate-subnet, register-subnet)
 - Frontend sends transactions directly to chain via wagmi/viem
 - Three independent Go processes: api (HTTP+WS) / indexer (event sync) / keeper (scheduled on-chain ops)
 - Indexer → Redis Pub/Sub → API WebSocket
@@ -83,8 +83,9 @@ AWPToken(constructor mint 200M) → AlphaTokenFactory(deployer, vanityRule)
 → AWP transfer distribution
 
 ## API Endpoints
-- REST: /api/registry (all 9 contract addresses, excludes implementation contracts), /api/users/*, /api/staking/*, /api/subnets/*, /api/emission/*, /api/tokens/*, /api/governance/*
-- Relay: POST /api/relay/bind, /api/relay/set-recipient, /api/relay/register-subnet (gasless EIP-712, rate-limited 100/IP/1h, configurable via Redis)
+- REST: /api/registry (all contract addresses + chainId + eip712Domain, excludes implementation contracts). eip712Domain object includes name, version, chainId, verifyingContract. /api/users/*, /api/staking/*, /api/subnets/*, /api/emission/*, /api/tokens/*, /api/governance/*
+- Nonce: GET /api/nonce/{address} — returns current nonce for gasless relay signatures
+- Relay: POST /api/relay/bind, /api/relay/set-recipient, /api/relay/register, /api/relay/allocate, /api/relay/deallocate, /api/relay/activate-subnet, /api/relay/register-subnet (gasless EIP-712, rate-limited 100/IP/1h, configurable via Redis)
 - Vanity: GET /api/vanity/mining-params, POST /api/vanity/upload-salts, GET /api/vanity/salts, GET /api/vanity/salts/count, POST /api/vanity/compute-salt (DB pool first, cast fallback)
 - WebSocket: WS /ws/live
 
