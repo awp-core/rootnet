@@ -12,37 +12,60 @@ import (
 )
 
 const addUserAllocated = `-- name: AddUserAllocated :exec
-INSERT INTO user_balances (user_address, total_allocated, updated_block) VALUES ($1, $2, $3)
-ON CONFLICT (user_address) DO UPDATE SET total_allocated = user_balances.total_allocated + EXCLUDED.total_allocated, updated_block = EXCLUDED.updated_block
+INSERT INTO user_balances (chain_id, user_address, total_allocated, updated_block) VALUES ($1, $2, $3, $4)
+ON CONFLICT (chain_id, user_address) DO UPDATE SET total_allocated = user_balances.total_allocated + EXCLUDED.total_allocated, updated_block = EXCLUDED.updated_block
 `
 
 type AddUserAllocatedParams struct {
+	ChainID        int64          `json:"chain_id"`
 	UserAddress    string         `json:"user_address"`
 	TotalAllocated pgtype.Numeric `json:"total_allocated"`
 	UpdatedBlock   int64          `json:"updated_block"`
 }
 
 func (q *Queries) AddUserAllocated(ctx context.Context, arg AddUserAllocatedParams) error {
-	_, err := q.db.Exec(ctx, addUserAllocated, arg.UserAddress, arg.TotalAllocated, arg.UpdatedBlock)
+	_, err := q.db.Exec(ctx, addUserAllocated,
+		arg.ChainID,
+		arg.UserAddress,
+		arg.TotalAllocated,
+		arg.UpdatedBlock,
+	)
 	return err
 }
 
 const clearUserBinding = `-- name: ClearUserBinding :exec
-UPDATE users SET bound_to = '' WHERE address = $1
+UPDATE users SET bound_to = '' WHERE address = $1 AND chain_id = $2
 `
 
-func (q *Queries) ClearUserBinding(ctx context.Context, address string) error {
-	_, err := q.db.Exec(ctx, clearUserBinding, address)
+type ClearUserBindingParams struct {
+	Address string `json:"address"`
+	ChainID int64  `json:"chain_id"`
+}
+
+func (q *Queries) ClearUserBinding(ctx context.Context, arg ClearUserBindingParams) error {
+	_, err := q.db.Exec(ctx, clearUserBinding, arg.Address, arg.ChainID)
 	return err
 }
 
 const getUser = `-- name: GetUser :one
-SELECT address, bound_to, recipient, registered_at FROM users WHERE address = $1
+SELECT address, bound_to, recipient, registered_at FROM users WHERE address = $1 AND chain_id = $2
 `
 
-func (q *Queries) GetUser(ctx context.Context, address string) (User, error) {
-	row := q.db.QueryRow(ctx, getUser, address)
-	var i User
+type GetUserParams struct {
+	Address string `json:"address"`
+	ChainID int64  `json:"chain_id"`
+}
+
+type GetUserRow struct {
+	Address      string `json:"address"`
+	BoundTo      string `json:"bound_to"`
+	Recipient    string `json:"recipient"`
+	RegisteredAt int64  `json:"registered_at"`
+}
+
+func (q *Queries) GetUser(ctx context.Context, arg GetUserParams) (GetUserRow, error) {
+	row := q.db.QueryRow(ctx, getUser, arg.Address, arg.ChainID)
+	var i GetUserRow
 	err := row.Scan(
 		&i.Address,
 		&i.BoundTo,
@@ -53,27 +76,32 @@ func (q *Queries) GetUser(ctx context.Context, address string) (User, error) {
 }
 
 const getUserBalance = `-- name: GetUserBalance :one
-SELECT user_address, total_allocated FROM user_balances WHERE user_address = $1
+SELECT user_address, total_allocated FROM user_balances WHERE user_address = $1 AND chain_id = $2
 `
+
+type GetUserBalanceParams struct {
+	UserAddress string `json:"user_address"`
+	ChainID     int64  `json:"chain_id"`
+}
 
 type GetUserBalanceRow struct {
 	UserAddress    string         `json:"user_address"`
 	TotalAllocated pgtype.Numeric `json:"total_allocated"`
 }
 
-func (q *Queries) GetUserBalance(ctx context.Context, userAddress string) (GetUserBalanceRow, error) {
-	row := q.db.QueryRow(ctx, getUserBalance, userAddress)
+func (q *Queries) GetUserBalance(ctx context.Context, arg GetUserBalanceParams) (GetUserBalanceRow, error) {
+	row := q.db.QueryRow(ctx, getUserBalance, arg.UserAddress, arg.ChainID)
 	var i GetUserBalanceRow
 	err := row.Scan(&i.UserAddress, &i.TotalAllocated)
 	return i, err
 }
 
 const getUserCount = `-- name: GetUserCount :one
-SELECT COUNT(*) FROM users
+SELECT COUNT(*) FROM users WHERE chain_id = $1
 `
 
-func (q *Queries) GetUserCount(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, getUserCount)
+func (q *Queries) GetUserCount(ctx context.Context, chainID int64) (int64, error) {
+	row := q.db.QueryRow(ctx, getUserCount, chainID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -81,18 +109,30 @@ func (q *Queries) GetUserCount(ctx context.Context) (int64, error) {
 
 const getUsersByBoundTo = `-- name: GetUsersByBoundTo :many
 SELECT address, bound_to, recipient, registered_at FROM users
-WHERE bound_to = $1 ORDER BY address LIMIT 500
+WHERE bound_to = $1 AND chain_id = $2 ORDER BY address LIMIT 500
 `
 
-func (q *Queries) GetUsersByBoundTo(ctx context.Context, boundTo string) ([]User, error) {
-	rows, err := q.db.Query(ctx, getUsersByBoundTo, boundTo)
+type GetUsersByBoundToParams struct {
+	BoundTo string `json:"bound_to"`
+	ChainID int64  `json:"chain_id"`
+}
+
+type GetUsersByBoundToRow struct {
+	Address      string `json:"address"`
+	BoundTo      string `json:"bound_to"`
+	Recipient    string `json:"recipient"`
+	RegisteredAt int64  `json:"registered_at"`
+}
+
+func (q *Queries) GetUsersByBoundTo(ctx context.Context, arg GetUsersByBoundToParams) ([]GetUsersByBoundToRow, error) {
+	rows, err := q.db.Query(ctx, getUsersByBoundTo, arg.BoundTo, arg.ChainID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []User{}
+	items := []GetUsersByBoundToRow{}
 	for rows.Next() {
-		var i User
+		var i GetUsersByBoundToRow
 		if err := rows.Scan(
 			&i.Address,
 			&i.BoundTo,
@@ -110,33 +150,46 @@ func (q *Queries) GetUsersByBoundTo(ctx context.Context, boundTo string) ([]User
 }
 
 const initUserBalance = `-- name: InitUserBalance :exec
-INSERT INTO user_balances (user_address, total_allocated, updated_block) VALUES ($1, 0, 0)
-ON CONFLICT (user_address) DO NOTHING
+INSERT INTO user_balances (chain_id, user_address, total_allocated, updated_block) VALUES ($1, $2, 0, 0)
+ON CONFLICT (chain_id, user_address) DO NOTHING
 `
 
-func (q *Queries) InitUserBalance(ctx context.Context, userAddress string) error {
-	_, err := q.db.Exec(ctx, initUserBalance, userAddress)
+type InitUserBalanceParams struct {
+	ChainID     int64  `json:"chain_id"`
+	UserAddress string `json:"user_address"`
+}
+
+func (q *Queries) InitUserBalance(ctx context.Context, arg InitUserBalanceParams) error {
+	_, err := q.db.Exec(ctx, initUserBalance, arg.ChainID, arg.UserAddress)
 	return err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT address, bound_to, recipient, registered_at FROM users ORDER BY registered_at DESC LIMIT $1 OFFSET $2
+SELECT address, bound_to, recipient, registered_at FROM users WHERE chain_id = $1 ORDER BY registered_at DESC LIMIT $2 OFFSET $3
 `
 
 type ListUsersParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	ChainID int64 `json:"chain_id"`
+	Limit   int32 `json:"limit"`
+	Offset  int32 `json:"offset"`
 }
 
-func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {
-	rows, err := q.db.Query(ctx, listUsers, arg.Limit, arg.Offset)
+type ListUsersRow struct {
+	Address      string `json:"address"`
+	BoundTo      string `json:"bound_to"`
+	Recipient    string `json:"recipient"`
+	RegisteredAt int64  `json:"registered_at"`
+}
+
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]ListUsersRow, error) {
+	rows, err := q.db.Query(ctx, listUsers, arg.ChainID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []User{}
+	items := []ListUsersRow{}
 	for rows.Next() {
-		var i User
+		var i ListUsersRow
 		if err := rows.Scan(
 			&i.Address,
 			&i.BoundTo,
@@ -154,79 +207,89 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 }
 
 const setUserRegisteredAt = `-- name: SetUserRegisteredAt :exec
-INSERT INTO users (address, registered_at) VALUES ($1, $2)
-ON CONFLICT (address) DO UPDATE SET registered_at = EXCLUDED.registered_at
+INSERT INTO users (chain_id, address, registered_at) VALUES ($1, $2, $3)
+ON CONFLICT (chain_id, address) DO UPDATE SET registered_at = EXCLUDED.registered_at
 WHERE users.registered_at = 0
 `
 
 type SetUserRegisteredAtParams struct {
+	ChainID      int64  `json:"chain_id"`
 	Address      string `json:"address"`
 	RegisteredAt int64  `json:"registered_at"`
 }
 
 func (q *Queries) SetUserRegisteredAt(ctx context.Context, arg SetUserRegisteredAtParams) error {
-	_, err := q.db.Exec(ctx, setUserRegisteredAt, arg.Address, arg.RegisteredAt)
+	_, err := q.db.Exec(ctx, setUserRegisteredAt, arg.ChainID, arg.Address, arg.RegisteredAt)
 	return err
 }
 
 const subtractUserAllocated = `-- name: SubtractUserAllocated :exec
-UPDATE user_balances SET total_allocated = GREATEST(total_allocated - $2, 0), updated_block = $3 WHERE user_address = $1
+UPDATE user_balances SET total_allocated = GREATEST(total_allocated - $3, 0), updated_block = $4 WHERE user_address = $2 AND chain_id = $1
 `
 
 type SubtractUserAllocatedParams struct {
+	ChainID        int64          `json:"chain_id"`
 	UserAddress    string         `json:"user_address"`
 	TotalAllocated pgtype.Numeric `json:"total_allocated"`
 	UpdatedBlock   int64          `json:"updated_block"`
 }
 
 func (q *Queries) SubtractUserAllocated(ctx context.Context, arg SubtractUserAllocatedParams) error {
-	_, err := q.db.Exec(ctx, subtractUserAllocated, arg.UserAddress, arg.TotalAllocated, arg.UpdatedBlock)
+	_, err := q.db.Exec(ctx, subtractUserAllocated,
+		arg.ChainID,
+		arg.UserAddress,
+		arg.TotalAllocated,
+		arg.UpdatedBlock,
+	)
 	return err
 }
 
 const upsertUserBalance = `-- name: UpsertUserBalance :exec
-INSERT INTO user_balances (user_address, total_allocated)
-VALUES ($1, $2)
-ON CONFLICT (user_address) DO UPDATE SET
+INSERT INTO user_balances (chain_id, user_address, total_allocated)
+VALUES ($1, $2, $3)
+ON CONFLICT (chain_id, user_address) DO UPDATE SET
   total_allocated = user_balances.total_allocated + EXCLUDED.total_allocated
 `
 
 type UpsertUserBalanceParams struct {
+	ChainID        int64          `json:"chain_id"`
 	UserAddress    string         `json:"user_address"`
 	TotalAllocated pgtype.Numeric `json:"total_allocated"`
 }
 
 func (q *Queries) UpsertUserBalance(ctx context.Context, arg UpsertUserBalanceParams) error {
-	_, err := q.db.Exec(ctx, upsertUserBalance, arg.UserAddress, arg.TotalAllocated)
+	_, err := q.db.Exec(ctx, upsertUserBalance, arg.ChainID, arg.UserAddress, arg.TotalAllocated)
 	return err
 }
 
 const upsertUserBinding = `-- name: UpsertUserBinding :exec
-INSERT INTO users (address, bound_to) VALUES ($1, $2)
-ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to
+INSERT INTO users (chain_id, address, bound_to) VALUES ($1, $2, $3)
+ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to
 `
 
 type UpsertUserBindingParams struct {
+	ChainID int64  `json:"chain_id"`
 	Address string `json:"address"`
 	BoundTo string `json:"bound_to"`
 }
 
 func (q *Queries) UpsertUserBinding(ctx context.Context, arg UpsertUserBindingParams) error {
-	_, err := q.db.Exec(ctx, upsertUserBinding, arg.Address, arg.BoundTo)
+	_, err := q.db.Exec(ctx, upsertUserBinding, arg.ChainID, arg.Address, arg.BoundTo)
 	return err
 }
 
 const upsertUserRecipient = `-- name: UpsertUserRecipient :exec
-INSERT INTO users (address, recipient) VALUES ($1, $2)
-ON CONFLICT (address) DO UPDATE SET recipient = EXCLUDED.recipient
+INSERT INTO users (chain_id, address, recipient) VALUES ($1, $2, $3)
+ON CONFLICT (chain_id, address) DO UPDATE SET recipient = EXCLUDED.recipient
 `
 
 type UpsertUserRecipientParams struct {
+	ChainID   int64  `json:"chain_id"`
 	Address   string `json:"address"`
 	Recipient string `json:"recipient"`
 }
 
 func (q *Queries) UpsertUserRecipient(ctx context.Context, arg UpsertUserRecipientParams) error {
-	_, err := q.db.Exec(ctx, upsertUserRecipient, arg.Address, arg.Recipient)
+	_, err := q.db.Exec(ctx, upsertUserRecipient, arg.ChainID, arg.Address, arg.Recipient)
 	return err
 }

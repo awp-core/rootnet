@@ -12,22 +12,33 @@ import (
 )
 
 const burnStakePosition = `-- name: BurnStakePosition :exec
-UPDATE stake_positions SET burned = TRUE WHERE token_id = $1
+UPDATE stake_positions SET burned = TRUE WHERE chain_id = $1 AND token_id = $2
 `
 
-func (q *Queries) BurnStakePosition(ctx context.Context, tokenID int64) error {
-	_, err := q.db.Exec(ctx, burnStakePosition, tokenID)
+type BurnStakePositionParams struct {
+	ChainID int64 `json:"chain_id"`
+	TokenID int64 `json:"token_id"`
+}
+
+func (q *Queries) BurnStakePosition(ctx context.Context, arg BurnStakePositionParams) error {
+	_, err := q.db.Exec(ctx, burnStakePosition, arg.ChainID, arg.TokenID)
 	return err
 }
 
 const getStakePosition = `-- name: GetStakePosition :one
-SELECT token_id, owner, amount, lock_end_time, created_at, burned FROM stake_positions WHERE token_id = $1
+SELECT chain_id, token_id, owner, amount, lock_end_time, created_at, burned FROM stake_positions WHERE chain_id = $1 AND token_id = $2
 `
 
-func (q *Queries) GetStakePosition(ctx context.Context, tokenID int64) (StakePosition, error) {
-	row := q.db.QueryRow(ctx, getStakePosition, tokenID)
+type GetStakePositionParams struct {
+	ChainID int64 `json:"chain_id"`
+	TokenID int64 `json:"token_id"`
+}
+
+func (q *Queries) GetStakePosition(ctx context.Context, arg GetStakePositionParams) (StakePosition, error) {
+	row := q.db.QueryRow(ctx, getStakePosition, arg.ChainID, arg.TokenID)
 	var i StakePosition
 	err := row.Scan(
+		&i.ChainID,
 		&i.TokenID,
 		&i.Owner,
 		&i.Amount,
@@ -39,11 +50,16 @@ func (q *Queries) GetStakePosition(ctx context.Context, tokenID int64) (StakePos
 }
 
 const getUserStakePositions = `-- name: GetUserStakePositions :many
-SELECT token_id, owner, amount, lock_end_time, created_at, burned FROM stake_positions WHERE owner = $1 AND burned = FALSE ORDER BY token_id LIMIT 500
+SELECT chain_id, token_id, owner, amount, lock_end_time, created_at, burned FROM stake_positions WHERE chain_id = $1 AND owner = $2 AND burned = FALSE ORDER BY token_id LIMIT 500
 `
 
-func (q *Queries) GetUserStakePositions(ctx context.Context, owner string) ([]StakePosition, error) {
-	rows, err := q.db.Query(ctx, getUserStakePositions, owner)
+type GetUserStakePositionsParams struct {
+	ChainID int64  `json:"chain_id"`
+	Owner   string `json:"owner"`
+}
+
+func (q *Queries) GetUserStakePositions(ctx context.Context, arg GetUserStakePositionsParams) ([]StakePosition, error) {
+	rows, err := q.db.Query(ctx, getUserStakePositions, arg.ChainID, arg.Owner)
 	if err != nil {
 		return nil, err
 	}
@@ -52,6 +68,7 @@ func (q *Queries) GetUserStakePositions(ctx context.Context, owner string) ([]St
 	for rows.Next() {
 		var i StakePosition
 		if err := rows.Scan(
+			&i.ChainID,
 			&i.TokenID,
 			&i.Owner,
 			&i.Amount,
@@ -70,23 +87,29 @@ func (q *Queries) GetUserStakePositions(ctx context.Context, owner string) ([]St
 }
 
 const getUserTotalStaked = `-- name: GetUserTotalStaked :one
-SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_positions WHERE owner = $1 AND burned = FALSE
+SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_positions WHERE chain_id = $1 AND owner = $2 AND burned = FALSE
 `
 
-func (q *Queries) GetUserTotalStaked(ctx context.Context, owner string) (pgtype.Numeric, error) {
-	row := q.db.QueryRow(ctx, getUserTotalStaked, owner)
+type GetUserTotalStakedParams struct {
+	ChainID int64  `json:"chain_id"`
+	Owner   string `json:"owner"`
+}
+
+func (q *Queries) GetUserTotalStaked(ctx context.Context, arg GetUserTotalStakedParams) (pgtype.Numeric, error) {
+	row := q.db.QueryRow(ctx, getUserTotalStaked, arg.ChainID, arg.Owner)
 	var total pgtype.Numeric
 	err := row.Scan(&total)
 	return total, err
 }
 
 const insertStakePosition = `-- name: InsertStakePosition :exec
-INSERT INTO stake_positions (token_id, owner, amount, lock_end_time, created_at)
-VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (token_id) DO NOTHING
+INSERT INTO stake_positions (chain_id, token_id, owner, amount, lock_end_time, created_at)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (chain_id, token_id) DO NOTHING
 `
 
 type InsertStakePositionParams struct {
+	ChainID     int64          `json:"chain_id"`
 	TokenID     int64          `json:"token_id"`
 	Owner       string         `json:"owner"`
 	Amount      pgtype.Numeric `json:"amount"`
@@ -96,6 +119,7 @@ type InsertStakePositionParams struct {
 
 func (q *Queries) InsertStakePosition(ctx context.Context, arg InsertStakePositionParams) error {
 	_, err := q.db.Exec(ctx, insertStakePosition,
+		arg.ChainID,
 		arg.TokenID,
 		arg.Owner,
 		arg.Amount,
@@ -106,30 +130,37 @@ func (q *Queries) InsertStakePosition(ctx context.Context, arg InsertStakePositi
 }
 
 const updateStakePosition = `-- name: UpdateStakePosition :exec
-UPDATE stake_positions SET amount = $2, lock_end_time = $3 WHERE token_id = $1
+UPDATE stake_positions SET amount = $3, lock_end_time = $4 WHERE chain_id = $1 AND token_id = $2
 `
 
 type UpdateStakePositionParams struct {
+	ChainID     int64          `json:"chain_id"`
 	TokenID     int64          `json:"token_id"`
 	Amount      pgtype.Numeric `json:"amount"`
 	LockEndTime int64          `json:"lock_end_time"`
 }
 
 func (q *Queries) UpdateStakePosition(ctx context.Context, arg UpdateStakePositionParams) error {
-	_, err := q.db.Exec(ctx, updateStakePosition, arg.TokenID, arg.Amount, arg.LockEndTime)
+	_, err := q.db.Exec(ctx, updateStakePosition,
+		arg.ChainID,
+		arg.TokenID,
+		arg.Amount,
+		arg.LockEndTime,
+	)
 	return err
 }
 
 const updateStakePositionOwner = `-- name: UpdateStakePositionOwner :exec
-UPDATE stake_positions SET owner = $2 WHERE token_id = $1
+UPDATE stake_positions SET owner = $3 WHERE chain_id = $1 AND token_id = $2
 `
 
 type UpdateStakePositionOwnerParams struct {
+	ChainID int64  `json:"chain_id"`
 	TokenID int64  `json:"token_id"`
 	Owner   string `json:"owner"`
 }
 
 func (q *Queries) UpdateStakePositionOwner(ctx context.Context, arg UpdateStakePositionOwnerParams) error {
-	_, err := q.db.Exec(ctx, updateStakePositionOwner, arg.TokenID, arg.Owner)
+	_, err := q.db.Exec(ctx, updateStakePositionOwner, arg.ChainID, arg.TokenID, arg.Owner)
 	return err
 }

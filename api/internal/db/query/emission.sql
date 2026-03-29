@@ -1,33 +1,33 @@
 -- name: UpsertEpoch :exec
-INSERT INTO epochs (epoch_id, start_time, daily_emission, dao_emission)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (epoch_id) DO UPDATE SET
+INSERT INTO epochs (chain_id, epoch_id, start_time, daily_emission, dao_emission)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (chain_id, epoch_id) DO UPDATE SET
   start_time = EXCLUDED.start_time,
   daily_emission = EXCLUDED.daily_emission,
   dao_emission = COALESCE(EXCLUDED.dao_emission, epochs.dao_emission);
 
 -- name: GetEpoch :one
-SELECT epoch_id, start_time, daily_emission, dao_emission FROM epochs WHERE epoch_id = $1;
+SELECT epoch_id, start_time, daily_emission, dao_emission FROM epochs WHERE chain_id = $1 AND epoch_id = $2;
 
 -- name: ListEpochs :many
 SELECT epoch_id, start_time, daily_emission, dao_emission FROM epochs
-ORDER BY epoch_id DESC LIMIT $1 OFFSET $2;
+WHERE chain_id = $1 ORDER BY epoch_id DESC LIMIT $2 OFFSET $3;
 
 -- name: GetLatestEpoch :one
 SELECT epoch_id, start_time, daily_emission, dao_emission FROM epochs
-ORDER BY epoch_id DESC LIMIT 1;
+WHERE chain_id = $1 ORDER BY epoch_id DESC LIMIT 1;
 
 -- name: UpdateEpochDAO :exec
-INSERT INTO epochs (epoch_id, start_time, daily_emission, dao_emission) VALUES ($1, 0, 0, $2)
-ON CONFLICT (epoch_id) DO UPDATE SET dao_emission = EXCLUDED.dao_emission;
+INSERT INTO epochs (chain_id, epoch_id, start_time, daily_emission, dao_emission) VALUES ($1, $2, 0, 0, $3)
+ON CONFLICT (chain_id, epoch_id) DO UPDATE SET dao_emission = EXCLUDED.dao_emission;
 
 -- name: InsertRecipientAWPDistribution :exec
-INSERT INTO recipient_awp_distributions (epoch_id, recipient, awp_amount) VALUES ($1, $2, $3)
-ON CONFLICT (epoch_id, recipient) DO NOTHING;
+INSERT INTO recipient_awp_distributions (chain_id, epoch_id, recipient, awp_amount) VALUES ($1, $2, $3, $4)
+ON CONFLICT (chain_id, epoch_id, recipient) DO NOTHING;
 
 -- name: GetRecipientEarnings :many
 SELECT epoch_id, recipient, awp_amount FROM recipient_awp_distributions
-WHERE recipient = $1 ORDER BY epoch_id DESC LIMIT $2 OFFSET $3;
+WHERE chain_id = $1 AND recipient = $2 ORDER BY epoch_id DESC LIMIT $3 OFFSET $4;
 
 -- name: GetSubnetEarningsByID :many
 SELECT r.epoch_id, r.recipient, r.awp_amount
@@ -38,4 +38,4 @@ ORDER BY r.epoch_id DESC LIMIT $2 OFFSET $3;
 
 -- name: GetEpochDistributions :many
 SELECT epoch_id, recipient, awp_amount FROM recipient_awp_distributions
-WHERE epoch_id = $1 ORDER BY recipient;
+WHERE chain_id = $1 AND epoch_id = $2 ORDER BY recipient;

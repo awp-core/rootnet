@@ -9,6 +9,7 @@ import (
 )
 
 type Epoch struct {
+	ChainID       int64          `json:"chain_id"`
 	EpochID       int64          `json:"epoch_id"`
 	StartTime     int64          `json:"start_time"`
 	DailyEmission pgtype.Numeric `json:"daily_emission"`
@@ -16,11 +17,13 @@ type Epoch struct {
 }
 
 type IndexedBlock struct {
+	ChainID     int64  `json:"chain_id"`
 	BlockNumber int64  `json:"block_number"`
 	BlockHash   string `json:"block_hash"`
 }
 
 type Proposal struct {
+	ChainID      int64          `json:"chain_id"`
 	ProposalID   string         `json:"proposal_id"`
 	Proposer     string         `json:"proposer"`
 	Description  pgtype.Text    `json:"description"`
@@ -31,12 +34,14 @@ type Proposal struct {
 
 type RecipientAwpDistribution struct {
 	ID        int32          `json:"id"`
+	ChainID   int64          `json:"chain_id"`
 	EpochID   int64          `json:"epoch_id"`
 	Recipient string         `json:"recipient"`
 	AwpAmount pgtype.Numeric `json:"awp_amount"`
 }
 
 type StakeAllocation struct {
+	ChainID      int64          `json:"chain_id"`
 	UserAddress  string         `json:"user_address"`
 	AgentAddress string         `json:"agent_address"`
 	SubnetID     int64          `json:"subnet_id"`
@@ -46,6 +51,7 @@ type StakeAllocation struct {
 }
 
 type StakePosition struct {
+	ChainID     int64          `json:"chain_id"`
 	TokenID     int64          `json:"token_id"`
 	Owner       string         `json:"owner"`
 	Amount      pgtype.Numeric `json:"amount"`
@@ -56,6 +62,7 @@ type StakePosition struct {
 
 type Subnet struct {
 	SubnetID       int64          `json:"subnet_id"`
+	ChainID        int64          `json:"chain_id"`
 	Owner          string         `json:"owner"`
 	Name           string         `json:"name"`
 	Symbol         string         `json:"symbol"`
@@ -72,11 +79,13 @@ type Subnet struct {
 }
 
 type SyncState struct {
+	ChainID      int64  `json:"chain_id"`
 	ContractName string `json:"contract_name"`
 	LastBlock    int64  `json:"last_block"`
 }
 
 type User struct {
+	ChainID      int64  `json:"chain_id"`
 	Address      string `json:"address"`
 	BoundTo      string `json:"bound_to"`
 	Recipient    string `json:"recipient"`
@@ -84,6 +93,7 @@ type User struct {
 }
 
 type UserBalance struct {
+	ChainID        int64          `json:"chain_id"`
 	UserAddress    string         `json:"user_address"`
 	TotalAllocated pgtype.Numeric `json:"total_allocated"`
 	UpdatedBlock   int64          `json:"updated_block"`
@@ -91,6 +101,7 @@ type UserBalance struct {
 
 type VanitySalt struct {
 	ID        int32            `json:"id"`
+	ChainID   int64            `json:"chain_id"`
 	Salt      string           `json:"salt"`
 	Address   string           `json:"address"`
 	Used      bool             `json:"used"`
