@@ -16,6 +16,9 @@ type Config struct {
 	HTTPAddr    string `env:"HTTP_ADDR" envDefault:":8080"`
 	TrustProxy  bool   `env:"TRUST_PROXY" envDefault:"false"` // Set to true ONLY when behind a trusted reverse proxy (nginx/caddy)
 
+	// Multi-chain
+	ChainsFile string `env:"CHAINS_FILE" envDefault:""` // Path to chains.yaml; empty = single-chain mode
+
 	// Chain
 	ChainID         int64  `env:"CHAIN_ID,required"` // No default — must match target chain
 	RPCURL          string `env:"RPC_URL,required"` // No default — must be explicitly set for target chain
