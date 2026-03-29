@@ -1,0 +1,57 @@
+# AWP Multi-Chain Deployment Configuration
+# Each chain gets a full independent protocol deployment with identical contract addresses.
+# Deploy: ./scripts/deploy-multichain.sh <chainName>
+# Deploy all: ./scripts/deploy-multichain.sh --all
+
+chains:
+  base:
+    chainId: 8453
+    name: Base
+    rpcUrl: ${BASE_RPC_URL}
+    dex: uniswap_v4
+    initialMint: 50000000
+    explorer: https://basescan.org
+    poolManager: "0x498581ff718922c3f8e6a244956af099b2652b2b"
+    positionManager: "0x7c5f5a4bbd8fd63184577525326123b519429bdc"
+    permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+    swapRouter: "0x6ff5693b99212da76ad316178a184ab56d299b43"
+    stateView: "0xa3c0c9b65bad0b08107aa264b0f3db444b867a71"
+
+  ethereum:
+    chainId: 1
+    name: Ethereum
+    rpcUrl: ${ETH_RPC_URL}
+    dex: uniswap_v4
+    initialMint: 100000000
+    explorer: https://etherscan.io
+    poolManager: "0x000000000004444c5dc75cB358380D2e3dE08A90"
+    positionManager: "0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e"
+    permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+    swapRouter: "0x66a9893cC07D91D95644AEDD05D03f95e1dBA8Af"
+    stateView: "0x7fFE42C4a5DEeA5b0feC41C94C136Cf115597227"
+
+  arbitrum:
+    chainId: 42161
+    name: Arbitrum One
+    rpcUrl: ${ARB_RPC_URL}
+    dex: uniswap_v4
+    initialMint: 50000000
+    explorer: https://arbiscan.io
+    poolManager: "0x360E68faCcca8cA495c1B759Fd9EEe466db9FB32"
+    positionManager: "0xd88F38F930b7952f2DB2432Cb002E7abbF3dD869"
+    permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+    swapRouter: "0xA51afAF359d044F8e56fE74B9575f23142cD4B76"
+    stateView: "0x76fd297e2D437cd7f76a5F2B02A5cE11C663a86E"
+
+  bsc:
+    chainId: 56
+    name: BNB Smart Chain
+    rpcUrl: ${BSC_RPC_URL}
+    dex: pancakeswap_v4
+    initialMint: 0
+    explorer: https://bscscan.com
+    poolManager: "0xa0FfB9c1CE1Fe56963B0321B32E7A0302114058b"
+    positionManager: "0x55f4c8abA71A1e923edC303eb4fEfF14608cC226"
+    permit2: "0x31c2F6fcFf4F8759b3Bd5Bf0e1084A055615c768"
+    swapRouter: "0x1b81D678ffb9C0263b24A97847620C99d213eB14"
+    stateView: ""
