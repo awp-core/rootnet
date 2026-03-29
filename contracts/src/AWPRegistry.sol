@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
@@ -22,9 +24,9 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 /// @title AWPRegistry — Unified entry point for the AWP protocol (subnet management + staking management)
 /// @author AWP Team
 /// @notice Account System V2: tree-based binding, optional registration, explicit staker parameter.
-/// @dev Inheritance: IAWPRegistry (interface defining enums/structs/events), Pausable (emergency pause),
-///      ReentrancyGuard (reentrancy protection), EIP712 (EIP-712 signing domain, domain name "AWPRegistry" v1).
-contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
+/// @dev Inheritance: Initializable + UUPSUpgradeable (UUPS proxy pattern), PausableUpgradeable (emergency pause),
+///      ReentrancyGuardUpgradeable (reentrancy protection), EIP712Upgradeable (EIP-712 signing domain, domain name "AWPRegistry" v1).
+contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable, IAWPRegistry {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
 
@@ -83,7 +85,7 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     mapping(uint256 => SubnetInfo) public subnets;
 
     /// @dev Next subnet ID to be assigned, auto-increments from 1 (tokenId = subnetId)
-    uint256 private _nextSubnetId = 1;
+    uint256 private _nextSubnetId;
 
     /// @dev Active subnet ID set
     EnumerableSet.UintSet private activeSubnetIds;
@@ -92,13 +94,13 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     uint128 public constant MAX_ACTIVE_SUBNETS = 10000;
 
     /// @notice Initial price of the Alpha token when registering a subnet (denominated in AWP), default 0.01 AWP
-    uint256 public initialAlphaPrice = 1e16; // 0.01 AWP
+    uint256 public initialAlphaPrice;
 
     /// @notice Initial Alpha token mint amount per subnet: 100 million (100_000_000 * 1e18)
     uint256 public constant INITIAL_ALPHA_MINT = 100_000_000 * 1e18;
 
     /// @notice Subnet deregistration immunity period; Timelock cannot deregister the subnet during this window
-    uint256 public immunityPeriod = 30 days;
+    uint256 public immunityPeriod;
 
     // ══════════════════════════════════════════════
     //  Gasless — EIP-712 signature related
@@ -201,21 +203,37 @@ contract AWPRegistry is IAWPRegistry, Pausable, ReentrancyGuard, EIP712 {
     //  Constructor
     // ══════════════════════════════════════════════
 
-    /// @notice Deploy the AWPRegistry contract
-    /// @dev EIP-712 domain name is "AWPRegistry", version "1".
-    ///      deployer_ is used only for the subsequent initializeRegistry call; zeroed immediately after.
-    /// @param deployer_ Deployer address (holds initializeRegistry rights, self-destructs after call)
-    /// @param treasury_ Treasury (Timelock) address, holds governance rights
-    /// @param guardian_ Guardian address, holds emergency pause rights
-    constructor(
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initialize the registry (called once via proxy)
+    /// @param deployer_ Deployer address (holds initializeRegistry rights)
+    /// @param treasury_ Treasury (Timelock) address
+    /// @param guardian_ Guardian address
+    function initialize(
         address deployer_,
         address treasury_,
         address guardian_
-    ) EIP712("AWPRegistry", "1") {
+    ) external initializer {
+        __Pausable_init();
+        __ReentrancyGuard_init();
+        __EIP712_init("AWPRegistry", "1");
+        __UUPSUpgradeable_init();
+
         _deployer = deployer_;
         treasury = treasury_;
         guardian = guardian_;
+
+        // Inline initializer values (not executed for proxy storage)
+        _nextSubnetId = 1;
+        initialAlphaPrice = 1e16;
+        immunityPeriod = 30 days;
     }
+
+    /// @dev UUPS upgrade authorization — only Timelock may upgrade
+    function _authorizeUpgrade(address) internal override onlyTimelock {}
 
     // ═══════════════════════════════════════════════
     //  Registry — module address registry

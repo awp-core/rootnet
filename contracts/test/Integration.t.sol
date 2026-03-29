@@ -71,7 +71,11 @@ contract IntegrationTest is EmissionSigningHelper {
         treasury = new Treasury(0, proposers, executors, deployer);
 
         // Step 5: AWPRegistry
-        awpRegistry = new AWPRegistry(deployer, address(treasury), guardian);
+        AWPRegistry awpRegistryImpl = new AWPRegistry();
+        awpRegistry = AWPRegistry(address(new ERC1967Proxy(
+            address(awpRegistryImpl),
+            abi.encodeCall(AWPRegistry.initialize, (deployer, address(treasury), guardian))
+        )));
 
         // Step 6-7: Sub-contracts
         nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(awpRegistry));

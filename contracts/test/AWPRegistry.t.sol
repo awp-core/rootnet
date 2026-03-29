@@ -48,7 +48,11 @@ contract AWPRegistryTest is Test {
         treasury = new Treasury(0, proposers, executors, deployer);
 
         // Deploy AWPRegistry
-        awpRegistry = new AWPRegistry(deployer, address(treasury), guardian);
+        AWPRegistry awpRegistryImpl = new AWPRegistry();
+        awpRegistry = AWPRegistry(address(new ERC1967Proxy(
+            address(awpRegistryImpl),
+            abi.encodeCall(AWPRegistry.initialize, (deployer, address(treasury), guardian))
+        )));
 
         // Deploy sub-contracts
         factory = new AlphaTokenFactory(deployer, 0);

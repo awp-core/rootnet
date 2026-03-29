@@ -27,7 +27,11 @@ contract TestDeploy is Script {
         e[0] = address(0);
         Treasury treasury = new Treasury(0, p, e, deployer);
 
-        AWPRegistry awpRegistry = new AWPRegistry(deployer, address(treasury), address(0x99));
+        AWPRegistry awpRegistryImpl = new AWPRegistry();
+        AWPRegistry awpRegistry = AWPRegistry(address(new ERC1967Proxy(
+            address(awpRegistryImpl),
+            abi.encodeCall(AWPRegistry.initialize, (deployer, address(treasury), address(0x99)))
+        )));
         SubnetNFT nft = new SubnetNFT("AWPSUB", "AWPSUB", address(awpRegistry));
         LPManager lp = new LPManager(address(awpRegistry), address(0), address(0), address(0), address(awp));
 

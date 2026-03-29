@@ -60,6 +60,7 @@ contract Deploy is Script {
         bytes32 saltAWPToken = _readSalt("SALT_AWP_TOKEN");
         bytes32 saltFactory = _readSalt("SALT_ALPHA_FACTORY");
         bytes32 saltTreasury = _readSalt("SALT_TREASURY");
+        bytes32 saltAWPRegistryImpl = _readSalt("SALT_AWP_REGISTRY_IMPL");
         bytes32 saltAWPRegistry = _readSalt("SALT_AWP_REGISTRY");
         bytes32 saltSubnetNFT = _readSalt("SALT_SUBNET_NFT");
         bytes32 saltLPManager = _readSalt("SALT_LP_MANAGER");
@@ -101,12 +102,22 @@ contract Deploy is Script {
         }
         console.log("Treasury:", address(treasury));
 
-        // Step 4: AWPRegistry
-        AWPRegistry awpRegistry = AWPRegistry(_create2(
-            saltAWPRegistry,
-            abi.encodePacked(type(AWPRegistry).creationCode, abi.encode(deployer, address(treasury), guardian))
-        ));
-        console.log("AWPRegistry:", address(awpRegistry));
+        // Step 4: AWPRegistry (UUPS proxy)
+        AWPRegistry awpRegistry;
+        {
+            AWPRegistry awpRegistryImpl = AWPRegistry(_create2(
+                saltAWPRegistryImpl,
+                abi.encodePacked(type(AWPRegistry).creationCode)
+            ));
+            console.log("AWPRegistry impl:", address(awpRegistryImpl));
+
+            bytes memory registryInitData = abi.encodeCall(AWPRegistry.initialize, (deployer, address(treasury), guardian));
+            awpRegistry = AWPRegistry(_create2(
+                saltAWPRegistry,
+                abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(address(awpRegistryImpl), registryInitData))
+            ));
+        }
+        console.log("AWPRegistry proxy:", address(awpRegistry));
 
         // Step 5: SubnetNFT
         SubnetNFT nft = SubnetNFT(_create2(

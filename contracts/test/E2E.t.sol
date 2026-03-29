@@ -75,7 +75,11 @@ contract E2ETest is EmissionSigningHelper {
         e[0] = address(0);
         treasury = new Treasury(1, p, e, deployer);
 
-        awpRegistry = new AWPRegistry(deployer, address(treasury), guardian);
+        AWPRegistry awpRegistryImpl = new AWPRegistry();
+        awpRegistry = AWPRegistry(address(new ERC1967Proxy(
+            address(awpRegistryImpl),
+            abi.encodeCall(AWPRegistry.initialize, (deployer, address(treasury), guardian))
+        )));
         nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(awpRegistry));
         lp = new MockLPManager(address(awpRegistry), address(awp));
 
