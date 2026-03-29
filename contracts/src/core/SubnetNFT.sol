@@ -7,7 +7,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 /// @title SubnetNFT — Subnet NFT with on-chain metadata
 /// @notice Each subnet = one NFT. Carries immutable identity (name, subnetManager, alphaToken)
 ///         plus owner-updatable fields (skillsURI, minStake). Status/lifecycle managed by AWPRegistry.
-/// @dev tokenId = subnetId, assigned by AWPRegistry's _nextSubnetId++.
+/// @dev tokenId = subnetId, assigned by AWPRegistry as (block.chainid << 64) | _nextLocalId++.
 contract SubnetNFT is ERC721 {
     using Strings for uint256;
 

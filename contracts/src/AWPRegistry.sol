@@ -84,8 +84,9 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     /// @notice subnetId => SubnetInfo mapping, stores the on-chain state of each subnet
     mapping(uint256 => SubnetInfo) public subnets;
 
-    /// @dev Next subnet ID to be assigned, auto-increments from 1 (tokenId = subnetId)
-    uint256 private _nextSubnetId;
+    /// @dev Next local counter for subnet ID generation, auto-increments from 1.
+    /// Global subnetId = (block.chainid << 64) | _nextLocalId
+    uint256 private _nextLocalId;
 
     /// @dev Active subnet ID set
     EnumerableSet.UintSet private activeSubnetIds;
@@ -230,7 +231,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         guardian = guardian_;
 
         // Inline initializer values (not executed for proxy storage)
-        _nextSubnetId = 1;
+        _nextLocalId = 1;
         initialAlphaPrice = 1e16;
         immunityPeriod = 30 days;
     }
@@ -626,7 +627,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         uint256 lpAWPAmount = INITIAL_ALPHA_MINT * initialAlphaPrice / 1e18;
         IERC20(awpToken).safeTransferFrom(user, lpManager, lpAWPAmount);
 
-        uint256 subnetId = _nextSubnetId++;
+        uint256 subnetId = (block.chainid << 64) | _nextLocalId++;
 
         (address alphaToken, bytes32 poolId) = _deployAlphaAndLP(
             subnetId, params.name, params.symbol, lpAWPAmount, params.salt
@@ -949,9 +950,19 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         return subnets[subnetId].status == SubnetStatus.Active;
     }
 
-    /// @notice Get the next subnet ID to be assigned
+    /// @notice Get the next subnet ID to be assigned (globally unique: chainId << 64 | localCounter)
     function nextSubnetId() external view returns (uint256) {
-        return _nextSubnetId;
+        return (block.chainid << 64) | _nextLocalId;
+    }
+
+    /// @notice Extract chainId from a global subnetId
+    function extractChainId(uint256 subnetId) external pure returns (uint256) {
+        return subnetId >> 64;
+    }
+
+    /// @notice Extract local counter from a global subnetId
+    function extractLocalId(uint256 subnetId) external pure returns (uint256) {
+        return subnetId & ((1 << 64) - 1);
     }
 
     // ═══════════════════════════════════════════════

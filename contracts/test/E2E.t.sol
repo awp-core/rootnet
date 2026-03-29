@@ -853,10 +853,10 @@ contract E2ETest is EmissionSigningHelper {
         vm.startPrank(alice);
         awp.approve(address(awpRegistry), LP_COST * 5);
         for (uint256 i = 0; i < 5; i++) {
-            awpRegistry.registerSubnet(
+            uint256 sid = awpRegistry.registerSubnet(
                 IAWPRegistry.SubnetParams("S", "S", scs[i], bytes32(0), 0, "")
             );
-            awpRegistry.activateSubnet(i + 1);
+            awpRegistry.activateSubnet(sid);
         }
         vm.stopPrank();
 

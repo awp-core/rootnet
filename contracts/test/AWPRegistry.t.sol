@@ -231,20 +231,20 @@ contract AWPRegistryTest is Test {
         stakeNFT.deposit(1000 * 1e18, 52 weeks);
         vm.stopPrank();
 
-        _registerSubnet();
+        uint256 sid = _registerSubnet();
 
         vm.prank(user1);
-        awpRegistry.activateSubnet(1);
+        awpRegistry.activateSubnet(sid);
 
         // Allocate (staker = user1, agent = agent1)
         vm.prank(user1);
-        awpRegistry.allocate(user1, agent1, 1, 500 * 1e18);
-        assertEq(vault.getAgentStake(user1, agent1, 1), 500 * 1e18);
+        awpRegistry.allocate(user1, agent1, sid, 500 * 1e18);
+        assertEq(vault.getAgentStake(user1, agent1, sid), 500 * 1e18);
 
         // Deallocate
         vm.prank(user1);
-        awpRegistry.deallocate(user1, agent1, 1, 200 * 1e18);
-        assertEq(vault.getAgentStake(user1, agent1, 1), 300 * 1e18);
+        awpRegistry.deallocate(user1, agent1, sid, 200 * 1e18);
+        assertEq(vault.getAgentStake(user1, agent1, sid), 300 * 1e18);
     }
 
     function test_allocate_delegate() public {
@@ -255,15 +255,15 @@ contract AWPRegistryTest is Test {
         awpRegistry.grantDelegate(user2);
         vm.stopPrank();
 
-        _registerSubnet();
+        uint256 sid = _registerSubnet();
 
         vm.prank(user1);
-        awpRegistry.activateSubnet(1);
+        awpRegistry.activateSubnet(sid);
 
         // user2 allocates on behalf of user1
         vm.prank(user2);
-        awpRegistry.allocate(user1, agent1, 1, 500 * 1e18);
-        assertEq(vault.getAgentStake(user1, agent1, 1), 500 * 1e18);
+        awpRegistry.allocate(user1, agent1, sid, 500 * 1e18);
+        assertEq(vault.getAgentStake(user1, agent1, sid), 500 * 1e18);
     }
 
     function test_allocate_notAuthorized_reverts() public {
@@ -272,15 +272,15 @@ contract AWPRegistryTest is Test {
         stakeNFT.deposit(1000 * 1e18, 52 weeks);
         vm.stopPrank();
 
-        _registerSubnet();
+        uint256 sid = _registerSubnet();
 
         vm.prank(user1);
-        awpRegistry.activateSubnet(1);
+        awpRegistry.activateSubnet(sid);
 
         // user2 has no delegation from user1
         vm.prank(user2);
         vm.expectRevert(AWPRegistry.NotAuthorized.selector);
-        awpRegistry.allocate(user1, agent1, 1, 500 * 1e18);
+        awpRegistry.allocate(user1, agent1, sid, 500 * 1e18);
     }
 
     function test_reallocate_immediate() public {
@@ -289,32 +289,33 @@ contract AWPRegistryTest is Test {
         stakeNFT.deposit(1000 * 1e18, 52 weeks);
         vm.stopPrank();
 
-        _registerSubnet(); // subnetId=1
+        uint256 sid = _registerSubnet();
 
         vm.prank(user1);
-        awpRegistry.activateSubnet(1);
+        awpRegistry.activateSubnet(sid);
 
         address agent2 = address(10);
 
-        // Allocate to agent1/subnet1
+        // Allocate to agent1/subnet
         vm.prank(user1);
-        awpRegistry.allocate(user1, agent1, 1, 500 * 1e18);
+        awpRegistry.allocate(user1, agent1, sid, 500 * 1e18);
 
-        // Reallocate to agent2/subnet1 — takes effect immediately
+        // Reallocate to agent2/subnet — takes effect immediately
         vm.prank(user1);
-        awpRegistry.reallocate(user1, agent1, 1, agent2, 1, 200 * 1e18);
+        awpRegistry.reallocate(user1, agent1, sid, agent2, sid, 200 * 1e18);
 
-        assertEq(vault.getAgentStake(user1, agent1, 1), 300 * 1e18);
-        assertEq(vault.getAgentStake(user1, agent2, 1), 200 * 1e18);
+        assertEq(vault.getAgentStake(user1, agent1, sid), 300 * 1e18);
+        assertEq(vault.getAgentStake(user1, agent2, sid), 200 * 1e18);
     }
 
     // ── Subnet registration ──
 
     function test_registerSubnet() public {
         uint256 subnetId = _registerSubnet();
-        assertEq(subnetId, 1);
+        assertEq(subnetId & ((1 << 64) - 1), 1);
+        assertEq(subnetId >> 64, block.chainid);
 
-        IAWPRegistry.SubnetInfo memory info = awpRegistry.getSubnet(1);
+        IAWPRegistry.SubnetInfo memory info = awpRegistry.getSubnet(subnetId);
         assertEq(awpRegistry.getSubnetFull(subnetId).subnetManager, subnetManager);
         assertTrue(info.status == IAWPRegistry.SubnetStatus.Pending);
     }
@@ -439,6 +440,33 @@ contract AWPRegistryTest is Test {
         impl.initialize(deployer, address(treasury), guardian);
     }
 
+    // ── SubnetId encoding tests ──
+
+    function test_subnetIdEncodesChainId() public {
+        uint256 subnetId = _registerSubnet();
+        uint256 expectedChainId = block.chainid;
+        assertEq(subnetId >> 64, expectedChainId);
+        assertEq(subnetId & ((1 << 64) - 1), 1);
+    }
+
+    function test_subnetIdIncrementsLocalCounter() public {
+        uint256 id1 = _registerSubnet();
+        vm.startPrank(user1);
+        awp.approve(address(awpRegistry), 1_000_000 * 1e18);
+        uint256 id2 = awpRegistry.registerSubnet(
+            IAWPRegistry.SubnetParams("Sub2", "S2", subnetManager, bytes32(0), 0, "")
+        );
+        vm.stopPrank();
+        assertEq(id1 >> 64, id2 >> 64);
+        assertEq((id1 & ((1 << 64) - 1)) + 1, id2 & ((1 << 64) - 1));
+    }
+
+    function test_extractChainId() public view {
+        uint256 subnetId = (uint256(8453) << 64) | 42;
+        assertEq(awpRegistry.extractChainId(subnetId), 8453);
+        assertEq(awpRegistry.extractLocalId(subnetId), 42);
+    }
+
     // ── Permission tests ──
 
     function test_onlyTimelockFunctions() public {
@@ -474,15 +502,15 @@ contract AWPRegistryTest is Test {
         stakeNFT.deposit(1000 * 1e18, 52 weeks);
         vm.stopPrank();
 
-        _registerSubnet();
+        uint256 sid = _registerSubnet();
 
         vm.prank(user1);
-        awpRegistry.activateSubnet(1);
+        awpRegistry.activateSubnet(sid);
 
         vm.prank(user1);
-        awpRegistry.allocate(user1, agent1, 1, 500 * 1e18);
+        awpRegistry.allocate(user1, agent1, sid, 500 * 1e18);
 
-        AWPRegistry.AgentInfo memory info = awpRegistry.getAgentInfo(agent1, 1);
+        AWPRegistry.AgentInfo memory info = awpRegistry.getAgentInfo(agent1, sid);
         assertEq(info.root, user1);
         assertTrue(info.isValid);
         assertEq(info.stake, 500 * 1e18);

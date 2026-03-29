@@ -222,7 +222,8 @@ contract IntegrationTest is EmissionSigningHelper {
             })
         );
         vm.stopPrank();
-        assertEq(subnetId, 1);
+        assertEq(subnetId & ((1 << 64) - 1), 1);
+        assertEq(subnetId >> 64, block.chainid);
 
         // Verify Alpha Token
         AlphaToken alpha = AlphaToken(awpRegistry.getSubnetFull(subnetId).alphaToken);
@@ -416,8 +417,8 @@ contract IntegrationTest is EmissionSigningHelper {
 
         for (uint256 i = 0; i < 3; i++) {
             address sc = address(uint160(0x400 + i));
-            awpRegistry.registerSubnet(IAWPRegistry.SubnetParams("Sub", "SUB", sc, bytes32(0), 0, ""));
-            awpRegistry.activateSubnet(i + 1);
+            uint256 sid = awpRegistry.registerSubnet(IAWPRegistry.SubnetParams("Sub", "SUB", sc, bytes32(0), 0, ""));
+            awpRegistry.activateSubnet(sid);
         }
         vm.stopPrank();
 
