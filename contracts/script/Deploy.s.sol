@@ -76,9 +76,10 @@ contract Deploy is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // Step 1: AWPToken
+        uint256 initialMint = vm.envOr("INITIAL_MINT", uint256(200_000_000)) * 1e18;
         AWPToken awp = AWPToken(_create2(
             saltAWPToken,
-            abi.encodePacked(type(AWPToken).creationCode, abi.encode("AWP Token", "AWP", deployer))
+            abi.encodePacked(type(AWPToken).creationCode, abi.encode("AWP Token", "AWP", deployer, initialMint))
         ));
         console.log("AWPToken:", address(awp));
 
@@ -237,9 +238,12 @@ contract Deploy is Script {
         console.log("Registry initialized");
 
         // Step 13: Token distribution
-        awp.transfer(address(treasury), 90_000_000 * 1e18);
-        awp.transfer(liquidityPool, 10_000_000 * 1e18);
-        awp.transfer(airdropAddr, 100_000_000 * 1e18);
+        uint256 treasuryAmount = vm.envOr("DIST_TREASURY", uint256(90_000_000)) * 1e18;
+        uint256 liquidityAmount = vm.envOr("DIST_LIQUIDITY", uint256(10_000_000)) * 1e18;
+        uint256 airdropAmount = vm.envOr("DIST_AIRDROP", uint256(100_000_000)) * 1e18;
+        if (treasuryAmount > 0) awp.transfer(address(treasury), treasuryAmount);
+        if (liquidityAmount > 0) awp.transfer(liquidityPool, liquidityAmount);
+        if (airdropAmount > 0) awp.transfer(airdropAddr, airdropAmount);
         console.log("Tokens distributed");
 
         vm.stopBroadcast();
@@ -248,7 +252,7 @@ contract Deploy is Script {
         require(awp.admin() == address(0), "Admin should be renounced");
         require(awp.minters(address(emission)), "Emission should be minter");
         require(awpRegistry.registryInitialized(), "Registry should be initialized");
-        require(awp.balanceOf(deployer) == 0, "Deployer should have 0 AWP remaining");
+        require(awp.balanceOf(deployer) == initialMint - treasuryAmount - liquidityAmount - airdropAmount, "Deployer balance mismatch after distribution");
 
         console.log("=== Deployment Complete ===");
     }

@@ -30,7 +30,7 @@ contract LPManagerForkTest is Test {
         vm.startPrank(deployer);
 
         // Deploy AWPToken (constructor mints 200M to deployer)
-        awpToken = new AWPToken("AWP Token", "AWP", deployer);
+        awpToken = new AWPToken("AWP Token", "AWP", deployer, 200_000_000 * 1e18);
 
         // Deploy AlphaToken and initialize
         // Create AlphaToken clone via Clones (implementation contract forbids direct initialize)

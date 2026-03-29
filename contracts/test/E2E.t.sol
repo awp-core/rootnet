@@ -67,7 +67,7 @@ contract E2ETest is EmissionSigningHelper {
 
     function _deploy() internal {
         vm.startPrank(deployer);
-        awp = new AWPToken("AWP Token", "AWP", deployer);
+        awp = new AWPToken("AWP Token", "AWP", deployer, 200_000_000 * 1e18);
         factory = new AlphaTokenFactory(deployer, 0);
 
         address[] memory p = new address[](0);

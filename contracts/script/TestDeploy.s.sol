@@ -19,7 +19,7 @@ contract TestDeploy is Script {
         address deployer = msg.sender;
         vm.startBroadcast();
 
-        AWPToken awp = new AWPToken("AWP", "AWP", deployer);
+        AWPToken awp = new AWPToken("AWP", "AWP", deployer, 200_000_000 * 1e18);
         AlphaTokenFactory factory = new AlphaTokenFactory(deployer, 0);
 
         address[] memory p = new address[](0);

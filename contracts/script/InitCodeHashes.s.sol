@@ -53,7 +53,8 @@ contract InitCodeHashes is Script {
 
         // Tier 1: No cross-contract dependencies
         console.log("--- Tier 1 (no dependencies) ---");
-        _logHash("AWPToken", abi.encodePacked(type(AWPToken).creationCode, abi.encode("AWP Token", "AWP", deployer)));
+        uint256 initialMint = vm.envOr("INITIAL_MINT", uint256(200_000_000)) * 1e18;
+        _logHash("AWPToken", abi.encodePacked(type(AWPToken).creationCode, abi.encode("AWP Token", "AWP", deployer, initialMint)));
         _logHash("AlphaTokenFactory", abi.encodePacked(type(AlphaTokenFactory).creationCode, abi.encode(deployer, vanityRule)));
         _logHash("AWPEmission_impl", abi.encodePacked(type(AWPEmission).creationCode));
         _logHash("SubnetManager_impl (PancakeSwap)", abi.encodePacked(type(SubnetManager).creationCode));

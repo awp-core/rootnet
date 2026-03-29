@@ -40,7 +40,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         vm.startPrank(deployer);
 
         // Deploy AWPToken (constructor mints 200M to deployer)
-        awpToken = new AWPToken("AWP", "AWP", deployer);
+        awpToken = new AWPToken("AWP", "AWP", deployer, 200_000_000 * 1e18);
 
         // Deploy AWPEmission (UUPS proxy pattern)
         // AWPEmission now has its own epoch timing

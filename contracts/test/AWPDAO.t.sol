@@ -29,7 +29,7 @@ contract AWPDAOTest is Test {
         vm.startPrank(deployer);
 
         // Deploy AWPToken
-        awpToken = new AWPToken("AWP", "AWP", deployer);
+        awpToken = new AWPToken("AWP", "AWP", deployer, 200_000_000 * 1e18);
 
         // Deploy StakingVault + StakeNFT (circular dependency)
         // This test contract (address(this)) acts as awpRegistry for access control

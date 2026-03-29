@@ -27,7 +27,7 @@ contract StakeNFTTest is Test {
         vm.startPrank(deployer);
 
         // Deploy AWPToken
-        awp = new AWPToken("AWP Token", "AWP", deployer);
+        awp = new AWPToken("AWP Token", "AWP", deployer, 200_000_000 * 1e18);
 
         // Deploy StakingVault + StakeNFT (circular dependency)
         uint64 deployerNonce = vm.getNonce(deployer);
