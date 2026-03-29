@@ -58,6 +58,7 @@ contract InitCodeHashes is Script {
         _logHash("AWPEmission_impl", abi.encodePacked(type(AWPEmission).creationCode));
         _logHash("SubnetManager_impl (PancakeSwap)", abi.encodePacked(type(SubnetManager).creationCode));
         _logHash("SubnetManager_impl (Uniswap)", abi.encodePacked(type(SubnetManagerUni).creationCode));
+        _logHash("AWPRegistry_impl", abi.encodePacked(type(AWPRegistry).creationCode));
 
         // Tier 2: Treasury (no dependency on other deployed contracts)
         console.log("");
@@ -69,11 +70,10 @@ contract InitCodeHashes is Script {
             _logHash("Treasury", abi.encodePacked(type(Treasury).creationCode, abi.encode(TIMELOCK_DELAY, proposers, executors, deployer)));
         }
 
-        // Tier 3: AWPRegistry impl + proxy (depends on Treasury)
+        // Tier 3: AWPRegistry proxy (depends on Treasury + AWPRegistry impl)
         console.log("");
-        console.log("--- Tier 3 (depends on Treasury) ---");
+        console.log("--- Tier 3 (depends on Treasury + AWPRegistry impl) ---");
         address awpRegistryImpl = _addr("ADDR_AWP_REGISTRY_IMPL");
-        _logHash("AWPRegistry_impl", abi.encodePacked(type(AWPRegistry).creationCode));
         bytes memory registryInitData = abi.encodeCall(AWPRegistry.initialize, (deployer, treasury, guardian));
         _logHash("AWPRegistry_proxy", abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(awpRegistryImpl, registryInitData)));
 

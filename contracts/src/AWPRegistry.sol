@@ -109,6 +109,9 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     /// @notice Per-signer nonce for replay attack prevention (nonces[signer]++ when validated)
     mapping(address => uint256) public nonces;
 
+    /// @dev Reserved storage gap for future upgrades (UUPS pattern)
+    uint256[50] private __gap;
+
     /// @dev EIP-712 type hash: Bind(address agent, address target, uint256 nonce, uint256 deadline)
     bytes32 private constant BIND_TYPEHASH =
         keccak256("Bind(address agent,address target,uint256 nonce,uint256 deadline)");
@@ -217,10 +220,10 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         address treasury_,
         address guardian_
     ) external initializer {
+        __UUPSUpgradeable_init();
         __Pausable_init();
         __ReentrancyGuard_init();
         __EIP712_init("AWPRegistry", "1");
-        __UUPSUpgradeable_init();
 
         _deployer = deployer_;
         treasury = treasury_;

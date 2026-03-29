@@ -419,6 +419,26 @@ contract AWPRegistryTest is Test {
         assertEq(awpRegistry.getActiveSubnetCount(), 0);
     }
 
+    // ── UUPS Upgrade tests ──
+
+    function test_upgradeViaTimelock() public {
+        AWPRegistry newImpl = new AWPRegistry();
+        vm.prank(address(treasury));
+        awpRegistry.upgradeToAndCall(address(newImpl), "");
+    }
+
+    function test_upgrade_revertsForNonTimelock() public {
+        AWPRegistry newImpl = new AWPRegistry();
+        vm.expectRevert(AWPRegistry.NotTimelock.selector);
+        awpRegistry.upgradeToAndCall(address(newImpl), "");
+    }
+
+    function test_cannotInitializeImpl() public {
+        AWPRegistry impl = new AWPRegistry();
+        vm.expectRevert();
+        impl.initialize(deployer, address(treasury), guardian);
+    }
+
     // ── Permission tests ──
 
     function test_onlyTimelockFunctions() public {

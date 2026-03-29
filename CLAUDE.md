@@ -73,7 +73,7 @@ docs/architecture.md — Read the relevant section before starting any task.
 
 ## Deployment Sequence
 AWPToken(constructor mint 200M) → AlphaTokenFactory(deployer, vanityRule)
-→ Treasury → AWPRegistry(deployer, treasury, guardian) → SubnetNFT → LPManager
+→ Treasury → AWPRegistry impl → ERC1967Proxy(impl, initialize(deployer, treasury, guardian)) → SubnetNFT → LPManager
 → AWPEmission impl → ERC1967Proxy(impl, initData with genesisTime_ and epochDuration_)
 → StakingVault → StakeNFT(awpToken, stakingVault, awpRegistry)
 → SubnetManager impl
