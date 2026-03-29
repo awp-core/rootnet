@@ -485,7 +485,6 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         external nonReentrant whenNotPaused
     {
         if (msg.sender != staker && !delegates[staker][msg.sender]) revert NotAuthorized();
-        if (subnets[subnetId].status != SubnetStatus.Active) revert InvalidSubnetStatus();
         IStakingVault(stakingVault).allocate(staker, agent, subnetId, amount);
         emit Allocated(staker, agent, subnetId, amount, msg.sender);
     }
@@ -515,7 +514,6 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         bytes32 digest = _hashTypedDataV4(structHash);
         if (ECDSA.recover(digest, v, r, s) != staker) revert InvalidSignature();
 
-        if (subnets[subnetId].status != SubnetStatus.Active) revert InvalidSubnetStatus();
         IStakingVault(stakingVault).allocate(staker, agent, subnetId, amount);
         emit Allocated(staker, agent, subnetId, amount, msg.sender);
     }
@@ -552,7 +550,6 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         uint256 amount
     ) external nonReentrant whenNotPaused {
         if (msg.sender != staker && !delegates[staker][msg.sender]) revert NotAuthorized();
-        if (subnets[toSubnetId].status != SubnetStatus.Active) revert InvalidSubnetStatus();
         IStakingVault(stakingVault).reallocate(
             staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount
         );

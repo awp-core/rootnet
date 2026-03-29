@@ -467,6 +467,40 @@ contract AWPRegistryTest is Test {
         assertEq(awpRegistry.extractLocalId(subnetId), 42);
     }
 
+    // ── Cross-chain allocate tests ──
+
+    function test_allocateToCrossChainSubnet() public {
+        vm.startPrank(user1);
+        awp.approve(address(stakeNFT), 10_000 * 1e18);
+        stakeNFT.deposit(10_000 * 1e18, 52 weeks);
+        vm.stopPrank();
+
+        // Allocate to a "foreign" subnetId (Arbitrum chain, local ID 5)
+        uint256 foreignSubnetId = (uint256(42161) << 64) | 5;
+        vm.prank(user1);
+        awpRegistry.allocate(user1, user1, foreignSubnetId, 5_000 * 1e18);
+
+        assertEq(vault.getAgentStake(user1, user1, foreignSubnetId), 5_000 * 1e18);
+    }
+
+    function test_reallocateToCrossChainSubnet() public {
+        vm.startPrank(user1);
+        awp.approve(address(stakeNFT), 10_000 * 1e18);
+        stakeNFT.deposit(10_000 * 1e18, 52 weeks);
+        vm.stopPrank();
+
+        uint256 localSubnetId = (block.chainid << 64) | 999;
+        uint256 foreignSubnetId = (uint256(42161) << 64) | 5;
+
+        vm.startPrank(user1);
+        awpRegistry.allocate(user1, user1, localSubnetId, 5_000 * 1e18);
+        awpRegistry.reallocate(user1, user1, localSubnetId, user1, foreignSubnetId, 2_000 * 1e18);
+        vm.stopPrank();
+
+        assertEq(vault.getAgentStake(user1, user1, localSubnetId), 3_000 * 1e18);
+        assertEq(vault.getAgentStake(user1, user1, foreignSubnetId), 2_000 * 1e18);
+    }
+
     // ── Permission tests ──
 
     function test_onlyTimelockFunctions() public {
