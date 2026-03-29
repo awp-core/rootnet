@@ -55,7 +55,7 @@ const getSubnet = `-- name: GetSubnet :one
 SELECT subnet_id, chain_id, owner, name, symbol, subnet_contract, skills_uri, min_stake, alpha_token, lp_pool, status, created_at, activated_at, immunity_ends_at, burned FROM subnets WHERE subnet_id = $1
 `
 
-func (q *Queries) GetSubnet(ctx context.Context, subnetID int64) (Subnet, error) {
+func (q *Queries) GetSubnet(ctx context.Context, subnetID pgtype.Numeric) (Subnet, error) {
 	row := q.db.QueryRow(ctx, getSubnet, subnetID)
 	var i Subnet
 	err := row.Scan(
@@ -82,7 +82,7 @@ const getSubnetSkills = `-- name: GetSubnetSkills :one
 SELECT skills_uri FROM subnets WHERE subnet_id = $1
 `
 
-func (q *Queries) GetSubnetSkills(ctx context.Context, subnetID int64) (pgtype.Text, error) {
+func (q *Queries) GetSubnetSkills(ctx context.Context, subnetID pgtype.Numeric) (pgtype.Text, error) {
 	row := q.db.QueryRow(ctx, getSubnetSkills, subnetID)
 	var skills_uri pgtype.Text
 	err := row.Scan(&skills_uri)
@@ -96,7 +96,7 @@ ON CONFLICT (subnet_id) DO NOTHING
 `
 
 type InsertSubnetParams struct {
-	SubnetID       int64          `json:"subnet_id"`
+	SubnetID       pgtype.Numeric `json:"subnet_id"`
 	ChainID        int64          `json:"chain_id"`
 	Owner          string         `json:"owner"`
 	Name           string         `json:"name"`
@@ -231,8 +231,8 @@ UPDATE subnets SET status = 'Active', activated_at = $2 WHERE subnet_id = $1
 `
 
 type UpdateSubnetActivatedParams struct {
-	SubnetID    int64       `json:"subnet_id"`
-	ActivatedAt pgtype.Int8 `json:"activated_at"`
+	SubnetID    pgtype.Numeric `json:"subnet_id"`
+	ActivatedAt pgtype.Int8    `json:"activated_at"`
 }
 
 func (q *Queries) UpdateSubnetActivated(ctx context.Context, arg UpdateSubnetActivatedParams) error {
@@ -244,7 +244,7 @@ const updateSubnetBurned = `-- name: UpdateSubnetBurned :exec
 UPDATE subnets SET burned = TRUE WHERE subnet_id = $1
 `
 
-func (q *Queries) UpdateSubnetBurned(ctx context.Context, subnetID int64) error {
+func (q *Queries) UpdateSubnetBurned(ctx context.Context, subnetID pgtype.Numeric) error {
 	_, err := q.db.Exec(ctx, updateSubnetBurned, subnetID)
 	return err
 }
@@ -254,8 +254,8 @@ UPDATE subnets SET lp_pool = $2 WHERE subnet_id = $1
 `
 
 type UpdateSubnetLPParams struct {
-	SubnetID int64       `json:"subnet_id"`
-	LpPool   pgtype.Text `json:"lp_pool"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
+	LpPool   pgtype.Text    `json:"lp_pool"`
 }
 
 func (q *Queries) UpdateSubnetLP(ctx context.Context, arg UpdateSubnetLPParams) error {
@@ -268,7 +268,7 @@ UPDATE subnets SET min_stake = $2 WHERE subnet_id = $1
 `
 
 type UpdateSubnetMinStakeParams struct {
-	SubnetID int64          `json:"subnet_id"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
 	MinStake pgtype.Numeric `json:"min_stake"`
 }
 
@@ -282,8 +282,8 @@ UPDATE subnets SET owner = $2 WHERE subnet_id = $1
 `
 
 type UpdateSubnetOwnerParams struct {
-	SubnetID int64  `json:"subnet_id"`
-	Owner    string `json:"owner"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
+	Owner    string         `json:"owner"`
 }
 
 func (q *Queries) UpdateSubnetOwner(ctx context.Context, arg UpdateSubnetOwnerParams) error {
@@ -296,8 +296,8 @@ UPDATE subnets SET skills_uri = $2 WHERE subnet_id = $1
 `
 
 type UpdateSubnetSkillsURIParams struct {
-	SubnetID  int64       `json:"subnet_id"`
-	SkillsUri pgtype.Text `json:"skills_uri"`
+	SubnetID  pgtype.Numeric `json:"subnet_id"`
+	SkillsUri pgtype.Text    `json:"skills_uri"`
 }
 
 func (q *Queries) UpdateSubnetSkillsURI(ctx context.Context, arg UpdateSubnetSkillsURIParams) error {
@@ -310,8 +310,8 @@ UPDATE subnets SET status = $2 WHERE subnet_id = $1
 `
 
 type UpdateSubnetStatusParams struct {
-	SubnetID int64  `json:"subnet_id"`
-	Status   string `json:"status"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
+	Status   string         `json:"status"`
 }
 
 func (q *Queries) UpdateSubnetStatus(ctx context.Context, arg UpdateSubnetStatusParams) error {

@@ -44,7 +44,7 @@ type StakeAllocation struct {
 	ChainID      int64          `json:"chain_id"`
 	UserAddress  string         `json:"user_address"`
 	AgentAddress string         `json:"agent_address"`
-	SubnetID     int64          `json:"subnet_id"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 	Amount       pgtype.Numeric `json:"amount"`
 	Frozen       bool           `json:"frozen"`
 	UpdatedBlock int64          `json:"updated_block"`
@@ -61,7 +61,7 @@ type StakePosition struct {
 }
 
 type Subnet struct {
-	SubnetID       int64          `json:"subnet_id"`
+	SubnetID       pgtype.Numeric `json:"subnet_id"`
 	ChainID        int64          `json:"chain_id"`
 	Owner          string         `json:"owner"`
 	Name           string         `json:"name"`
@@ -105,6 +105,6 @@ type VanitySalt struct {
 	Salt      string           `json:"salt"`
 	Address   string           `json:"address"`
 	Used      bool             `json:"used"`
-	SubnetID  pgtype.Int8      `json:"subnet_id"`
+	SubnetID  pgtype.Numeric   `json:"subnet_id"`
 	CreatedAt pgtype.Timestamp `json:"created_at"`
 }

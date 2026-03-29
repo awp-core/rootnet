@@ -72,7 +72,7 @@ func (h *Handler) GetAlphaPrice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	key := fmt.Sprintf("alpha_price:%d", subnetID)
+	key := fmt.Sprintf("alpha_price:%s", subnetID.Int.String())
 
 	val, err := h.rdb.Get(ctx, key).Result()
 	if err != nil {

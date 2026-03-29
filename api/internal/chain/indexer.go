@@ -513,7 +513,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
-			SubnetID:     evt.SubnetId.Int64(),
+			SubnetID:     bigIntToNumeric(evt.SubnetId),
 			Amount:       bigIntToNumeric(evt.Amount),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
@@ -542,7 +542,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
-			SubnetID:     evt.SubnetId.Int64(),
+			SubnetID:     bigIntToNumeric(evt.SubnetId),
 			Amount:       bigIntToNumeric(evt.Amount),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
@@ -572,7 +572,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.FromAgent.Hex()),
-			SubnetID:     evt.FromSubnet.Int64(),
+			SubnetID:     bigIntToNumeric(evt.FromSubnet),
 			Amount:       bigIntToNumeric(evt.Amount),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
@@ -583,7 +583,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.ToAgent.Hex()),
-			SubnetID:     evt.ToSubnet.Int64(),
+			SubnetID:     bigIntToNumeric(evt.ToSubnet),
 			Amount:       bigIntToNumeric(evt.Amount),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
@@ -619,7 +619,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			createdAtTs = int64(lg.BlockNumber) // fallback to block number if RPC fails
 		}
 		if err := q.InsertSubnet(ctx, gen.InsertSubnetParams{
-			SubnetID:       evt.SubnetId.Int64(),
+			SubnetID:       bigIntToNumeric(evt.SubnetId),
 			ChainID:        idx.chainID,
 			Owner:          strings.ToLower(evt.Owner.Hex()),
 			Name:           evt.Name,
@@ -637,7 +637,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		// Mark matching salt as used in pool (best-effort; pool may not contain this address)
 		if markErr := q.MarkSaltUsedByAddress(ctx, gen.MarkSaltUsedByAddressParams{
 			ChainID:  idx.chainID,
-			SubnetID: pgtype.Int8{Int64: evt.SubnetId.Int64(), Valid: true},
+			SubnetID: bigIntToNumeric(evt.SubnetId),
 			Lower:    strings.ToLower(evt.AlphaToken.Hex()),
 		}); markErr != nil {
 			slog.Warn("mark salt used failed (non-critical)", "error", markErr, "alphaToken", evt.AlphaToken.Hex())
@@ -656,7 +656,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	if evt, err := awpRegistry.ParseLPCreated(lg); err == nil {
 		poolIdHex := "0x" + hex.EncodeToString(evt.PoolId[:])
 		if err := q.UpdateSubnetLP(ctx, gen.UpdateSubnetLPParams{
-			SubnetID: evt.SubnetId.Int64(),
+			SubnetID: bigIntToNumeric(evt.SubnetId),
 			LpPool:   pgtype.Text{String: poolIdHex, Valid: true},
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetLP: %w", err)
@@ -679,7 +679,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			activatedAtTs = int64(lg.BlockNumber) // fallback
 		}
 		if err := q.UpdateSubnetActivated(ctx, gen.UpdateSubnetActivatedParams{
-			SubnetID:    evt.SubnetId.Int64(),
+			SubnetID:    bigIntToNumeric(evt.SubnetId),
 			ActivatedAt: pgtype.Int8{Int64: activatedAtTs, Valid: true},
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetActivated: %w", err)
@@ -692,7 +692,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// SubnetPaused
 	if evt, err := awpRegistry.ParseSubnetPaused(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: evt.SubnetId.Int64(),
+			SubnetID: bigIntToNumeric(evt.SubnetId),
 			Status:   "Paused",
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Paused): %w", err)
@@ -705,7 +705,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// SubnetResumed
 	if evt, err := awpRegistry.ParseSubnetResumed(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: evt.SubnetId.Int64(),
+			SubnetID: bigIntToNumeric(evt.SubnetId),
 			Status:   "Active",
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Active): %w", err)
@@ -718,7 +718,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// SubnetBanned
 	if evt, err := awpRegistry.ParseSubnetBanned(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: evt.SubnetId.Int64(),
+			SubnetID: bigIntToNumeric(evt.SubnetId),
 			Status:   "Banned",
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Banned): %w", err)
@@ -731,7 +731,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// SubnetUnbanned
 	if evt, err := awpRegistry.ParseSubnetUnbanned(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: evt.SubnetId.Int64(),
+			SubnetID: bigIntToNumeric(evt.SubnetId),
 			Status:   "Active",
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Active): %w", err)
@@ -743,7 +743,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// SubnetDeregistered
 	if evt, err := awpRegistry.ParseSubnetDeregistered(lg); err == nil {
-		if err := q.UpdateSubnetBurned(ctx, evt.SubnetId.Int64()); err != nil {
+		if err := q.UpdateSubnetBurned(ctx, bigIntToNumeric(evt.SubnetId)); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetBurned: %w", err)
 		}
 		return []redisEvent{makeEvent("SubnetDeregistered", lg, map[string]interface{}{
@@ -758,7 +758,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// SkillsURIUpdated (emitted from SubnetNFT)
 	if evt, err := subnetNFT.ParseSkillsURIUpdated(lg); err == nil {
 		if err := q.UpdateSubnetSkillsURI(ctx, gen.UpdateSubnetSkillsURIParams{
-			SubnetID:  evt.TokenId.Int64(),
+			SubnetID:  bigIntToNumeric(evt.TokenId),
 			SkillsUri: pgtype.Text{String: evt.SkillsURI, Valid: evt.SkillsURI != ""},
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetSkillsURI: %w", err)
@@ -772,7 +772,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// MinStakeUpdated (emitted from SubnetNFT)
 	if evt, err := subnetNFT.ParseMinStakeUpdated(lg); err == nil {
 		if err := q.UpdateSubnetMinStake(ctx, gen.UpdateSubnetMinStakeParams{
-			SubnetID: evt.TokenId.Int64(),
+			SubnetID: bigIntToNumeric(evt.TokenId),
 			MinStake: bigIntToNumeric(evt.MinStake),
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetMinStake: %w", err)
@@ -791,7 +791,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			zeroAddr := common.Address{}
 			if evt.From != zeroAddr && evt.To != zeroAddr {
 				if err := q.UpdateSubnetOwner(ctx, gen.UpdateSubnetOwnerParams{
-					SubnetID: evt.TokenId.Int64(),
+					SubnetID: bigIntToNumeric(evt.TokenId),
 					Owner:    strings.ToLower(evt.To.Hex()),
 				}); err != nil {
 					return nil, fmt.Errorf("UpdateSubnetOwner: %w", err)

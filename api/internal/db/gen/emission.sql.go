@@ -151,9 +151,9 @@ ORDER BY r.epoch_id DESC LIMIT $2 OFFSET $3
 `
 
 type GetSubnetEarningsByIDParams struct {
-	SubnetID int64 `json:"subnet_id"`
-	Limit    int32 `json:"limit"`
-	Offset   int32 `json:"offset"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
+	Limit    int32          `json:"limit"`
+	Offset   int32          `json:"offset"`
 }
 
 type GetSubnetEarningsByIDRow struct {

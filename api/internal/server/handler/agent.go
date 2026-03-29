@@ -3,13 +3,14 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"math/big"
 	"net/http"
-	"strconv"
 
 	"github.com/cortexia/rootnet/api/internal/db/gen"
 	"github.com/cortexia/rootnet/api/internal/ratelimit"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 // agentInfoItem holds a single agent's info including binding data and stake
@@ -21,8 +22,8 @@ type agentInfoItem struct {
 
 // batchAgentInfoRequest is the request body for batch agent info queries
 type batchAgentInfoRequest struct {
-	Agents   []string `json:"agents"`
-	SubnetID int64    `json:"subnetId"`
+	Agents   []string    `json:"agents"`
+	SubnetID json.Number `json:"subnetId"`
 }
 
 // GetAgentsByOwner returns all agents (addresses) bound to a given owner
@@ -131,7 +132,8 @@ func (h *Handler) BatchAgentInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.SubnetID <= 0 {
+	subnetNum, err := parseSubnetIDString(req.SubnetID.String())
+	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "subnetId must be a positive integer")
 		return
 	}
@@ -162,7 +164,7 @@ func (h *Handler) BatchAgentInfo(w http.ResponseWriter, r *http.Request) {
 		stake, err := h.queries.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{
 			ChainID:      h.cfg.ChainID,
 			AgentAddress: addr,
-			SubnetID:     req.SubnetID,
+			SubnetID:     subnetNum,
 		})
 		if err == nil && stake.Valid {
 			item.Stake = stake.Int.String()
@@ -174,18 +176,24 @@ func (h *Handler) BatchAgentInfo(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, results)
 }
 
-// parseSubnetID parses the subnetId URL parameter
-func parseSubnetID(r *http.Request) (int64, error) {
+// parseSubnetID parses the subnetId URL parameter into pgtype.Numeric.
+// subnetId can exceed int64 range (e.g. (8453<<64)|1 = 77 bits), so we parse as big.Int.
+func parseSubnetID(r *http.Request) (pgtype.Numeric, error) {
 	raw := chi.URLParam(r, "subnetId")
 	if raw == "" {
-		return 0, errors.New("missing subnetId parameter")
+		return pgtype.Numeric{}, errors.New("missing subnetId parameter")
 	}
-	id, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil {
-		return 0, errors.New("subnetId must be an integer")
+	return parseSubnetIDString(raw)
+}
+
+// parseSubnetIDString converts a decimal string to a pgtype.Numeric, validating > 0.
+func parseSubnetIDString(s string) (pgtype.Numeric, error) {
+	id, ok := new(big.Int).SetString(s, 10)
+	if !ok {
+		return pgtype.Numeric{}, errors.New("subnetId must be an integer")
 	}
-	if id <= 0 {
-		return 0, errors.New("subnetId must be a positive integer")
+	if id.Sign() <= 0 {
+		return pgtype.Numeric{}, errors.New("subnetId must be a positive integer")
 	}
-	return id, nil
+	return pgtype.Numeric{Int: id, Exp: 0, Valid: true}, nil
 }

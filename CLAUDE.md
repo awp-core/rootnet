@@ -101,8 +101,8 @@ AWPToken(constructor mint 200M) → AlphaTokenFactory(deployer, vanityRule)
 
 ## Redis Key Spec
 - alpha_price:{subnetId} → JSON, TTL=10m
-- awp_info → JSON, TTL=1m
-- emission_current → JSON, TTL=30s
+- awp_info:{chainId} → JSON, TTL=1m
+- emission_current:{chainId} → JSON, TTL=30s
 - ratelimit:config → hash, persistent, hot-updatable rate limit configs (admin.sh)
 - rl:relay:{ip} → counter, TTL=1h (atomic Lua INCR+EXPIRE)
 - rl:upload_salts:{ip} → counter, TTL=1h (5 uploads/hr/IP)

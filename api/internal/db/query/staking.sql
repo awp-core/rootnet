@@ -43,6 +43,8 @@ WHERE chain_id = $1 AND agent_address = $2 AND subnet_id = $3 AND frozen = FALSE
 SELECT subnet_id, amount FROM stake_allocations
 WHERE chain_id = $1 AND agent_address = $2 AND amount > 0 AND frozen = FALSE ORDER BY subnet_id LIMIT 500;
 
+-- NOTE: No chain_id filter — subnetId is globally unique (chainId<<64|localId),
+-- aggregates stake from ALL chains for a given subnet (cross-chain by design).
 -- name: GetSubnetTotalStake :one
 SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_allocations
 WHERE subnet_id = $1 AND frozen = FALSE;

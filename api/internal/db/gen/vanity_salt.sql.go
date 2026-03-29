@@ -90,7 +90,7 @@ type ListAllSaltsRow struct {
 	Salt      string           `json:"salt"`
 	Address   string           `json:"address"`
 	Used      bool             `json:"used"`
-	SubnetID  pgtype.Int8      `json:"subnet_id"`
+	SubnetID  pgtype.Numeric   `json:"subnet_id"`
 	CreatedAt pgtype.Timestamp `json:"created_at"`
 }
 
@@ -160,9 +160,9 @@ WHERE chain_id = $1 AND address = LOWER($3) AND used = FALSE
 `
 
 type MarkSaltUsedByAddressParams struct {
-	ChainID  int64       `json:"chain_id"`
-	SubnetID pgtype.Int8 `json:"subnet_id"`
-	Lower    string      `json:"lower"`
+	ChainID  int64          `json:"chain_id"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
+	Lower    string         `json:"lower"`
 }
 
 func (q *Queries) MarkSaltUsedByAddress(ctx context.Context, arg MarkSaltUsedByAddressParams) error {

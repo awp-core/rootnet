@@ -75,9 +75,9 @@ WHERE chain_id = $1 AND agent_address = $2 AND subnet_id = $3 AND frozen = FALSE
 `
 
 type GetAgentSubnetStakeParams struct {
-	ChainID      int64  `json:"chain_id"`
-	AgentAddress string `json:"agent_address"`
-	SubnetID     int64  `json:"subnet_id"`
+	ChainID      int64          `json:"chain_id"`
+	AgentAddress string         `json:"agent_address"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 }
 
 func (q *Queries) GetAgentSubnetStake(ctx context.Context, arg GetAgentSubnetStakeParams) (pgtype.Numeric, error) {
@@ -98,7 +98,7 @@ type GetAgentSubnetsParams struct {
 }
 
 type GetAgentSubnetsRow struct {
-	SubnetID int64          `json:"subnet_id"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
 	Amount   pgtype.Numeric `json:"amount"`
 }
 
@@ -135,7 +135,7 @@ type GetAllocationsByAgentParams struct {
 type GetAllocationsByAgentRow struct {
 	UserAddress  string         `json:"user_address"`
 	AgentAddress string         `json:"agent_address"`
-	SubnetID     int64          `json:"subnet_id"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 	Amount       pgtype.Numeric `json:"amount"`
 	Frozen       bool           `json:"frozen"`
 }
@@ -181,7 +181,7 @@ type GetAllocationsByUserParams struct {
 type GetAllocationsByUserRow struct {
 	UserAddress  string         `json:"user_address"`
 	AgentAddress string         `json:"agent_address"`
-	SubnetID     int64          `json:"subnet_id"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 	Amount       pgtype.Numeric `json:"amount"`
 	Frozen       bool           `json:"frozen"`
 }
@@ -230,7 +230,7 @@ type GetFrozenByUserParams struct {
 type GetFrozenByUserRow struct {
 	UserAddress  string         `json:"user_address"`
 	AgentAddress string         `json:"agent_address"`
-	SubnetID     int64          `json:"subnet_id"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 	Amount       pgtype.Numeric `json:"amount"`
 }
 
@@ -265,16 +265,16 @@ WHERE chain_id = $1 AND user_address = $2 AND agent_address = $3 AND subnet_id =
 `
 
 type GetStakeAllocationParams struct {
-	ChainID      int64  `json:"chain_id"`
-	UserAddress  string `json:"user_address"`
-	AgentAddress string `json:"agent_address"`
-	SubnetID     int64  `json:"subnet_id"`
+	ChainID      int64          `json:"chain_id"`
+	UserAddress  string         `json:"user_address"`
+	AgentAddress string         `json:"agent_address"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 }
 
 type GetStakeAllocationRow struct {
 	UserAddress  string         `json:"user_address"`
 	AgentAddress string         `json:"agent_address"`
-	SubnetID     int64          `json:"subnet_id"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 	Amount       pgtype.Numeric `json:"amount"`
 	Frozen       bool           `json:"frozen"`
 }
@@ -302,7 +302,9 @@ SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_allocations
 WHERE subnet_id = $1 AND frozen = FALSE
 `
 
-func (q *Queries) GetSubnetTotalStake(ctx context.Context, subnetID int64) (pgtype.Numeric, error) {
+// NOTE: No chain_id filter — subnetId is globally unique (chainId<<64|localId),
+// aggregates stake from ALL chains for a given subnet (cross-chain by design).
+func (q *Queries) GetSubnetTotalStake(ctx context.Context, subnetID pgtype.Numeric) (pgtype.Numeric, error) {
 	row := q.db.QueryRow(ctx, getSubnetTotalStake, subnetID)
 	var total pgtype.Numeric
 	err := row.Scan(&total)
@@ -339,11 +341,11 @@ WHERE chain_id = $1 AND user_address = $2 AND agent_address = $3 AND subnet_id =
 `
 
 type SetStakeAllocationFrozenParams struct {
-	ChainID      int64  `json:"chain_id"`
-	UserAddress  string `json:"user_address"`
-	AgentAddress string `json:"agent_address"`
-	SubnetID     int64  `json:"subnet_id"`
-	Frozen       bool   `json:"frozen"`
+	ChainID      int64          `json:"chain_id"`
+	UserAddress  string         `json:"user_address"`
+	AgentAddress string         `json:"agent_address"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
+	Frozen       bool           `json:"frozen"`
 }
 
 func (q *Queries) SetStakeAllocationFrozen(ctx context.Context, arg SetStakeAllocationFrozenParams) error {
@@ -366,7 +368,7 @@ type SubtractStakeAllocationParams struct {
 	ChainID      int64          `json:"chain_id"`
 	UserAddress  string         `json:"user_address"`
 	AgentAddress string         `json:"agent_address"`
-	SubnetID     int64          `json:"subnet_id"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 	Amount       pgtype.Numeric `json:"amount"`
 	UpdatedBlock int64          `json:"updated_block"`
 }
@@ -395,7 +397,7 @@ type UpsertStakeAllocationParams struct {
 	ChainID      int64          `json:"chain_id"`
 	UserAddress  string         `json:"user_address"`
 	AgentAddress string         `json:"agent_address"`
-	SubnetID     int64          `json:"subnet_id"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 	Amount       pgtype.Numeric `json:"amount"`
 	UpdatedBlock int64          `json:"updated_block"`
 }

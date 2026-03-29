@@ -706,7 +706,7 @@ func TestGetAllocationsWithData(t *testing.T) {
 		_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 			ChainID: 31337, UserAddress:  userAddr,
 			AgentAddress: agentAddr,
-			SubnetID:     i,
+			SubnetID:     numericFromInt64(i),
 			Amount:       numericFromInt64(1000 * i),
 		})
 	}
@@ -773,7 +773,7 @@ func TestGetAgentSubnetStake(t *testing.T) {
 		ChainID:      31337,
 		UserAddress:  userAddr,
 		AgentAddress: agentAddr,
-		SubnetID:     1,
+		SubnetID:     numericFromInt64(1),
 		Amount:       numericFromInt64(5001),
 	})
 
@@ -802,14 +802,14 @@ func TestGetSubnetTotalStake(t *testing.T) {
 		ChainID:      31337,
 		UserAddress:  user1,
 		AgentAddress: agent1,
-		SubnetID:     1,
+		SubnetID:     numericFromInt64(1),
 		Amount:       numericFromInt64(3001),
 	})
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 		ChainID:      31337,
 		UserAddress:  user2,
 		AgentAddress: agent2,
-		SubnetID:     1,
+		SubnetID:     numericFromInt64(1),
 		Amount:       numericFromInt64(7002),
 	})
 
@@ -990,7 +990,7 @@ func TestGetSubnetAgentInfo(t *testing.T) {
 		ChainID:      31337,
 		UserAddress:  "0xuser1",
 		AgentAddress: "0x1111111111111111111111111111111111111111",
-		SubnetID:     1,
+		SubnetID:     numericFromInt64(1),
 		Amount:       numericFromInt64(5001),
 	})
 
@@ -1361,13 +1361,13 @@ func TestE2E_UserRegistrationToStaking(t *testing.T) {
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 		ChainID: 31337, UserAddress: userAddr,
 		AgentAddress: agentAddr,
-		SubnetID:     1,
+		SubnetID:     numericFromInt64(1),
 		Amount:       numericFromInt64(30000),
 	})
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 		ChainID: 31337, UserAddress: userAddr,
 		AgentAddress: agentAddr,
-		SubnetID:     2,
+		SubnetID:     numericFromInt64(2),
 		Amount:       numericFromInt64(20000),
 	})
 

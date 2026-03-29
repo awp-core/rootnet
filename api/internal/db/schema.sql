@@ -8,7 +8,7 @@ CREATE TABLE users (
 );
 
 CREATE TABLE subnets (
-    subnet_id        BIGINT PRIMARY KEY,
+    subnet_id        NUMERIC(78,0) PRIMARY KEY,
     chain_id         BIGINT NOT NULL DEFAULT 0,
     owner            CHAR(42) NOT NULL,
     name             VARCHAR(64) NOT NULL,
@@ -32,7 +32,7 @@ CREATE TABLE stake_allocations (
     chain_id      BIGINT NOT NULL DEFAULT 0,
     user_address  CHAR(42) NOT NULL,
     agent_address CHAR(42) NOT NULL,
-    subnet_id     BIGINT NOT NULL,
+    subnet_id     NUMERIC(78,0) NOT NULL,
     amount        NUMERIC(78,0) NOT NULL DEFAULT 0,
     frozen        BOOLEAN NOT NULL DEFAULT FALSE,
     updated_block BIGINT NOT NULL DEFAULT 0,
@@ -66,7 +66,7 @@ CREATE TABLE vanity_salts (
     salt        CHAR(66) NOT NULL,              -- bytes32 hex with 0x prefix
     address     CHAR(42) NOT NULL,              -- predicted Alpha token address
     used        BOOLEAN NOT NULL DEFAULT FALSE,
-    subnet_id   BIGINT,                         -- set when used by a subnet registration
+    subnet_id   NUMERIC(78,0),                   -- set when used by a subnet registration
     created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
     UNIQUE (chain_id, salt)
 );
