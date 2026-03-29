@@ -70,6 +70,33 @@ User
 - **Subnets**: registration deploys Alpha token (CREATE2 vanity address) + DEX V4 LP. Time-based mint cap on Alpha. Auto-deploys SubnetManager proxy if no custom manager provided.
 - **Chain-agnostic**: Deploy script auto-selects Uniswap V4 or PancakeSwap V4 contracts based on chain ID. PoolKey struct differences (5 fields vs 6 fields) handled transparently.
 
+## Multi-Chain
+
+AWP deploys identical contracts on multiple EVM chains using CREATE2 (same deployer + salts = same addresses).
+
+**Supported chains:** Base, Ethereum, Arbitrum, BSC (configured in `chains.yaml`)
+
+**SubnetId encoding:** `(chainId << 64) | localCounter` — globally unique across all chains. Use `extractChainId(subnetId)` / `extractLocalId(subnetId)` to decode.
+
+**Cross-chain allocate:** Users stake AWP on one chain and can allocate to subnets on ANY chain. The StakingVault only checks local balance; subnet validity is verified off-chain by the oracle/indexer.
+
+**Per-chain independence:**
+- Each chain has its own AWPToken, AWPEmission, AWPDAO, and Treasury
+- Emission quotas are coordinated by the oracle across chains
+- DAO voting power is aggregated off-chain from all chains' StakeNFT positions
+
+**Deploy to a new chain:**
+```bash
+# List available chains
+./scripts/deploy-multichain.sh --list
+
+# Deploy to a specific chain
+./scripts/deploy-multichain.sh base
+
+# Deploy to all chains
+./scripts/deploy-multichain.sh --all
+```
+
 ## Live Testnet
 
 | | |

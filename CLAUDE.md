@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 ## Project
-AWP — Agent Mining protocol on Base (Uniswap V4) and BSC (PancakeSwap V4).
+AWP — Agent Mining protocol on Base (Uniswap V4), BSC (PancakeSwap V4), Ethereum, and Arbitrum.
 
 ## Architecture Document
 docs/architecture.md — Read the relevant section before starting any task.
@@ -20,7 +20,7 @@ docs/architecture.md — Read the relevant section before starting any task.
 - Indexer uses 15-block confirmation depth to avoid chain reorgs
 
 ## Core Architecture (11 contracts)
-- AWPRegistry.sol = Unified entry: subnet management + staking allocation + account system. No deposit/withdraw — staking via StakeNFT. No epoch logic (epoch moved to AWPEmission). EIP-712 domain name "AWPRegistry". No mandatory registration — every address is implicitly a root. `register()` is optional (= `setRecipient(msg.sender)`). `isRegistered(addr)` = `boundTo[addr] != 0 || recipient[addr] != 0`. Tree-based binding with anti-cycle check via `bind(target)`. No address mutual exclusion. `grantDelegate(delegate)` / `revokeDelegate(delegate)` for delegation. `resolveRecipient(addr)` walks boundTo chain to root. `allocate(staker, agent, subnetId, amount)` — staker is explicit parameter. Gasless: bindFor, registerSubnetFor, registerSubnetForWithPermit (fully gasless with ERC-2612 permit), setRecipientFor. Errors: NotTimelock, NotGuardian (distinct).
+- AWPRegistry.sol = Unified entry: subnet management + staking allocation + account system. No deposit/withdraw — staking via StakeNFT. No epoch logic (epoch moved to AWPEmission). EIP-712 domain name "AWPRegistry". No mandatory registration — every address is implicitly a root. `register()` is optional (= `setRecipient(msg.sender)`). `isRegistered(addr)` = `boundTo[addr] != 0 || recipient[addr] != 0`. Tree-based binding with anti-cycle check via `bind(target)`. No address mutual exclusion. `grantDelegate(delegate)` / `revokeDelegate(delegate)` for delegation. `resolveRecipient(addr)` walks boundTo chain to root. `allocate(staker, agent, subnetId, amount)` — staker is explicit parameter. Gasless: bindFor, registerSubnetFor, registerSubnetForWithPermit (fully gasless with ERC-2612 permit), setRecipientFor. Errors: NotTimelock, NotGuardian (distinct). SubnetId is globally unique: `(block.chainid << 64) | localCounter`. extractChainId()/extractLocalId() helpers. Cross-chain allocate: no on-chain subnet status check (validated off-chain by oracle/indexer).
 - StakeNFT.sol = ERC721 position NFT (not Enumerable). Users deposit AWP with lock period (timestamp-based, lockDuration in seconds). Each position = NFT with (amount, lockEndTime, createdAt). NFTs are transferable. O(1) balance tracking via _userTotalStaked accumulator. getUserVotingPower requires caller to pass tokenIds. addToPosition blocked on expired locks (PositionExpired error).
 - StakingVault.sol = Pure allocation logic. Allocations are plain uint128. (staker, agent, subnetId) triple; allocate/deallocate/reallocate all immediate. Auto-enumerates agent subnets via EnumerableSet — freezeAgentAllocations(staker, agent) needs no caller-supplied list. allocate/reallocate reject subnetId=0.
 - AWPEmission.sol = UUPS upgradeable proxy: generic address→weight distribution engine. Epoch authority: genesisTime + epochDuration (1 day). currentEpoch() = (block.timestamp - genesisTime) / epochDuration. Oracle multi-sig submits epoch-versioned packed allocations (submitAllocations(address[] recipients, uint96[] weights, bytes[] signatures, uint256 effectiveEpoch)). settleEpoch(limit) batch-mints AWP via mintAndCall (triggers SubnetManager.onTransferReceived). settledEpoch tracks settlement progress. emergencySetWeight(epoch, index, addr, weight) for Timelock override. onlyTimelock manages oracle config.
@@ -30,7 +30,7 @@ docs/architecture.md — Read the relevant section before starting any task.
 - LPManager = onlyAWPRegistry; StakeNFT = independent; AWPEmission = onlyTimelock (governance)
 
 ## Tokens
-- AWP: 10B MAX_SUPPLY; 200M (2%) minted in constructor; 98% AWPEmission mint on demand. mintAndCall(to, amount, data) triggers ERC1363 callback on recipient.
+- AWP: 10B MAX_SUPPLY; initial mint configurable per chain (INITIAL_MINT constructor param, immutable); emission via AWPEmission. mintAndCall(to, amount, data) triggers ERC1363 callback on recipient.
 - Alpha: 10B max per subnet, dual minter; standalone CREATE2 deployment (not proxy). `supplyAtLock` snapshot + `createdAt` reset at `setSubnetMinter` — subnet minters can mint immediately after activation.
 
 ## Gas Optimization Design
@@ -67,7 +67,7 @@ docs/architecture.md — Read the relevant section before starting any task.
 ## Staking
 - StakeNFT: deposit AWP with lockDuration (seconds) → mint position NFT (amount, lockEndTime, createdAt). Transferable. addToPosition increases amount (blocked if lock expired — PositionExpired). withdraw after lock expires.
 - StakingVault: pure allocation logic. Auto-enumerates agent subnets via _agentSubnets EnumerableSet. freezeAgentAllocations(staker, agent) needs no subnet list.
-- `allocate(staker, agent, subnetId, amount)` — staker is explicit parameter (caller must be staker or delegate)
+- `allocate(staker, agent, subnetId, amount)` — staker is explicit parameter (caller must be staker or delegate). subnetId can be from ANY chain (globally unique). No on-chain subnet status check. Balance check is local only.
 - (staker, agent, subnetId) triple; allocate/deallocate/reallocate all immediate; subnetId=0 rejected
 - Epoch duration: 1 day (daily epochs, AWPEmission only)
 
@@ -81,6 +81,16 @@ AWPToken(constructor mint 200M) → AlphaTokenFactory(deployer, vanityRule)
 → grantRole(dao) + renounce + addMinter(awpEmissionProxy) + renounceAdmin + AlphaTokenFactory.setAddresses
 → AWPRegistry.initializeRegistry (deployer calls, then zeroed; 8 addresses)
 → AWP transfer distribution
+
+## Multi-Chain
+- Deploy config: chains.yaml (Base, Ethereum, Arbitrum, BSC)
+- Deploy script: scripts/deploy-multichain.sh <chainName|--all|--list>
+- Same CREATE2 salts → identical addresses on all chains
+- SubnetId: (block.chainid << 64) | localCounter — globally unique
+- Allocate is local: user allocates on their staking chain to any chain's subnet
+- Emission: per-chain AWPEmission, oracle coordinates quotas
+- DAO: per-chain AWPDAO + Treasury, off-chain aggregated voting
+- AWPToken: per-chain independent mint (INITIAL_MINT configurable)
 
 ## API Endpoints
 - REST: /api/registry (all contract addresses + chainId + eip712Domain, excludes implementation contracts). eip712Domain object includes name, version, chainId, verifyingContract. /api/users/*, /api/staking/*, /api/subnets/*, /api/emission/*, /api/tokens/*, /api/governance/*
