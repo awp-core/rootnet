@@ -14,7 +14,7 @@ import (
 func (h *Handler) GetAWPInfo(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	val, err := h.rdb.Get(ctx, "awp_info").Result()
+	val, err := h.rdb.Get(ctx, fmt.Sprintf("awp_info:%d", h.cfg.ChainID)).Result()
 	if err != nil {
 		if err == redis.Nil {
 			// Cache miss; return empty object

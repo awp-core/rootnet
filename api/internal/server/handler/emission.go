@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"net/http"
 
@@ -22,7 +23,7 @@ type emissionProjection struct {
 func (h *Handler) GetCurrentEmission(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	val, err := h.rdb.Get(ctx, "emission_current").Result()
+	val, err := h.rdb.Get(ctx, fmt.Sprintf("emission_current:%d", h.cfg.ChainID)).Result()
 	if err != nil {
 		if err == redis.Nil {
 			h.writeError(w, http.StatusServiceUnavailable, "emission data not yet available (keeper may not be running)")

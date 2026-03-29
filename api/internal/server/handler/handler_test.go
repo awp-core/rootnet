@@ -1042,7 +1042,7 @@ func TestGetCurrentEmissionWithCache(t *testing.T) {
 	ctx := context.Background()
 
 	data := `{"epoch":"5","dailyEmission":"15000000","totalWeight":"1000"}`
-	env.rdb.Set(ctx, "emission_current", data, 0)
+	env.rdb.Set(ctx, "emission_current:31337", data, 0)
 
 	rr := env.request("GET", "/api/emission/current", "")
 	if rr.Code != http.StatusOK {
@@ -1151,7 +1151,7 @@ func TestGetAWPInfoWithCache(t *testing.T) {
 	ctx := context.Background()
 
 	data := `{"totalSupply":"5000000000","maxSupply":"10000000000"}`
-	env.rdb.Set(ctx, "awp_info", data, 0)
+	env.rdb.Set(ctx, "awp_info:31337", data, 0)
 
 	rr := env.request("GET", "/api/tokens/awp", "")
 	if rr.Code != http.StatusOK {

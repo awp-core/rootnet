@@ -25,6 +25,7 @@ type Keeper struct {
 	awpToken    *bindings.AWPToken
 	key         *ecdsa.PrivateKey
 	chainID     *big.Int
+	chainIDInt  int64 // 用于Redis key的chain ID
 	cron        *cron.Cron
 	redis       *redis.Client
 	logger      *slog.Logger
@@ -80,6 +81,7 @@ func NewKeeper(
 		awpToken:    awpToken,
 		key:         key,
 		chainID:     chainID,
+		chainIDInt:  chainID.Int64(),
 		cron:        cron.New(),
 		redis:       rdb,
 		logger:      logger,
@@ -238,7 +240,7 @@ func (k *Keeper) updateTokenPrices(ctx context.Context) {
 		return
 	}
 
-	if err := k.redis.Set(ctx, "emission_current", emData, 30*time.Second).Err(); err != nil {
+	if err := k.redis.Set(ctx, fmt.Sprintf("emission_current:%d", k.chainIDInt), emData, 30*time.Second).Err(); err != nil {
 		k.logger.Error("failed to write emission_current cache", "error", err)
 	}
 
@@ -262,7 +264,7 @@ func (k *Keeper) updateTokenPrices(ctx context.Context) {
 		return
 	}
 
-	if err := k.redis.Set(ctx, "awp_info", awpData, 1*time.Minute).Err(); err != nil {
+	if err := k.redis.Set(ctx, fmt.Sprintf("awp_info:%d", k.chainIDInt), awpData, 1*time.Minute).Err(); err != nil {
 		k.logger.Error("failed to write awp_info cache", "error", err)
 	}
 
