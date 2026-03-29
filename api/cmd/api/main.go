@@ -185,6 +185,18 @@ func wireChainReader(lc fx.Lifecycle, h *handler.Handler, cfg *config.Config, lo
 		return
 	}
 	h.SetChainReader(client)
+
+	// 加载多链配置（如果配置了 chains.yaml）
+	if cfg.ChainsFile != "" {
+		chains, err := config.LoadChains(cfg.ChainsFile)
+		if err == nil {
+			h.SetChains(chains)
+			logger.Info("multi-chain config loaded", "count", len(chains))
+		} else {
+			logger.Warn("failed to load chains config", "error", err)
+		}
+	}
+
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
 			client.Close()

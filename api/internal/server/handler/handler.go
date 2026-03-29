@@ -23,7 +23,8 @@ type Handler struct {
 	cfg     *config.Config
 	logger  *slog.Logger
 	limiter *ratelimit.Limiter
-	chain   ChainReader // optional: for on-chain reads (nonce, etc.)
+	chain   ChainReader           // optional: for on-chain reads (nonce, etc.)
+	chains  []config.ChainConfig // loaded chains (nil in single-chain mode)
 }
 
 // ChainReader provides read-only access to on-chain state (optional dependency)
@@ -40,6 +41,11 @@ func NewHandler(queries *gen.Queries, rdb *redis.Client, cfg *config.Config, log
 		logger:  logger,
 		limiter: limiter,
 	}
+}
+
+// SetChains sets the loaded chain configurations for multi-chain name resolution
+func (h *Handler) SetChains(chains []config.ChainConfig) {
+	h.chains = chains
 }
 
 // SetChainReader sets the optional chain reader for on-chain queries
@@ -190,6 +196,18 @@ func (h *Handler) GetNonce(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.writeJSON(w, http.StatusOK, map[string]uint64{"nonce": nonce})
+}
+
+// GetChains returns the list of supported chains
+func (h *Handler) GetChains(w http.ResponseWriter, r *http.Request) {
+	if h.chains == nil {
+		// 单链模式 — 仅返回当前配置的链
+		h.writeJSON(w, http.StatusOK, []map[string]interface{}{
+			{"chainId": h.cfg.ChainID, "name": "Default"},
+		})
+		return
+	}
+	h.writeJSON(w, http.StatusOK, h.chains) // ChainConfig 有 json 标签
 }
 
 // CheckAddress checks whether an address is registered and returns binding/recipient info (V2)
