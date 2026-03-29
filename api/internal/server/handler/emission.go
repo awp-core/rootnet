@@ -57,7 +57,7 @@ func (h *Handler) GetEmissionSchedule(w http.ResponseWriter, r *http.Request) {
 
 	// Use the latest epoch's emission as the baseline
 	currentDaily := new(big.Int).Set(initialDailyEmission)
-	latestEpoch, err := h.queries.GetLatestEpoch(ctx)
+	latestEpoch, err := h.queries.GetLatestEpoch(ctx, h.cfg.ChainID)
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			h.logger.Error("failed to get latest epoch", "error", err)
@@ -102,8 +102,9 @@ func (h *Handler) ListEpochs(w http.ResponseWriter, r *http.Request) {
 	limit, offset := h.parsePageParams(r)
 
 	epochs, err := h.queries.ListEpochs(r.Context(), gen.ListEpochsParams{
-		Limit:  int32(limit),
-		Offset: int32(offset),
+		ChainID: h.cfg.ChainID,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
 	})
 	if err != nil {
 		h.logger.Error("failed to list epochs", "error", err)

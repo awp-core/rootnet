@@ -34,7 +34,10 @@ func (h *Handler) GetAgentsByOwner(w http.ResponseWriter, r *http.Request) {
 	}
 	owner := normalizeAddr(raw)
 
-	agents, err := h.queries.GetUsersByBoundTo(r.Context(), owner)
+	agents, err := h.queries.GetUsersByBoundTo(r.Context(), gen.GetUsersByBoundToParams{
+		BoundTo: owner,
+		ChainID: h.cfg.ChainID,
+	})
 	if err != nil {
 		h.logger.Error("failed to get agents by owner", "error", err, "owner", owner)
 		h.writeError(w, http.StatusInternalServerError, "failed to get agents")
@@ -53,7 +56,10 @@ func (h *Handler) GetAgentDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	agentAddr := normalizeAddr(raw)
 
-	user, err := h.queries.GetUser(r.Context(), agentAddr)
+	user, err := h.queries.GetUser(r.Context(), gen.GetUserParams{
+		Address: agentAddr,
+		ChainID: h.cfg.ChainID,
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			h.writeError(w, http.StatusNotFound, "agent not found")
@@ -76,7 +82,10 @@ func (h *Handler) LookupAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	agentAddr := normalizeAddr(raw)
 
-	user, err := h.queries.GetUser(r.Context(), agentAddr)
+	user, err := h.queries.GetUser(r.Context(), gen.GetUserParams{
+		Address: agentAddr,
+		ChainID: h.cfg.ChainID,
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			h.writeError(w, http.StatusNotFound, "agent not found")
@@ -135,7 +144,10 @@ func (h *Handler) BatchAgentInfo(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		addr = normalizeAddr(addr)
-		user, err := h.queries.GetUser(ctx, addr)
+		user, err := h.queries.GetUser(ctx, gen.GetUserParams{
+			Address: addr,
+			ChainID: h.cfg.ChainID,
+		})
 		if err != nil {
 			continue
 		}
@@ -148,6 +160,7 @@ func (h *Handler) BatchAgentInfo(w http.ResponseWriter, r *http.Request) {
 
 		// Fetch the agent's stake in the specified subnet
 		stake, err := h.queries.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{
+			ChainID:      h.cfg.ChainID,
 			AgentAddress: addr,
 			SubnetID:     req.SubnetID,
 		})

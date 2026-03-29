@@ -205,7 +205,10 @@ func (h *Handler) CheckAddress(w http.ResponseWriter, r *http.Request) {
 	resp := checkAddressResponse{}
 
 	// Check whether this address exists in the users table
-	if user, err := h.queries.GetUser(ctx, address); err == nil {
+	if user, err := h.queries.GetUser(ctx, gen.GetUserParams{
+		Address: address,
+		ChainID: h.cfg.ChainID,
+	}); err == nil {
 		resp.IsRegistered = user.RegisteredAt != 0 || user.BoundTo != "" || user.Recipient != ""
 		resp.BoundTo = user.BoundTo
 		resp.Recipient = user.Recipient

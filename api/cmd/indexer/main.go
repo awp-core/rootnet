@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -22,10 +23,8 @@ func main() {
 			config.Load,
 			newDBPool,
 			newRedis,
-			newChainClient,
-			newIndexer,
 		),
-		fx.Invoke(startIndexer),
+		fx.Invoke(startIndexers),
 	).Run()
 }
 
@@ -66,6 +65,7 @@ func newRedis(lc fx.Lifecycle, cfg *config.Config) (*redis.Client, error) {
 	return rdb, nil
 }
 
+// newChainClient creates a chain.Client for a single chain from env-configured addresses
 func newChainClient(cfg *config.Config) (*chain.Client, error) {
 	addrs := map[string]string{
 		"AWPRegistry":  cfg.AWPRegistryAddress,
@@ -81,30 +81,116 @@ func newChainClient(cfg *config.Config) (*chain.Client, error) {
 	return chain.NewClient(dialCtx, cfg.RPCURL, addrs)
 }
 
-func newIndexer(client *chain.Client, pool *pgxpool.Pool, rdb *redis.Client, cfg *config.Config) (*chain.Indexer, error) {
-	return chain.NewIndexer(client, pool, rdb, cfg.DeployBlock)
+// startIndexers starts one or more indexer goroutines depending on configuration.
+// Multi-chain mode: CHAINS_FILE env set => spawn one goroutine per chain.
+// Single-chain mode: fallback using CHAIN_ID + RPC_URL from env.
+func startIndexers(lc fx.Lifecycle, pool *pgxpool.Pool, rdb *redis.Client, cfg *config.Config, logger *slog.Logger) error {
+	if cfg.ChainsFile != "" {
+		return startMultiChain(lc, pool, rdb, cfg, logger)
+	}
+	return startSingleChain(lc, pool, rdb, cfg, logger)
 }
 
-func startIndexer(lc fx.Lifecycle, idx *chain.Indexer, logger *slog.Logger) {
-	var idxCancel context.CancelFunc
+// startSingleChain uses env-configured CHAIN_ID and RPC_URL (backward compatible)
+func startSingleChain(lc fx.Lifecycle, pool *pgxpool.Pool, rdb *redis.Client, cfg *config.Config, logger *slog.Logger) error {
+	client, err := newChainClient(cfg)
+	if err != nil {
+		return fmt.Errorf("chain client: %w", err)
+	}
+	idx, err := chain.NewIndexer(client, pool, rdb, cfg.ChainID, cfg.DeployBlock)
+	if err != nil {
+		return fmt.Errorf("indexer: %w", err)
+	}
 
+	var cancel context.CancelFunc
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			logger.Info("Indexer starting")
-			runCtx, cancel := context.WithCancel(context.Background())
-			idxCancel = cancel
+			logger.Info("indexer starting (single-chain)", "chainId", cfg.ChainID)
+			runCtx, c := context.WithCancel(context.Background())
+			cancel = c
 			go func() {
 				if err := idx.Run(runCtx); err != nil {
-					logger.Error("Indexer error", "error", err)
+					logger.Error("indexer error", "chainId", cfg.ChainID, "error", err)
 				}
 			}()
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			if idxCancel != nil {
-				idxCancel()
+			if cancel != nil {
+				cancel()
 			}
 			return nil
 		},
 	})
+	return nil
+}
+
+// startMultiChain loads chains.yaml and spawns one indexer goroutine per chain
+func startMultiChain(lc fx.Lifecycle, pool *pgxpool.Pool, rdb *redis.Client, cfg *config.Config, logger *slog.Logger) error {
+	chains, err := config.LoadChains(cfg.ChainsFile)
+	if err != nil {
+		return fmt.Errorf("load chains: %w", err)
+	}
+
+	type indexerEntry struct {
+		idx     *chain.Indexer
+		chainID int64
+		name    string
+	}
+
+	// 创建所有chain client和indexer（在启动前完成，失败则阻止启动）
+	entries := make([]indexerEntry, 0, len(chains))
+	for _, ch := range chains {
+		// 为每条链创建chain client（使用chains.yaml中的RPC URL，但合约地址仍从env读取）
+		addrs := map[string]string{
+			"AWPRegistry":  cfg.AWPRegistryAddress,
+			"AWPToken":     cfg.AWPTokenAddress,
+			"AWPEmission":  cfg.AWPEmissionAddress,
+			"StakingVault": cfg.StakingVaultAddress,
+			"SubnetNFT":    cfg.SubnetNFTAddress,
+			"AWPDAO":       cfg.DAOAddress,
+			"StakeNFT":     cfg.StakeNFTAddress,
+		}
+		dialCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		client, clientErr := chain.NewClient(dialCtx, ch.RPCURL, addrs)
+		cancel()
+		if clientErr != nil {
+			return fmt.Errorf("chain client for %s (chainId=%d): %w", ch.Name, ch.ChainID, clientErr)
+		}
+		idx, idxErr := chain.NewIndexer(client, pool, rdb, ch.ChainID, cfg.DeployBlock)
+		if idxErr != nil {
+			return fmt.Errorf("indexer for %s (chainId=%d): %w", ch.Name, ch.ChainID, idxErr)
+		}
+		entries = append(entries, indexerEntry{idx: idx, chainID: ch.ChainID, name: ch.Name})
+	}
+
+	var cancelAll context.CancelFunc
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			logger.Info("indexer starting (multi-chain)", "chains", len(entries))
+			runCtx, c := context.WithCancel(context.Background())
+			cancelAll = c
+
+			var wg sync.WaitGroup
+			for _, e := range entries {
+				wg.Add(1)
+				go func(entry indexerEntry) {
+					defer wg.Done()
+					logger.Info("indexer goroutine started", "chain", entry.name, "chainId", entry.chainID)
+					if err := entry.idx.Run(runCtx); err != nil {
+						logger.Error("indexer error", "chain", entry.name, "chainId", entry.chainID, "error", err)
+					}
+				}(e)
+			}
+			// WaitGroup不在OnStart中等待——goroutine在后台运行直到OnStop
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			if cancelAll != nil {
+				cancelAll()
+			}
+			return nil
+		},
+	})
+	return nil
 }

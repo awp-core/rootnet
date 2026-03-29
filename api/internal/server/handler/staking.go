@@ -29,7 +29,10 @@ func (h *Handler) GetBalance(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Get total staked from stake_positions
-	totalStakedNum, err := h.queries.GetUserTotalStaked(ctx, address)
+	totalStakedNum, err := h.queries.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{
+		ChainID: h.cfg.ChainID,
+		Owner:   address,
+	})
 	if err != nil {
 		h.logger.Error("failed to get user total staked", "error", err, "address", address)
 		h.writeError(w, http.StatusInternalServerError, "failed to get user balance")
@@ -43,7 +46,10 @@ func (h *Handler) GetBalance(w http.ResponseWriter, r *http.Request) {
 
 	// Get total allocated from user_balances
 	totalAllocated := "0"
-	balance, err := h.queries.GetUserBalance(ctx, address)
+	balance, err := h.queries.GetUserBalance(ctx, gen.GetUserBalanceParams{
+		UserAddress: address,
+		ChainID:     h.cfg.ChainID,
+	})
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			h.logger.Error("failed to get user balance", "error", err, "address", address)
@@ -87,7 +93,10 @@ func (h *Handler) GetStakePositions(w http.ResponseWriter, r *http.Request) {
 	}
 	address := normalizeAddr(rawAddr)
 
-	positions, err := h.queries.GetUserStakePositions(r.Context(), address)
+	positions, err := h.queries.GetUserStakePositions(r.Context(), gen.GetUserStakePositionsParams{
+		ChainID: h.cfg.ChainID,
+		Owner:   address,
+	})
 	if err != nil {
 		h.logger.Error("failed to get stake positions", "error", err, "address", address)
 		h.writeError(w, http.StatusInternalServerError, "failed to get stake positions")
@@ -109,6 +118,7 @@ func (h *Handler) GetAllocations(w http.ResponseWriter, r *http.Request) {
 	limit, offset := h.parsePageParams(r)
 
 	allocations, err := h.queries.GetAllocationsByUser(r.Context(), gen.GetAllocationsByUserParams{
+		ChainID:     h.cfg.ChainID,
 		UserAddress: address,
 		Limit:       int32(limit),
 		Offset:      int32(offset),
@@ -137,7 +147,10 @@ func (h *Handler) GetFrozen(w http.ResponseWriter, r *http.Request) {
 	}
 	address := normalizeAddr(rawAddr)
 
-	frozen, err := h.queries.GetFrozenByUser(r.Context(), address)
+	frozen, err := h.queries.GetFrozenByUser(r.Context(), gen.GetFrozenByUserParams{
+		ChainID:     h.cfg.ChainID,
+		UserAddress: address,
+	})
 	if err != nil {
 		h.logger.Error("failed to get frozen allocations", "error", err, "address", address)
 		h.writeError(w, http.StatusInternalServerError, "failed to get frozen allocations")
@@ -163,6 +176,7 @@ func (h *Handler) GetAgentSubnetStake(w http.ResponseWriter, r *http.Request) {
 	}
 
 	stake, err := h.queries.GetAgentSubnetStake(r.Context(), gen.GetAgentSubnetStakeParams{
+		ChainID:      h.cfg.ChainID,
 		AgentAddress: agentAddr,
 		SubnetID:     subnetID,
 	})
@@ -188,7 +202,10 @@ func (h *Handler) GetAgentSubnets(w http.ResponseWriter, r *http.Request) {
 	}
 	agentAddr := normalizeAddr(rawAgent)
 
-	subnets, err := h.queries.GetAgentSubnets(r.Context(), agentAddr)
+	subnets, err := h.queries.GetAgentSubnets(r.Context(), gen.GetAgentSubnetsParams{
+		ChainID:      h.cfg.ChainID,
+		AgentAddress: agentAddr,
+	})
 	if err != nil {
 		h.logger.Error("failed to get agent subnets", "error", err, "agent", agentAddr)
 		h.writeError(w, http.StatusInternalServerError, "failed to get agent subnets")

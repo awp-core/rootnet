@@ -35,14 +35,16 @@ type Indexer struct {
 	chain         *Client
 	pool          *pgxpool.Pool
 	rds           *redis.Client
+	chainID       int64 // chain_id for multi-chain DB partitioning
 	deployBlock   int64
 	genesisTime   int64 // AWPEmission genesisTime (unix seconds)
 	epochDuration int64 // AWPEmission epochDuration (seconds)
 }
 
 // NewIndexer creates an event indexer instance
+// chainID identifies the chain for multi-chain DB partitioning.
 // deployBlock is used as the start block on first run when sync_states is empty.
-func NewIndexer(chain *Client, pool *pgxpool.Pool, rds *redis.Client, deployBlock int64) (*Indexer, error) {
+func NewIndexer(chain *Client, pool *pgxpool.Pool, rds *redis.Client, chainID int64, deployBlock int64) (*Indexer, error) {
 	// Cache genesisTime and epochDuration (immutable, read once)
 	gt, err := chain.AWPEmission.GenesisTime(nil)
 	if err != nil || gt == nil {
@@ -56,6 +58,7 @@ func NewIndexer(chain *Client, pool *pgxpool.Pool, rds *redis.Client, deployBloc
 		chain:         chain,
 		pool:          pool,
 		rds:           rds,
+		chainID:       chainID,
 		deployBlock:   deployBlock,
 		genesisTime:   gt.Int64(),
 		epochDuration: ed.Int64(),
@@ -98,7 +101,10 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 
 	// 1. Read the last synced block
 	q := gen.New(idx.pool)
-	state, err := q.GetSyncState(ctx, syncKey)
+	state, err := q.GetSyncState(ctx, gen.GetSyncStateParams{
+		ChainID:      idx.chainID,
+		ContractName: syncKey,
+	})
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("failed to read sync state: %w", err)
@@ -183,6 +189,7 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 
 	// 7. Update sync progress
 	if err := qtx.UpsertSyncState(ctx, gen.UpsertSyncStateParams{
+		ChainID:      idx.chainID,
 		ContractName: syncKey,
 		LastBlock:    int64(toBlock),
 	}); err != nil {
@@ -191,7 +198,10 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 
 	// Prune old block hashes (keep last 256 blocks to limit DB growth)
 	if int64(toBlock) > 256 {
-		_ = qtx.PruneIndexedBlocks(ctx, int64(toBlock)-256)
+		_ = qtx.PruneIndexedBlocks(ctx, gen.PruneIndexedBlocksParams{
+			ChainID:     idx.chainID,
+			BlockNumber: int64(toBlock) - 256,
+		})
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -228,7 +238,10 @@ func (idx *Indexer) detectReorg(ctx context.Context, q *gen.Queries, lastBlock u
 
 	for i := uint64(0); i < maxReorgDepth && lastBlock > i; i++ {
 		checkBlock := lastBlock - i
-		storedHash, err := q.GetIndexedBlockHash(ctx, int64(checkBlock))
+		storedHash, err := q.GetIndexedBlockHash(ctx, gen.GetIndexedBlockHashParams{
+			ChainID:     idx.chainID,
+			BlockNumber: int64(checkBlock),
+		})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				continue // no hash stored for this block (not a batch boundary), skip
@@ -273,19 +286,29 @@ func (idx *Indexer) rollback(ctx context.Context, forkPoint int64) error {
 
 	qtx := gen.New(tx)
 	if err := qtx.UpsertSyncState(ctx, gen.UpsertSyncStateParams{
+		ChainID:      idx.chainID,
 		ContractName: syncKey,
 		LastBlock:    forkPoint,
 	}); err != nil {
 		return fmt.Errorf("reset sync state: %w", err)
 	}
-	if err := qtx.DeleteIndexedBlocksAfter(ctx, forkPoint); err != nil {
+	if err := qtx.DeleteIndexedBlocksAfter(ctx, gen.DeleteIndexedBlocksAfterParams{
+		ChainID:     idx.chainID,
+		BlockNumber: forkPoint,
+	}); err != nil {
 		return fmt.Errorf("delete indexed blocks after %d: %w", forkPoint, err)
 	}
 	// Delete only rows written after the fork point (scoped rollback, not global truncate)
-	if err := qtx.DeleteStakeAllocationsAfterBlock(ctx, forkPoint); err != nil {
+	if err := qtx.DeleteStakeAllocationsAfterBlock(ctx, gen.DeleteStakeAllocationsAfterBlockParams{
+		ChainID:      idx.chainID,
+		UpdatedBlock: forkPoint,
+	}); err != nil {
 		return fmt.Errorf("delete stake_allocations after %d: %w", forkPoint, err)
 	}
-	if err := qtx.DeleteUserBalancesAfterBlock(ctx, forkPoint); err != nil {
+	if err := qtx.DeleteUserBalancesAfterBlock(ctx, gen.DeleteUserBalancesAfterBlockParams{
+		ChainID:      idx.chainID,
+		UpdatedBlock: forkPoint,
+	}); err != nil {
 		return fmt.Errorf("delete user_balances after %d: %w", forkPoint, err)
 	}
 
@@ -305,6 +328,7 @@ func (idx *Indexer) recordBlockHashes(ctx context.Context, q *gen.Queries, fromB
 		return fmt.Errorf("get header for block %d: %w", toBlock, err)
 	}
 	return q.UpsertIndexedBlock(ctx, gen.UpsertIndexedBlockParams{
+		ChainID:     idx.chainID,
 		BlockNumber: int64(toBlock),
 		BlockHash:   header.Hash().Hex(),
 	})
@@ -321,6 +345,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// UserRegistered(address indexed user)
 	if evt, err := awpRegistry.ParseUserRegistered(lg); err == nil {
 		if err := q.SetUserRegisteredAt(ctx, gen.SetUserRegisteredAtParams{
+			ChainID:      idx.chainID,
 			Address:      strings.ToLower(evt.User.Hex()),
 			RegisteredAt: int64(lg.BlockNumber),
 		}); err != nil {
@@ -334,12 +359,16 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// Bound(address indexed addr, address indexed target)
 	if evt, err := awpRegistry.ParseBound(lg); err == nil {
 		if err := q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
+			ChainID: idx.chainID,
 			Address: strings.ToLower(evt.Addr.Hex()),
 			BoundTo: strings.ToLower(evt.Target.Hex()),
 		}); err != nil {
 			return nil, fmt.Errorf("UpsertUserBinding: %w", err)
 		}
-		if err := q.InitUserBalance(ctx, strings.ToLower(evt.Addr.Hex())); err != nil {
+		if err := q.InitUserBalance(ctx, gen.InitUserBalanceParams{
+			ChainID:     idx.chainID,
+			UserAddress: strings.ToLower(evt.Addr.Hex()),
+		}); err != nil {
 			return nil, fmt.Errorf("InitUserBalance (Bound): %w", err)
 		}
 		return []redisEvent{makeEvent("Bound", lg, map[string]interface{}{
@@ -350,7 +379,10 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// Unbound(address indexed addr)
 	if evt, err := awpRegistry.ParseUnbound(lg); err == nil {
-		if err := q.ClearUserBinding(ctx, strings.ToLower(evt.Addr.Hex())); err != nil {
+		if err := q.ClearUserBinding(ctx, gen.ClearUserBindingParams{
+			Address: strings.ToLower(evt.Addr.Hex()),
+			ChainID: idx.chainID,
+		}); err != nil {
 			return nil, fmt.Errorf("ClearUserBinding: %w", err)
 		}
 		return []redisEvent{makeEvent("Unbound", lg, map[string]interface{}{
@@ -361,6 +393,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// RecipientSet(address indexed addr, address recipient)
 	if evt, err := awpRegistry.ParseRecipientSet(lg); err == nil {
 		if err := q.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+			ChainID:   idx.chainID,
 			Address:   strings.ToLower(evt.Addr.Hex()),
 			Recipient: strings.ToLower(evt.Recipient.Hex()),
 		}); err != nil {
@@ -396,6 +429,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return nil, fmt.Errorf("failed to read position for createdAt: %w", err)
 		}
 		if err := q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+			ChainID:     idx.chainID,
 			TokenID:     evt.TokenId.Int64(),
 			Owner:       strings.ToLower(evt.User.Hex()),
 			Amount:      bigIntToNumeric(evt.Amount),
@@ -420,6 +454,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return nil, fmt.Errorf("failed to read position: %w", err)
 		}
 		if err := q.UpdateStakePosition(ctx, gen.UpdateStakePositionParams{
+			ChainID:     idx.chainID,
 			TokenID:     evt.TokenId.Int64(),
 			Amount:      bigIntToNumeric(pos.Amount),
 			LockEndTime: int64(pos.LockEndTime),
@@ -435,7 +470,10 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// StakeNFT.Withdrawn — position burned
 	if evt, err := stakeNFT.ParseWithdrawn(lg); err == nil {
-		if err := q.BurnStakePosition(ctx, evt.TokenId.Int64()); err != nil {
+		if err := q.BurnStakePosition(ctx, gen.BurnStakePositionParams{
+			ChainID: idx.chainID,
+			TokenID: evt.TokenId.Int64(),
+		}); err != nil {
 			return nil, fmt.Errorf("BurnStakePosition: %w", err)
 		}
 		return []redisEvent{makeEvent("Withdrawn", lg, map[string]interface{}{
@@ -453,6 +491,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			zeroAddr := common.Address{}
 			if evt.From != zeroAddr && evt.To != zeroAddr {
 				if err := q.UpdateStakePositionOwner(ctx, gen.UpdateStakePositionOwnerParams{
+					ChainID: idx.chainID,
 					TokenID: evt.TokenId.Int64(),
 					Owner:   strings.ToLower(evt.To.Hex()),
 				}); err != nil {
@@ -471,6 +510,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// Allocated (V2: staker instead of user)
 	if evt, err := awpRegistry.ParseAllocated(lg); err == nil {
 		if err := q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
 			SubnetID:     evt.SubnetId.Int64(),
@@ -480,6 +520,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return nil, fmt.Errorf("UpsertStakeAllocation: %w", err)
 		}
 		if err := q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
+			ChainID:        idx.chainID,
 			UserAddress:    strings.ToLower(evt.Staker.Hex()),
 			TotalAllocated: bigIntToNumeric(evt.Amount),
 			UpdatedBlock:   int64(lg.BlockNumber),
@@ -498,6 +539,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// Deallocated (V2: staker instead of user)
 	if evt, err := awpRegistry.ParseDeallocated(lg); err == nil {
 		if err := q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
+			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
 			SubnetID:     evt.SubnetId.Int64(),
@@ -507,6 +549,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return nil, fmt.Errorf("SubtractStakeAllocation: %w", err)
 		}
 		if err := q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{
+			ChainID:        idx.chainID,
 			UserAddress:    strings.ToLower(evt.Staker.Hex()),
 			TotalAllocated: bigIntToNumeric(evt.Amount),
 			UpdatedBlock:   int64(lg.BlockNumber),
@@ -526,6 +569,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	if evt, err := awpRegistry.ParseReallocated(lg); err == nil {
 		// Subtract from source allocation
 		if err := q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
+			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.FromAgent.Hex()),
 			SubnetID:     evt.FromSubnet.Int64(),
@@ -536,6 +580,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}
 		// Add to destination allocation
 		if err := q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.ToAgent.Hex()),
 			SubnetID:     evt.ToSubnet.Int64(),
@@ -575,6 +620,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}
 		if err := q.InsertSubnet(ctx, gen.InsertSubnetParams{
 			SubnetID:       evt.SubnetId.Int64(),
+			ChainID:        idx.chainID,
 			Owner:          strings.ToLower(evt.Owner.Hex()),
 			Name:           evt.Name,
 			Symbol:         evt.Symbol,
@@ -590,6 +636,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}
 		// Mark matching salt as used in pool (best-effort; pool may not contain this address)
 		if markErr := q.MarkSaltUsedByAddress(ctx, gen.MarkSaltUsedByAddressParams{
+			ChainID:  idx.chainID,
 			SubnetID: pgtype.Int8{Int64: evt.SubnetId.Int64(), Valid: true},
 			Lower:    strings.ToLower(evt.AlphaToken.Hex()),
 		}); markErr != nil {
@@ -772,6 +819,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// RecipientAWPDistributed (emitted from AWPEmission)
 	if evt, err := awpEmission.ParseRecipientAWPDistributed(lg); err == nil {
 		if err := q.InsertRecipientAWPDistribution(ctx, gen.InsertRecipientAWPDistributionParams{
+			ChainID:   idx.chainID,
 			EpochID:   evt.Epoch.Int64(),
 			Recipient: strings.ToLower(evt.Recipient.Hex()),
 			AwpAmount: bigIntToNumeric(evt.AwpAmount),
@@ -788,6 +836,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// DAOMatchDistributed (emitted from AWPEmission)
 	if evt, err := awpEmission.ParseDAOMatchDistributed(lg); err == nil {
 		if err := q.UpdateEpochDAO(ctx, gen.UpdateEpochDAOParams{
+			ChainID:     idx.chainID,
 			EpochID:     evt.Epoch.Int64(),
 			DaoEmission: bigIntToNumeric(evt.Amount),
 		}); err != nil {
@@ -804,6 +853,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		// start_time = genesisTime + epochId * epochDuration (time-based epoch, not block number)
 		epochStartTime := idx.genesisTime + evt.Epoch.Int64()*idx.epochDuration
 		if err := q.UpsertEpoch(ctx, gen.UpsertEpochParams{
+			ChainID:       idx.chainID,
 			EpochID:       evt.Epoch.Int64(),
 			StartTime:     epochStartTime,
 			DailyEmission: bigIntToNumeric(evt.TotalEmission),

@@ -11,9 +11,9 @@ import (
 
 // userDetailResponse is the response type for user details including balance and bound agents (V2)
 type userDetailResponse struct {
-	User    gen.User         `json:"user"`
-	Balance *gen.GetUserBalanceRow `json:"balance,omitempty"`
-	Agents  []gen.User       `json:"agents"`
+	User    gen.GetUserRow              `json:"user"`
+	Balance *gen.GetUserBalanceRow      `json:"balance,omitempty"`
+	Agents  []gen.GetUsersByBoundToRow  `json:"agents"`
 }
 
 // ListUsers returns a paginated list of users
@@ -21,8 +21,9 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	limit, offset := h.parsePageParams(r)
 
 	users, err := h.queries.ListUsers(r.Context(), gen.ListUsersParams{
-		Limit:  int32(limit),
-		Offset: int32(offset),
+		ChainID: h.cfg.ChainID,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
 	})
 	if err != nil {
 		h.logger.Error("failed to list users", "error", err)
@@ -35,7 +36,7 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 // GetUserCount returns the total number of users
 func (h *Handler) GetUserCount(w http.ResponseWriter, r *http.Request) {
-	count, err := h.queries.GetUserCount(r.Context())
+	count, err := h.queries.GetUserCount(r.Context(), h.cfg.ChainID)
 	if err != nil {
 		h.logger.Error("failed to get user count", "error", err)
 		h.writeError(w, http.StatusInternalServerError, "failed to get user count")
@@ -57,7 +58,10 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Fetch basic user info
-	user, err := h.queries.GetUser(ctx, address)
+	user, err := h.queries.GetUser(ctx, gen.GetUserParams{
+		Address: address,
+		ChainID: h.cfg.ChainID,
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			h.writeError(w, http.StatusNotFound, "user not found")
@@ -70,16 +74,22 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 
 	resp := userDetailResponse{
 		User:   user,
-		Agents: []gen.User{},
+		Agents: []gen.GetUsersByBoundToRow{},
 	}
 
 	// Fetch user balance
-	if balance, err := h.queries.GetUserBalance(ctx, address); err == nil {
+	if balance, err := h.queries.GetUserBalance(ctx, gen.GetUserBalanceParams{
+		UserAddress: address,
+		ChainID:     h.cfg.ChainID,
+	}); err == nil {
 		resp.Balance = &balance
 	}
 
 	// Fetch the user's bound agents (addresses where bound_to = this user)
-	if agents, err := h.queries.GetUsersByBoundTo(ctx, address); err == nil {
+	if agents, err := h.queries.GetUsersByBoundTo(ctx, gen.GetUsersByBoundToParams{
+		BoundTo: address,
+		ChainID: h.cfg.ChainID,
+	}); err == nil {
 		resp.Agents = agents
 	}
 

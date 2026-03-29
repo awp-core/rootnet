@@ -25,9 +25,10 @@ func (h *Handler) ListSubnets(w http.ResponseWriter, r *http.Request) {
 		}
 		// Filter by status
 		subnets, err := h.queries.ListSubnetsByStatus(ctx, gen.ListSubnetsByStatusParams{
-			Status: status,
-			Limit:  int32(limit),
-			Offset: int32(offset),
+			ChainID: h.cfg.ChainID,
+			Status:  status,
+			Limit:   int32(limit),
+			Offset:  int32(offset),
 		})
 		if err != nil {
 			h.logger.Error("failed to list subnets by status", "error", err, "status", status)
@@ -40,8 +41,9 @@ func (h *Handler) ListSubnets(w http.ResponseWriter, r *http.Request) {
 
 	// List all subnets
 	subnets, err := h.queries.ListSubnets(ctx, gen.ListSubnetsParams{
-		Limit:  int32(limit),
-		Offset: int32(offset),
+		ChainID: h.cfg.ChainID,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
 	})
 	if err != nil {
 		h.logger.Error("failed to list subnets", "error", err)
@@ -114,6 +116,7 @@ func (h *Handler) GetSubnetAgentInfo(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	total, err := h.queries.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{
+		ChainID:      h.cfg.ChainID,
 		AgentAddress: agentAddr,
 		SubnetID:     subnetID,
 	})

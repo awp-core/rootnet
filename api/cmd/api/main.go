@@ -163,7 +163,7 @@ func newVanityHandler(cfg *config.Config, queries *gen.Queries, limiter *ratelim
 	}
 
 	logger.Info("vanity compute-salt endpoint enabled", "factory", cfg.AlphaFactoryAddress, "vanityRule", cfg.VanityRule)
-	return handler.NewVanityHandler(cfg.AlphaFactoryAddress, cfg.AlphaInitCodeHash, rule, queries, limiter, logger)
+	return handler.NewVanityHandler(cfg.AlphaFactoryAddress, cfg.AlphaInitCodeHash, rule, cfg.ChainID, queries, limiter, logger)
 }
 
 // wireChainReader creates a lightweight chain client for on-chain reads (nonce, etc.)

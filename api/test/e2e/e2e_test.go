@@ -222,7 +222,7 @@ func (e *e2eEnv) setupIndexer() {
 	if err != nil {
 		e.t.Fatalf("failed to create chain.Client: %v", err)
 	}
-	e.indexer, _ = chain.NewIndexer(chainClient, e.pool, e.rdb, 0)
+	e.indexer, _ = chain.NewIndexer(chainClient, e.pool, e.rdb, 31337, 0)
 }
 
 func (e *e2eEnv) setupRouter() {

@@ -20,6 +20,7 @@ type VanityHandler struct {
 	factoryAddr  string
 	initCodeHash string
 	rule         chain.VanityRule
+	chainID      int64 // chain_id for DB queries
 	timeout      time.Duration
 	sem          chan struct{} // concurrency limiter semaphore
 	queries      *gen.Queries  // DB queries (salt pool)
@@ -28,11 +29,12 @@ type VanityHandler struct {
 }
 
 // NewVanityHandler creates a VanityHandler
-func NewVanityHandler(factoryAddr string, initCodeHash string, rule chain.VanityRule, queries *gen.Queries, limiter *ratelimit.Limiter, logger *slog.Logger) *VanityHandler {
+func NewVanityHandler(factoryAddr string, initCodeHash string, rule chain.VanityRule, chainID int64, queries *gen.Queries, limiter *ratelimit.Limiter, logger *slog.Logger) *VanityHandler {
 	return &VanityHandler{
 		factoryAddr:  factoryAddr,
 		initCodeHash: initCodeHash,
 		rule:         rule,
+		chainID:      chainID,
 		timeout:      120 * time.Second,
 		sem:          make(chan struct{}, 2),
 		queries:      queries,
@@ -77,7 +79,7 @@ func (vh *VanityHandler) ComputeSalt(w http.ResponseWriter, r *http.Request) {
 
 	// 1. Claim a salt from DB pool (atomic UPDATE+RETURNING with FOR UPDATE SKIP LOCKED)
 	if vh.queries != nil {
-		row, err := vh.queries.ClaimRandomSalt(ctx)
+		row, err := vh.queries.ClaimRandomSalt(ctx, vh.chainID)
 		if err == nil {
 			vh.writeJSON(w, http.StatusOK, computeSaltResponse{
 				Salt:    row.Salt,

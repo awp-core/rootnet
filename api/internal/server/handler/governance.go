@@ -25,9 +25,10 @@ func (h *Handler) ListProposals(w http.ResponseWriter, r *http.Request) {
 		}
 		// Filter by status
 		proposals, err := h.queries.ListProposalsByStatus(ctx, gen.ListProposalsByStatusParams{
-			Status: status,
-			Limit:  int32(limit),
-			Offset: int32(offset),
+			ChainID: h.cfg.ChainID,
+			Status:  status,
+			Limit:   int32(limit),
+			Offset:  int32(offset),
 		})
 		if err != nil {
 			h.logger.Error("failed to list proposals by status", "error", err, "status", status)
@@ -40,8 +41,9 @@ func (h *Handler) ListProposals(w http.ResponseWriter, r *http.Request) {
 
 	// List all proposals
 	proposals, err := h.queries.ListProposals(ctx, gen.ListProposalsParams{
-		Limit:  int32(limit),
-		Offset: int32(offset),
+		ChainID: h.cfg.ChainID,
+		Limit:   int32(limit),
+		Offset:  int32(offset),
 	})
 	if err != nil {
 		h.logger.Error("failed to list proposals", "error", err)
@@ -60,7 +62,10 @@ func (h *Handler) GetProposal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	proposal, err := h.queries.GetProposal(r.Context(), proposalID)
+	proposal, err := h.queries.GetProposal(r.Context(), gen.GetProposalParams{
+		ChainID:    h.cfg.ChainID,
+		ProposalID: proposalID,
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			h.writeError(w, http.StatusNotFound, "proposal not found")

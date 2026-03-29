@@ -67,6 +67,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	queries := gen.New(pool)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := &config.Config{
+		ChainID:             31337,
 		TreasuryAddress:     "0x1234567890abcdef1234567890abcdef12345678",
 		AWPRegistryAddress:  "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 		SubnetNFTAddress:    "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -109,7 +110,7 @@ func (e *testEnv) cleanDB() {
 	_, err := e.pool.Exec(ctx, `TRUNCATE TABLE
 		recipient_awp_distributions, stake_positions, stake_allocations,
 		user_balances, epochs,
-		subnets, proposals, users, sync_states`)
+		subnets, proposals, users, sync_states, indexed_blocks, vanity_salts`)
 	if err != nil {
 		e.t.Logf("cleanDB TRUNCATE failed: %v", err)
 	}
@@ -211,6 +212,7 @@ func TestListUsersWithData(t *testing.T) {
 	for i := range []int{0, 1, 2} {
 		addr := strings.Replace("0x0000000000000000000000000000000000000001", "1", string(rune('1'+i)), 1)
 		_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
+			ChainID: 31337,
 			Address: addr,
 			BoundTo: "",
 		})
@@ -247,11 +249,13 @@ func TestGetUserCount(t *testing.T) {
 
 	// Insert 2 users
 	_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
-		Address:      "0x0000000000000000000000000000000000000001",
+		ChainID: 31337,
+		Address: "0x0000000000000000000000000000000000000001",
 		BoundTo: "",
 	})
 	_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
-		Address:      "0x0000000000000000000000000000000000000002",
+		ChainID: 31337,
+		Address: "0x0000000000000000000000000000000000000002",
 		BoundTo: "",
 	})
 
@@ -275,20 +279,21 @@ func TestGetUser(t *testing.T) {
 
 	// Insert user
 	_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
-		Address:      addr,
+		ChainID: 31337,
+		Address: addr,
 		BoundTo: "",
 	})
 
 	// Initialize balance and create stake position
-	_ = env.queries.InitUserBalance(ctx, addr)
+	_ = env.queries.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: 31337, UserAddress: addr})
 	_ = env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
-		TokenID: 1, Owner: addr, Amount: numericFromInt64(5000),
+		ChainID: 31337, TokenID: 1, Owner: addr, Amount: numericFromInt64(5000),
 		LockEndTime: 50, CreatedAt: 1000,
 	})
 
 	// Insert agent
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		"0x00000000000000000000000000000000000000a1", addr,
 	)
 
@@ -339,7 +344,8 @@ func TestGetUserCaseInsensitive(t *testing.T) {
 	// Insert lowercase address
 	addr := "0x000000000000000000000000000000000000abcd"
 	_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
-		Address:      addr,
+		ChainID: 31337,
+		Address: addr,
 		BoundTo: "",
 	})
 
@@ -378,6 +384,7 @@ func TestCheckAddressUnbound(t *testing.T) {
 	ctx := context.Background()
 	addr := "0x0000000000000000000000000000000000000001"
 	_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
+		ChainID: 31337,
 		Address: addr,
 		BoundTo: "",
 	})
@@ -401,7 +408,7 @@ func TestCheckAddressBound(t *testing.T) {
 	agentAddr := "0x00000000000000000000000000000000000000a1"
 	ownerAddr := "0x0000000000000000000000000000000000000001"
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agentAddr, ownerAddr,
 	)
 
@@ -426,6 +433,7 @@ func TestCheckAddressWithRecipient(t *testing.T) {
 	userAddr := "0x00000000000000000000000000000000000000a2"
 	recipientAddr := "0x0000000000000000000000000000000000000002"
 	_ = env.queries.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+		ChainID: 31337,
 		Address:   userAddr,
 		Recipient: recipientAddr,
 	})
@@ -470,11 +478,11 @@ func TestGetAgentsByOwnerWithData(t *testing.T) {
 	agent2 := "0x00000000000000000000000000000000000000a2"
 
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agent1, ownerAddr,
 	)
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agent2, ownerAddr,
 	)
 
@@ -497,7 +505,7 @@ func TestGetAgentDetail(t *testing.T) {
 	agentAddr := "0x00000000000000000000000000000000000000a1"
 
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agentAddr, ownerAddr,
 	)
 
@@ -523,7 +531,7 @@ func TestLookupAgent(t *testing.T) {
 	ownerAddr := "0x0000000000000000000000000000000000000001"
 	agentAddr := "0x00000000000000000000000000000000000000a1"
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agentAddr, ownerAddr,
 	)
 
@@ -555,11 +563,11 @@ func TestBatchAgentInfo(t *testing.T) {
 	ownerAddr := "0x0000000000000000000000000000000000000001"
 
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agent1, ownerAddr,
 	)
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agent2, ownerAddr,
 	)
 
@@ -621,13 +629,13 @@ func TestGetBalanceWithData(t *testing.T) {
 	ctx := context.Background()
 
 	addr := "0x0000000000000000000000000000000000000001"
-	_ = env.queries.InitUserBalance(ctx, addr)
+	_ = env.queries.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: 31337, UserAddress: addr})
 	_ = env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
-		TokenID: 1, Owner: addr, Amount: numericFromInt64(10001),
+		ChainID: 31337, TokenID: 1, Owner: addr, Amount: numericFromInt64(10001),
 		LockEndTime: 50, CreatedAt: 100,
 	})
 	_ = env.queries.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
-		UserAddress:    addr,
+		ChainID: 31337, UserAddress:    addr,
 		TotalAllocated: numericFromInt64(3001),
 	})
 
@@ -654,11 +662,11 @@ func TestGetStakePositions(t *testing.T) {
 
 	addr := "0x0000000000000000000000000000000000000001"
 	_ = env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
-		TokenID: 1, Owner: addr, Amount: numericFromInt64(5000),
+		ChainID: 31337, TokenID: 1, Owner: addr, Amount: numericFromInt64(5000),
 		LockEndTime: 50, CreatedAt: 100,
 	})
 	_ = env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
-		TokenID: 2, Owner: addr, Amount: numericFromInt64(3000),
+		ChainID: 31337, TokenID: 2, Owner: addr, Amount: numericFromInt64(3000),
 		LockEndTime: 100, CreatedAt: 200,
 	})
 
@@ -696,7 +704,7 @@ func TestGetAllocationsWithData(t *testing.T) {
 	// Insert 3 allocation records
 	for i := int64(1); i <= 3; i++ {
 		_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
-			UserAddress:  userAddr,
+			ChainID: 31337, UserAddress:  userAddr,
 			AgentAddress: agentAddr,
 			SubnetID:     i,
 			Amount:       numericFromInt64(1000 * i),
@@ -762,6 +770,7 @@ func TestGetAgentSubnetStake(t *testing.T) {
 	userAddr := "0x0000000000000000000000000000000000000001"
 
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID:      31337,
 		UserAddress:  userAddr,
 		AgentAddress: agentAddr,
 		SubnetID:     1,
@@ -790,12 +799,14 @@ func TestGetSubnetTotalStake(t *testing.T) {
 
 	// Two allocation records for the same subnet
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID:      31337,
 		UserAddress:  user1,
 		AgentAddress: agent1,
 		SubnetID:     1,
 		Amount:       numericFromInt64(3001),
 	})
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID:      31337,
 		UserAddress:  user2,
 		AgentAddress: agent2,
 		SubnetID:     1,
@@ -822,8 +833,8 @@ func insertSubnet(t *testing.T, pool *pgxpool.Pool, id int64, owner, name, symbo
 	t.Helper()
 	ctx := context.Background()
 	_, err := pool.Exec(ctx,
-		`INSERT INTO subnets (subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
+		 VALUES (31337, $1, $2, $3, $4, $5, $6, $7, $8)`,
 		id, owner, name, symbol,
 		"0x00000000000000000000000000000000000000c1",
 		"0x00000000000000000000000000000000000000d1",
@@ -938,18 +949,18 @@ func TestGetSubnetEarnings(t *testing.T) {
 
 	// Insert epoch
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO epochs (epoch_id, start_time, daily_emission) VALUES ($1, $2, $3)",
+		"INSERT INTO epochs (chain_id, epoch_id, start_time, daily_emission) VALUES (31337, $1, $2, $3)",
 		1, 1000, 15800000,
 	)
 
 	// Insert distribution records (keyed by subnet_contract address matching insertSubnet)
 	subnetContract := "0x00000000000000000000000000000000000000c1"
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO recipient_awp_distributions (epoch_id, recipient, awp_amount) VALUES ($1, $2, $3)",
+		"INSERT INTO recipient_awp_distributions (chain_id, epoch_id, recipient, awp_amount) VALUES (31337, $1, $2, $3)",
 		1, subnetContract, 7900000,
 	)
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO recipient_awp_distributions (epoch_id, recipient, awp_amount) VALUES ($1, $2, $3)",
+		"INSERT INTO recipient_awp_distributions (chain_id, epoch_id, recipient, awp_amount) VALUES (31337, $1, $2, $3)",
 		2, subnetContract, 3000000,
 	)
 
@@ -970,12 +981,13 @@ func TestGetSubnetAgentInfo(t *testing.T) {
 
 	// Insert subnet
 	_, _ = env.pool.Exec(ctx,
-		`INSERT INTO subnets (subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
+		 VALUES (31337, $1, $2, $3, $4, $5, $6, $7, $8)`,
 		1, "0xowner", "Sub1", "S1", "0xsc1", "0xalpha1", "Active", 1000)
 
 	// Insert allocation
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID:      31337,
 		UserAddress:  "0xuser1",
 		AgentAddress: "0x1111111111111111111111111111111111111111",
 		SubnetID:     1,
@@ -1097,7 +1109,7 @@ func TestListEpochsWithData(t *testing.T) {
 	// Insert 3 epochs
 	for i := int64(1); i <= 3; i++ {
 		_, _ = env.pool.Exec(ctx,
-			"INSERT INTO epochs (epoch_id, start_time, daily_emission) VALUES ($1, $2, $3)",
+			"INSERT INTO epochs (chain_id, epoch_id, start_time, daily_emission) VALUES (31337, $1, $2, $3)",
 			i, i*86400, 15800000-i*100000,
 		)
 	}
@@ -1216,19 +1228,19 @@ func TestListProposalsWithStatusFilter(t *testing.T) {
 
 	// Insert proposals with different statuses
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO proposals (proposal_id, proposer, description, status, votes_for, votes_against) VALUES ($1, $2, $3, $4, $5, $6)",
+		"INSERT INTO proposals (chain_id, proposal_id, proposer, description, status, votes_for, votes_against) VALUES (31337, $1, $2, $3, $4, $5, $6)",
 		"0x0000000000000000000000000000000000000000000000000000000000000001",
 		"0x0000000000000000000000000000000000000001",
 		"Proposal 1", "Active", 0, 0,
 	)
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO proposals (proposal_id, proposer, description, status, votes_for, votes_against) VALUES ($1, $2, $3, $4, $5, $6)",
+		"INSERT INTO proposals (chain_id, proposal_id, proposer, description, status, votes_for, votes_against) VALUES (31337, $1, $2, $3, $4, $5, $6)",
 		"0x0000000000000000000000000000000000000000000000000000000000000002",
 		"0x0000000000000000000000000000000000000001",
 		"Proposal 2", "Executed", 0, 0,
 	)
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO proposals (proposal_id, proposer, description, status, votes_for, votes_against) VALUES ($1, $2, $3, $4, $5, $6)",
+		"INSERT INTO proposals (chain_id, proposal_id, proposer, description, status, votes_for, votes_against) VALUES (31337, $1, $2, $3, $4, $5, $6)",
 		"0x0000000000000000000000000000000000000000000000000000000000000003",
 		"0x0000000000000000000000000000000000000002",
 		"Proposal 3", "Active", 0, 0,
@@ -1270,7 +1282,7 @@ func TestGetProposal(t *testing.T) {
 
 	proposalID := "0x0000000000000000000000000000000000000000000000000000000000000042"
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO proposals (proposal_id, proposer, description, status, votes_for, votes_against) VALUES ($1, $2, $3, $4, $5, $6)",
+		"INSERT INTO proposals (chain_id, proposal_id, proposer, description, status, votes_for, votes_against) VALUES (31337, $1, $2, $3, $4, $5, $6)",
 		proposalID,
 		"0x0000000000000000000000000000000000000001",
 		"Test Proposal", "Active", 100, 50,
@@ -1316,6 +1328,7 @@ func TestE2E_UserRegistrationToStaking(t *testing.T) {
 
 	// Step 1: Register user with recipient (so address check shows isRegistered=true)
 	err := env.queries.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+		ChainID: 31337,
 		Address:   userAddr,
 		Recipient: userAddr, // self-recipient
 	})
@@ -1324,14 +1337,14 @@ func TestE2E_UserRegistrationToStaking(t *testing.T) {
 	}
 
 	// Step 2: Initialize balance
-	err = env.queries.InitUserBalance(ctx, userAddr)
+	err = env.queries.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: 31337, UserAddress: userAddr})
 	if err != nil {
 		t.Fatalf("InitUserBalance failed: %v", err)
 	}
 
 	// Step 3: Create stake position
 	err = env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
-		TokenID: 1, Owner: userAddr, Amount: numericFromInt64(100001),
+		ChainID: 31337, TokenID: 1, Owner: userAddr, Amount: numericFromInt64(100001),
 		LockEndTime: 50, CreatedAt: 1000,
 	})
 	if err != nil {
@@ -1340,19 +1353,19 @@ func TestE2E_UserRegistrationToStaking(t *testing.T) {
 
 	// Step 4: Insert agent
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agentAddr, userAddr,
 	)
 
 	// Step 5: Insert stake allocations
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
-		UserAddress:  userAddr,
+		ChainID: 31337, UserAddress: userAddr,
 		AgentAddress: agentAddr,
 		SubnetID:     1,
 		Amount:       numericFromInt64(30000),
 	})
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
-		UserAddress:  userAddr,
+		ChainID: 31337, UserAddress: userAddr,
 		AgentAddress: agentAddr,
 		SubnetID:     2,
 		Amount:       numericFromInt64(20000),
@@ -1360,7 +1373,7 @@ func TestE2E_UserRegistrationToStaking(t *testing.T) {
 
 	// Update total_allocated
 	err = env.queries.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
-		UserAddress:    userAddr,
+		ChainID: 31337, UserAddress:    userAddr,
 		TotalAllocated: numericFromInt64(50001),
 	})
 	if err != nil {
@@ -1447,13 +1460,13 @@ func TestE2E_SubnetRegistrationToEmission(t *testing.T) {
 
 	// Step 3: Insert epoch
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO epochs (epoch_id, start_time, daily_emission) VALUES ($1, $2, $3)",
+		"INSERT INTO epochs (chain_id, epoch_id, start_time, daily_emission) VALUES (31337, $1, $2, $3)",
 		1, 3000, 15800000,
 	)
 
 	// Step 4: Insert distribution record (by subnet_contract address, matching the address set in insertSubnet)
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO recipient_awp_distributions (epoch_id, recipient, awp_amount) VALUES ($1, $2, $3)",
+		"INSERT INTO recipient_awp_distributions (chain_id, epoch_id, recipient, awp_amount) VALUES (31337, $1, $2, $3)",
 		1, "0x00000000000000000000000000000000000000c1", 7900000,
 	)
 
@@ -1521,13 +1534,14 @@ func TestE2E_AddressCaseNormalization(t *testing.T) {
 
 	// User has a recipient set (makes isRegistered=true)
 	_ = env.queries.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+		ChainID: 31337,
 		Address:   userAddr,
 		Recipient: recipientAddr,
 	})
-	_ = env.queries.InitUserBalance(ctx, userAddr)
+	_ = env.queries.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: 31337, UserAddress: userAddr})
 	// Agent is bound to user
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agentAddr, userAddr,
 	)
 
