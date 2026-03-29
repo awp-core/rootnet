@@ -188,7 +188,7 @@ type relayBindRequest struct {
 type relayAllocateRequest struct {
 	Staker    string `json:"staker"`
 	Agent     string `json:"agent"`
-	SubnetID  uint64 `json:"subnetId"`
+	SubnetID  string `json:"subnetId"`
 	Amount    string `json:"amount"` // wei string
 	Deadline  uint64 `json:"deadline"`
 	Signature string `json:"signature"`
@@ -197,7 +197,7 @@ type relayAllocateRequest struct {
 type relayDeallocateRequest struct {
 	Staker    string `json:"staker"`
 	Agent     string `json:"agent"`
-	SubnetID  uint64 `json:"subnetId"`
+	SubnetID  string `json:"subnetId"`
 	Amount    string `json:"amount"` // wei string
 	Deadline  uint64 `json:"deadline"`
 	Signature string `json:"signature"`
@@ -205,7 +205,7 @@ type relayDeallocateRequest struct {
 
 type relayActivateSubnetRequest struct {
 	User      string `json:"user"`
-	SubnetID  uint64 `json:"subnetId"`
+	SubnetID  string `json:"subnetId"`
 	Deadline  uint64 `json:"deadline"`
 	Signature string `json:"signature"`
 }
@@ -405,7 +405,7 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 	}
 	if !common.IsHexAddress(req.Staker) { rh.writeError(w, http.StatusBadRequest, "invalid staker address"); return }
 	if !common.IsHexAddress(req.Agent) { rh.writeError(w, http.StatusBadRequest, "invalid agent address"); return }
-	if req.SubnetID == 0 { rh.writeError(w, http.StatusBadRequest, "subnetId is required"); return }
+	if req.SubnetID == "" { rh.writeError(w, http.StatusBadRequest, "subnetId is required"); return }
 	if req.Amount == "" { rh.writeError(w, http.StatusBadRequest, "amount is required"); return }
 	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() { rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired"); return }
 	if req.Signature == "" { rh.writeError(w, http.StatusBadRequest, "missing signature"); return }
@@ -417,12 +417,15 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 	if rateLimitErr != nil { rh.writeError(w, http.StatusInternalServerError, "rate limit check failed"); return }
 	if exceeded { rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay")); return }
 
-	amount, ok := new(big.Int).SetString(req.Amount, 10)
-	if !ok || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
+	subnetId, ok := new(big.Int).SetString(req.SubnetID, 10)
+	if !ok || subnetId.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid subnetId"); return }
+
+	amount, amtOk := new(big.Int).SetString(req.Amount, 10)
+	if !amtOk || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
 
 	txHash, err := rh.relayer.RelayAllocate(r.Context(),
 		common.HexToAddress(req.Staker), common.HexToAddress(req.Agent),
-		new(big.Int).SetUint64(req.SubnetID), amount,
+		subnetId, amount,
 		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
 	if err != nil {
 		rh.logger.Error("relay allocateFor failed", "error", err, "staker", req.Staker)
@@ -442,7 +445,7 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 	}
 	if !common.IsHexAddress(req.Staker) { rh.writeError(w, http.StatusBadRequest, "invalid staker address"); return }
 	if !common.IsHexAddress(req.Agent) { rh.writeError(w, http.StatusBadRequest, "invalid agent address"); return }
-	if req.SubnetID == 0 { rh.writeError(w, http.StatusBadRequest, "subnetId is required"); return }
+	if req.SubnetID == "" { rh.writeError(w, http.StatusBadRequest, "subnetId is required"); return }
 	if req.Amount == "" { rh.writeError(w, http.StatusBadRequest, "amount is required"); return }
 	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() { rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired"); return }
 	if req.Signature == "" { rh.writeError(w, http.StatusBadRequest, "missing signature"); return }
@@ -454,12 +457,15 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 	if rateLimitErr != nil { rh.writeError(w, http.StatusInternalServerError, "rate limit check failed"); return }
 	if exceeded { rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay")); return }
 
-	amount, ok := new(big.Int).SetString(req.Amount, 10)
-	if !ok || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
+	subnetId, ok := new(big.Int).SetString(req.SubnetID, 10)
+	if !ok || subnetId.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid subnetId"); return }
+
+	amount, amtOk := new(big.Int).SetString(req.Amount, 10)
+	if !amtOk || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
 
 	txHash, err := rh.relayer.RelayDeallocate(r.Context(),
 		common.HexToAddress(req.Staker), common.HexToAddress(req.Agent),
-		new(big.Int).SetUint64(req.SubnetID), amount,
+		subnetId, amount,
 		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
 	if err != nil {
 		rh.logger.Error("relay deallocateFor failed", "error", err, "staker", req.Staker)
@@ -478,19 +484,25 @@ func (rh *RelayHandler) RelayActivateSubnet(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if !common.IsHexAddress(req.User) { rh.writeError(w, http.StatusBadRequest, "invalid user address"); return }
-	if req.SubnetID == 0 { rh.writeError(w, http.StatusBadRequest, "subnetId is required"); return }
+	if req.SubnetID == "" { rh.writeError(w, http.StatusBadRequest, "subnetId is required"); return }
 	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() { rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired"); return }
 	if req.Signature == "" { rh.writeError(w, http.StatusBadRequest, "missing signature"); return }
 
 	v, rs, ss, err := parseSignature(req.Signature)
 	if err != nil { rh.writeError(w, http.StatusBadRequest, err.Error()); return }
 
+	subnetId, ok := new(big.Int).SetString(req.SubnetID, 10)
+	if !ok || subnetId.Sign() <= 0 {
+		rh.writeError(w, http.StatusBadRequest, "invalid subnetId")
+		return
+	}
+
 	exceeded, rateLimitErr := rh.checkRateLimit(r)
 	if rateLimitErr != nil { rh.writeError(w, http.StatusInternalServerError, "rate limit check failed"); return }
 	if exceeded { rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay")); return }
 
 	txHash, err := rh.relayer.RelayActivateSubnet(r.Context(),
-		common.HexToAddress(req.User), new(big.Int).SetUint64(req.SubnetID),
+		common.HexToAddress(req.User), subnetId,
 		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
 	if err != nil {
 		rh.logger.Error("relay activateSubnetFor failed", "error", err, "user", req.User, "subnetId", req.SubnetID)

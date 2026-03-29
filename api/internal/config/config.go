@@ -1,6 +1,8 @@
 package config
 
 import (
+	"fmt"
+
 	"github.com/caarlos0/env/v11"
 )
 
@@ -20,8 +22,8 @@ type Config struct {
 	ChainsFile string `env:"CHAINS_FILE" envDefault:""` // Path to chains.yaml; empty = single-chain mode
 
 	// Chain
-	ChainID         int64  `env:"CHAIN_ID,required"` // No default — must match target chain
-	RPCURL          string `env:"RPC_URL,required"` // No default — must be explicitly set for target chain
+	ChainID         int64  `env:"CHAIN_ID" envDefault:"0"`
+	RPCURL          string `env:"RPC_URL" envDefault:""`
 	AWPRegistryAddress string `env:"AWP_REGISTRY_ADDRESS"`
 	SubnetNFTAddress string `env:"SUBNETNFT_ADDRESS"`
 	DAOAddress      string `env:"DAO_ADDRESS"`
@@ -56,6 +58,10 @@ func Load() (*Config, error) {
 	cfg := &Config{}
 	if err := env.Parse(cfg); err != nil {
 		return nil, err
+	}
+	// Validate: either multi-chain (ChainsFile) or single-chain (ChainID+RPC_URL)
+	if cfg.ChainsFile == "" && (cfg.ChainID == 0 || cfg.RPCURL == "") {
+		return nil, fmt.Errorf("either CHAINS_FILE or both CHAIN_ID and RPC_URL must be set")
 	}
 	return cfg, nil
 }

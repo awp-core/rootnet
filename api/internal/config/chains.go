@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"sort"
 
 	"gopkg.in/yaml.v3"
 )
@@ -52,5 +53,8 @@ func LoadChains(path string) ([]ChainConfig, error) {
 	if len(chains) == 0 {
 		return nil, fmt.Errorf("no valid chains in %s", path)
 	}
+	sort.Slice(chains, func(i, j int) bool {
+		return chains[i].ChainID < chains[j].ChainID
+	})
 	return chains, nil
 }
