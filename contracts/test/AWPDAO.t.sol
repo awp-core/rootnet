@@ -8,6 +8,7 @@ import {AWPDAO} from "../src/governance/AWPDAO.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPToken} from "../src/token/AWPToken.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {StakingVault} from "../src/core/StakingVault.sol";
 
 contract AWPDAOTest is Test {
@@ -37,7 +38,9 @@ contract AWPDAOTest is Test {
         address predictedVault = vm.computeCreateAddress(deployer, nonce);
         address predictedStakeNFT = vm.computeCreateAddress(deployer, nonce + 1);
 
-        vault = new StakingVault(address(this));
+        vault = StakingVault(address(new ERC1967Proxy(
+            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(this)))
+        )));
         stakeNFT = new StakeNFT(address(awpToken), address(vault), address(this));
         vm.stopPrank();
         vault.setStakeNFT(address(stakeNFT));

@@ -52,23 +52,6 @@ interface IAWPRegistry {
     event DelegateGranted(address indexed staker, address indexed delegate);
     event DelegateRevoked(address indexed staker, address indexed delegate);
 
-    // ── Staking events ──
-    event Allocated(
-        address indexed staker, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator
-    );
-    event Deallocated(
-        address indexed staker, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator
-    );
-    event Reallocated(
-        address indexed staker,
-        address fromAgent,
-        uint256 fromSubnet,
-        address toAgent,
-        uint256 toSubnet,
-        uint256 amount,
-        address operator
-    );
-
     // ── Subnet events ──
     event SubnetRegistered(
         uint256 indexed subnetId,

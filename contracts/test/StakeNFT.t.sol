@@ -7,6 +7,7 @@ import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {StakingVault} from "../src/core/StakingVault.sol";
 import {IStakeNFT} from "../src/interfaces/IStakeNFT.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract StakeNFTTest is Test {
     AWPToken awp;
@@ -34,7 +35,9 @@ contract StakeNFTTest is Test {
         address predictedVault = vm.computeCreateAddress(deployer, deployerNonce);
         address predictedStakeNFT = vm.computeCreateAddress(deployer, deployerNonce + 1);
 
-        vault = new StakingVault(awpRegistry);
+        vault = StakingVault(address(new ERC1967Proxy(
+            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (awpRegistry))
+        )));
         stakeNFT = new StakeNFT(address(awp), address(vault), awpRegistry);
         vm.stopPrank();
         vault.setStakeNFT(address(stakeNFT));

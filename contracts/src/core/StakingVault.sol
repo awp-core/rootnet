@@ -1,19 +1,29 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IStakeNFT} from "../interfaces/IStakeNFT.sol";
 
-/// @title StakingVault — Pure allocation management (simplified)
+/// @dev Minimal interface for reading delegate auth + treasury from AWPRegistry
+interface IAWPRegistryDelegates {
+    function delegates(address staker, address delegate) external view returns (bool);
+    function treasury() external view returns (address);
+}
+
+/// @title StakingVault — Allocation management with EIP-712 gasless support (UUPS proxy)
 /// @notice Manages user stake allocations to (agent, subnetId) triples.
 ///         Deposit/withdraw have been moved to StakeNFT. All allocations are immediate.
 ///         Tracks which subnets each (user, agent) pair has allocations on, enabling
 ///         automatic complete freeze without requiring the caller to supply subnet IDs.
-contract StakingVault {
+contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
     using EnumerableSet for EnumerableSet.UintSet;
 
-    /// @notice AWPRegistry contract address (immutable)
-    address public immutable awpRegistry;
+    /// @notice AWPRegistry contract address (storage, set at initialize for proxy pattern)
+    address public awpRegistry;
 
     /// @notice StakeNFT contract address (for balance checks, set once via setStakeNFT)
     address public stakeNFT;
@@ -35,13 +45,46 @@ contract StakingVault {
     /// @notice Total stake per subnet
     mapping(uint256 => uint256) public subnetTotalStake;
 
+    // ═══════════════════════════════════════════════
+    // ── Gasless — EIP-712 ──
+    // ═══════════════════════════════════════════════
+
+    /// @notice Per-signer nonce for replay attack prevention
+    mapping(address => uint256) public nonces;
+
+    /// @dev EIP-712 type hash: Allocate(address staker, address agent, uint256 subnetId, uint256 amount, uint256 nonce, uint256 deadline)
+    bytes32 private constant ALLOCATE_TYPEHASH =
+        keccak256("Allocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)");
+
+    /// @dev EIP-712 type hash: Deallocate(address staker, address agent, uint256 subnetId, uint256 amount, uint256 nonce, uint256 deadline)
+    bytes32 private constant DEALLOCATE_TYPEHASH =
+        keccak256("Deallocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)");
+
     // ── Errors ──
 
     error NotAWPRegistry();
+    error NotAuthorized();
     error InsufficientUnallocated();
     error InsufficientAllocation();
     error InvalidAmount();
+    error ZeroAddress();
+    error AlreadySet();
+    error ExpiredSignature();
+    error InvalidSignature();
 
+    // ── Events ──
+
+    event Allocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator);
+    event Deallocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator);
+    event Reallocated(
+        address indexed staker,
+        address fromAgent,
+        uint256 fromSubnetId,
+        address toAgent,
+        uint256 toSubnetId,
+        uint256 amount,
+        address operator
+    );
     event AgentAllocationsFrozen(address indexed user, address indexed agent, uint256 totalFrozen);
 
     /// @dev Only the AWPRegistry contract may call
@@ -50,13 +93,26 @@ contract StakingVault {
         _;
     }
 
-    error ZeroAddress();
-    error AlreadySet();
+    // ═══════════════════════════════════════════════
+    // ── Constructor / Initialize ──
+    // ═══════════════════════════════════════════════
 
-    /// @notice Constructor
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+
+    /// @notice Initialize the vault (called once via proxy)
     /// @param awpRegistry_ AWPRegistry contract address
-    constructor(address awpRegistry_) {
+    function initialize(address awpRegistry_) external initializer {
+        __UUPSUpgradeable_init();
+        __EIP712_init("StakingVault", "1");
         awpRegistry = awpRegistry_;
+    }
+
+    /// @dev UUPS upgrade authorization — only Treasury (via AWPRegistry) may upgrade
+    function _authorizeUpgrade(address) internal view override {
+        if (msg.sender != IAWPRegistryDelegates(awpRegistry).treasury()) revert NotAWPRegistry();
     }
 
     /// @notice Set StakeNFT address (one-time, resolves CREATE2 circular dependency)
@@ -69,94 +125,107 @@ contract StakingVault {
     }
 
     // ═══════════════════════════════════════════════
+    // ── Auth helpers ──
+    // ═══════════════════════════════════════════════
+
+    /// @dev Check if caller is authorized to act on behalf of staker
+    function _isAuthorized(address staker, address caller) internal view returns (bool) {
+        return caller == staker || IAWPRegistryDelegates(awpRegistry).delegates(staker, caller);
+    }
+
+    /// @dev Verify EIP-712 digest + deadline. Reverts on failure.
+    function _verifyDigest(address user, bytes32 structHash, uint256 deadline, uint8 v, bytes32 r, bytes32 s) internal view {
+        if (block.timestamp > deadline) revert ExpiredSignature();
+        bytes32 digest = _hashTypedDataV4(structHash);
+        if (ECDSA.recover(digest, v, r, s) != user) revert InvalidSignature();
+    }
+
+    // ═══════════════════════════════════════════════
     // ── Allocation (all immediate) ──
     // ═══════════════════════════════════════════════
 
     /// @notice Allocate staking to a specific (agent, subnetId), effective immediately
-    /// @param user User address
+    /// @param staker Staker address (caller must be staker or delegate)
     /// @param agent Agent address
     /// @param subnetId Target subnet ID
     /// @param amount Allocation amount
-    function allocate(address user, address agent, uint256 subnetId, uint256 amount)
-        external
-        onlyAWPRegistry
-    {
-        if (amount == 0 || amount > type(uint128).max || subnetId == 0) revert InvalidAmount();
+    function allocate(address staker, address agent, uint256 subnetId, uint256 amount) external {
+        if (!_isAuthorized(staker, msg.sender)) revert NotAuthorized();
+        _allocate(staker, agent, subnetId, amount);
+        emit Allocated(staker, agent, subnetId, amount, msg.sender);
+    }
 
-        // Check available balance via StakeNFT (O(1))
-        uint256 staked = IStakeNFT(stakeNFT).getUserTotalStaked(user);
-        uint256 allocated = userTotalAllocated[user];
-        if (allocated + amount > staked) revert InsufficientUnallocated();
-
-        _allocations[user][agent][subnetId] += uint128(amount);
-        userTotalAllocated[user] += amount;
-        subnetTotalStake[subnetId] += amount;
-        // Track this subnet for the (user, agent) pair
-        _agentSubnets[user][agent].add(subnetId);
+    /// @notice Gasless allocate: relayer pays gas, staker signs EIP-712
+    function allocateFor(
+        address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
+        uint8 v, bytes32 r, bytes32 s
+    ) external {
+        _verifyDigest(staker, keccak256(abi.encode(ALLOCATE_TYPEHASH, staker, agent, subnetId, amount, nonces[staker]++, deadline)), deadline, v, r, s);
+        _allocate(staker, agent, subnetId, amount);
+        emit Allocated(staker, agent, subnetId, amount, msg.sender);
     }
 
     /// @notice Deallocate staking from a specific (agent, subnetId), effective immediately
-    /// @param user User address
+    /// @param staker Staker address (caller must be staker or delegate)
     /// @param agent Agent address
     /// @param subnetId Target subnet ID
     /// @param amount Amount to deallocate
-    function deallocate(address user, address agent, uint256 subnetId, uint256 amount)
-        external
-        onlyAWPRegistry
-    {
-        if (amount == 0 || amount > type(uint128).max) revert InvalidAmount();
+    function deallocate(address staker, address agent, uint256 subnetId, uint256 amount) external {
+        if (!_isAuthorized(staker, msg.sender)) revert NotAuthorized();
+        _deallocate(staker, agent, subnetId, amount);
+        emit Deallocated(staker, agent, subnetId, amount, msg.sender);
+    }
 
-        uint128 amt128 = uint128(amount);
-        uint128 current = _allocations[user][agent][subnetId];
-        if (current < amt128) revert InsufficientAllocation();
-
-        uint128 remaining = current - amt128;
-        _allocations[user][agent][subnetId] = remaining;
-        userTotalAllocated[user] -= amount;
-        subnetTotalStake[subnetId] -= amount;
-        // Remove subnet from set when fully deallocated
-        if (remaining == 0) {
-            _agentSubnets[user][agent].remove(subnetId);
-        }
+    /// @notice Gasless deallocate: relayer pays gas, staker signs EIP-712
+    function deallocateFor(
+        address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
+        uint8 v, bytes32 r, bytes32 s
+    ) external {
+        _verifyDigest(staker, keccak256(abi.encode(DEALLOCATE_TYPEHASH, staker, agent, subnetId, amount, nonces[staker]++, deadline)), deadline, v, r, s);
+        _deallocate(staker, agent, subnetId, amount);
+        emit Deallocated(staker, agent, subnetId, amount, msg.sender);
     }
 
     /// @notice Reallocate staking: immediate atomic move from one (agent, subnet) to another
-    /// @param user User address
+    /// @param staker Staker address (caller must be staker or delegate)
     /// @param fromAgent Source Agent address
     /// @param fromSubnetId Source subnet ID
     /// @param toAgent Target Agent address
     /// @param toSubnetId Target subnet ID
     /// @param amount Migration amount
     function reallocate(
-        address user,
+        address staker,
         address fromAgent,
         uint256 fromSubnetId,
         address toAgent,
         uint256 toSubnetId,
         uint256 amount
-    ) external onlyAWPRegistry {
+    ) external {
+        if (!_isAuthorized(staker, msg.sender)) revert NotAuthorized();
         if (amount == 0 || amount > type(uint128).max || fromSubnetId == 0 || toSubnetId == 0) revert InvalidAmount();
 
         uint128 amt128 = uint128(amount);
-        uint128 current = _allocations[user][fromAgent][fromSubnetId];
+        uint128 current = _allocations[staker][fromAgent][fromSubnetId];
         if (current < amt128) revert InsufficientAllocation();
 
         // Subtract from source
         uint128 remaining = current - amt128;
-        _allocations[user][fromAgent][fromSubnetId] = remaining;
+        _allocations[staker][fromAgent][fromSubnetId] = remaining;
         if (remaining == 0) {
-            _agentSubnets[user][fromAgent].remove(fromSubnetId);
+            _agentSubnets[staker][fromAgent].remove(fromSubnetId);
         }
 
         // Add to destination
-        _allocations[user][toAgent][toSubnetId] += amt128;
-        _agentSubnets[user][toAgent].add(toSubnetId);
+        _allocations[staker][toAgent][toSubnetId] += amt128;
+        _agentSubnets[staker][toAgent].add(toSubnetId);
 
         // Update subnet totals
         subnetTotalStake[fromSubnetId] -= amount;
         subnetTotalStake[toSubnetId] += amount;
 
         // userTotalAllocated unchanged (it's a move)
+
+        emit Reallocated(staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount, msg.sender);
     }
 
     /// @notice Freeze all allocations of an Agent across all subnets it has been allocated to
@@ -193,6 +262,44 @@ contract StakingVault {
     }
 
     // ═══════════════════════════════════════════════
+    // ── Internal allocation helpers ──
+    // ═══════════════════════════════════════════════
+
+    /// @dev Internal allocate logic (shared by allocate and allocateFor)
+    function _allocate(address staker, address agent, uint256 subnetId, uint256 amount) internal {
+        if (amount == 0 || amount > type(uint128).max || subnetId == 0) revert InvalidAmount();
+
+        // Check available balance via StakeNFT (O(1))
+        uint256 staked = IStakeNFT(stakeNFT).getUserTotalStaked(staker);
+        uint256 allocated = userTotalAllocated[staker];
+        if (allocated + amount > staked) revert InsufficientUnallocated();
+
+        _allocations[staker][agent][subnetId] += uint128(amount);
+        userTotalAllocated[staker] += amount;
+        subnetTotalStake[subnetId] += amount;
+        // Track this subnet for the (staker, agent) pair
+        _agentSubnets[staker][agent].add(subnetId);
+    }
+
+    /// @dev Internal deallocate logic (shared by deallocate and deallocateFor)
+    function _deallocate(address staker, address agent, uint256 subnetId, uint256 amount) internal {
+        if (amount == 0 || amount > type(uint128).max) revert InvalidAmount();
+
+        uint128 amt128 = uint128(amount);
+        uint128 current = _allocations[staker][agent][subnetId];
+        if (current < amt128) revert InsufficientAllocation();
+
+        uint128 remaining = current - amt128;
+        _allocations[staker][agent][subnetId] = remaining;
+        userTotalAllocated[staker] -= amount;
+        subnetTotalStake[subnetId] -= amount;
+        // Remove subnet from set when fully deallocated
+        if (remaining == 0) {
+            _agentSubnets[staker][agent].remove(subnetId);
+        }
+    }
+
+    // ═══════════════════════════════════════════════
     // ── Query functions ──
     // ═══════════════════════════════════════════════
 
@@ -223,4 +330,7 @@ contract StakingVault {
     function getSubnetTotalStake(uint256 subnetId) external view returns (uint256) {
         return subnetTotalStake[subnetId];
     }
+
+    /// @dev Reserved storage gap for future upgrades (UUPS pattern)
+    uint256[45] private __gap;
 }

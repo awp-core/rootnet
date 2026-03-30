@@ -77,7 +77,9 @@ contract AWPRegistryTest is Test {
         factory.setAddresses(address(awpRegistry));
 
         // Deploy StakeNFT and StakingVault
-        vault = new StakingVault(address(awpRegistry));
+        vault = StakingVault(address(new ERC1967Proxy(
+            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(awpRegistry)))
+        )));
         stakeNFT = new StakeNFT(address(awp), address(vault), address(awpRegistry));
 
         // Initialize registry (no accessManager parameter)
@@ -239,12 +241,12 @@ contract AWPRegistryTest is Test {
 
         // Allocate (staker = user1, agent = agent1)
         vm.prank(user1);
-        awpRegistry.allocate(user1, agent1, sid, 500 * 1e18);
+        vault.allocate(user1, agent1, sid, 500 * 1e18);
         assertEq(vault.getAgentStake(user1, agent1, sid), 500 * 1e18);
 
         // Deallocate
         vm.prank(user1);
-        awpRegistry.deallocate(user1, agent1, sid, 200 * 1e18);
+        vault.deallocate(user1, agent1, sid, 200 * 1e18);
         assertEq(vault.getAgentStake(user1, agent1, sid), 300 * 1e18);
     }
 
@@ -263,7 +265,7 @@ contract AWPRegistryTest is Test {
 
         // user2 allocates on behalf of user1
         vm.prank(user2);
-        awpRegistry.allocate(user1, agent1, sid, 500 * 1e18);
+        vault.allocate(user1, agent1, sid, 500 * 1e18);
         assertEq(vault.getAgentStake(user1, agent1, sid), 500 * 1e18);
     }
 
@@ -280,8 +282,8 @@ contract AWPRegistryTest is Test {
 
         // user2 has no delegation from user1
         vm.prank(user2);
-        vm.expectRevert(AWPRegistry.NotAuthorized.selector);
-        awpRegistry.allocate(user1, agent1, sid, 500 * 1e18);
+        vm.expectRevert(StakingVault.NotAuthorized.selector);
+        vault.allocate(user1, agent1, sid, 500 * 1e18);
     }
 
     function test_reallocate_immediate() public {
@@ -299,11 +301,11 @@ contract AWPRegistryTest is Test {
 
         // Allocate to agent1/subnet
         vm.prank(user1);
-        awpRegistry.allocate(user1, agent1, sid, 500 * 1e18);
+        vault.allocate(user1, agent1, sid, 500 * 1e18);
 
         // Reallocate to agent2/subnet — takes effect immediately
         vm.prank(user1);
-        awpRegistry.reallocate(user1, agent1, sid, agent2, sid, 200 * 1e18);
+        vault.reallocate(user1, agent1, sid, agent2, sid, 200 * 1e18);
 
         assertEq(vault.getAgentStake(user1, agent1, sid), 300 * 1e18);
         assertEq(vault.getAgentStake(user1, agent2, sid), 200 * 1e18);
@@ -507,7 +509,7 @@ contract AWPRegistryTest is Test {
         // Allocate to a "foreign" subnetId (Arbitrum chain, local ID 5)
         uint256 foreignSubnetId = (uint256(42161) << 64) | 5;
         vm.prank(user1);
-        awpRegistry.allocate(user1, user1, foreignSubnetId, 5_000 * 1e18);
+        vault.allocate(user1, user1, foreignSubnetId, 5_000 * 1e18);
 
         assertEq(vault.getAgentStake(user1, user1, foreignSubnetId), 5_000 * 1e18);
     }
@@ -522,8 +524,8 @@ contract AWPRegistryTest is Test {
         uint256 foreignSubnetId = (uint256(42161) << 64) | 5;
 
         vm.startPrank(user1);
-        awpRegistry.allocate(user1, user1, localSubnetId, 5_000 * 1e18);
-        awpRegistry.reallocate(user1, user1, localSubnetId, user1, foreignSubnetId, 2_000 * 1e18);
+        vault.allocate(user1, user1, localSubnetId, 5_000 * 1e18);
+        vault.reallocate(user1, user1, localSubnetId, user1, foreignSubnetId, 2_000 * 1e18);
         vm.stopPrank();
 
         assertEq(vault.getAgentStake(user1, user1, localSubnetId), 3_000 * 1e18);
@@ -571,7 +573,7 @@ contract AWPRegistryTest is Test {
         awpRegistry.activateSubnet(sid);
 
         vm.prank(user1);
-        awpRegistry.allocate(user1, agent1, sid, 500 * 1e18);
+        vault.allocate(user1, agent1, sid, 500 * 1e18);
 
         AWPRegistry.AgentInfo memory info = awpRegistry.getAgentInfo(agent1, sid);
         assertEq(info.root, user1);

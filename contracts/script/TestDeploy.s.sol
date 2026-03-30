@@ -43,7 +43,10 @@ contract TestDeploy is Script {
         }
 
         // Deploy StakingVault, then StakeNFT
-        StakingVault sv = new StakingVault(address(awpRegistry));
+        StakingVault svImpl = new StakingVault();
+        StakingVault sv = StakingVault(address(new ERC1967Proxy(
+            address(svImpl), abi.encodeCall(StakingVault.initialize, (address(awpRegistry)))
+        )));
         StakeNFT stakeNft = new StakeNFT(address(awp), address(sv), address(awpRegistry));
 
         awp.addMinter(address(em));

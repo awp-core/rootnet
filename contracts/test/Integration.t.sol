@@ -100,7 +100,9 @@ contract IntegrationTest is EmissionSigningHelper {
         factory.setAddresses(address(awpRegistry));
 
         // Step 12: Deploy StakingVault + StakeNFT
-        vault = new StakingVault(address(awpRegistry));
+        vault = StakingVault(address(new ERC1967Proxy(
+            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(awpRegistry)))
+        )));
         stakeNFT = new StakeNFT(address(awp), address(vault), address(awpRegistry));
 
         // Step 13: AWPDAO
@@ -244,7 +246,7 @@ contract IntegrationTest is EmissionSigningHelper {
         stakeNFT.deposit(500_000 * 1e18, 52 weeks);
 
         // 7. Allocate to agent1/subnet1 (explicit staker)
-        awpRegistry.allocate(owner1, agent1, subnetId, 300_000 * 1e18);
+        vault.allocate(owner1, agent1, subnetId, 300_000 * 1e18);
         vm.stopPrank();
 
         assertEq(vault.getAgentStake(owner1, agent1, subnetId), 300_000 * 1e18);
@@ -362,10 +364,10 @@ contract IntegrationTest is EmissionSigningHelper {
         awpRegistry.activateSubnet(subnetId);
         awp.approve(address(stakeNFT), 500_000 * 1e18);
         stakeNFT.deposit(500_000 * 1e18, 52 weeks);
-        awpRegistry.allocate(owner1, agent1, subnetId, 300_000 * 1e18);
+        vault.allocate(owner1, agent1, subnetId, 300_000 * 1e18);
 
         // Deallocate all
-        awpRegistry.deallocate(owner1, agent1, subnetId, 300_000 * 1e18);
+        vault.deallocate(owner1, agent1, subnetId, 300_000 * 1e18);
         vm.stopPrank();
 
         assertEq(vault.getAgentStake(owner1, agent1, subnetId), 0);
@@ -395,12 +397,12 @@ contract IntegrationTest is EmissionSigningHelper {
 
         // agent1 allocates on behalf of owner1
         vm.prank(agent1);
-        awpRegistry.allocate(owner1, agent2, subnetId, 100_000 * 1e18);
+        vault.allocate(owner1, agent2, subnetId, 100_000 * 1e18);
         assertEq(vault.getAgentStake(owner1, agent2, subnetId), 100_000 * 1e18);
 
         // agent1 deallocates on behalf of owner1
         vm.prank(agent1);
-        awpRegistry.deallocate(owner1, agent2, subnetId, 50_000 * 1e18);
+        vault.deallocate(owner1, agent2, subnetId, 50_000 * 1e18);
         assertEq(vault.getAgentStake(owner1, agent2, subnetId), 50_000 * 1e18);
     }
 

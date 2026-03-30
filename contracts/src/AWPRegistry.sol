@@ -122,14 +122,6 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     bytes32 private constant SET_RECIPIENT_TYPEHASH =
         keccak256("SetRecipient(address user,address recipient,uint256 nonce,uint256 deadline)");
 
-    /// @dev EIP-712 type hash: Allocate(address staker, address agent, uint256 subnetId, uint256 amount, uint256 nonce, uint256 deadline)
-    bytes32 private constant ALLOCATE_TYPEHASH =
-        keccak256("Allocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)");
-
-    /// @dev EIP-712 type hash: Deallocate(address staker, address agent, uint256 subnetId, uint256 amount, uint256 nonce, uint256 deadline)
-    bytes32 private constant DEALLOCATE_TYPEHASH =
-        keccak256("Deallocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)");
-
     /// @dev EIP-712 type hash: ActivateSubnet(address user, uint256 subnetId, uint256 nonce, uint256 deadline)
     bytes32 private constant ACTIVATE_SUBNET_TYPEHASH =
         keccak256("ActivateSubnet(address user,uint256 subnetId,uint256 nonce,uint256 deadline)");
@@ -197,8 +189,6 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     error CycleDetected();
     /// @dev Binding chain is too long (safety limit)
     error ChainTooLong();
-    /// @dev Caller is not authorized (not staker and not delegate)
-    error NotAuthorized();
     /// @dev Cannot revoke self as delegate
     error CannotRevokeSelf();
     /// @dev Address is already registered
@@ -447,81 +437,6 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         if (delegate == msg.sender) revert CannotRevokeSelf();
         delegates[msg.sender][delegate] = false;
         emit DelegateRevoked(msg.sender, delegate);
-    }
-
-    // ═══════════════════════════════════════════════
-    //  Staking: Allocation
-    // ═══════════════════════════════════════════════
-
-    /// @notice Allocate deposited AWP to a (staker, agent, subnetId) triple
-    /// @dev Permission: msg.sender == staker || delegates[staker][msg.sender]
-    /// @param staker Staker address (explicit)
-    /// @param agent Target agent address (any address)
-    /// @param subnetId Target subnet ID
-    /// @param amount AWP amount to allocate
-    function allocate(address staker, address agent, uint256 subnetId, uint256 amount)
-        external nonReentrant whenNotPaused
-    {
-        if (msg.sender != staker && !delegates[staker][msg.sender]) revert NotAuthorized();
-        IStakingVault(stakingVault).allocate(staker, agent, subnetId, amount);
-        emit Allocated(staker, agent, subnetId, amount, msg.sender);
-    }
-
-    /// @notice Deallocate: release staking from a (staker, agent, subnetId) triple
-    /// @param staker Staker address (explicit)
-    /// @param agent Source agent address
-    /// @param subnetId Source subnet ID
-    /// @param amount AWP amount to deallocate
-    function deallocate(address staker, address agent, uint256 subnetId, uint256 amount)
-        external nonReentrant whenNotPaused
-    {
-        if (msg.sender != staker && !delegates[staker][msg.sender]) revert NotAuthorized();
-        IStakingVault(stakingVault).deallocate(staker, agent, subnetId, amount);
-        emit Deallocated(staker, agent, subnetId, amount, msg.sender);
-    }
-
-    /// @notice Gasless allocate: relayer pays gas, staker signs EIP-712
-    function allocateFor(
-        address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
-        uint8 v, bytes32 r, bytes32 s
-    ) external nonReentrant whenNotPaused {
-        _verifyDigest(staker, keccak256(abi.encode(ALLOCATE_TYPEHASH, staker, agent, subnetId, amount, nonces[staker]++, deadline)), deadline, v, r, s);
-
-        IStakingVault(stakingVault).allocate(staker, agent, subnetId, amount);
-        emit Allocated(staker, agent, subnetId, amount, msg.sender);
-    }
-
-    /// @notice Gasless deallocate: relayer pays gas, staker signs EIP-712
-    function deallocateFor(
-        address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
-        uint8 v, bytes32 r, bytes32 s
-    ) external nonReentrant whenNotPaused {
-        _verifyDigest(staker, keccak256(abi.encode(DEALLOCATE_TYPEHASH, staker, agent, subnetId, amount, nonces[staker]++, deadline)), deadline, v, r, s);
-
-        IStakingVault(stakingVault).deallocate(staker, agent, subnetId, amount);
-        emit Deallocated(staker, agent, subnetId, amount, msg.sender);
-    }
-
-    /// @notice Reallocate: move staking from one (agent, subnet) triple to another (immediate)
-    /// @param staker Staker address (explicit)
-    /// @param fromAgent Source agent address
-    /// @param fromSubnetId Source subnet ID
-    /// @param toAgent Target agent address
-    /// @param toSubnetId Target subnet ID
-    /// @param amount AWP amount to reallocate
-    function reallocate(
-        address staker,
-        address fromAgent,
-        uint256 fromSubnetId,
-        address toAgent,
-        uint256 toSubnetId,
-        uint256 amount
-    ) external nonReentrant whenNotPaused {
-        if (msg.sender != staker && !delegates[staker][msg.sender]) revert NotAuthorized();
-        IStakingVault(stakingVault).reallocate(
-            staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount
-        );
-        emit Reallocated(staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount, msg.sender);
     }
 
     // ═══════════════════════════════════════════════

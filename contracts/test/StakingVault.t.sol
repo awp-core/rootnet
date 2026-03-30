@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {AWPToken} from "../src/token/AWPToken.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract StakingVaultTest is Test {
     StakingVault public vault;
@@ -41,7 +42,9 @@ contract StakingVaultTest is Test {
         address predictedVault = vm.computeCreateAddress(deployer, nonce);
         address predictedStakeNFT = vm.computeCreateAddress(deployer, nonce + 1);
 
-        vault = new StakingVault(address(this));
+        vault = StakingVault(address(new ERC1967Proxy(
+            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(this)))
+        )));
         stakeNFT = new StakeNFT(address(awp), address(vault), address(this));
         vault.setStakeNFT(address(stakeNFT));
 

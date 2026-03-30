@@ -97,7 +97,9 @@ contract E2ETest is EmissionSigningHelper {
         factory.setAddresses(address(awpRegistry));
 
         // Deploy StakingVault + StakeNFT
-        vault = new StakingVault(address(awpRegistry));
+        vault = StakingVault(address(new ERC1967Proxy(
+            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(awpRegistry)))
+        )));
         stakeNFT = new StakeNFT(address(awp), address(vault), address(awpRegistry));
 
         // Deploy AWPDAO
@@ -172,7 +174,7 @@ contract E2ETest is EmissionSigningHelper {
         vm.startPrank(staker);
         awp.approve(address(stakeNFT), deposit);
         stakeNFT.deposit(deposit, 52 weeks);
-        awpRegistry.allocate(staker, agent, subnetId, alloc);
+        vault.allocate(staker, agent, subnetId, alloc);
         vm.stopPrank();
     }
 
@@ -255,7 +257,7 @@ contract E2ETest is EmissionSigningHelper {
 
         // Reallocate 5000 from agentA -> agentB (immediate)
         vm.prank(alice);
-        awpRegistry.reallocate(alice, agentA, sid, agentB, sid, 5_000 * 1e18);
+        vault.reallocate(alice, agentA, sid, agentB, sid, 5_000 * 1e18);
 
         assertEq(vault.getAgentStake(alice, agentA, sid), 3_000 * 1e18);
         assertEq(vault.getAgentStake(alice, agentB, sid), 5_000 * 1e18);
@@ -519,7 +521,7 @@ contract E2ETest is EmissionSigningHelper {
 
         // Deallocate all
         vm.prank(alice);
-        awpRegistry.deallocate(alice, agentA, sid, 5_000 * 1e18);
+        vault.deallocate(alice, agentA, sid, 5_000 * 1e18);
 
         assertEq(vault.getAgentStake(alice, agentA, sid), 0);
         assertEq(vault.userTotalAllocated(alice), 0);
@@ -538,7 +540,7 @@ contract E2ETest is EmissionSigningHelper {
         vm.startPrank(bob);
         awp.approve(address(stakeNFT), 20_000 * 1e18);
         stakeNFT.deposit(20_000 * 1e18, 52 weeks);
-        awpRegistry.allocate(bob, agentB, sid, 15_000 * 1e18);
+        vault.allocate(bob, agentB, sid, 15_000 * 1e18);
         vm.stopPrank();
 
         assertEq(stakeNFT.getUserTotalStaked(bob), 20_000 * 1e18);
@@ -603,7 +605,7 @@ contract E2ETest is EmissionSigningHelper {
 
         // Alice deallocates
         vm.prank(alice);
-        awpRegistry.deallocate(alice, agentA, sid1, 3_000 * 1e18);
+        vault.deallocate(alice, agentA, sid1, 3_000 * 1e18);
 
         _submitWeights(
             _toArray2(subnetC1, subnetC2),
@@ -613,7 +615,7 @@ contract E2ETest is EmissionSigningHelper {
 
         // Bob deallocates
         vm.prank(bob);
-        awpRegistry.deallocate(bob, agentB, sid2, 5_000 * 1e18);
+        vault.deallocate(bob, agentB, sid2, 5_000 * 1e18);
 
         _submitWeights(
             _toArray2(subnetC1, subnetC2),
@@ -696,9 +698,9 @@ contract E2ETest is EmissionSigningHelper {
         vm.expectRevert();
         awpRegistry.register();
         vm.expectRevert();
-        awpRegistry.allocate(alice, agentA, sid, 100);
+        vault.allocate(alice, agentA, sid, 100);
         vm.expectRevert();
-        awpRegistry.deallocate(alice, agentA, sid, 100);
+        vault.deallocate(alice, agentA, sid, 100);
         vm.expectRevert();
         awpRegistry.activateSubnet(sid);
         vm.stopPrank();
@@ -713,7 +715,7 @@ contract E2ETest is EmissionSigningHelper {
         awpRegistry.unpause();
 
         vm.prank(alice);
-        awpRegistry.deallocate(alice, agentA, sid, 1_000 * 1e18);
+        vault.deallocate(alice, agentA, sid, 1_000 * 1e18);
         assertEq(vault.getAgentStake(alice, agentA, sid), 4_000 * 1e18);
     }
 
@@ -822,9 +824,9 @@ contract E2ETest is EmissionSigningHelper {
 
         // Reallocate
         vm.prank(alice);
-        awpRegistry.reallocate(alice, agentA, sid1, agentA, sid2, 200 * 1e18);
+        vault.reallocate(alice, agentA, sid1, agentA, sid2, 200 * 1e18);
         vm.prank(bob);
-        awpRegistry.reallocate(bob, agentB, sid1, agentB, sid2, 100 * 1e18);
+        vault.reallocate(bob, agentB, sid1, agentB, sid2, 100 * 1e18);
 
         assertEq(vault.getAgentStake(alice, agentA, sid1), 300 * 1e18);
         assertEq(vault.getAgentStake(alice, agentA, sid2), 200 * 1e18);
@@ -896,7 +898,7 @@ contract E2ETest is EmissionSigningHelper {
 
         // Bob can deallocate on behalf of alice
         vm.prank(bob);
-        awpRegistry.deallocate(alice, agentA, sid, 2_000 * 1e18);
+        vault.deallocate(alice, agentA, sid, 2_000 * 1e18);
         assertEq(vault.getAgentStake(alice, agentA, sid), 3_000 * 1e18);
 
         // Revoke delegation
@@ -905,8 +907,8 @@ contract E2ETest is EmissionSigningHelper {
 
         // Bob can no longer operate
         vm.prank(bob);
-        vm.expectRevert(AWPRegistry.NotAuthorized.selector);
-        awpRegistry.deallocate(alice, agentA, sid, 1_000 * 1e18);
+        vm.expectRevert(StakingVault.NotAuthorized.selector);
+        vault.deallocate(alice, agentA, sid, 1_000 * 1e18);
     }
 
     // ── EIP-712 helpers ──
