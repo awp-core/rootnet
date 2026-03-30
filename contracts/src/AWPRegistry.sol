@@ -332,14 +332,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     function bind(address target) external nonReentrant whenNotPaused {
         if (target == address(0)) revert InvalidAddress();
         if (target == msg.sender) revert InvalidAddress();
-        // Anti-cycle: walk up from target, if we find msg.sender → cycle
-        address cur = target;
-        uint256 depth = 0;
-        while (boundTo[cur] != address(0) && boundTo[cur] != cur) {
-            if (boundTo[cur] == msg.sender) revert CycleDetected();
-            cur = boundTo[cur];
-            if (++depth >= 100) revert ChainTooLong();
-        }
+        _checkCycle(msg.sender, target);
         // First-time interaction: count as registered
         if (boundTo[msg.sender] == address(0) && recipient[msg.sender] == address(0)) {
             registeredCount++;
@@ -375,14 +368,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         address signer = ECDSA.recover(digest, v, r, s);
         if (signer != agent) revert InvalidSignature();
 
-        // Anti-cycle check
-        address cur = target;
-        uint256 depth = 0;
-        while (boundTo[cur] != address(0) && boundTo[cur] != cur) {
-            if (boundTo[cur] == agent) revert CycleDetected();
-            cur = boundTo[cur];
-            if (++depth >= 100) revert ChainTooLong();
-        }
+        _checkCycle(agent, target);
         if (boundTo[agent] == address(0) && recipient[agent] == address(0)) {
             registeredCount++;
             emit UserRegistered(agent);
@@ -749,9 +735,9 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         SubnetStatus status = info.status;
         if (status != SubnetStatus.Active && status != SubnetStatus.Paused) revert InvalidSubnetStatus();
 
-        address sc = ISubnetNFT(subnetNFT).getSubnetManager(subnetId);
-        if (sc != address(0)) {
-            IAlphaToken(ISubnetNFT(subnetNFT).getAlphaToken(subnetId)).setMinterPaused(sc, true);
+        ISubnetNFT.SubnetData memory sd = ISubnetNFT(subnetNFT).getSubnetData(subnetId);
+        if (sd.subnetManager != address(0)) {
+            IAlphaToken(sd.alphaToken).setMinterPaused(sd.subnetManager, true);
         }
         if (status == SubnetStatus.Active) {
             activeSubnetIds.remove(subnetId);
@@ -766,9 +752,9 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         SubnetInfo storage info = subnets[subnetId];
         if (info.status != SubnetStatus.Banned) revert InvalidSubnetStatus();
 
-        address sc = ISubnetNFT(subnetNFT).getSubnetManager(subnetId);
-        if (sc != address(0)) {
-            IAlphaToken(ISubnetNFT(subnetNFT).getAlphaToken(subnetId)).setMinterPaused(sc, false);
+        ISubnetNFT.SubnetData memory sd = ISubnetNFT(subnetNFT).getSubnetData(subnetId);
+        if (sd.subnetManager != address(0)) {
+            IAlphaToken(sd.alphaToken).setMinterPaused(sd.subnetManager, false);
         }
         if (activeSubnetIds.length() >= MAX_ACTIVE_SUBNETS) revert MaxActiveSubnetsReached();
         info.status = SubnetStatus.Active;
@@ -784,9 +770,9 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         uint256 immunityStart = info.activatedAt > 0 ? uint256(info.activatedAt) : uint256(info.createdAt);
         if (block.timestamp <= immunityStart + immunityPeriod) revert ImmunityNotExpired();
 
-        address sc = ISubnetNFT(subnetNFT).getSubnetManager(subnetId);
-        if (sc != address(0)) {
-            IAlphaToken(ISubnetNFT(subnetNFT).getAlphaToken(subnetId)).setMinterPaused(sc, true);
+        ISubnetNFT.SubnetData memory sd = ISubnetNFT(subnetNFT).getSubnetData(subnetId);
+        if (sd.subnetManager != address(0)) {
+            IAlphaToken(sd.alphaToken).setMinterPaused(sd.subnetManager, true);
         }
         activeSubnetIds.remove(subnetId);
         delete subnets[subnetId];
@@ -891,6 +877,17 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
             unchecked { ++i; }
         }
         return infos;
+    }
+
+    /// @dev Anti-cycle check: walk up from target, revert if sender is found in the chain
+    function _checkCycle(address sender, address target) internal view {
+        address cur = target;
+        uint256 depth = 0;
+        while (boundTo[cur] != address(0) && boundTo[cur] != cur) {
+            if (boundTo[cur] == sender) revert CycleDetected();
+            cur = boundTo[cur];
+            if (++depth >= 100) revert ChainTooLong();
+        }
     }
 
     /// @dev Walk the binding chain to find the root

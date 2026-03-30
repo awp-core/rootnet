@@ -89,8 +89,14 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @dev Reserved slot 21: was awpRegistry reference (no longer needed)
     uint256 private __freed_slot21;                 // slot 21
 
+    /// @notice O(1) oracle membership lookup (maintained by setOracleConfig)
+    mapping(address => bool) public isOracleMap;    // slot 22
+
+    /// @notice Cached AWP MAX_SUPPLY (set in initialize, avoids repeated cross-contract call)
+    uint256 private _cachedMaxSupply;               // slot 23
+
     /// @dev Reserved storage gap for upgrades
-    uint256[38] private __gap;                      // slots 22-59
+    uint256[36] private __gap;                      // slots 24-59
 
     // ══════════════════════════════════════════════
     //  Constants
@@ -192,6 +198,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         genesisTime = genesisTime_;
         epochDuration = epochDuration_;
         maxRecipients = 10000;
+        _cachedMaxSupply = IAWPToken(awpToken_).MAX_SUPPLY();
     }
 
     // ══════════════════════════════════════════════
@@ -258,7 +265,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         address[] memory seen = new address[](signatures.length);
         for (uint256 i = 0; i < signatures.length;) {
             address signer = ECDSA.recover(digest, signatures[i]);
-            if (!_isOracle(signer)) revert UnknownOracle();
+            if (!isOracleMap[signer]) revert UnknownOracle();
             // Check for duplicate signatures
             for (uint256 j = 0; j < validCount;) {
                 if (seen[j] == signer) revert DuplicateSigner();
@@ -342,12 +349,17 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             unchecked { ++i; }
         }
 
-        // Clear old array
+        // Clear old mapping entries, then delete array
+        for (uint256 i = 0; i < oracles.length;) {
+            isOracleMap[oracles[i]] = false;
+            unchecked { ++i; }
+        }
         delete oracles;
 
-        // Copy new array
+        // Copy new array and set mapping
         for (uint256 i = 0; i < oracles_.length;) {
             oracles.push(oracles_[i]);
+            isOracleMap[oracles_[i]] = true;
             unchecked { ++i; }
         }
         oracleThreshold = threshold_;
@@ -374,7 +386,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             }
 
             // Calculate actual epoch emission (capped at remaining AWP mintable supply)
-            uint256 awpRemaining = awpToken.MAX_SUPPLY() - awpToken.totalSupply();
+            uint256 awpRemaining = _cachedMaxSupply - awpToken.totalSupply();
             epochEmissionLocked = currentDailyEmission > awpRemaining ? awpRemaining : currentDailyEmission;
             if (epochEmissionLocked == 0) revert MiningComplete();
 
@@ -410,8 +422,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         uint256 ae = activeEpoch;
 
         // Cache remaining AWP supply once — reused in Phase 2 and Phase 3
-        uint256 maxSupply = awpToken.MAX_SUPPLY();
-        uint256 awpRemaining = maxSupply - awpToken.totalSupply();
+        uint256 awpRemaining = _cachedMaxSupply - awpToken.totalSupply();
 
         if (tw > 0) {
             for (uint256 i = start; i < end;) {
@@ -514,15 +525,6 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     // ══════════════════════════════════════════════
     //  Internal
     // ══════════════════════════════════════════════
-
-    /// @dev Check whether an address is a registered oracle
-    function _isOracle(address addr) internal view returns (bool) {
-        for (uint256 i = 0; i < oracles.length;) {
-            if (oracles[i] == addr) return true;
-            unchecked { ++i; }
-        }
-        return false;
-    }
 
     /// @dev EIP-712 compliant hash of address[]: keccak256 of concatenated 32-byte padded addresses.
     function _hashAddressArray(address[] calldata arr) internal pure returns (bytes32) {

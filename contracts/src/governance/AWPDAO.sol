@@ -83,7 +83,7 @@ contract AWPDAO is
         uint256 quorumPercent_
     )
         Governor("AWPDAO")
-        GovernorSettings(votingDelay_, votingPeriod_, 0) // proposalThreshold managed via override
+        GovernorSettings(votingDelay_, votingPeriod_, 1_000_000 * 1e18)
         GovernorTimelockControl(timelock_)
     {
         stakeNFT = IStakeNFT(stakeNFT_);
@@ -245,9 +245,9 @@ contract AWPDAO is
         return stakeNFT.totalVotingPower() * quorumPercent / 100;
     }
 
-    /// @notice Minimum voting power required to create a proposal: 1M AWP
+    /// @notice Minimum voting power required to create a proposal (configurable via GovernorSettings)
     function proposalThreshold() public view override(Governor, GovernorSettings) returns (uint256) {
-        return 1_000_000e18;
+        return super.proposalThreshold();
     }
 
     /// @dev Standard propose reverts — use proposeWithTokens instead
