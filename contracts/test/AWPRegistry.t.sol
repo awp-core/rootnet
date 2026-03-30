@@ -13,6 +13,7 @@ import {MockLPManager} from "./helpers/MockLPManager.sol";
 import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {IAWPRegistry} from "../src/interfaces/IAWPRegistry.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
+import {SubnetManager} from "../src/subnets/SubnetManager.sol";
 
 contract AWPRegistryTest is Test {
     AWPToken awp;
@@ -465,6 +466,34 @@ contract AWPRegistryTest is Test {
         uint256 subnetId = (uint256(8453) << 64) | 42;
         assertEq(awpRegistry.extractChainId(subnetId), 8453);
         assertEq(awpRegistry.extractLocalId(subnetId), 42);
+    }
+
+    // ── SubnetManager UUPS Upgrade tests ──
+
+    function test_subnetManagerUpgradeByAdmin() public {
+        // Deploy SubnetManager impl + proxy directly (no AWPRegistry auto-deploy, no DEX needed)
+        SubnetManager smImpl = new SubnetManager();
+        bytes memory dexCfg = abi.encode(address(1), address(2), address(3), address(4), uint24(10000), int24(200));
+        bytes memory initData = abi.encodeCall(SubnetManager.initialize, (address(awp), address(awp), bytes32(0), user1, dexCfg));
+        address subnetProxy = address(new ERC1967Proxy(address(smImpl), initData));
+
+        // user1 is DEFAULT_ADMIN_ROLE — can upgrade
+        SubnetManager newImpl = new SubnetManager();
+        vm.prank(user1);
+        SubnetManager(subnetProxy).upgradeToAndCall(address(newImpl), "");
+    }
+
+    function test_subnetManagerUpgradeRevertsForNonAdmin() public {
+        SubnetManager smImpl = new SubnetManager();
+        bytes memory dexCfg = abi.encode(address(1), address(2), address(3), address(4), uint24(10000), int24(200));
+        bytes memory initData = abi.encodeCall(SubnetManager.initialize, (address(awp), address(awp), bytes32(0), user1, dexCfg));
+        address subnetProxy = address(new ERC1967Proxy(address(smImpl), initData));
+
+        // user2 has no role — upgrade should revert
+        SubnetManager newImpl = new SubnetManager();
+        vm.prank(user2);
+        vm.expectRevert();
+        SubnetManager(subnetProxy).upgradeToAndCall(address(newImpl), "");
     }
 
     // ── Cross-chain allocate tests ──

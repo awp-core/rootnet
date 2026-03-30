@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {AccessControlUpgradeable} from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -51,7 +52,7 @@ interface IPermit2 {
 ///   - MERKLE_ROLE:   Submit Merkle roots → claim mints Alpha to users
 ///   - STRATEGY_ROLE: Choose AWP handling strategy + execute
 ///   - TRANSFER_ROLE: Transfer any token held by this contract
-contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGuardUpgradeable, IERC1363Receiver {
+contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeable, ReentrancyGuardUpgradeable, IERC1363Receiver {
     using SafeERC20 for IERC20;
 
     bytes32 public constant MERKLE_ROLE = keccak256("MERKLE_ROLE");
@@ -101,6 +102,9 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
     error RootAlreadySet();
     error NoRootForEpoch();
     error ZeroAmount();
+
+    /// @dev UUPS upgrade authorization — only DEFAULT_ADMIN_ROLE (subnet owner) may upgrade
+    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     /// @dev Prevent direct construction; must use proxy
     constructor() {
@@ -153,6 +157,7 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
         address clPoolManager_, address clPositionManager_, address clSwapRouter_,
         address permit2_, uint24 poolFee_, int24 tickSpacing_
     ) internal {
+        __UUPSUpgradeable_init();
         __AccessControl_init();
         __ReentrancyGuard_init();
 
