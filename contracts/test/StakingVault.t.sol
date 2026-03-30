@@ -30,6 +30,16 @@ contract StakingVaultTest is Test {
         return (block.timestamp - genesisTime) / EPOCH_DURATION;
     }
 
+    /// @dev Required by StakingVault._isAuthorized → IAWPRegistryDelegates.delegates()
+    function delegates(address, address) external pure returns (bool) {
+        return false;
+    }
+
+    /// @dev Required by StakingVault._authorizeUpgrade → IAWPRegistryDelegates.treasury()
+    function treasury() external pure returns (address) {
+        return address(0);
+    }
+
     function setUp() public {
         genesisTime = block.timestamp;
 
@@ -61,6 +71,7 @@ contract StakingVaultTest is Test {
     // ══════════════════════════════════════════════
 
     function test_allocate_basic() public {
+        vm.prank(user1);
         vault.allocate(user1, agent1, SUBNET_1, 300 ether);
 
         assertEq(vault.getAgentStake(user1, agent1, SUBNET_1), 300 ether);
@@ -69,14 +80,17 @@ contract StakingVaultTest is Test {
     }
 
     function test_allocate_moreThanUnallocated_reverts() public {
+        vm.prank(user1);
         vault.allocate(user1, agent1, SUBNET_1, 800 ether);
 
         // Only 200 unallocated, allocating 300 should fail
+        vm.prank(user1);
         vm.expectRevert(StakingVault.InsufficientUnallocated.selector);
         vault.allocate(user1, agent2, SUBNET_2, 300 ether);
     }
 
     function test_allocate_zeroAmount_reverts() public {
+        vm.prank(user1);
         vm.expectRevert(StakingVault.InvalidAmount.selector);
         vault.allocate(user1, agent1, SUBNET_1, 0);
     }
@@ -86,7 +100,9 @@ contract StakingVaultTest is Test {
     // ══════════════════════════════════════════════
 
     function test_deallocate_basic() public {
+        vm.prank(user1);
         vault.allocate(user1, agent1, SUBNET_1, 500 ether);
+        vm.prank(user1);
         vault.deallocate(user1, agent1, SUBNET_1, 200 ether);
 
         assertEq(vault.getAgentStake(user1, agent1, SUBNET_1), 300 ether);
@@ -95,15 +111,19 @@ contract StakingVaultTest is Test {
     }
 
     function test_deallocate_full_zerosStake() public {
+        vm.prank(user1);
         vault.allocate(user1, agent1, SUBNET_1, 500 ether);
+        vm.prank(user1);
         vault.deallocate(user1, agent1, SUBNET_1, 500 ether);
 
         assertEq(vault.getAgentStake(user1, agent1, SUBNET_1), 0);
     }
 
     function test_deallocate_moreThanAllocated_reverts() public {
+        vm.prank(user1);
         vault.allocate(user1, agent1, SUBNET_1, 200 ether);
 
+        vm.prank(user1);
         vm.expectRevert(StakingVault.InsufficientAllocation.selector);
         vault.deallocate(user1, agent1, SUBNET_1, 300 ether);
     }
@@ -113,8 +133,10 @@ contract StakingVaultTest is Test {
     // ══════════════════════════════════════════════
 
     function test_reallocate_immediate() public {
+        vm.prank(user1);
         vault.allocate(user1, agent1, SUBNET_1, 500 ether);
 
+        vm.prank(user1);
         vault.reallocate(user1, agent1, SUBNET_1, agent2, SUBNET_2, 200 ether);
 
         // Immediate effect
@@ -130,9 +152,12 @@ contract StakingVaultTest is Test {
     }
 
     function test_reallocate_multipleAccumulate() public {
+        vm.prank(user1);
         vault.allocate(user1, agent1, SUBNET_1, 500 ether);
 
+        vm.prank(user1);
         vault.reallocate(user1, agent1, SUBNET_1, agent2, SUBNET_2, 100 ether);
+        vm.prank(user1);
         vault.reallocate(user1, agent1, SUBNET_1, agent2, SUBNET_2, 150 ether);
 
         assertEq(vault.getAgentStake(user1, agent1, SUBNET_1), 250 ether);
@@ -140,15 +165,19 @@ contract StakingVaultTest is Test {
     }
 
     function test_reallocate_insufficientAllocation_reverts() public {
+        vm.prank(user1);
         vault.allocate(user1, agent1, SUBNET_1, 100 ether);
 
+        vm.prank(user1);
         vm.expectRevert(StakingVault.InsufficientAllocation.selector);
         vault.reallocate(user1, agent1, SUBNET_1, agent2, SUBNET_2, 200 ether);
     }
 
     function test_reallocate_zeroAmount_reverts() public {
+        vm.prank(user1);
         vault.allocate(user1, agent1, SUBNET_1, 100 ether);
 
+        vm.prank(user1);
         vm.expectRevert(StakingVault.InvalidAmount.selector);
         vault.reallocate(user1, agent1, SUBNET_1, agent2, SUBNET_2, 0);
     }
@@ -158,8 +187,10 @@ contract StakingVaultTest is Test {
     // ══════════════════════════════════════════════
 
     function test_freezeAgentAllocations_immediateRelease() public {
+        vm.startPrank(user1);
         vault.allocate(user1, agent1, SUBNET_1, 300 ether);
         vault.allocate(user1, agent1, SUBNET_2, 200 ether);
+        vm.stopPrank();
 
         vault.freezeAgentAllocations(user1, agent1);
 
@@ -176,8 +207,10 @@ contract StakingVaultTest is Test {
     }
 
     function test_freezeAgentAllocations_agentSubnetsCleared() public {
+        vm.startPrank(user1);
         vault.allocate(user1, agent1, SUBNET_1, 300 ether);
         vault.allocate(user1, agent1, SUBNET_2, 200 ether);
+        vm.stopPrank();
 
         assertEq(vault.getAgentSubnets(user1, agent1).length, 2);
 
@@ -188,9 +221,11 @@ contract StakingVaultTest is Test {
     }
 
     function test_deallocate_full_clearsAgentSubnets() public {
+        vm.prank(user1);
         vault.allocate(user1, agent1, SUBNET_1, 500 ether);
         assertEq(vault.getAgentSubnets(user1, agent1).length, 1);
 
+        vm.prank(user1);
         vault.deallocate(user1, agent1, SUBNET_1, 500 ether);
 
         // Subnet removed from set after full deallocation
@@ -198,10 +233,12 @@ contract StakingVaultTest is Test {
     }
 
     function test_freezeAfterReallocate_setsConsistent() public {
+        vm.startPrank(user1);
         vault.allocate(user1, agent1, SUBNET_1, 500 ether);
 
         // Reallocate everything from agent1/SUBNET_1 to agent2/SUBNET_2
         vault.reallocate(user1, agent1, SUBNET_1, agent2, SUBNET_2, 500 ether);
+        vm.stopPrank();
 
         // agent1 should have no subnets left
         assertEq(vault.getAgentSubnets(user1, agent1).length, 0);
@@ -223,21 +260,21 @@ contract StakingVaultTest is Test {
     // onlyAWPRegistry access control tests
     // ══════════════════════════════════════════════
 
-    function test_onlyAWPRegistry_allocate() public {
+    function test_notAuthorized_allocate() public {
         vm.prank(nonAWPRegistry);
-        vm.expectRevert(StakingVault.NotAWPRegistry.selector);
+        vm.expectRevert(StakingVault.NotAuthorized.selector);
         vault.allocate(user1, agent1, SUBNET_1, 100 ether);
     }
 
-    function test_onlyAWPRegistry_deallocate() public {
+    function test_notAuthorized_deallocate() public {
         vm.prank(nonAWPRegistry);
-        vm.expectRevert(StakingVault.NotAWPRegistry.selector);
+        vm.expectRevert(StakingVault.NotAuthorized.selector);
         vault.deallocate(user1, agent1, SUBNET_1, 100 ether);
     }
 
-    function test_onlyAWPRegistry_reallocate() public {
+    function test_notAuthorized_reallocate() public {
         vm.prank(nonAWPRegistry);
-        vm.expectRevert(StakingVault.NotAWPRegistry.selector);
+        vm.expectRevert(StakingVault.NotAuthorized.selector);
         vault.reallocate(user1, agent1, SUBNET_1, agent2, SUBNET_2, 100 ether);
     }
 

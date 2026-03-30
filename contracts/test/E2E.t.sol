@@ -693,17 +693,16 @@ contract E2ETest is EmissionSigningHelper {
         vm.prank(guardian);
         awpRegistry.pause();
 
-        // User operations blocked
+        // AWPRegistry operations blocked
         vm.startPrank(alice);
         vm.expectRevert();
         awpRegistry.register();
         vm.expectRevert();
-        vault.allocate(alice, agentA, sid, 100);
-        vm.expectRevert();
-        vault.deallocate(alice, agentA, sid, 100);
-        vm.expectRevert();
         awpRegistry.activateSubnet(sid);
         vm.stopPrank();
+
+        // StakingVault allocate/deallocate are NOT gated by AWPRegistry pause
+        // (they live on StakingVault which has no Pausable)
 
         // Emission unaffected
         vm.warp(block.timestamp + EPOCH + 1);

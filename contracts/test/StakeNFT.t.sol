@@ -30,10 +30,11 @@ contract StakeNFTTest is Test {
         // Deploy AWPToken
         awp = new AWPToken("AWP Token", "AWP", deployer, 200_000_000 * 1e18);
 
-        // Deploy StakingVault + StakeNFT (circular dependency)
+        // Deploy StakingVault (UUPS proxy) + StakeNFT (circular dependency)
+        // Nonce layout: impl=nonce, proxy=nonce+1, stakeNFT=nonce+2
         uint64 deployerNonce = vm.getNonce(deployer);
-        address predictedVault = vm.computeCreateAddress(deployer, deployerNonce);
-        address predictedStakeNFT = vm.computeCreateAddress(deployer, deployerNonce + 1);
+        address predictedVault = vm.computeCreateAddress(deployer, deployerNonce + 1);
+        address predictedStakeNFT = vm.computeCreateAddress(deployer, deployerNonce + 2);
 
         vault = StakingVault(address(new ERC1967Proxy(
             address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (awpRegistry))
@@ -203,8 +204,8 @@ contract StakeNFTTest is Test {
         uint256 tokenId = stakeNFT.deposit(1000 * 1e18, 1 days);
         vm.stopPrank();
 
-        // Simulate allocation via awpRegistry
-        vm.prank(awpRegistry);
+        // Simulate allocation (user calls directly)
+        vm.prank(user1);
         vault.allocate(user1, address(0x99), 1, 500 * 1e18);
 
         // Advance past lock
@@ -238,8 +239,8 @@ contract StakeNFTTest is Test {
         uint256 tokenId = stakeNFT.deposit(1000 * 1e18, 52 weeks);
         vm.stopPrank();
 
-        // Allocate some stake via awpRegistry
-        vm.prank(awpRegistry);
+        // Allocate some stake (user calls directly)
+        vm.prank(user1);
         vault.allocate(user1, address(0x99), 1, 500 * 1e18);
 
         // Transfer should fail: user1 has 1000 staked, 500 allocated, transfer would leave 0 staked
