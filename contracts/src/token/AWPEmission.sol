@@ -333,7 +333,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice Update the per-epoch decay factor (onlyTimelock)
     /// @param newDecayFactor Must be <= DECAY_PRECISION (no growth allowed)
     function setDecayFactor(uint256 newDecayFactor) external onlyTimelock {
-        if (newDecayFactor == 0 || newDecayFactor > DECAY_PRECISION) revert InvalidParameter();
+        if (newDecayFactor == 0 || newDecayFactor >= DECAY_PRECISION) revert InvalidParameter();
         decayFactor = newDecayFactor;
     }
 

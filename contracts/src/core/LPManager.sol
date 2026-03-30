@@ -99,26 +99,44 @@ contract LPManager is LPManagerBase {
     }
 
     /// @dev Compound accumulated fees back into the LP position (PancakeSwap V4)
-    ///      Uses INCREASE_LIQUIDITY(0x00) with liquidityDelta=0 + SETTLE_PAIR(0x0d)
-    ///      The DEX auto-collects accrued fees and adds them as additional liquidity
+    ///      Step 1: DECREASE_LIQUIDITY(0x01) with liquidityDelta=0 → collects accrued fees to LPManager
+    ///      Step 2: Re-add collected fees as liquidity via INCREASE_LIQUIDITY(0x00)
     function _compoundFees(uint256 tokenId, address c0, address c1) internal override {
-        // Approve both tokens to PositionManager via Permit2 (fees could be in either token)
-        // Use type(uint160).max as we don't know exact fee amounts; Permit2 will only transfer actual fees
-        IERC20(c0).forceApprove(permit2, type(uint256).max);
-        IPermit2(permit2).approve(c0, clPositionManager, type(uint160).max, uint48(block.timestamp + 600));
-        IERC20(c1).forceApprove(permit2, type(uint256).max);
-        IPermit2(permit2).approve(c1, clPositionManager, type(uint160).max, uint48(block.timestamp + 600));
+        // Step 1: Collect fees — DECREASE_LIQUIDITY(0x01) with 0 delta + TAKE_PAIR(0x11)
+        {
+            bytes memory actions = abi.encodePacked(uint8(0x01), uint8(0x11));
+            bytes[] memory params = new bytes[](2);
+            params[0] = abi.encode(tokenId, uint256(0), uint128(0), uint128(0), bytes(""));
+            params[1] = abi.encode(c0, c1);
+            ICLPositionManager(clPositionManager).modifyLiquidities(abi.encode(actions, params), block.timestamp);
+        }
 
-        // INCREASE_LIQUIDITY(0x00) with 0 liquidity delta = collect fees and reinvest
+        // Read collected fee balances
+        uint256 bal0 = IERC20(c0).balanceOf(address(this));
+        uint256 bal1 = IERC20(c1).balanceOf(address(this));
+        if (bal0 == 0 && bal1 == 0) return; // no fees to compound
+
+        // Step 2: Re-add fees as liquidity — approve + INCREASE_LIQUIDITY(0x00) + SETTLE_PAIR(0x0d)
+        if (bal0 > 0) {
+            IERC20(c0).forceApprove(permit2, bal0);
+            IPermit2(permit2).approve(c0, clPositionManager, uint160(bal0), uint48(block.timestamp + 600));
+        }
+        if (bal1 > 0) {
+            IERC20(c1).forceApprove(permit2, bal1);
+            IPermit2(permit2).approve(c1, clPositionManager, uint160(bal1), uint48(block.timestamp + 600));
+        }
+
+        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
+            MIN_SQRT_RATIO, MIN_SQRT_RATIO, MAX_SQRT_RATIO, bal0, bal1
+        );
+        if (liquidity == 0) return;
+
+        PoolKey memory poolKey = _buildPoolKey(c0, c1);
         bytes memory actions = abi.encodePacked(uint8(0x00), uint8(0x0d));
         bytes[] memory params = new bytes[](2);
-        params[0] = abi.encode(tokenId, uint256(0), uint128(type(uint128).max), uint128(type(uint128).max), bytes(""));
+        params[0] = abi.encode(poolKey, MIN_TICK, MAX_TICK, liquidity, uint128(bal0), uint128(bal1), address(this), bytes(""));
         params[1] = abi.encode(c0, c1);
         ICLPositionManager(clPositionManager).modifyLiquidities(abi.encode(actions, params), block.timestamp);
-
-        // Reset approvals
-        IERC20(c0).forceApprove(permit2, 0);
-        IERC20(c1).forceApprove(permit2, 0);
     }
 
     /// @dev 构建 PancakeSwap V4 PoolKey

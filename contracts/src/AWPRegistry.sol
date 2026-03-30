@@ -112,7 +112,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     mapping(address => uint256) public nonces;
 
     /// @dev Reserved storage gap for future upgrades (UUPS pattern)
-    uint256[50] private __gap;
+    uint256[49] private __gap;
 
     /// @dev EIP-712 type hash: Bind(address agent, address target, uint256 nonce, uint256 deadline)
     bytes32 private constant BIND_TYPEHASH =
@@ -796,9 +796,12 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     }
 
     /// @notice Update the initial Alpha token mint amount per subnet (only Timelock)
+    event InitialAlphaMintUpdated(uint256 amount);
+
     function setInitialAlphaMint(uint256 amount) external onlyTimelock {
         if (amount == 0) revert InvalidSubnetParams();
         initialAlphaMint = amount;
+        emit InitialAlphaMintUpdated(amount);
     }
 
     /// @notice Update the guardian address (only Timelock may call)
