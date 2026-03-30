@@ -94,6 +94,24 @@ contract LPManagerUni is LPManagerBase {
         return keccak256(abi.encode(poolKey));
     }
 
+    /// @dev Compound accumulated fees back into the LP position (Uniswap V4)
+    ///      Uses INCREASE_LIQUIDITY(0x00) with liquidityDelta=0 + SETTLE_PAIR(0x0d)
+    function _compoundFees(uint256 tokenId, address c0, address c1) internal override {
+        IERC20(c0).forceApprove(permit2, type(uint256).max);
+        IPermit2(permit2).approve(c0, positionManager, type(uint160).max, uint48(block.timestamp + 600));
+        IERC20(c1).forceApprove(permit2, type(uint256).max);
+        IPermit2(permit2).approve(c1, positionManager, type(uint160).max, uint48(block.timestamp + 600));
+
+        bytes memory actions = abi.encodePacked(uint8(0x00), uint8(0x0d));
+        bytes[] memory params = new bytes[](2);
+        params[0] = abi.encode(tokenId, uint256(0), uint128(type(uint128).max), uint128(type(uint128).max), bytes(""));
+        params[1] = abi.encode(c0, c1);
+        IUniPositionManager(positionManager).modifyLiquidities(abi.encode(actions, params), block.timestamp);
+
+        IERC20(c0).forceApprove(permit2, 0);
+        IERC20(c1).forceApprove(permit2, 0);
+    }
+
     /// @dev 构建 Uniswap V4 UniPoolKey
     function _buildPoolKey(address c0, address c1) internal view returns (UniPoolKey memory) {
         return UniPoolKey({

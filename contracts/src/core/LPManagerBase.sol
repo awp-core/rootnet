@@ -125,6 +125,32 @@ abstract contract LPManagerBase {
         alphaTokenToTokenId[alphaToken] = lpTokenId;
     }
 
+    // ══════════════════════════════════════════════
+    //  Fee Compounding (auto-compound LP fees back into liquidity)
+    // ══════════════════════════════════════════════
+
+    error NoPool();
+
+    event FeesCompounded(address indexed alphaToken, uint256 tokenId);
+
+    /// @notice Compound accumulated LP fees back into liquidity for a given Alpha token's pool.
+    ///         Anyone can call — no access restriction needed since fees belong to the locked LP position.
+    /// @param alphaToken The Alpha token whose LP position fees should be compounded
+    function compoundFees(address alphaToken) external {
+        uint256 tokenId = alphaTokenToTokenId[alphaToken];
+        if (tokenId == 0) revert NoPool();
+
+        address awp = address(awpToken);
+        (address c0, address c1) = awp < alphaToken ? (awp, alphaToken) : (alphaToken, awp);
+
+        _compoundFees(tokenId, c0, c1);
+
+        emit FeesCompounded(alphaToken, tokenId);
+    }
+
+    /// @dev DEX-specific: compound fees back into liquidity for a position
+    function _compoundFees(uint256 tokenId, address c0, address c1) internal virtual;
+
     /// @dev DEX-specific: initialize the pool
     function _initializePool(address c0, address c1, uint160 sqrtPriceX96) internal virtual;
 
