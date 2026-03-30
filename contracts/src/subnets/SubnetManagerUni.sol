@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {SubnetManager, IAlphaToken, ICLPositionManager, IPermit2} from "./SubnetManager.sol";
+import {SubnetManager, ICLPositionManager, IPermit2} from "./SubnetManager.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LiquidityAmounts} from "infinity-periphery/src/pool-cl/libraries/LiquidityAmounts.sol";
@@ -62,13 +62,6 @@ contract SubnetManagerUni is SubnetManager {
         address alphaToken_, address awpToken_, bytes32 poolId_, address admin_,
         bytes calldata dexConfig_
     ) external override initializer {
-        __AccessControl_init();
-        __ReentrancyGuard_init();
-
-        alphaToken = IAlphaToken(alphaToken_);
-        awpToken = IERC20(awpToken_);
-        poolId = poolId_;
-
         // Decode DEX addresses — 7 fields for Uniswap V4 (extra: stateView)
         (
             address clPoolManager_,
@@ -80,12 +73,13 @@ contract SubnetManagerUni is SubnetManager {
             address stateView_
         ) = abi.decode(dexConfig_, (address, address, address, address, uint24, int24, address));
 
-        clPoolManager = clPoolManager_;
-        clPositionManager = clPositionManager_;
-        clSwapRouter = clSwapRouter_;
-        permit2 = permit2_;
-        poolFee = poolFee_;
-        tickSpacing = tickSpacing_;
+        // 共享初始化：AccessControl、ReentrancyGuard、存储、角色授予
+        _initializeBase(
+            alphaToken_, awpToken_, poolId_, admin_,
+            clPoolManager_, clPositionManager_, clSwapRouter_, permit2_, poolFee_, tickSpacing_
+        );
+
+        // Uni-specific storage
         stateView = stateView_;
 
         // Construct Uniswap V4 PoolKey (5 fields, different order from PancakeSwap)
@@ -99,16 +93,16 @@ contract SubnetManagerUni is SubnetManager {
             tickSpacing: tickSpacing_,
             hooks: address(0)
         });
-
-        _grantRole(DEFAULT_ADMIN_ROLE, admin_);
-        _grantRole(MERKLE_ROLE, admin_);
-        _grantRole(STRATEGY_ROLE, admin_);
-        _grantRole(TRANSFER_ROLE, admin_);
     }
 
-    /// @dev Override: use Uni V4 PoolKey and StateView for single-sided liquidity
+    /// @dev 覆写：从 StateView 读取 slot0（Uniswap V4 PoolManager 不直接暴露 getSlot0）
+    function _getSlot0() internal view override returns (uint160 sqrtPriceX96, int24 tick) {
+        (sqrtPriceX96, tick,,) = IStateView(stateView).getSlot0(poolId);
+    }
+
+    /// @dev Override: encode with Uniswap V4 PoolKey (5 fields, different struct from PancakeSwap)
     function _addSingleSidedLiquidity(uint256 amount) internal override {
-        (, int24 currentTick,,) = IStateView(stateView).getSlot0(poolId);
+        (, int24 currentTick) = _getSlot0();
 
         int24 ts = tickSpacing;
         int24 aligned = (currentTick / ts) * ts;
@@ -143,7 +137,6 @@ contract SubnetManagerUni is SubnetManager {
         bytes memory actions = abi.encodePacked(ACT_CL_MINT_POSITION, ACT_SETTLE_PAIR);
         bytes[] memory params = new bytes[](2);
 
-        // Encode with Uniswap V4 PoolKey
         UniPoolKey memory pk = uniPoolKey;
         params[0] = abi.encode(
             pk, tickLower, tickUpper, liquidity,
@@ -161,8 +154,8 @@ contract SubnetManagerUni is SubnetManager {
     function _buybackAndBurn(uint256 amount) internal override {
         bool zeroForOne = address(awpToken) < address(alphaToken);
 
-        // Read current pool price from StateView for slippage protection
-        (uint160 sqrtPriceX96,,,) = IStateView(stateView).getSlot0(poolId);
+        // Read current pool price via virtual _getSlot0() for slippage protection
+        (uint160 sqrtPriceX96,) = _getSlot0();
         uint256 expectedOut;
         if (zeroForOne) {
             expectedOut = FullMath.mulDiv(FullMath.mulDiv(amount, sqrtPriceX96, 1 << 96), sqrtPriceX96, 1 << 96);

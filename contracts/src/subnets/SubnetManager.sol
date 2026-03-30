@@ -118,13 +118,6 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
         address alphaToken_, address awpToken_, bytes32 poolId_, address admin_,
         bytes calldata dexConfig_
     ) external virtual initializer {
-        __AccessControl_init();
-        __ReentrancyGuard_init();
-
-        alphaToken = IAlphaToken(alphaToken_);
-        awpToken = IERC20(awpToken_);
-        poolId = poolId_;
-
         // Decode DEX addresses and pool parameters (chain-agnostic)
         (
             address clPoolManager_,
@@ -135,13 +128,12 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
             int24 tickSpacing_
         ) = abi.decode(dexConfig_, (address, address, address, address, uint24, int24));
 
-        clPoolManager = clPoolManager_;
-        clPositionManager = clPositionManager_;
-        clSwapRouter = clSwapRouter_;
-        permit2 = permit2_;
-        poolFee = poolFee_;
-        tickSpacing = tickSpacing_;
+        _initializeBase(
+            alphaToken_, awpToken_, poolId_, admin_,
+            clPoolManager_, clPositionManager_, clSwapRouter_, permit2_, poolFee_, tickSpacing_
+        );
 
+        // Construct PancakeSwap V4 PoolKey (6 fields)
         (address c0, address c1) = awpToken_ < alphaToken_
             ? (awpToken_, alphaToken_)
             : (alphaToken_, awpToken_);
@@ -153,6 +145,26 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
             fee: poolFee_,
             parameters: bytes32(uint256(int256(tickSpacing_)) << 16)
         });
+    }
+
+    /// @dev 共享初始化逻辑：AccessControl、ReentrancyGuard、存储、角色授予
+    function _initializeBase(
+        address alphaToken_, address awpToken_, bytes32 poolId_, address admin_,
+        address clPoolManager_, address clPositionManager_, address clSwapRouter_,
+        address permit2_, uint24 poolFee_, int24 tickSpacing_
+    ) internal {
+        __AccessControl_init();
+        __ReentrancyGuard_init();
+
+        alphaToken = IAlphaToken(alphaToken_);
+        awpToken = IERC20(awpToken_);
+        poolId = poolId_;
+        clPoolManager = clPoolManager_;
+        clPositionManager = clPositionManager_;
+        clSwapRouter = clSwapRouter_;
+        permit2 = permit2_;
+        poolFee = poolFee_;
+        tickSpacing = tickSpacing_;
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin_);
         _grantRole(MERKLE_ROLE, admin_);
@@ -247,11 +259,20 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
     }
 
     // ═══════════════════════════════════════════════
+    //  Internal: Pool Slot0 Read (virtual — overridden by SubnetManagerUni)
+    // ═══════════════════════════════════════════════
+
+    /// @dev 读取池子当前 sqrtPriceX96 和 tick；子合约可覆写以使用不同的数据源
+    function _getSlot0() internal view virtual returns (uint160 sqrtPriceX96, int24 tick) {
+        (sqrtPriceX96, tick,,) = ICLPoolManager(clPoolManager).getSlot0(poolId);
+    }
+
+    // ═══════════════════════════════════════════════
     //  Internal: PancakeSwap V4 — Add Single-Sided Liquidity
     // ═══════════════════════════════════════════════
 
     function _addSingleSidedLiquidity(uint256 amount) internal virtual {
-        (, int24 currentTick,,) = ICLPoolManager(clPoolManager).getSlot0(poolId);
+        (, int24 currentTick) = _getSlot0();
 
         // Floor-align currentTick to tickSpacing
         int24 ts = tickSpacing;
@@ -312,7 +333,7 @@ contract SubnetManager is Initializable, AccessControlUpgradeable, ReentrancyGua
         bool zeroForOne = address(awpToken) < address(alphaToken);
 
         // Read current pool price for slippage protection
-        (uint160 sqrtPriceX96,,,) = ICLPoolManager(clPoolManager).getSlot0(poolId);
+        (uint160 sqrtPriceX96,) = _getSlot0();
         uint256 expectedOut;
         if (zeroForOne) {
             // Selling token0 for token1: expectedOut = amount * sqrtPrice^2 / 2^192
