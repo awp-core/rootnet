@@ -46,6 +46,7 @@ func NewRouter(p RouterParams) chi.Router {
 		// System
 		r.Get("/registry", h.GetRegistry)
 		r.Get("/health", h.Health)
+		r.Get("/health/detailed", h.HealthDetailed)
 		r.Get("/chains", h.GetChains)
 
 		// Users

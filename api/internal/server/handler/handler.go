@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -111,6 +112,68 @@ func isValidAddress(addr string) bool {
 // Health is the health-check endpoint
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// HealthDetailed returns detailed system health including indexer lag, keeper status, chain info
+func (h *Handler) HealthDetailed(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	health := map[string]interface{}{
+		"status":  "ok",
+		"chainId": h.cfg.ChainID,
+	}
+
+	// 索引器同步状态：检查 sync_states 中的最新区块
+	if syncState, err := h.queries.GetSyncState(ctx, gen.GetSyncStateParams{
+		ChainID:      h.cfg.ChainID,
+		ContractName: "indexer",
+	}); err == nil {
+		health["indexer"] = map[string]interface{}{
+			"lastBlock": syncState.LastBlock,
+		}
+		// 如果链读取器可用，检查 RPC 连通性
+		if h.chain != nil {
+			if nonce, err := h.chain.GetNonce("0x0000000000000000000000000000000000000000"); err == nil {
+				_ = nonce // 链可达
+				health["rpcConnected"] = true
+			} else {
+				health["rpcConnected"] = false
+			}
+		}
+	}
+
+	// Keeper 缓存新鲜度：检查 Redis 中 emission_current 的 TTL
+	emissionKey := fmt.Sprintf("emission_current:%d", h.cfg.ChainID)
+	if ttl, err := h.rdb.TTL(ctx, emissionKey).Result(); err == nil {
+		if ttl > 0 {
+			health["keeper"] = map[string]interface{}{
+				"cacheAlive": true,
+				"cacheTTL":   ttl.Seconds(),
+			}
+		} else {
+			health["keeper"] = map[string]interface{}{
+				"cacheAlive": false,
+			}
+		}
+	}
+
+	// Redis 连通性
+	if err := h.rdb.Ping(ctx).Err(); err != nil {
+		health["redis"] = "error"
+		health["status"] = "degraded"
+	} else {
+		health["redis"] = "ok"
+	}
+
+	// 数据库连通性
+	if _, err := h.queries.GetUserCount(ctx, h.cfg.ChainID); err != nil {
+		health["database"] = "error"
+		health["status"] = "degraded"
+	} else {
+		health["database"] = "ok"
+	}
+
+	h.writeJSON(w, http.StatusOK, health)
 }
 
 // eip712DomainResponse provides all info needed to construct EIP-712 signatures for gasless relay
