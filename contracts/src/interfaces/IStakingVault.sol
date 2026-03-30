@@ -34,6 +34,7 @@ interface IStakingVault {
     // ── Events ──
     event Allocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator);
     event Deallocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator);
+    event AgentAllocationsFrozen(address indexed staker, address indexed agent);
     event Reallocated(
         address indexed staker,
         address fromAgent,

@@ -31,6 +31,7 @@ type Handler struct {
 // ChainReader provides read-only access to on-chain state (optional dependency)
 type ChainReader interface {
 	GetNonce(addr string) (uint64, error)
+	GetStakingNonce(addr string) (uint64, error)
 }
 
 // NewHandler creates a new Handler instance
@@ -198,6 +199,7 @@ type registryResponse struct {
 	DAO               string              `json:"dao"`
 	Treasury          string              `json:"treasury"`
 	EIP712Domain      eip712DomainResponse `json:"eip712Domain"`
+	StakingVaultEIP712 eip712DomainResponse `json:"stakingVaultEip712Domain"`
 }
 
 // GetRegistry returns the contract address registry with chain ID
@@ -219,6 +221,12 @@ func (h *Handler) GetRegistry(w http.ResponseWriter, r *http.Request) {
 			Version:           "1",
 			ChainID:           h.cfg.ChainID,
 			VerifyingContract: h.cfg.AWPRegistryAddress,
+		},
+		StakingVaultEIP712: eip712DomainResponse{
+			Name:              "StakingVault",
+			Version:           "1",
+			ChainID:           h.cfg.ChainID,
+			VerifyingContract: h.cfg.StakingVaultAddress,
 		},
 	}
 	h.writeJSON(w, http.StatusOK, resp)
@@ -256,6 +264,35 @@ func (h *Handler) GetNonce(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		h.logger.Error("failed to read nonce", "error", err, "address", address)
 		h.writeError(w, http.StatusInternalServerError, "failed to read nonce")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]uint64{"nonce": nonce})
+}
+
+// GetStakingNonce returns the EIP-712 nonce from StakingVault (for gasless allocate/deallocate)
+func (h *Handler) GetStakingNonce(w http.ResponseWriter, r *http.Request) {
+	ip := ratelimit.GetClientIP(r)
+	if exceeded, err := h.limiter.CheckAndIncrement(r.Context(), "nonce", ip); exceeded {
+		h.writeError(w, http.StatusTooManyRequests, h.limiter.FormatError(r.Context(), "nonce"))
+		return
+	} else if err != nil {
+		h.logger.Error("nonce rate limit error", "error", err)
+	}
+
+	raw := chi.URLParam(r, "address")
+	if !isValidAddress(raw) {
+		h.writeError(w, http.StatusBadRequest, "invalid address")
+		return
+	}
+	address := normalizeAddr(raw)
+	if h.chain == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "chain reader not available")
+		return
+	}
+	nonce, err := h.chain.GetStakingNonce(address)
+	if err != nil {
+		h.logger.Error("failed to read staking nonce", "error", err, "address", address)
+		h.writeError(w, http.StatusInternalServerError, "failed to read staking nonce")
 		return
 	}
 	h.writeJSON(w, http.StatusOK, map[string]uint64{"nonce": nonce})

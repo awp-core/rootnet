@@ -143,9 +143,18 @@ func (c *Client) BlockNumber(ctx context.Context) (uint64, error) {
 	return c.Eth.BlockNumber(ctx)
 }
 
-// GetNonce reads the EIP-712 nonce for an address from AWPRegistry (implements handler.ChainReader)
+// GetNonce reads the EIP-712 nonce for an address from AWPRegistry (for bind/setRecipient/registerSubnet)
 func (c *Client) GetNonce(addr string) (uint64, error) {
 	nonce, err := c.AWPRegistry.Nonces(nil, common.HexToAddress(addr))
+	if err != nil {
+		return 0, err
+	}
+	return nonce.Uint64(), nil
+}
+
+// GetStakingNonce reads the EIP-712 nonce for an address from StakingVault (for allocate/deallocate)
+func (c *Client) GetStakingNonce(addr string) (uint64, error) {
+	nonce, err := c.StakingVault.Nonces(nil, common.HexToAddress(addr))
 	if err != nil {
 		return 0, err
 	}
