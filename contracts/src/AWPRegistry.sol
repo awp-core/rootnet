@@ -364,11 +364,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     {
         if (target == address(0)) revert InvalidAddress();
         if (target == agent) revert InvalidAddress();
-        if (block.timestamp > deadline) revert ExpiredSignature();
-        bytes32 structHash = keccak256(abi.encode(BIND_TYPEHASH, agent, target, nonces[agent]++, deadline));
-        bytes32 digest = _hashTypedDataV4(structHash);
-        address signer = ECDSA.recover(digest, v, r, s);
-        if (signer != agent) revert InvalidSignature();
+        _verifyDigest(agent, keccak256(abi.encode(BIND_TYPEHASH, agent, target, nonces[agent]++, deadline)), deadline, v, r, s);
 
         _checkCycle(agent, target);
         if (boundTo[agent] == address(0) && recipient[agent] == address(0)) {
@@ -401,14 +397,8 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         address user, address _recipient, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) external nonReentrant whenNotPaused {
-        if (block.timestamp > deadline) revert ExpiredSignature();
         if (_recipient == address(0)) revert InvalidAddress();
-        bytes32 structHash = keccak256(abi.encode(
-            SET_RECIPIENT_TYPEHASH, user, _recipient, nonces[user]++, deadline
-        ));
-        bytes32 digest = _hashTypedDataV4(structHash);
-        address signer = ECDSA.recover(digest, v, r, s);
-        if (signer != user) revert InvalidSignature();
+        _verifyDigest(user, keccak256(abi.encode(SET_RECIPIENT_TYPEHASH, user, _recipient, nonces[user]++, deadline)), deadline, v, r, s);
 
         // If this is the first time setting recipient (registration), increment counter
         bool firstTime = recipient[user] == address(0);
@@ -495,12 +485,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) external nonReentrant whenNotPaused {
-        if (block.timestamp > deadline) revert ExpiredSignature();
-        bytes32 structHash = keccak256(abi.encode(
-            ALLOCATE_TYPEHASH, staker, agent, subnetId, amount, nonces[staker]++, deadline
-        ));
-        bytes32 digest = _hashTypedDataV4(structHash);
-        if (ECDSA.recover(digest, v, r, s) != staker) revert InvalidSignature();
+        _verifyDigest(staker, keccak256(abi.encode(ALLOCATE_TYPEHASH, staker, agent, subnetId, amount, nonces[staker]++, deadline)), deadline, v, r, s);
 
         IStakingVault(stakingVault).allocate(staker, agent, subnetId, amount);
         emit Allocated(staker, agent, subnetId, amount, msg.sender);
@@ -511,12 +496,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) external nonReentrant whenNotPaused {
-        if (block.timestamp > deadline) revert ExpiredSignature();
-        bytes32 structHash = keccak256(abi.encode(
-            DEALLOCATE_TYPEHASH, staker, agent, subnetId, amount, nonces[staker]++, deadline
-        ));
-        bytes32 digest = _hashTypedDataV4(structHash);
-        if (ECDSA.recover(digest, v, r, s) != staker) revert InvalidSignature();
+        _verifyDigest(staker, keccak256(abi.encode(DEALLOCATE_TYPEHASH, staker, agent, subnetId, amount, nonces[staker]++, deadline)), deadline, v, r, s);
 
         IStakingVault(stakingVault).deallocate(staker, agent, subnetId, amount);
         emit Deallocated(staker, agent, subnetId, amount, msg.sender);
@@ -562,7 +542,6 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) external nonReentrant whenNotPaused returns (uint256) {
-        if (block.timestamp > deadline) revert ExpiredSignature();
         _verifyRegisterSubnetSignature(user, params, deadline, v, r, s);
         return _registerSubnet(user, params);
     }
@@ -575,7 +554,6 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         uint8 permitV, bytes32 permitR, bytes32 permitS,
         uint8 registerV, bytes32 registerR, bytes32 registerS
     ) external nonReentrant whenNotPaused returns (uint256) {
-        if (block.timestamp > deadline) revert ExpiredSignature();
         uint256 lpAWPAmount = initialAlphaMint * initialAlphaPrice / 1e18;
         IERC20Permit(awpToken).permit(user, address(this), lpAWPAmount, deadline, permitV, permitR, permitS);
         _verifyRegisterSubnetSignature(user, params, deadline, registerV, registerR, registerS);
@@ -594,12 +572,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
             params.subnetManager, params.salt, params.minStake,
             keccak256(bytes(params.skillsURI))
         ));
-        bytes32 structHash = keccak256(abi.encode(
-            REGISTER_SUBNET_TYPEHASH, user, paramsStructHash, nonces[user]++, deadline
-        ));
-        bytes32 digest = _hashTypedDataV4(structHash);
-        address signer = ECDSA.recover(digest, v, r, s);
-        if (signer != user) revert InvalidSignature();
+        _verifyDigest(user, keccak256(abi.encode(REGISTER_SUBNET_TYPEHASH, user, paramsStructHash, nonces[user]++, deadline)), deadline, v, r, s);
     }
 
     /// @dev Internal: shared logic for registerSubnet and registerSubnetFor
@@ -687,12 +660,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         address user, uint256 subnetId, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) external nonReentrant whenNotPaused {
-        if (block.timestamp > deadline) revert ExpiredSignature();
-        bytes32 structHash = keccak256(abi.encode(
-            ACTIVATE_SUBNET_TYPEHASH, user, subnetId, nonces[user]++, deadline
-        ));
-        bytes32 digest = _hashTypedDataV4(structHash);
-        if (ECDSA.recover(digest, v, r, s) != user) revert InvalidSignature();
+        _verifyDigest(user, keccak256(abi.encode(ACTIVATE_SUBNET_TYPEHASH, user, subnetId, nonces[user]++, deadline)), deadline, v, r, s);
 
         if (ISubnetNFT(subnetNFT).ownerOf(subnetId) != user) revert NotOwner();
         SubnetInfo storage info = subnets[subnetId];
@@ -888,6 +856,13 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
             unchecked { ++i; }
         }
         return infos;
+    }
+
+    /// @dev Check deadline, build EIP-712 digest, verify signer. Reverts on failure.
+    function _verifyDigest(address expectedSigner, bytes32 structHash, uint256 deadline, uint8 v, bytes32 r, bytes32 s) internal view {
+        if (block.timestamp > deadline) revert ExpiredSignature();
+        bytes32 digest = _hashTypedDataV4(structHash);
+        if (ECDSA.recover(digest, v, r, s) != expectedSigner) revert InvalidSignature();
     }
 
     /// @dev Anti-cycle check: walk up from target, revert if sender is found in the chain
