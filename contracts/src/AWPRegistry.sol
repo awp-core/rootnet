@@ -98,7 +98,8 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     uint256 public initialAlphaPrice;
 
     /// @notice Initial Alpha token mint amount per subnet: 100 million (100_000_000 * 1e18)
-    uint256 public constant INITIAL_ALPHA_MINT = 100_000_000 * 1e18;
+    /// @notice Alpha token mint amount per subnet registration (governance-settable)
+    uint256 public initialAlphaMint;
 
     /// @notice Subnet deregistration immunity period; Timelock cannot deregister the subnet during this window
     uint256 public immunityPeriod;
@@ -233,6 +234,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         // Inline initializer values (not executed for proxy storage)
         _nextLocalId = 1;
         initialAlphaPrice = 1e16;
+        initialAlphaMint = 100_000_000 * 1e18;
         immunityPeriod = 30 days;
     }
 
@@ -574,7 +576,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         uint8 registerV, bytes32 registerR, bytes32 registerS
     ) external nonReentrant whenNotPaused returns (uint256) {
         if (block.timestamp > deadline) revert ExpiredSignature();
-        uint256 lpAWPAmount = INITIAL_ALPHA_MINT * initialAlphaPrice / 1e18;
+        uint256 lpAWPAmount = initialAlphaMint * initialAlphaPrice / 1e18;
         IERC20Permit(awpToken).permit(user, address(this), lpAWPAmount, deadline, permitV, permitR, permitS);
         _verifyRegisterSubnetSignature(user, params, deadline, registerV, registerR, registerS);
         return _registerSubnet(user, params);
@@ -607,7 +609,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         bool autoDeploySubnet = params.subnetManager == address(0);
         if (autoDeploySubnet && defaultSubnetManagerImpl == address(0)) revert SubnetManagerRequired();
 
-        uint256 lpAWPAmount = INITIAL_ALPHA_MINT * initialAlphaPrice / 1e18;
+        uint256 lpAWPAmount = initialAlphaMint * initialAlphaPrice / 1e18;
         IERC20(awpToken).safeTransferFrom(user, lpManager, lpAWPAmount);
 
         uint256 subnetId = (block.chainid << 64) | _nextLocalId++;
@@ -646,8 +648,8 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         uint256 lpAWPAmount, bytes32 salt
     ) internal returns (address alphaToken, bytes32 poolId) {
         alphaToken = IAlphaTokenFactory(alphaTokenFactory).deploy(subnetId, name, symbol, address(this), salt);
-        IAlphaToken(alphaToken).mint(lpManager, INITIAL_ALPHA_MINT);
-        (poolId,) = ILPManager(lpManager).createPoolAndAddLiquidity(alphaToken, lpAWPAmount, INITIAL_ALPHA_MINT);
+        IAlphaToken(alphaToken).mint(lpManager, initialAlphaMint);
+        (poolId,) = ILPManager(lpManager).createPoolAndAddLiquidity(alphaToken, lpAWPAmount, initialAlphaMint);
     }
 
     /// @dev Emit subnet registration events
@@ -659,7 +661,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
             params.name, params.symbol,
             sc, alphaToken
         );
-        emit LPCreated(subnetId, poolId, lpAWPAmount, INITIAL_ALPHA_MINT);
+        emit LPCreated(subnetId, poolId, lpAWPAmount, initialAlphaMint);
     }
 
     // ═══════════════════════════════════════════════
@@ -791,6 +793,12 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         if (price > 1e30) revert PriceTooHigh();
         initialAlphaPrice = price;
         emit InitialAlphaPriceUpdated(price);
+    }
+
+    /// @notice Update the initial Alpha token mint amount per subnet (only Timelock)
+    function setInitialAlphaMint(uint256 amount) external onlyTimelock {
+        if (amount == 0) revert InvalidSubnetParams();
+        initialAlphaMint = amount;
     }
 
     /// @notice Update the guardian address (only Timelock may call)
