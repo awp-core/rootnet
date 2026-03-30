@@ -84,12 +84,17 @@ contract InitCodeHashes is Script {
         _logHash("SubnetNFT", abi.encodePacked(type(SubnetNFT).creationCode, abi.encode("AWP Subnet", "AWPSUB", awpRegistry)));
         _logHash("LPManager (PancakeSwap)", abi.encodePacked(type(LPManager).creationCode, abi.encode(awpRegistry, poolManager, positionManager, permit2Addr, awp)));
         _logHash("LPManager (Uniswap)", abi.encodePacked(type(LPManagerUni).creationCode, abi.encode(awpRegistry, poolManager, positionManager, permit2Addr, awp)));
-        _logHash("StakingVault", abi.encodePacked(type(StakingVault).creationCode, abi.encode(awpRegistry)));
+        _logHash("StakingVault_impl", abi.encodePacked(type(StakingVault).creationCode));
 
         uint256 genesisTime = vm.envOr("GENESIS_TIME", uint256(0));
         bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, treasury, INITIAL_DAILY_EMISSION, genesisTime, EPOCH_DURATION));
         _logHash("AWPEmission_proxy", abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(emissionImpl, initData)));
         console.log("  (genesisTime used:", genesisTime, ")");
+
+        // Tier 4b: StakingVault proxy (depends on AWPRegistry + StakingVault impl)
+        address vaultImpl = _addr("ADDR_STAKING_VAULT_IMPL");
+        bytes memory vaultInitData = abi.encodeCall(StakingVault.initialize, (awpRegistry));
+        _logHash("StakingVault_proxy", abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(vaultImpl, vaultInitData)));
 
         // Tier 5: StakeNFT (depends on StakingVault + AWPRegistry + AWP)
         console.log("");

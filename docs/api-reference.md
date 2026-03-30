@@ -354,7 +354,10 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/nonce/{address}` | Get the current EIP-712 nonce for an address (used for gasless relay signatures) |
+| GET | `/nonce/{address}` | AWPRegistry EIP-712 nonce (for bind/setRecipient/registerSubnet relay signatures) |
+| GET | `/staking-nonce/{address}` | StakingVault EIP-712 nonce (for allocate/deallocate relay signatures) |
+
+> **Note:** `/api/registry` returns two EIP-712 domains: `eip712Domain` (AWPRegistry — for bind/setRecipient/registerSubnet) and `stakingVaultEip712Domain` (StakingVault — for allocate/deallocate). Use the correct domain for each operation.
 
 ### 2.5 Staking
 
