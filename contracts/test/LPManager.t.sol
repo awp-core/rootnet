@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
 import {LPManager} from "../src/core/LPManager.sol";
+import {LPManagerBase} from "../src/core/LPManagerBase.sol";
 import {AWPToken} from "../src/token/AWPToken.sol";
 import {AlphaToken} from "../src/token/AlphaToken.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
@@ -83,14 +84,14 @@ contract LPManagerForkTest is Test {
         lpManager.createPoolAndAddLiquidity(address(alphaToken), AWP_LP_AMOUNT, ALPHA_LP_AMOUNT);
 
         vm.prank(awpRegistry);
-        vm.expectRevert(LPManager.PoolAlreadyExists.selector);
+        vm.expectRevert(LPManagerBase.PoolAlreadyExists.selector);
         lpManager.createPoolAndAddLiquidity(address(alphaToken), AWP_LP_AMOUNT, ALPHA_LP_AMOUNT);
     }
 
     /// @notice Non-AWPRegistry calls should revert
     function test_revertsNonAWPRegistry() public {
         vm.prank(user);
-        vm.expectRevert(LPManager.NotAWPRegistry.selector);
+        vm.expectRevert(LPManagerBase.NotAWPRegistry.selector);
         lpManager.createPoolAndAddLiquidity(address(alphaToken), AWP_LP_AMOUNT, ALPHA_LP_AMOUNT);
     }
 }
