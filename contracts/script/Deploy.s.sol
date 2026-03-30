@@ -161,12 +161,23 @@ contract Deploy is Script {
         }
         console.log("AWPEmission proxy:", address(emission));
 
-        // Step 8: StakingVault + StakeNFT
-        StakingVault vault = StakingVault(_create2(
-            saltVault,
-            abi.encodePacked(type(StakingVault).creationCode, abi.encode(address(awpRegistry)))
-        ));
-        console.log("StakingVault:", address(vault));
+        // Step 8: StakingVault (UUPS proxy) + StakeNFT
+        StakingVault vault;
+        {
+            bytes32 saltVaultImpl = _readSalt("SALT_STAKING_VAULT_IMPL");
+            StakingVault vaultImpl = StakingVault(_create2(
+                saltVaultImpl,
+                abi.encodePacked(type(StakingVault).creationCode)
+            ));
+            console.log("StakingVault impl:", address(vaultImpl));
+
+            bytes memory vaultInitData = abi.encodeCall(StakingVault.initialize, (address(awpRegistry)));
+            vault = StakingVault(_create2(
+                saltVault,
+                abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(address(vaultImpl), vaultInitData))
+            ));
+        }
+        console.log("StakingVault proxy:", address(vault));
 
         StakeNFT stakeNft = StakeNFT(_create2(
             saltStakeNFT,
