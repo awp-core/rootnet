@@ -143,13 +143,19 @@ abstract contract LPManagerBase {
         address awp = address(awpToken);
         (address c0, address c1) = awp < alphaToken ? (awp, alphaToken) : (alphaToken, awp);
 
-        _compoundFees(tokenId, c0, c1);
+        // Read current pool price for accurate liquidity computation
+        uint160 sqrtPriceX96 = _getCurrentSqrtPrice(c0, c1);
+
+        _compoundFees(tokenId, c0, c1, sqrtPriceX96);
 
         emit FeesCompounded(alphaToken, tokenId);
     }
 
+    /// @dev DEX-specific: read current pool sqrtPriceX96
+    function _getCurrentSqrtPrice(address c0, address c1) internal virtual view returns (uint160);
+
     /// @dev DEX-specific: compound fees back into liquidity for a position
-    function _compoundFees(uint256 tokenId, address c0, address c1) internal virtual;
+    function _compoundFees(uint256 tokenId, address c0, address c1, uint160 sqrtPriceX96) internal virtual;
 
     /// @dev DEX-specific: initialize the pool
     function _initializePool(address c0, address c1, uint160 sqrtPriceX96) internal virtual;

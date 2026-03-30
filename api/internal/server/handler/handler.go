@@ -119,43 +119,43 @@ func (h *Handler) HealthDetailed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	health := map[string]interface{}{
-		"status":  "ok",
-		"chainId": h.cfg.ChainID,
+		"status": "ok",
 	}
 
-	// 索引器同步状态：检查 sync_states 中的最新区块
-	if syncState, err := h.queries.GetSyncState(ctx, gen.GetSyncStateParams{
-		ChainID:      h.cfg.ChainID,
-		ContractName: "indexer",
-	}); err == nil {
-		health["indexer"] = map[string]interface{}{
-			"lastBlock": syncState.LastBlock,
-		}
-		// 如果链读取器可用，检查 RPC 连通性
-		if h.chain != nil {
-			if nonce, err := h.chain.GetNonce("0x0000000000000000000000000000000000000000"); err == nil {
-				_ = nonce // 链可达
-				health["rpcConnected"] = true
-			} else {
-				health["rpcConnected"] = false
-			}
+	// Determine which chain IDs to check
+	chainIDs := []int64{h.cfg.ChainID}
+	if h.chains != nil {
+		chainIDs = make([]int64, len(h.chains))
+		for i, c := range h.chains {
+			chainIDs[i] = c.ChainID
 		}
 	}
 
-	// Keeper 缓存新鲜度：检查 Redis 中 emission_current 的 TTL
-	emissionKey := fmt.Sprintf("emission_current:%d", h.cfg.ChainID)
-	if ttl, err := h.rdb.TTL(ctx, emissionKey).Result(); err == nil {
-		if ttl > 0 {
-			health["keeper"] = map[string]interface{}{
-				"cacheAlive": true,
-				"cacheTTL":   ttl.Seconds(),
-			}
+	// Per-chain health: indexer sync + keeper cache
+	chainsHealth := make([]map[string]interface{}, 0, len(chainIDs))
+	for _, cid := range chainIDs {
+		if cid == 0 {
+			continue
+		}
+		ch := map[string]interface{}{"chainId": cid}
+
+		if syncState, err := h.queries.GetSyncState(ctx, gen.GetSyncStateParams{
+			ChainID:      cid,
+			ContractName: "indexer",
+		}); err == nil {
+			ch["indexerLastBlock"] = syncState.LastBlock
+		}
+
+		emissionKey := fmt.Sprintf("emission_current:%d", cid)
+		if ttl, err := h.rdb.TTL(ctx, emissionKey).Result(); err == nil && ttl > 0 {
+			ch["keeperCacheAlive"] = true
 		} else {
-			health["keeper"] = map[string]interface{}{
-				"cacheAlive": false,
-			}
+			ch["keeperCacheAlive"] = false
 		}
+
+		chainsHealth = append(chainsHealth, ch)
 	}
+	health["chains"] = chainsHealth
 
 	// Redis 连通性
 	if err := h.rdb.Ping(ctx).Err(); err != nil {

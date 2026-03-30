@@ -18,6 +18,7 @@ struct UniPoolKey {
 /// @dev Uniswap V4 PoolManager interface
 interface IUniPoolManager {
     function initialize(UniPoolKey calldata key, uint160 sqrtPriceX96) external returns (int24 tick);
+    function getSlot0(bytes32 id) external view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee);
 }
 
 /// @dev Uniswap V4 PositionManager interface
@@ -97,7 +98,14 @@ contract LPManagerUni is LPManagerBase {
     /// @dev Compound accumulated fees back into the LP position (Uniswap V4)
     ///      Step 1: DECREASE_LIQUIDITY(0x01) with 0 delta → collect fees to LPManager
     ///      Step 2: INCREASE_LIQUIDITY(0x00) with collected amounts → reinvest as liquidity
-    function _compoundFees(uint256 tokenId, address c0, address c1) internal override {
+    function _getCurrentSqrtPrice(address c0, address c1) internal view override returns (uint160) {
+        UniPoolKey memory poolKey = _buildPoolKey(c0, c1);
+        bytes32 pid = keccak256(abi.encode(poolKey));
+        (uint160 sqrtPriceX96,,,) = IUniPoolManager(poolManager).getSlot0(pid);
+        return sqrtPriceX96;
+    }
+
+    function _compoundFees(uint256 tokenId, address c0, address c1, uint160 sqrtPriceX96) internal override {
         // Step 1: Collect fees
         {
             bytes memory actions = abi.encodePacked(uint8(0x01), uint8(0x11));
@@ -122,7 +130,7 @@ contract LPManagerUni is LPManagerBase {
         }
 
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
-            MIN_SQRT_RATIO, MIN_SQRT_RATIO, MAX_SQRT_RATIO, bal0, bal1
+            sqrtPriceX96, MIN_SQRT_RATIO, MAX_SQRT_RATIO, bal0, bal1
         );
         if (liquidity == 0) return;
 

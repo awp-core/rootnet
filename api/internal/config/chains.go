@@ -15,6 +15,7 @@ type ChainConfig struct {
 	RPCURL          string `yaml:"rpcUrl" json:"-"` // never expose RPC URL in API
 	DEX             string `yaml:"dex" json:"dex"`
 	InitialMint     int64  `yaml:"initialMint" json:"-"`
+	DeployBlock     int64  `yaml:"deployBlock" json:"-"`
 	Explorer        string `yaml:"explorer" json:"explorer"`
 	PoolManager     string `yaml:"poolManager" json:"-"`
 	PositionManager string `yaml:"positionManager" json:"-"`

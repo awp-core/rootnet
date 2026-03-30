@@ -19,6 +19,7 @@ struct PoolKey {
 /// @dev PancakeSwap V4 CLPoolManager interface (selector: 0x8b0c1b22, no hookData parameter)
 interface ICLPoolManager {
     function initialize(PoolKey calldata key, uint160 sqrtPriceX96) external returns (int24 tick);
+    function getSlot0(bytes32 id) external view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee);
 }
 
 /// @dev PancakeSwap V4 CLPositionManager interface
@@ -101,7 +102,14 @@ contract LPManager is LPManagerBase {
     /// @dev Compound accumulated fees back into the LP position (PancakeSwap V4)
     ///      Step 1: DECREASE_LIQUIDITY(0x01) with liquidityDelta=0 → collects accrued fees to LPManager
     ///      Step 2: Re-add collected fees as liquidity via INCREASE_LIQUIDITY(0x00)
-    function _compoundFees(uint256 tokenId, address c0, address c1) internal override {
+    function _getCurrentSqrtPrice(address c0, address c1) internal view override returns (uint160) {
+        PoolKey memory poolKey = _buildPoolKey(c0, c1);
+        bytes32 pid = keccak256(abi.encode(poolKey));
+        (uint160 sqrtPriceX96,,,) = ICLPoolManager(clPoolManager).getSlot0(pid);
+        return sqrtPriceX96;
+    }
+
+    function _compoundFees(uint256 tokenId, address c0, address c1, uint160 sqrtPriceX96) internal override {
         // Step 1: Collect fees — DECREASE_LIQUIDITY(0x01) with 0 delta + TAKE_PAIR(0x11)
         {
             bytes memory actions = abi.encodePacked(uint8(0x01), uint8(0x11));
@@ -127,7 +135,7 @@ contract LPManager is LPManagerBase {
         }
 
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
-            MIN_SQRT_RATIO, MIN_SQRT_RATIO, MAX_SQRT_RATIO, bal0, bal1
+            sqrtPriceX96, MIN_SQRT_RATIO, MAX_SQRT_RATIO, bal0, bal1
         );
         if (liquidity == 0) return;
 

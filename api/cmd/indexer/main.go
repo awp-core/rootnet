@@ -157,7 +157,11 @@ func startMultiChain(lc fx.Lifecycle, pool *pgxpool.Pool, rdb *redis.Client, cfg
 		if clientErr != nil {
 			return fmt.Errorf("chain client for %s (chainId=%d): %w", ch.Name, ch.ChainID, clientErr)
 		}
-		idx, idxErr := chain.NewIndexer(client, pool, rdb, ch.ChainID, cfg.DeployBlock)
+		deployBlock := ch.DeployBlock
+		if deployBlock == 0 {
+			deployBlock = cfg.DeployBlock // fallback to global
+		}
+		idx, idxErr := chain.NewIndexer(client, pool, rdb, ch.ChainID, deployBlock)
 		if idxErr != nil {
 			return fmt.Errorf("indexer for %s (chainId=%d): %w", ch.Name, ch.ChainID, idxErr)
 		}
