@@ -6,6 +6,10 @@ interface IAWPEmission {
     function submitAllocations(address[] calldata recipients, uint96[] calldata weights, bytes[] calldata signatures, uint256 effectiveEpoch) external;
     function emergencySetWeight(uint256 epoch_, uint256 index, address addr, uint96 weight) external;
     function setOracleConfig(address[] calldata oracles_, uint256 threshold_) external;
+    function setDecayFactor(uint256 newDecayFactor) external;
+    function setEmissionSplitBps(uint256 newSplitBps) external;
+    function decayFactor() external view returns (uint256);
+    function emissionSplitBps() external view returns (uint256);
     function settledEpoch() external view returns (uint256);
     function activeEpoch() external view returns (uint256);
     function currentDailyEmission() external view returns (uint256);

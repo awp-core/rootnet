@@ -95,21 +95,21 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice Cached AWP MAX_SUPPLY (set in initialize, avoids repeated cross-contract call)
     uint256 private _cachedMaxSupply;               // slot 23
 
+    /// @notice Decay factor per epoch (default 996844 / 1000000 ≈ 0.3156% decay)
+    uint256 public decayFactor;                     // slot 24
+
+    /// @notice Emission split: basis points to subnet recipients (default 5000 = 50%)
+    uint256 public emissionSplitBps;                // slot 25
+
     /// @dev Reserved storage gap for upgrades
-    uint256[36] private __gap;                      // slots 24-59
+    uint256[34] private __gap;                      // slots 26-59
 
     // ══════════════════════════════════════════════
     //  Constants
     // ══════════════════════════════════════════════
 
-    /// @notice Exponential decay factor numerator
-    uint256 public constant DECAY_FACTOR = 996844;
-
     /// @notice Exponential decay factor denominator
     uint256 public constant DECAY_PRECISION = 1000000;
-
-    /// @notice Emission split ratio (basis points): 5000 = 50% to recipients
-    uint256 public constant EMISSION_SPLIT_BPS = 5000;
 
     // ══════════════════════════════════════════════
     //  EIP-712 type hashes
@@ -198,6 +198,8 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         genesisTime = genesisTime_;
         epochDuration = epochDuration_;
         maxRecipients = 10000;
+        decayFactor = 996844;
+        emissionSplitBps = 5000;
         _cachedMaxSupply = IAWPToken(awpToken_).MAX_SUPPLY();
     }
 
@@ -328,6 +330,20 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         emit GovernanceWeightUpdated(addr, weight);
     }
 
+    /// @notice Update the per-epoch decay factor (onlyTimelock)
+    /// @param newDecayFactor Must be <= DECAY_PRECISION (no growth allowed)
+    function setDecayFactor(uint256 newDecayFactor) external onlyTimelock {
+        if (newDecayFactor == 0 || newDecayFactor > DECAY_PRECISION) revert InvalidParameter();
+        decayFactor = newDecayFactor;
+    }
+
+    /// @notice Update the emission split (onlyTimelock)
+    /// @param newSplitBps Must be <= 10000 (100%)
+    function setEmissionSplitBps(uint256 newSplitBps) external onlyTimelock {
+        if (newSplitBps > 10000) revert InvalidParameter();
+        emissionSplitBps = newSplitBps;
+    }
+
     // ══════════════════════════════════════════════
     //  Oracle configuration (onlyTimelock)
     // ══════════════════════════════════════════════
@@ -382,7 +398,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
             // Exponential decay: multiply by decay factor every epoch starting from epoch 2
             if (settledEpoch > 0) {
-                currentDailyEmission = currentDailyEmission * DECAY_FACTOR / DECAY_PRECISION;
+                currentDailyEmission = currentDailyEmission * decayFactor / DECAY_PRECISION;
             }
 
             // Calculate actual epoch emission (capped at remaining AWP mintable supply)
@@ -397,7 +413,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             }
 
             // Recipient pool = total emission × 50%
-            _snapshotPool = epochEmissionLocked * EMISSION_SPLIT_BPS / 10000;
+            _snapshotPool = epochEmissionLocked * emissionSplitBps / 10000;
             _epochMinted = 0;
 
             // Snapshot weight and recipient count from the active epoch
