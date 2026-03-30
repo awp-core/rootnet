@@ -16,70 +16,153 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-// revertErrors maps 4-byte Solidity error selectors to user-friendly messages
+// revertErrors maps 4-byte Solidity error selectors to user-friendly messages.
+// Selectors verified against contract source via cast sig on 2026-03-29.
 var revertErrors = map[string]string{
-	"0x8baa579f": "invalid signature",
-	"0x3a81d6fc": "user already registered",
-	"0xaba47339": "user not registered",
-	"0x682a9065": "agent already bound",
-	"0x179435b3": "agent not bound",
-	"0xdf4cc36d": "signature expired",
-	"0x7991d6f7": "subnet manager address required (auto-deploy not available)",
+	// ── AWPRegistry errors ──
+	"0xe6c4247b": "invalid address",
+	"0x8b906c97": "caller is not the deployer",
+	"0x0dc149f0": "already initialized",
+	"0xcad4da2a": "caller is not the Timelock",
+	"0xef6d0f02": "caller is not the Guardian",
 	"0x6a6a9712": "invalid subnet params (name 1-64 bytes, symbol 1-16 bytes)",
-	"0x00476ad8": "subnet not found",
-	"0x2783bd34": "not subnet owner",
-	"0x6ce3ac0e": "invalid subnet status for this operation",
-	"0x72b5dd4b": "subnet immunity period still active",
-	"0xab59c60f": "max active subnets reached",
-	"0x0f38cabd": "allocation below subnet minimum stake",
-	"0x9e87fac8": "contract is paused",
-	// OpenZeppelin ECDSA errors
-	"0xf645eedf": "invalid signature",
+	"0x7991d6f7": "subnet manager address required (auto-deploy not available)",
+	"0x6ce3ac0e": "invalid subnet status",
+	"0x84e3b93f": "immunity period not expired",
+	"0x30cd7471": "not the subnet owner",
+	"0xdbbbe822": "price too low",
+	"0x24fe1192": "price too high",
+	"0xdf4cc36d": "signature deadline expired",
+	"0x8baa579f": "invalid EIP-712 signature",
+	"0xab59c60f": "max active subnets reached (10000)",
+	"0x9146c723": "cycle detected in binding tree",
+	"0xc253bd89": "binding chain too long (max 100)",
+	"0xea8e4eb5": "not authorized (not staker or delegate)",
+	"0x373d7529": "cannot revoke own delegation",
+	"0x3a81d6fc": "already registered",
+
+	// ── OZ ERC20 errors ──
+	"0xe450d38c": "insufficient AWP balance",
+	"0xfb8f41b2": "insufficient AWP allowance",
+
+	// ── OZ ECDSA errors ──
+	"0xf645eedf": "invalid ECDSA signature",
 	"0xfce698f7": "invalid signature length",
 	"0xd78bce0c": "invalid signature S value",
-	// ERC20 errors
-	"0xfb8f41b2": "insufficient AWP allowance",
-	"0xe450d38c": "insufficient AWP balance",
-	// Account system V2 errors
-	"0xf48904b2": "cannot bind to self",
-	"0x9cba1f30": "already bound",
-	"0xcd69fa68": "cannot bind to yourself",
-	"0x390772fc": "not the owner",
-	"0x373d7529": "cannot revoke own delegation",
-	"0x9c8d2cd2": "invalid recipient",
-	// StakeNFT errors
+
+	// ── OZ common errors ──
+	"0xd93c0665": "contract is paused",
+	"0x8dfc202b": "contract is not paused",
+	"0x3ee5aeb5": "reentrancy guard: reentrant call",
+	"0xf92ee8a9": "contract already initialized",
+	"0xd7e6bcf8": "contract not initializing",
+	"0x5274afe7": "SafeERC20: token operation failed",
+
+	// ── UUPS errors ──
+	"0xe07c8dba": "unauthorized UUPS upgrade caller",
+	"0xaa1d49a4": "unsupported proxiable UUID",
+
+	// ── StakeNFT errors ──
+	"0x2c5211c6": "invalid amount",
+	"0xd4005715": "lock duration too short",
+	"0x59dc379f": "not the token owner",
 	"0x6855a802": "lock not expired",
-	"0x2bff29a6": "position expired",
+	"0x2bff29a6": "position lock expired (cannot add to expired position)",
 	"0xd247d121": "insufficient unallocated stake",
-	// Staking errors
-	"0xc18316bf": "subnet not active",
-	"0x0baf7432": "invalid allocation",
+	"0x2995fef1": "nothing to update",
+	"0x401640ae": "lock duration cannot be shortened",
+	"0x481ffa6a": "lock must exceed current time",
+	"0xd0bfc8d2": "not authorized (onlyAWPRegistry)",
+
+	// ── StakingVault errors ──
+	"0xdf2d4774": "insufficient allocation",
+	"0xd92e233d": "zero address",
+	"0xa741a045": "already set",
 	"0x78838d16": "subnet ID cannot be zero",
-	// Subnet lifecycle errors
-	"0x84e3b93f": "immunity period not expired",
-	"0x0dc149f0": "already initialized",
-	// AlphaToken / Factory errors
+
+	// ── AlphaToken errors ──
 	"0xc30436e9": "exceeds AWP max supply",
-	"0x1c04203f": "exceeds mintable limit",
+	"0x1c04203f": "exceeds Alpha mintable limit",
+	"0x7bfa4b9f": "not admin",
+	"0xf8d2906c": "not minter",
+	"0x69b757d8": "minter paused",
+	"0x815eb757": "minters locked",
+	"0xf7a632f5": "invalid callback",
+
+	// ── AlphaTokenFactory errors ──
 	"0x16a1ae75": "invalid vanity address (EIP-55 mismatch)",
-	"0x00af5596": "not authorized (onlyAWPRegistry)",
+
+	// ── LPManager errors ──
 	"0x03119322": "LP pool already exists",
-	// AWPEmission errors
-	"0xc2cf00fc": "emission mining complete",
+
+	// ── AWPEmission errors ──
+	"0x9c8d2cd2": "invalid recipient",
+	"0xac4258ee": "epoch not ready for settlement",
+	"0xc2cf00fc": "emission mining complete (MAX_SUPPLY reached)",
 	"0xc7d141a8": "settlement in progress",
+	"0x04beb044": "oracle not configured",
+	"0xdae95a07": "invalid oracle config",
+	"0x8b97390c": "insufficient oracle signatures",
+	"0xa821adce": "duplicate oracle address",
+	"0x9444a6da": "unknown oracle signer",
+	"0x8044bb33": "duplicate signer in oracle submission",
+	"0xa24a13a6": "array length mismatch",
+	"0x613970e0": "invalid parameter",
+	"0x56384ae8": "duplicate recipient",
 	"0x11631a24": "must be future epoch",
+
+	// ── SubnetManager errors ──
+	"0x646cf558": "already claimed",
+	"0x09bde339": "invalid Merkle proof",
+	"0xb466ddbf": "Merkle root already set for this epoch",
+	"0x8da6b984": "no Merkle root for this epoch",
+	"0x1f2a2005": "zero amount",
+
+	// ── SubnetManagerUni errors ──
+	"0xae18210a": "not the pool manager",
+	"0x8199f5f3": "slippage exceeded",
+
+	// ── AWPDAO errors ──
+	"0xdf957883": "no tokens provided",
+	"0xa1f0d74b": "token already voted in this proposal",
+	"0xf6fafba0": "lock expired",
+	"0x467b1124": "NFT minted after proposal creation",
+	"0xcabeb655": "insufficient voting power",
+	"0x376ef12e": "use proposeWithTokens instead",
+	"0x67542396": "use castVoteWithParams instead",
+	"0xbf5bbc9c": "invalid quorum percent",
+	"0x2721b57b": "zero total voting power",
+
+	// ── SubnetNFT errors ──
+	"0x44943622": "token does not exist",
 }
 
 // decodeRelayError extracts a user-friendly message from an on-chain revert error
 func decodeRelayError(err error) string {
 	s := err.Error()
-	// go-ethereum wraps revert data as "execution reverted: 0x{selector}"
+
+	// Try to extract 4-byte error selector from various go-ethereum error formats:
+	// - "execution reverted: 0x{selector}{args...}"
+	// - "error code 3: execution reverted, data: \"0x{selector}{args...}\""
+	// - "VM Exception: revert 0x{selector}"
+	for _, prefix := range []string{"data: \"0x", "data: 0x", "reverted: 0x", "revert 0x"} {
+		if idx := strings.Index(s, prefix); idx >= 0 {
+			hexStart := idx + len(prefix) - 2 // point to "0x"
+			if len(s) >= hexStart+10 {
+				selector := s[hexStart : hexStart+10]
+				if msg, ok := revertErrors[selector]; ok {
+					return msg
+				}
+				return "on-chain revert: " + selector
+			}
+		}
+	}
+	// Fallback: find any 0x + 8 hex chars
 	if idx := strings.Index(s, "0x"); idx >= 0 && len(s) >= idx+10 {
 		selector := s[idx : idx+10]
 		if msg, ok := revertErrors[selector]; ok {
 			return msg
 		}
-		// Unknown selector — return it so the caller can debug
 		return "on-chain revert: " + selector
 	}
 	// Non-revert errors — match common patterns without leaking internal details
@@ -105,7 +188,7 @@ func decodeRelayError(err error) string {
 		return "relay nonce conflict (replacement tx), please retry"
 	}
 	if strings.Contains(s, "execution reverted") {
-		return "on-chain execution reverted (unknown error)"
+		return "on-chain execution reverted — common causes: insufficient AWP balance, missing allowance, or contract paused"
 	}
 	// Final fallback — include a sanitized hint from the error type
 	return "relay failed: internal error, please try again"
