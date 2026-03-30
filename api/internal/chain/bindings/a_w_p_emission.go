@@ -31,7 +31,7 @@ var (
 
 // AWPEmissionMetaData contains all meta data concerning the AWPEmission contract.
 var AWPEmissionMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"constructor\",\"inputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"DECAY_FACTOR\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"DECAY_PRECISION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"EMISSION_SPLIT_BPS\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"UPGRADE_INTERFACE_VERSION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"activeEpoch\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"allocationNonce\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"awpToken\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"contractIAWPToken\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"currentDailyEmission\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"currentEpoch\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"eip712Domain\",\"inputs\":[],\"outputs\":[{\"name\":\"fields\",\"type\":\"bytes1\",\"internalType\":\"bytes1\"},{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"version\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"verifyingContract\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"extensions\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"emergencySetWeight\",\"inputs\":[{\"name\":\"epoch_\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"index\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"addr\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"weight\",\"type\":\"uint96\",\"internalType\":\"uint96\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"epochDuration\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"epochEmissionLocked\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"genesisTime\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getEpochRecipientCount\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getEpochTotalWeight\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getEpochWeight\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"addr\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint96\",\"internalType\":\"uint96\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getOracleCount\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getRecipient\",\"inputs\":[{\"name\":\"index\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getRecipientCount\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getTotalWeight\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getWeight\",\"inputs\":[{\"name\":\"addr\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint96\",\"internalType\":\"uint96\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"awpToken_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"treasury_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"initialDailyEmission_\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"genesisTime_\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"epochDuration_\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"maxRecipients\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"oracleThreshold\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"oracles\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proxiableUUID\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"setOracleConfig\",\"inputs\":[{\"name\":\"oracles_\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"threshold_\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"settleEpoch\",\"inputs\":[{\"name\":\"limit\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"settleProgress\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"settledEpoch\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"submitAllocations\",\"inputs\":[{\"name\":\"recipients_\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"weights_\",\"type\":\"uint96[]\",\"internalType\":\"uint96[]\"},{\"name\":\"signatures\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"effectiveEpoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"treasury\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"upgradeToAndCall\",\"inputs\":[{\"name\":\"newImplementation\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"event\",\"name\":\"AllocationsSubmitted\",\"inputs\":[{\"name\":\"nonce\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"recipients\",\"type\":\"address[]\",\"indexed\":false,\"internalType\":\"address[]\"},{\"name\":\"weights\",\"type\":\"uint96[]\",\"indexed\":false,\"internalType\":\"uint96[]\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"DAOMatchDistributed\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"EIP712DomainChanged\",\"inputs\":[],\"anonymous\":false},{\"type\":\"event\",\"name\":\"EpochSettled\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"totalEmission\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"recipientCount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"GovernanceWeightUpdated\",\"inputs\":[{\"name\":\"addr\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"weight\",\"type\":\"uint96\",\"indexed\":false,\"internalType\":\"uint96\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OracleConfigUpdated\",\"inputs\":[{\"name\":\"oracles\",\"type\":\"address[]\",\"indexed\":false,\"internalType\":\"address[]\"},{\"name\":\"threshold\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"RecipientAWPDistributed\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"recipient\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"awpAmount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Upgraded\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"AddressEmptyCode\",\"inputs\":[{\"name\":\"target\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ArrayLengthMismatch\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"DuplicateOracle\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"DuplicateRecipient\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"DuplicateSigner\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureLength\",\"inputs\":[{\"name\":\"length\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureS\",\"inputs\":[{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"ERC1967InvalidImplementation\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC1967NonPayable\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"EpochNotReady\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"FailedCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidAmount\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidInitialization\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidOracleConfig\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidParameter\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidRecipient\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidSignatureCount\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MiningComplete\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MustBeFutureEpoch\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotInitializing\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotTimelock\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"OracleNotConfigured\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ReentrancyGuardReentrantCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"SettlementInProgress\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnauthorizedCallContext\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnsupportedProxiableUUID\",\"inputs\":[{\"name\":\"slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"UnknownOracle\",\"inputs\":[]}]",
+	ABI: "[{\"type\":\"constructor\",\"inputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"DECAY_PRECISION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"UPGRADE_INTERFACE_VERSION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"activeEpoch\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"allocationNonce\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"awpToken\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"contractIAWPToken\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"currentDailyEmission\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"currentEpoch\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"decayFactor\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"eip712Domain\",\"inputs\":[],\"outputs\":[{\"name\":\"fields\",\"type\":\"bytes1\",\"internalType\":\"bytes1\"},{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"version\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"verifyingContract\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"extensions\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"emergencySetWeight\",\"inputs\":[{\"name\":\"epoch_\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"index\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"addr\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"weight\",\"type\":\"uint96\",\"internalType\":\"uint96\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"emissionSplitBps\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"epochDuration\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"epochEmissionLocked\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"genesisTime\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getEpochRecipientCount\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getEpochTotalWeight\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getEpochWeight\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"addr\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint96\",\"internalType\":\"uint96\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getOracleCount\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getRecipient\",\"inputs\":[{\"name\":\"index\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getRecipientCount\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getTotalWeight\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getWeight\",\"inputs\":[{\"name\":\"addr\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint96\",\"internalType\":\"uint96\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"awpToken_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"treasury_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"initialDailyEmission_\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"genesisTime_\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"epochDuration_\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"isOracleMap\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"maxRecipients\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"oracleThreshold\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"oracles\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proxiableUUID\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"setDecayFactor\",\"inputs\":[{\"name\":\"newDecayFactor\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setEmissionSplitBps\",\"inputs\":[{\"name\":\"newSplitBps\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setOracleConfig\",\"inputs\":[{\"name\":\"oracles_\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"threshold_\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"settleEpoch\",\"inputs\":[{\"name\":\"limit\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"settleProgress\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"settledEpoch\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"submitAllocations\",\"inputs\":[{\"name\":\"recipients_\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"weights_\",\"type\":\"uint96[]\",\"internalType\":\"uint96[]\"},{\"name\":\"signatures\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"effectiveEpoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"treasury\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"upgradeToAndCall\",\"inputs\":[{\"name\":\"newImplementation\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"event\",\"name\":\"AllocationsSubmitted\",\"inputs\":[{\"name\":\"nonce\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"recipients\",\"type\":\"address[]\",\"indexed\":false,\"internalType\":\"address[]\"},{\"name\":\"weights\",\"type\":\"uint96[]\",\"indexed\":false,\"internalType\":\"uint96[]\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"DAOMatchDistributed\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"EIP712DomainChanged\",\"inputs\":[],\"anonymous\":false},{\"type\":\"event\",\"name\":\"EpochSettled\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"totalEmission\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"recipientCount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"GovernanceWeightUpdated\",\"inputs\":[{\"name\":\"addr\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"weight\",\"type\":\"uint96\",\"indexed\":false,\"internalType\":\"uint96\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OracleConfigUpdated\",\"inputs\":[{\"name\":\"oracles\",\"type\":\"address[]\",\"indexed\":false,\"internalType\":\"address[]\"},{\"name\":\"threshold\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"RecipientAWPDistributed\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"recipient\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"awpAmount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Upgraded\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"AddressEmptyCode\",\"inputs\":[{\"name\":\"target\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ArrayLengthMismatch\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"DuplicateOracle\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"DuplicateRecipient\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"DuplicateSigner\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureLength\",\"inputs\":[{\"name\":\"length\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureS\",\"inputs\":[{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"ERC1967InvalidImplementation\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC1967NonPayable\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"EpochNotReady\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"FailedCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidAmount\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidInitialization\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidOracleConfig\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidParameter\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidRecipient\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidSignatureCount\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MiningComplete\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MustBeFutureEpoch\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotInitializing\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotTimelock\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"OracleNotConfigured\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ReentrancyGuardReentrantCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"SettlementInProgress\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnauthorizedCallContext\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnsupportedProxiableUUID\",\"inputs\":[{\"name\":\"slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"UnknownOracle\",\"inputs\":[]}]",
 }
 
 // AWPEmissionABI is the input ABI used to generate the binding from.
@@ -180,37 +180,6 @@ func (_AWPEmission *AWPEmissionTransactorRaw) Transact(opts *bind.TransactOpts, 
 	return _AWPEmission.Contract.contract.Transact(opts, method, params...)
 }
 
-// DECAYFACTOR is a free data retrieval call binding the contract method 0xe08eae5f.
-//
-// Solidity: function DECAY_FACTOR() view returns(uint256)
-func (_AWPEmission *AWPEmissionCaller) DECAYFACTOR(opts *bind.CallOpts) (*big.Int, error) {
-	var out []interface{}
-	err := _AWPEmission.contract.Call(opts, &out, "DECAY_FACTOR")
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// DECAYFACTOR is a free data retrieval call binding the contract method 0xe08eae5f.
-//
-// Solidity: function DECAY_FACTOR() view returns(uint256)
-func (_AWPEmission *AWPEmissionSession) DECAYFACTOR() (*big.Int, error) {
-	return _AWPEmission.Contract.DECAYFACTOR(&_AWPEmission.CallOpts)
-}
-
-// DECAYFACTOR is a free data retrieval call binding the contract method 0xe08eae5f.
-//
-// Solidity: function DECAY_FACTOR() view returns(uint256)
-func (_AWPEmission *AWPEmissionCallerSession) DECAYFACTOR() (*big.Int, error) {
-	return _AWPEmission.Contract.DECAYFACTOR(&_AWPEmission.CallOpts)
-}
-
 // DECAYPRECISION is a free data retrieval call binding the contract method 0xef80c9f0.
 //
 // Solidity: function DECAY_PRECISION() view returns(uint256)
@@ -240,37 +209,6 @@ func (_AWPEmission *AWPEmissionSession) DECAYPRECISION() (*big.Int, error) {
 // Solidity: function DECAY_PRECISION() view returns(uint256)
 func (_AWPEmission *AWPEmissionCallerSession) DECAYPRECISION() (*big.Int, error) {
 	return _AWPEmission.Contract.DECAYPRECISION(&_AWPEmission.CallOpts)
-}
-
-// EMISSIONSPLITBPS is a free data retrieval call binding the contract method 0x202a1204.
-//
-// Solidity: function EMISSION_SPLIT_BPS() view returns(uint256)
-func (_AWPEmission *AWPEmissionCaller) EMISSIONSPLITBPS(opts *bind.CallOpts) (*big.Int, error) {
-	var out []interface{}
-	err := _AWPEmission.contract.Call(opts, &out, "EMISSION_SPLIT_BPS")
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// EMISSIONSPLITBPS is a free data retrieval call binding the contract method 0x202a1204.
-//
-// Solidity: function EMISSION_SPLIT_BPS() view returns(uint256)
-func (_AWPEmission *AWPEmissionSession) EMISSIONSPLITBPS() (*big.Int, error) {
-	return _AWPEmission.Contract.EMISSIONSPLITBPS(&_AWPEmission.CallOpts)
-}
-
-// EMISSIONSPLITBPS is a free data retrieval call binding the contract method 0x202a1204.
-//
-// Solidity: function EMISSION_SPLIT_BPS() view returns(uint256)
-func (_AWPEmission *AWPEmissionCallerSession) EMISSIONSPLITBPS() (*big.Int, error) {
-	return _AWPEmission.Contract.EMISSIONSPLITBPS(&_AWPEmission.CallOpts)
 }
 
 // UPGRADEINTERFACEVERSION is a free data retrieval call binding the contract method 0xad3cb1cc.
@@ -459,6 +397,37 @@ func (_AWPEmission *AWPEmissionCallerSession) CurrentEpoch() (*big.Int, error) {
 	return _AWPEmission.Contract.CurrentEpoch(&_AWPEmission.CallOpts)
 }
 
+// DecayFactor is a free data retrieval call binding the contract method 0x20fb3016.
+//
+// Solidity: function decayFactor() view returns(uint256)
+func (_AWPEmission *AWPEmissionCaller) DecayFactor(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _AWPEmission.contract.Call(opts, &out, "decayFactor")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// DecayFactor is a free data retrieval call binding the contract method 0x20fb3016.
+//
+// Solidity: function decayFactor() view returns(uint256)
+func (_AWPEmission *AWPEmissionSession) DecayFactor() (*big.Int, error) {
+	return _AWPEmission.Contract.DecayFactor(&_AWPEmission.CallOpts)
+}
+
+// DecayFactor is a free data retrieval call binding the contract method 0x20fb3016.
+//
+// Solidity: function decayFactor() view returns(uint256)
+func (_AWPEmission *AWPEmissionCallerSession) DecayFactor() (*big.Int, error) {
+	return _AWPEmission.Contract.DecayFactor(&_AWPEmission.CallOpts)
+}
+
 // Eip712Domain is a free data retrieval call binding the contract method 0x84b0196e.
 //
 // Solidity: function eip712Domain() view returns(bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)
@@ -527,6 +496,37 @@ func (_AWPEmission *AWPEmissionCallerSession) Eip712Domain() (struct {
 	Extensions        []*big.Int
 }, error) {
 	return _AWPEmission.Contract.Eip712Domain(&_AWPEmission.CallOpts)
+}
+
+// EmissionSplitBps is a free data retrieval call binding the contract method 0x349e60a8.
+//
+// Solidity: function emissionSplitBps() view returns(uint256)
+func (_AWPEmission *AWPEmissionCaller) EmissionSplitBps(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _AWPEmission.contract.Call(opts, &out, "emissionSplitBps")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// EmissionSplitBps is a free data retrieval call binding the contract method 0x349e60a8.
+//
+// Solidity: function emissionSplitBps() view returns(uint256)
+func (_AWPEmission *AWPEmissionSession) EmissionSplitBps() (*big.Int, error) {
+	return _AWPEmission.Contract.EmissionSplitBps(&_AWPEmission.CallOpts)
+}
+
+// EmissionSplitBps is a free data retrieval call binding the contract method 0x349e60a8.
+//
+// Solidity: function emissionSplitBps() view returns(uint256)
+func (_AWPEmission *AWPEmissionCallerSession) EmissionSplitBps() (*big.Int, error) {
+	return _AWPEmission.Contract.EmissionSplitBps(&_AWPEmission.CallOpts)
 }
 
 // EpochDuration is a free data retrieval call binding the contract method 0x4ff0876a.
@@ -870,6 +870,37 @@ func (_AWPEmission *AWPEmissionCallerSession) GetWeight(addr common.Address) (*b
 	return _AWPEmission.Contract.GetWeight(&_AWPEmission.CallOpts, addr)
 }
 
+// IsOracleMap is a free data retrieval call binding the contract method 0x6535ad6d.
+//
+// Solidity: function isOracleMap(address ) view returns(bool)
+func (_AWPEmission *AWPEmissionCaller) IsOracleMap(opts *bind.CallOpts, arg0 common.Address) (bool, error) {
+	var out []interface{}
+	err := _AWPEmission.contract.Call(opts, &out, "isOracleMap", arg0)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
+}
+
+// IsOracleMap is a free data retrieval call binding the contract method 0x6535ad6d.
+//
+// Solidity: function isOracleMap(address ) view returns(bool)
+func (_AWPEmission *AWPEmissionSession) IsOracleMap(arg0 common.Address) (bool, error) {
+	return _AWPEmission.Contract.IsOracleMap(&_AWPEmission.CallOpts, arg0)
+}
+
+// IsOracleMap is a free data retrieval call binding the contract method 0x6535ad6d.
+//
+// Solidity: function isOracleMap(address ) view returns(bool)
+func (_AWPEmission *AWPEmissionCallerSession) IsOracleMap(arg0 common.Address) (bool, error) {
+	return _AWPEmission.Contract.IsOracleMap(&_AWPEmission.CallOpts, arg0)
+}
+
 // MaxRecipients is a free data retrieval call binding the contract method 0x88a13072.
 //
 // Solidity: function maxRecipients() view returns(uint256)
@@ -1127,6 +1158,48 @@ func (_AWPEmission *AWPEmissionSession) Initialize(awpToken_ common.Address, tre
 // Solidity: function initialize(address awpToken_, address treasury_, uint256 initialDailyEmission_, uint256 genesisTime_, uint256 epochDuration_) returns()
 func (_AWPEmission *AWPEmissionTransactorSession) Initialize(awpToken_ common.Address, treasury_ common.Address, initialDailyEmission_ *big.Int, genesisTime_ *big.Int, epochDuration_ *big.Int) (*types.Transaction, error) {
 	return _AWPEmission.Contract.Initialize(&_AWPEmission.TransactOpts, awpToken_, treasury_, initialDailyEmission_, genesisTime_, epochDuration_)
+}
+
+// SetDecayFactor is a paid mutator transaction binding the contract method 0xb8c9059d.
+//
+// Solidity: function setDecayFactor(uint256 newDecayFactor) returns()
+func (_AWPEmission *AWPEmissionTransactor) SetDecayFactor(opts *bind.TransactOpts, newDecayFactor *big.Int) (*types.Transaction, error) {
+	return _AWPEmission.contract.Transact(opts, "setDecayFactor", newDecayFactor)
+}
+
+// SetDecayFactor is a paid mutator transaction binding the contract method 0xb8c9059d.
+//
+// Solidity: function setDecayFactor(uint256 newDecayFactor) returns()
+func (_AWPEmission *AWPEmissionSession) SetDecayFactor(newDecayFactor *big.Int) (*types.Transaction, error) {
+	return _AWPEmission.Contract.SetDecayFactor(&_AWPEmission.TransactOpts, newDecayFactor)
+}
+
+// SetDecayFactor is a paid mutator transaction binding the contract method 0xb8c9059d.
+//
+// Solidity: function setDecayFactor(uint256 newDecayFactor) returns()
+func (_AWPEmission *AWPEmissionTransactorSession) SetDecayFactor(newDecayFactor *big.Int) (*types.Transaction, error) {
+	return _AWPEmission.Contract.SetDecayFactor(&_AWPEmission.TransactOpts, newDecayFactor)
+}
+
+// SetEmissionSplitBps is a paid mutator transaction binding the contract method 0xa6d343d7.
+//
+// Solidity: function setEmissionSplitBps(uint256 newSplitBps) returns()
+func (_AWPEmission *AWPEmissionTransactor) SetEmissionSplitBps(opts *bind.TransactOpts, newSplitBps *big.Int) (*types.Transaction, error) {
+	return _AWPEmission.contract.Transact(opts, "setEmissionSplitBps", newSplitBps)
+}
+
+// SetEmissionSplitBps is a paid mutator transaction binding the contract method 0xa6d343d7.
+//
+// Solidity: function setEmissionSplitBps(uint256 newSplitBps) returns()
+func (_AWPEmission *AWPEmissionSession) SetEmissionSplitBps(newSplitBps *big.Int) (*types.Transaction, error) {
+	return _AWPEmission.Contract.SetEmissionSplitBps(&_AWPEmission.TransactOpts, newSplitBps)
+}
+
+// SetEmissionSplitBps is a paid mutator transaction binding the contract method 0xa6d343d7.
+//
+// Solidity: function setEmissionSplitBps(uint256 newSplitBps) returns()
+func (_AWPEmission *AWPEmissionTransactorSession) SetEmissionSplitBps(newSplitBps *big.Int) (*types.Transaction, error) {
+	return _AWPEmission.Contract.SetEmissionSplitBps(&_AWPEmission.TransactOpts, newSplitBps)
 }
 
 // SetOracleConfig is a paid mutator transaction binding the contract method 0xa5ca27df.

@@ -120,7 +120,8 @@ func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, limiter *ratelimit.Lim
 	}
 
 	awpRegistryAddr := common.HexToAddress(cfg.AWPRegistryAddress)
-	relayer, err := chain.NewRelayer(client, awpRegistryAddr, key, chainID, logger)
+	stakingVaultAddr := common.HexToAddress(cfg.StakingVaultAddress)
+	relayer, err := chain.NewRelayer(client, awpRegistryAddr, stakingVaultAddr, key, chainID, logger)
 	if err != nil {
 		client.Close()
 		return nil, fmt.Errorf("create relayer: %w", err)

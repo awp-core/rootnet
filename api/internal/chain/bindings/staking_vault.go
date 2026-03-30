@@ -31,7 +31,7 @@ var (
 
 // StakingVaultMetaData contains all meta data concerning the StakingVault contract.
 var StakingVaultMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"constructor\",\"inputs\":[{\"name\":\"awpRegistry_\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"allocate\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"awpRegistry\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"deallocate\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"freezeAgentAllocations\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"getAgentStake\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getAgentSubnets\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getSubnetTotalStake\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"reallocate\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"fromAgent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"fromSubnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"toAgent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"toSubnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setStakeNFT\",\"inputs\":[{\"name\":\"stakeNFT_\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"stakeNFT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"subnetTotalStake\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"userTotalAllocated\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"AgentAllocationsFrozen\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"totalFrozen\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"AlreadySet\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InsufficientAllocation\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InsufficientUnallocated\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidAmount\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotAWPRegistry\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ZeroAddress\",\"inputs\":[]}]",
+	ABI: "[{\"type\":\"constructor\",\"inputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"UPGRADE_INTERFACE_VERSION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"allocate\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"allocateFor\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"awpRegistry\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"deallocate\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"deallocateFor\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"eip712Domain\",\"inputs\":[],\"outputs\":[{\"name\":\"fields\",\"type\":\"bytes1\",\"internalType\":\"bytes1\"},{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"version\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"verifyingContract\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"extensions\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"freezeAgentAllocations\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"getAgentStake\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getAgentSubnets\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getSubnetTotalStake\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"awpRegistry_\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"nonces\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proxiableUUID\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"reallocate\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"fromAgent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"fromSubnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"toAgent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"toSubnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setStakeNFT\",\"inputs\":[{\"name\":\"stakeNFT_\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"stakeNFT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"subnetTotalStake\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"upgradeToAndCall\",\"inputs\":[{\"name\":\"newImplementation\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"userTotalAllocated\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"AgentAllocationsFrozen\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"totalFrozen\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Allocated\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Deallocated\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"EIP712DomainChanged\",\"inputs\":[],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Reallocated\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"fromAgent\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"fromSubnetId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"toAgent\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"toSubnetId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Upgraded\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"AddressEmptyCode\",\"inputs\":[{\"name\":\"target\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"AlreadySet\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureLength\",\"inputs\":[{\"name\":\"length\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureS\",\"inputs\":[{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"ERC1967InvalidImplementation\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC1967NonPayable\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ExpiredSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"FailedCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InsufficientAllocation\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InsufficientUnallocated\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidAmount\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidInitialization\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotAWPRegistry\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotAuthorized\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotInitializing\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnauthorizedCallContext\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnsupportedProxiableUUID\",\"inputs\":[{\"name\":\"slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"ZeroAddress\",\"inputs\":[]}]",
 }
 
 // StakingVaultABI is the input ABI used to generate the binding from.
@@ -180,6 +180,37 @@ func (_StakingVault *StakingVaultTransactorRaw) Transact(opts *bind.TransactOpts
 	return _StakingVault.Contract.contract.Transact(opts, method, params...)
 }
 
+// UPGRADEINTERFACEVERSION is a free data retrieval call binding the contract method 0xad3cb1cc.
+//
+// Solidity: function UPGRADE_INTERFACE_VERSION() view returns(string)
+func (_StakingVault *StakingVaultCaller) UPGRADEINTERFACEVERSION(opts *bind.CallOpts) (string, error) {
+	var out []interface{}
+	err := _StakingVault.contract.Call(opts, &out, "UPGRADE_INTERFACE_VERSION")
+
+	if err != nil {
+		return *new(string), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
+
+	return out0, err
+
+}
+
+// UPGRADEINTERFACEVERSION is a free data retrieval call binding the contract method 0xad3cb1cc.
+//
+// Solidity: function UPGRADE_INTERFACE_VERSION() view returns(string)
+func (_StakingVault *StakingVaultSession) UPGRADEINTERFACEVERSION() (string, error) {
+	return _StakingVault.Contract.UPGRADEINTERFACEVERSION(&_StakingVault.CallOpts)
+}
+
+// UPGRADEINTERFACEVERSION is a free data retrieval call binding the contract method 0xad3cb1cc.
+//
+// Solidity: function UPGRADE_INTERFACE_VERSION() view returns(string)
+func (_StakingVault *StakingVaultCallerSession) UPGRADEINTERFACEVERSION() (string, error) {
+	return _StakingVault.Contract.UPGRADEINTERFACEVERSION(&_StakingVault.CallOpts)
+}
+
 // AwpRegistry is a free data retrieval call binding the contract method 0x38fb1eb4.
 //
 // Solidity: function awpRegistry() view returns(address)
@@ -209,6 +240,76 @@ func (_StakingVault *StakingVaultSession) AwpRegistry() (common.Address, error) 
 // Solidity: function awpRegistry() view returns(address)
 func (_StakingVault *StakingVaultCallerSession) AwpRegistry() (common.Address, error) {
 	return _StakingVault.Contract.AwpRegistry(&_StakingVault.CallOpts)
+}
+
+// Eip712Domain is a free data retrieval call binding the contract method 0x84b0196e.
+//
+// Solidity: function eip712Domain() view returns(bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)
+func (_StakingVault *StakingVaultCaller) Eip712Domain(opts *bind.CallOpts) (struct {
+	Fields            [1]byte
+	Name              string
+	Version           string
+	ChainId           *big.Int
+	VerifyingContract common.Address
+	Salt              [32]byte
+	Extensions        []*big.Int
+}, error) {
+	var out []interface{}
+	err := _StakingVault.contract.Call(opts, &out, "eip712Domain")
+
+	outstruct := new(struct {
+		Fields            [1]byte
+		Name              string
+		Version           string
+		ChainId           *big.Int
+		VerifyingContract common.Address
+		Salt              [32]byte
+		Extensions        []*big.Int
+	})
+	if err != nil {
+		return *outstruct, err
+	}
+
+	outstruct.Fields = *abi.ConvertType(out[0], new([1]byte)).(*[1]byte)
+	outstruct.Name = *abi.ConvertType(out[1], new(string)).(*string)
+	outstruct.Version = *abi.ConvertType(out[2], new(string)).(*string)
+	outstruct.ChainId = *abi.ConvertType(out[3], new(*big.Int)).(**big.Int)
+	outstruct.VerifyingContract = *abi.ConvertType(out[4], new(common.Address)).(*common.Address)
+	outstruct.Salt = *abi.ConvertType(out[5], new([32]byte)).(*[32]byte)
+	outstruct.Extensions = *abi.ConvertType(out[6], new([]*big.Int)).(*[]*big.Int)
+
+	return *outstruct, err
+
+}
+
+// Eip712Domain is a free data retrieval call binding the contract method 0x84b0196e.
+//
+// Solidity: function eip712Domain() view returns(bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)
+func (_StakingVault *StakingVaultSession) Eip712Domain() (struct {
+	Fields            [1]byte
+	Name              string
+	Version           string
+	ChainId           *big.Int
+	VerifyingContract common.Address
+	Salt              [32]byte
+	Extensions        []*big.Int
+}, error) {
+	return _StakingVault.Contract.Eip712Domain(&_StakingVault.CallOpts)
+}
+
+// Eip712Domain is a free data retrieval call binding the contract method 0x84b0196e.
+//
+// Solidity: function eip712Domain() view returns(bytes1 fields, string name, string version, uint256 chainId, address verifyingContract, bytes32 salt, uint256[] extensions)
+func (_StakingVault *StakingVaultCallerSession) Eip712Domain() (struct {
+	Fields            [1]byte
+	Name              string
+	Version           string
+	ChainId           *big.Int
+	VerifyingContract common.Address
+	Salt              [32]byte
+	Extensions        []*big.Int
+}, error) {
+	return _StakingVault.Contract.Eip712Domain(&_StakingVault.CallOpts)
 }
 
 // GetAgentStake is a free data retrieval call binding the contract method 0xf1ad80c6.
@@ -302,6 +403,68 @@ func (_StakingVault *StakingVaultSession) GetSubnetTotalStake(subnetId *big.Int)
 // Solidity: function getSubnetTotalStake(uint256 subnetId) view returns(uint256)
 func (_StakingVault *StakingVaultCallerSession) GetSubnetTotalStake(subnetId *big.Int) (*big.Int, error) {
 	return _StakingVault.Contract.GetSubnetTotalStake(&_StakingVault.CallOpts, subnetId)
+}
+
+// Nonces is a free data retrieval call binding the contract method 0x7ecebe00.
+//
+// Solidity: function nonces(address ) view returns(uint256)
+func (_StakingVault *StakingVaultCaller) Nonces(opts *bind.CallOpts, arg0 common.Address) (*big.Int, error) {
+	var out []interface{}
+	err := _StakingVault.contract.Call(opts, &out, "nonces", arg0)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// Nonces is a free data retrieval call binding the contract method 0x7ecebe00.
+//
+// Solidity: function nonces(address ) view returns(uint256)
+func (_StakingVault *StakingVaultSession) Nonces(arg0 common.Address) (*big.Int, error) {
+	return _StakingVault.Contract.Nonces(&_StakingVault.CallOpts, arg0)
+}
+
+// Nonces is a free data retrieval call binding the contract method 0x7ecebe00.
+//
+// Solidity: function nonces(address ) view returns(uint256)
+func (_StakingVault *StakingVaultCallerSession) Nonces(arg0 common.Address) (*big.Int, error) {
+	return _StakingVault.Contract.Nonces(&_StakingVault.CallOpts, arg0)
+}
+
+// ProxiableUUID is a free data retrieval call binding the contract method 0x52d1902d.
+//
+// Solidity: function proxiableUUID() view returns(bytes32)
+func (_StakingVault *StakingVaultCaller) ProxiableUUID(opts *bind.CallOpts) ([32]byte, error) {
+	var out []interface{}
+	err := _StakingVault.contract.Call(opts, &out, "proxiableUUID")
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// ProxiableUUID is a free data retrieval call binding the contract method 0x52d1902d.
+//
+// Solidity: function proxiableUUID() view returns(bytes32)
+func (_StakingVault *StakingVaultSession) ProxiableUUID() ([32]byte, error) {
+	return _StakingVault.Contract.ProxiableUUID(&_StakingVault.CallOpts)
+}
+
+// ProxiableUUID is a free data retrieval call binding the contract method 0x52d1902d.
+//
+// Solidity: function proxiableUUID() view returns(bytes32)
+func (_StakingVault *StakingVaultCallerSession) ProxiableUUID() ([32]byte, error) {
+	return _StakingVault.Contract.ProxiableUUID(&_StakingVault.CallOpts)
 }
 
 // StakeNFT is a free data retrieval call binding the contract method 0xb48509e6.
@@ -399,44 +562,86 @@ func (_StakingVault *StakingVaultCallerSession) UserTotalAllocated(arg0 common.A
 
 // Allocate is a paid mutator transaction binding the contract method 0xd035a9a7.
 //
-// Solidity: function allocate(address user, address agent, uint256 subnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultTransactor) Allocate(opts *bind.TransactOpts, user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.contract.Transact(opts, "allocate", user, agent, subnetId, amount)
+// Solidity: function allocate(address staker, address agent, uint256 subnetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultTransactor) Allocate(opts *bind.TransactOpts, staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.contract.Transact(opts, "allocate", staker, agent, subnetId, amount)
 }
 
 // Allocate is a paid mutator transaction binding the contract method 0xd035a9a7.
 //
-// Solidity: function allocate(address user, address agent, uint256 subnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultSession) Allocate(user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.Contract.Allocate(&_StakingVault.TransactOpts, user, agent, subnetId, amount)
+// Solidity: function allocate(address staker, address agent, uint256 subnetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultSession) Allocate(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.Contract.Allocate(&_StakingVault.TransactOpts, staker, agent, subnetId, amount)
 }
 
 // Allocate is a paid mutator transaction binding the contract method 0xd035a9a7.
 //
-// Solidity: function allocate(address user, address agent, uint256 subnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultTransactorSession) Allocate(user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.Contract.Allocate(&_StakingVault.TransactOpts, user, agent, subnetId, amount)
+// Solidity: function allocate(address staker, address agent, uint256 subnetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultTransactorSession) Allocate(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.Contract.Allocate(&_StakingVault.TransactOpts, staker, agent, subnetId, amount)
+}
+
+// AllocateFor is a paid mutator transaction binding the contract method 0x7d66c5c5.
+//
+// Solidity: function allocateFor(address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
+func (_StakingVault *StakingVaultTransactor) AllocateFor(opts *bind.TransactOpts, staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _StakingVault.contract.Transact(opts, "allocateFor", staker, agent, subnetId, amount, deadline, v, r, s)
+}
+
+// AllocateFor is a paid mutator transaction binding the contract method 0x7d66c5c5.
+//
+// Solidity: function allocateFor(address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
+func (_StakingVault *StakingVaultSession) AllocateFor(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _StakingVault.Contract.AllocateFor(&_StakingVault.TransactOpts, staker, agent, subnetId, amount, deadline, v, r, s)
+}
+
+// AllocateFor is a paid mutator transaction binding the contract method 0x7d66c5c5.
+//
+// Solidity: function allocateFor(address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
+func (_StakingVault *StakingVaultTransactorSession) AllocateFor(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _StakingVault.Contract.AllocateFor(&_StakingVault.TransactOpts, staker, agent, subnetId, amount, deadline, v, r, s)
 }
 
 // Deallocate is a paid mutator transaction binding the contract method 0x716fb83d.
 //
-// Solidity: function deallocate(address user, address agent, uint256 subnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultTransactor) Deallocate(opts *bind.TransactOpts, user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.contract.Transact(opts, "deallocate", user, agent, subnetId, amount)
+// Solidity: function deallocate(address staker, address agent, uint256 subnetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultTransactor) Deallocate(opts *bind.TransactOpts, staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.contract.Transact(opts, "deallocate", staker, agent, subnetId, amount)
 }
 
 // Deallocate is a paid mutator transaction binding the contract method 0x716fb83d.
 //
-// Solidity: function deallocate(address user, address agent, uint256 subnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultSession) Deallocate(user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.Contract.Deallocate(&_StakingVault.TransactOpts, user, agent, subnetId, amount)
+// Solidity: function deallocate(address staker, address agent, uint256 subnetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultSession) Deallocate(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.Contract.Deallocate(&_StakingVault.TransactOpts, staker, agent, subnetId, amount)
 }
 
 // Deallocate is a paid mutator transaction binding the contract method 0x716fb83d.
 //
-// Solidity: function deallocate(address user, address agent, uint256 subnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultTransactorSession) Deallocate(user common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.Contract.Deallocate(&_StakingVault.TransactOpts, user, agent, subnetId, amount)
+// Solidity: function deallocate(address staker, address agent, uint256 subnetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultTransactorSession) Deallocate(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.Contract.Deallocate(&_StakingVault.TransactOpts, staker, agent, subnetId, amount)
+}
+
+// DeallocateFor is a paid mutator transaction binding the contract method 0x10fe1208.
+//
+// Solidity: function deallocateFor(address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
+func (_StakingVault *StakingVaultTransactor) DeallocateFor(opts *bind.TransactOpts, staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _StakingVault.contract.Transact(opts, "deallocateFor", staker, agent, subnetId, amount, deadline, v, r, s)
+}
+
+// DeallocateFor is a paid mutator transaction binding the contract method 0x10fe1208.
+//
+// Solidity: function deallocateFor(address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
+func (_StakingVault *StakingVaultSession) DeallocateFor(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _StakingVault.Contract.DeallocateFor(&_StakingVault.TransactOpts, staker, agent, subnetId, amount, deadline, v, r, s)
+}
+
+// DeallocateFor is a paid mutator transaction binding the contract method 0x10fe1208.
+//
+// Solidity: function deallocateFor(address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
+func (_StakingVault *StakingVaultTransactorSession) DeallocateFor(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _StakingVault.Contract.DeallocateFor(&_StakingVault.TransactOpts, staker, agent, subnetId, amount, deadline, v, r, s)
 }
 
 // FreezeAgentAllocations is a paid mutator transaction binding the contract method 0x6f980813.
@@ -460,25 +665,46 @@ func (_StakingVault *StakingVaultTransactorSession) FreezeAgentAllocations(user 
 	return _StakingVault.Contract.FreezeAgentAllocations(&_StakingVault.TransactOpts, user, agent)
 }
 
-// Reallocate is a paid mutator transaction binding the contract method 0xd5d5278d.
+// Initialize is a paid mutator transaction binding the contract method 0xc4d66de8.
 //
-// Solidity: function reallocate(address user, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultTransactor) Reallocate(opts *bind.TransactOpts, user common.Address, fromAgent common.Address, fromSubnetId *big.Int, toAgent common.Address, toSubnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.contract.Transact(opts, "reallocate", user, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
+// Solidity: function initialize(address awpRegistry_) returns()
+func (_StakingVault *StakingVaultTransactor) Initialize(opts *bind.TransactOpts, awpRegistry_ common.Address) (*types.Transaction, error) {
+	return _StakingVault.contract.Transact(opts, "initialize", awpRegistry_)
+}
+
+// Initialize is a paid mutator transaction binding the contract method 0xc4d66de8.
+//
+// Solidity: function initialize(address awpRegistry_) returns()
+func (_StakingVault *StakingVaultSession) Initialize(awpRegistry_ common.Address) (*types.Transaction, error) {
+	return _StakingVault.Contract.Initialize(&_StakingVault.TransactOpts, awpRegistry_)
+}
+
+// Initialize is a paid mutator transaction binding the contract method 0xc4d66de8.
+//
+// Solidity: function initialize(address awpRegistry_) returns()
+func (_StakingVault *StakingVaultTransactorSession) Initialize(awpRegistry_ common.Address) (*types.Transaction, error) {
+	return _StakingVault.Contract.Initialize(&_StakingVault.TransactOpts, awpRegistry_)
 }
 
 // Reallocate is a paid mutator transaction binding the contract method 0xd5d5278d.
 //
-// Solidity: function reallocate(address user, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultSession) Reallocate(user common.Address, fromAgent common.Address, fromSubnetId *big.Int, toAgent common.Address, toSubnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.Contract.Reallocate(&_StakingVault.TransactOpts, user, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
+// Solidity: function reallocate(address staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultTransactor) Reallocate(opts *bind.TransactOpts, staker common.Address, fromAgent common.Address, fromSubnetId *big.Int, toAgent common.Address, toSubnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.contract.Transact(opts, "reallocate", staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
 }
 
 // Reallocate is a paid mutator transaction binding the contract method 0xd5d5278d.
 //
-// Solidity: function reallocate(address user, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultTransactorSession) Reallocate(user common.Address, fromAgent common.Address, fromSubnetId *big.Int, toAgent common.Address, toSubnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.Contract.Reallocate(&_StakingVault.TransactOpts, user, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
+// Solidity: function reallocate(address staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultSession) Reallocate(staker common.Address, fromAgent common.Address, fromSubnetId *big.Int, toAgent common.Address, toSubnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.Contract.Reallocate(&_StakingVault.TransactOpts, staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
+}
+
+// Reallocate is a paid mutator transaction binding the contract method 0xd5d5278d.
+//
+// Solidity: function reallocate(address staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultTransactorSession) Reallocate(staker common.Address, fromAgent common.Address, fromSubnetId *big.Int, toAgent common.Address, toSubnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.Contract.Reallocate(&_StakingVault.TransactOpts, staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
 }
 
 // SetStakeNFT is a paid mutator transaction binding the contract method 0x48f069ec.
@@ -500,6 +726,27 @@ func (_StakingVault *StakingVaultSession) SetStakeNFT(stakeNFT_ common.Address) 
 // Solidity: function setStakeNFT(address stakeNFT_) returns()
 func (_StakingVault *StakingVaultTransactorSession) SetStakeNFT(stakeNFT_ common.Address) (*types.Transaction, error) {
 	return _StakingVault.Contract.SetStakeNFT(&_StakingVault.TransactOpts, stakeNFT_)
+}
+
+// UpgradeToAndCall is a paid mutator transaction binding the contract method 0x4f1ef286.
+//
+// Solidity: function upgradeToAndCall(address newImplementation, bytes data) payable returns()
+func (_StakingVault *StakingVaultTransactor) UpgradeToAndCall(opts *bind.TransactOpts, newImplementation common.Address, data []byte) (*types.Transaction, error) {
+	return _StakingVault.contract.Transact(opts, "upgradeToAndCall", newImplementation, data)
+}
+
+// UpgradeToAndCall is a paid mutator transaction binding the contract method 0x4f1ef286.
+//
+// Solidity: function upgradeToAndCall(address newImplementation, bytes data) payable returns()
+func (_StakingVault *StakingVaultSession) UpgradeToAndCall(newImplementation common.Address, data []byte) (*types.Transaction, error) {
+	return _StakingVault.Contract.UpgradeToAndCall(&_StakingVault.TransactOpts, newImplementation, data)
+}
+
+// UpgradeToAndCall is a paid mutator transaction binding the contract method 0x4f1ef286.
+//
+// Solidity: function upgradeToAndCall(address newImplementation, bytes data) payable returns()
+func (_StakingVault *StakingVaultTransactorSession) UpgradeToAndCall(newImplementation common.Address, data []byte) (*types.Transaction, error) {
+	return _StakingVault.Contract.UpgradeToAndCall(&_StakingVault.TransactOpts, newImplementation, data)
 }
 
 // StakingVaultAgentAllocationsFrozenIterator is returned from FilterAgentAllocationsFrozen and is used to iterate over the raw logs and unpacked data for AgentAllocationsFrozen events raised by the StakingVault contract.
@@ -650,6 +897,879 @@ func (_StakingVault *StakingVaultFilterer) WatchAgentAllocationsFrozen(opts *bin
 func (_StakingVault *StakingVaultFilterer) ParseAgentAllocationsFrozen(log types.Log) (*StakingVaultAgentAllocationsFrozen, error) {
 	event := new(StakingVaultAgentAllocationsFrozen)
 	if err := _StakingVault.contract.UnpackLog(event, "AgentAllocationsFrozen", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// StakingVaultAllocatedIterator is returned from FilterAllocated and is used to iterate over the raw logs and unpacked data for Allocated events raised by the StakingVault contract.
+type StakingVaultAllocatedIterator struct {
+	Event *StakingVaultAllocated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *StakingVaultAllocatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(StakingVaultAllocated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(StakingVaultAllocated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *StakingVaultAllocatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *StakingVaultAllocatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// StakingVaultAllocated represents a Allocated event raised by the StakingVault contract.
+type StakingVaultAllocated struct {
+	Staker   common.Address
+	Agent    common.Address
+	SubnetId *big.Int
+	Amount   *big.Int
+	Operator common.Address
+	Raw      types.Log // Blockchain specific contextual infos
+}
+
+// FilterAllocated is a free log retrieval operation binding the contract event 0x655f98c7dae1bab3e2db10cdb4407717b9d219cf2e585adc1edba92d48af2b15.
+//
+// Solidity: event Allocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator)
+func (_StakingVault *StakingVaultFilterer) FilterAllocated(opts *bind.FilterOpts, staker []common.Address, agent []common.Address) (*StakingVaultAllocatedIterator, error) {
+
+	var stakerRule []interface{}
+	for _, stakerItem := range staker {
+		stakerRule = append(stakerRule, stakerItem)
+	}
+	var agentRule []interface{}
+	for _, agentItem := range agent {
+		agentRule = append(agentRule, agentItem)
+	}
+
+	logs, sub, err := _StakingVault.contract.FilterLogs(opts, "Allocated", stakerRule, agentRule)
+	if err != nil {
+		return nil, err
+	}
+	return &StakingVaultAllocatedIterator{contract: _StakingVault.contract, event: "Allocated", logs: logs, sub: sub}, nil
+}
+
+// WatchAllocated is a free log subscription operation binding the contract event 0x655f98c7dae1bab3e2db10cdb4407717b9d219cf2e585adc1edba92d48af2b15.
+//
+// Solidity: event Allocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator)
+func (_StakingVault *StakingVaultFilterer) WatchAllocated(opts *bind.WatchOpts, sink chan<- *StakingVaultAllocated, staker []common.Address, agent []common.Address) (event.Subscription, error) {
+
+	var stakerRule []interface{}
+	for _, stakerItem := range staker {
+		stakerRule = append(stakerRule, stakerItem)
+	}
+	var agentRule []interface{}
+	for _, agentItem := range agent {
+		agentRule = append(agentRule, agentItem)
+	}
+
+	logs, sub, err := _StakingVault.contract.WatchLogs(opts, "Allocated", stakerRule, agentRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(StakingVaultAllocated)
+				if err := _StakingVault.contract.UnpackLog(event, "Allocated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseAllocated is a log parse operation binding the contract event 0x655f98c7dae1bab3e2db10cdb4407717b9d219cf2e585adc1edba92d48af2b15.
+//
+// Solidity: event Allocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator)
+func (_StakingVault *StakingVaultFilterer) ParseAllocated(log types.Log) (*StakingVaultAllocated, error) {
+	event := new(StakingVaultAllocated)
+	if err := _StakingVault.contract.UnpackLog(event, "Allocated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// StakingVaultDeallocatedIterator is returned from FilterDeallocated and is used to iterate over the raw logs and unpacked data for Deallocated events raised by the StakingVault contract.
+type StakingVaultDeallocatedIterator struct {
+	Event *StakingVaultDeallocated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *StakingVaultDeallocatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(StakingVaultDeallocated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(StakingVaultDeallocated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *StakingVaultDeallocatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *StakingVaultDeallocatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// StakingVaultDeallocated represents a Deallocated event raised by the StakingVault contract.
+type StakingVaultDeallocated struct {
+	Staker   common.Address
+	Agent    common.Address
+	SubnetId *big.Int
+	Amount   *big.Int
+	Operator common.Address
+	Raw      types.Log // Blockchain specific contextual infos
+}
+
+// FilterDeallocated is a free log retrieval operation binding the contract event 0xd55bd7964253d1d9ce9187c8187b1c904274a3f374c9074f6de6fa77746bf345.
+//
+// Solidity: event Deallocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator)
+func (_StakingVault *StakingVaultFilterer) FilterDeallocated(opts *bind.FilterOpts, staker []common.Address, agent []common.Address) (*StakingVaultDeallocatedIterator, error) {
+
+	var stakerRule []interface{}
+	for _, stakerItem := range staker {
+		stakerRule = append(stakerRule, stakerItem)
+	}
+	var agentRule []interface{}
+	for _, agentItem := range agent {
+		agentRule = append(agentRule, agentItem)
+	}
+
+	logs, sub, err := _StakingVault.contract.FilterLogs(opts, "Deallocated", stakerRule, agentRule)
+	if err != nil {
+		return nil, err
+	}
+	return &StakingVaultDeallocatedIterator{contract: _StakingVault.contract, event: "Deallocated", logs: logs, sub: sub}, nil
+}
+
+// WatchDeallocated is a free log subscription operation binding the contract event 0xd55bd7964253d1d9ce9187c8187b1c904274a3f374c9074f6de6fa77746bf345.
+//
+// Solidity: event Deallocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator)
+func (_StakingVault *StakingVaultFilterer) WatchDeallocated(opts *bind.WatchOpts, sink chan<- *StakingVaultDeallocated, staker []common.Address, agent []common.Address) (event.Subscription, error) {
+
+	var stakerRule []interface{}
+	for _, stakerItem := range staker {
+		stakerRule = append(stakerRule, stakerItem)
+	}
+	var agentRule []interface{}
+	for _, agentItem := range agent {
+		agentRule = append(agentRule, agentItem)
+	}
+
+	logs, sub, err := _StakingVault.contract.WatchLogs(opts, "Deallocated", stakerRule, agentRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(StakingVaultDeallocated)
+				if err := _StakingVault.contract.UnpackLog(event, "Deallocated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseDeallocated is a log parse operation binding the contract event 0xd55bd7964253d1d9ce9187c8187b1c904274a3f374c9074f6de6fa77746bf345.
+//
+// Solidity: event Deallocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator)
+func (_StakingVault *StakingVaultFilterer) ParseDeallocated(log types.Log) (*StakingVaultDeallocated, error) {
+	event := new(StakingVaultDeallocated)
+	if err := _StakingVault.contract.UnpackLog(event, "Deallocated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// StakingVaultEIP712DomainChangedIterator is returned from FilterEIP712DomainChanged and is used to iterate over the raw logs and unpacked data for EIP712DomainChanged events raised by the StakingVault contract.
+type StakingVaultEIP712DomainChangedIterator struct {
+	Event *StakingVaultEIP712DomainChanged // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *StakingVaultEIP712DomainChangedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(StakingVaultEIP712DomainChanged)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(StakingVaultEIP712DomainChanged)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *StakingVaultEIP712DomainChangedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *StakingVaultEIP712DomainChangedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// StakingVaultEIP712DomainChanged represents a EIP712DomainChanged event raised by the StakingVault contract.
+type StakingVaultEIP712DomainChanged struct {
+	Raw types.Log // Blockchain specific contextual infos
+}
+
+// FilterEIP712DomainChanged is a free log retrieval operation binding the contract event 0x0a6387c9ea3628b88a633bb4f3b151770f70085117a15f9bf3787cda53f13d31.
+//
+// Solidity: event EIP712DomainChanged()
+func (_StakingVault *StakingVaultFilterer) FilterEIP712DomainChanged(opts *bind.FilterOpts) (*StakingVaultEIP712DomainChangedIterator, error) {
+
+	logs, sub, err := _StakingVault.contract.FilterLogs(opts, "EIP712DomainChanged")
+	if err != nil {
+		return nil, err
+	}
+	return &StakingVaultEIP712DomainChangedIterator{contract: _StakingVault.contract, event: "EIP712DomainChanged", logs: logs, sub: sub}, nil
+}
+
+// WatchEIP712DomainChanged is a free log subscription operation binding the contract event 0x0a6387c9ea3628b88a633bb4f3b151770f70085117a15f9bf3787cda53f13d31.
+//
+// Solidity: event EIP712DomainChanged()
+func (_StakingVault *StakingVaultFilterer) WatchEIP712DomainChanged(opts *bind.WatchOpts, sink chan<- *StakingVaultEIP712DomainChanged) (event.Subscription, error) {
+
+	logs, sub, err := _StakingVault.contract.WatchLogs(opts, "EIP712DomainChanged")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(StakingVaultEIP712DomainChanged)
+				if err := _StakingVault.contract.UnpackLog(event, "EIP712DomainChanged", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseEIP712DomainChanged is a log parse operation binding the contract event 0x0a6387c9ea3628b88a633bb4f3b151770f70085117a15f9bf3787cda53f13d31.
+//
+// Solidity: event EIP712DomainChanged()
+func (_StakingVault *StakingVaultFilterer) ParseEIP712DomainChanged(log types.Log) (*StakingVaultEIP712DomainChanged, error) {
+	event := new(StakingVaultEIP712DomainChanged)
+	if err := _StakingVault.contract.UnpackLog(event, "EIP712DomainChanged", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// StakingVaultInitializedIterator is returned from FilterInitialized and is used to iterate over the raw logs and unpacked data for Initialized events raised by the StakingVault contract.
+type StakingVaultInitializedIterator struct {
+	Event *StakingVaultInitialized // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *StakingVaultInitializedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(StakingVaultInitialized)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(StakingVaultInitialized)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *StakingVaultInitializedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *StakingVaultInitializedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// StakingVaultInitialized represents a Initialized event raised by the StakingVault contract.
+type StakingVaultInitialized struct {
+	Version uint64
+	Raw     types.Log // Blockchain specific contextual infos
+}
+
+// FilterInitialized is a free log retrieval operation binding the contract event 0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2.
+//
+// Solidity: event Initialized(uint64 version)
+func (_StakingVault *StakingVaultFilterer) FilterInitialized(opts *bind.FilterOpts) (*StakingVaultInitializedIterator, error) {
+
+	logs, sub, err := _StakingVault.contract.FilterLogs(opts, "Initialized")
+	if err != nil {
+		return nil, err
+	}
+	return &StakingVaultInitializedIterator{contract: _StakingVault.contract, event: "Initialized", logs: logs, sub: sub}, nil
+}
+
+// WatchInitialized is a free log subscription operation binding the contract event 0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2.
+//
+// Solidity: event Initialized(uint64 version)
+func (_StakingVault *StakingVaultFilterer) WatchInitialized(opts *bind.WatchOpts, sink chan<- *StakingVaultInitialized) (event.Subscription, error) {
+
+	logs, sub, err := _StakingVault.contract.WatchLogs(opts, "Initialized")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(StakingVaultInitialized)
+				if err := _StakingVault.contract.UnpackLog(event, "Initialized", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseInitialized is a log parse operation binding the contract event 0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2.
+//
+// Solidity: event Initialized(uint64 version)
+func (_StakingVault *StakingVaultFilterer) ParseInitialized(log types.Log) (*StakingVaultInitialized, error) {
+	event := new(StakingVaultInitialized)
+	if err := _StakingVault.contract.UnpackLog(event, "Initialized", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// StakingVaultReallocatedIterator is returned from FilterReallocated and is used to iterate over the raw logs and unpacked data for Reallocated events raised by the StakingVault contract.
+type StakingVaultReallocatedIterator struct {
+	Event *StakingVaultReallocated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *StakingVaultReallocatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(StakingVaultReallocated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(StakingVaultReallocated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *StakingVaultReallocatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *StakingVaultReallocatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// StakingVaultReallocated represents a Reallocated event raised by the StakingVault contract.
+type StakingVaultReallocated struct {
+	Staker       common.Address
+	FromAgent    common.Address
+	FromSubnetId *big.Int
+	ToAgent      common.Address
+	ToSubnetId   *big.Int
+	Amount       *big.Int
+	Operator     common.Address
+	Raw          types.Log // Blockchain specific contextual infos
+}
+
+// FilterReallocated is a free log retrieval operation binding the contract event 0x726c93ba67bfe4c677e37114279f0ad9aab5ee9ffbd1158923be5d0fec3b1b45.
+//
+// Solidity: event Reallocated(address indexed staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount, address operator)
+func (_StakingVault *StakingVaultFilterer) FilterReallocated(opts *bind.FilterOpts, staker []common.Address) (*StakingVaultReallocatedIterator, error) {
+
+	var stakerRule []interface{}
+	for _, stakerItem := range staker {
+		stakerRule = append(stakerRule, stakerItem)
+	}
+
+	logs, sub, err := _StakingVault.contract.FilterLogs(opts, "Reallocated", stakerRule)
+	if err != nil {
+		return nil, err
+	}
+	return &StakingVaultReallocatedIterator{contract: _StakingVault.contract, event: "Reallocated", logs: logs, sub: sub}, nil
+}
+
+// WatchReallocated is a free log subscription operation binding the contract event 0x726c93ba67bfe4c677e37114279f0ad9aab5ee9ffbd1158923be5d0fec3b1b45.
+//
+// Solidity: event Reallocated(address indexed staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount, address operator)
+func (_StakingVault *StakingVaultFilterer) WatchReallocated(opts *bind.WatchOpts, sink chan<- *StakingVaultReallocated, staker []common.Address) (event.Subscription, error) {
+
+	var stakerRule []interface{}
+	for _, stakerItem := range staker {
+		stakerRule = append(stakerRule, stakerItem)
+	}
+
+	logs, sub, err := _StakingVault.contract.WatchLogs(opts, "Reallocated", stakerRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(StakingVaultReallocated)
+				if err := _StakingVault.contract.UnpackLog(event, "Reallocated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseReallocated is a log parse operation binding the contract event 0x726c93ba67bfe4c677e37114279f0ad9aab5ee9ffbd1158923be5d0fec3b1b45.
+//
+// Solidity: event Reallocated(address indexed staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount, address operator)
+func (_StakingVault *StakingVaultFilterer) ParseReallocated(log types.Log) (*StakingVaultReallocated, error) {
+	event := new(StakingVaultReallocated)
+	if err := _StakingVault.contract.UnpackLog(event, "Reallocated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// StakingVaultUpgradedIterator is returned from FilterUpgraded and is used to iterate over the raw logs and unpacked data for Upgraded events raised by the StakingVault contract.
+type StakingVaultUpgradedIterator struct {
+	Event *StakingVaultUpgraded // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *StakingVaultUpgradedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(StakingVaultUpgraded)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(StakingVaultUpgraded)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *StakingVaultUpgradedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *StakingVaultUpgradedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// StakingVaultUpgraded represents a Upgraded event raised by the StakingVault contract.
+type StakingVaultUpgraded struct {
+	Implementation common.Address
+	Raw            types.Log // Blockchain specific contextual infos
+}
+
+// FilterUpgraded is a free log retrieval operation binding the contract event 0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b.
+//
+// Solidity: event Upgraded(address indexed implementation)
+func (_StakingVault *StakingVaultFilterer) FilterUpgraded(opts *bind.FilterOpts, implementation []common.Address) (*StakingVaultUpgradedIterator, error) {
+
+	var implementationRule []interface{}
+	for _, implementationItem := range implementation {
+		implementationRule = append(implementationRule, implementationItem)
+	}
+
+	logs, sub, err := _StakingVault.contract.FilterLogs(opts, "Upgraded", implementationRule)
+	if err != nil {
+		return nil, err
+	}
+	return &StakingVaultUpgradedIterator{contract: _StakingVault.contract, event: "Upgraded", logs: logs, sub: sub}, nil
+}
+
+// WatchUpgraded is a free log subscription operation binding the contract event 0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b.
+//
+// Solidity: event Upgraded(address indexed implementation)
+func (_StakingVault *StakingVaultFilterer) WatchUpgraded(opts *bind.WatchOpts, sink chan<- *StakingVaultUpgraded, implementation []common.Address) (event.Subscription, error) {
+
+	var implementationRule []interface{}
+	for _, implementationItem := range implementation {
+		implementationRule = append(implementationRule, implementationItem)
+	}
+
+	logs, sub, err := _StakingVault.contract.WatchLogs(opts, "Upgraded", implementationRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(StakingVaultUpgraded)
+				if err := _StakingVault.contract.UnpackLog(event, "Upgraded", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseUpgraded is a log parse operation binding the contract event 0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b.
+//
+// Solidity: event Upgraded(address indexed implementation)
+func (_StakingVault *StakingVaultFilterer) ParseUpgraded(log types.Log) (*StakingVaultUpgraded, error) {
+	event := new(StakingVaultUpgraded)
+	if err := _StakingVault.contract.UnpackLog(event, "Upgraded", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log

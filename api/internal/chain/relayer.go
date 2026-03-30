@@ -18,18 +18,20 @@ import (
 // Relayer submits gasless transactions using a relayer private key (bindFor / setRecipientFor / registerSubnetFor)
 // Uses mutex to serialize tx submissions, preventing nonce collisions
 type Relayer struct {
-	client      *ethclient.Client
-	awpRegistry *bindings.AWPRegistry
-	key         *ecdsa.PrivateKey
-	chainID     *big.Int
-	logger      *slog.Logger
-	mu          sync.Mutex // serializes tx submissions to prevent nonce collisions
+	client       *ethclient.Client
+	awpRegistry  *bindings.AWPRegistry
+	stakingVault *bindings.StakingVault
+	key          *ecdsa.PrivateKey
+	chainID      *big.Int
+	logger       *slog.Logger
+	mu           sync.Mutex // serializes tx submissions to prevent nonce collisions
 }
 
 // NewRelayer creates a Relayer instance
 func NewRelayer(
 	client *ethclient.Client,
 	awpRegistryAddr common.Address,
+	stakingVaultAddr common.Address,
 	key *ecdsa.PrivateKey,
 	chainID *big.Int,
 	logger *slog.Logger,
@@ -38,12 +40,17 @@ func NewRelayer(
 	if err != nil {
 		return nil, fmt.Errorf("bind AWPRegistry: %w", err)
 	}
+	stakingVault, err := bindings.NewStakingVault(stakingVaultAddr, client)
+	if err != nil {
+		return nil, fmt.Errorf("bind StakingVault: %w", err)
+	}
 	return &Relayer{
-		client:        client,
-		awpRegistry:   awpRegistry,
-		key:           key,
-		chainID:     chainID,
-		logger:      logger,
+		client:       client,
+		awpRegistry:  awpRegistry,
+		stakingVault: stakingVault,
+		key:          key,
+		chainID:      chainID,
+		logger:       logger,
 	}, nil
 }
 
@@ -119,7 +126,7 @@ func (r *Relayer) RelayAllocate(ctx context.Context, staker common.Address, agen
 		return "", err
 	}
 
-	tx, err := r.awpRegistry.AllocateFor(auth, staker, agent, subnetId, amount, deadline, v, rs, ss)
+	tx, err := r.stakingVault.AllocateFor(auth, staker, agent, subnetId, amount, deadline, v, rs, ss)
 	if err != nil {
 		return "", fmt.Errorf("AllocateFor tx: %w", err)
 	}
@@ -141,7 +148,7 @@ func (r *Relayer) RelayDeallocate(ctx context.Context, staker common.Address, ag
 		return "", err
 	}
 
-	tx, err := r.awpRegistry.DeallocateFor(auth, staker, agent, subnetId, amount, deadline, v, rs, ss)
+	tx, err := r.stakingVault.DeallocateFor(auth, staker, agent, subnetId, amount, deadline, v, rs, ss)
 	if err != nil {
 		return "", fmt.Errorf("DeallocateFor tx: %w", err)
 	}

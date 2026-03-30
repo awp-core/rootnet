@@ -154,7 +154,7 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 	logs, err := idx.chain.Eth.FilterLogs(ctx, ethereum.FilterQuery{
 		FromBlock: new(big.Int).SetUint64(fromBlock),
 		ToBlock:   new(big.Int).SetUint64(toBlock),
-		Addresses: []common.Address{idx.chain.AWPRegistryAddr, idx.chain.AWPEmissionAddr, idx.chain.StakeNFTAddr, idx.chain.SubnetNFTAddr, idx.chain.AWPDAOAddr},
+		Addresses: []common.Address{idx.chain.AWPRegistryAddr, idx.chain.AWPEmissionAddr, idx.chain.StakeNFTAddr, idx.chain.SubnetNFTAddr, idx.chain.AWPDAOAddr, idx.chain.StakingVaultAddr},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to filter logs: %w", err)
@@ -339,6 +339,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	awpRegistry := idx.chain.AWPRegistry
 	awpEmission := idx.chain.AWPEmission
 	stakeNFT := idx.chain.StakeNFT
+	stakingVault := idx.chain.StakingVault
 
 	// ── AWPRegistry Account System V2 events ──
 
@@ -507,8 +508,8 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}
 	}
 
-	// Allocated (V2: staker instead of user)
-	if evt, err := awpRegistry.ParseAllocated(lg); err == nil {
+	// Allocated (V2: staker instead of user, now emitted by StakingVault)
+	if evt, err := stakingVault.ParseAllocated(lg); err == nil {
 		if err := q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
@@ -536,8 +537,8 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// Deallocated (V2: staker instead of user)
-	if evt, err := awpRegistry.ParseDeallocated(lg); err == nil {
+	// Deallocated (V2: staker instead of user, now emitted by StakingVault)
+	if evt, err := stakingVault.ParseDeallocated(lg); err == nil {
 		if err := q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
@@ -565,14 +566,14 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// Reallocated (V2: staker instead of user)
-	if evt, err := awpRegistry.ParseReallocated(lg); err == nil {
+	// Reallocated (V2: staker instead of user, now emitted by StakingVault)
+	if evt, err := stakingVault.ParseReallocated(lg); err == nil {
 		// Subtract from source allocation
 		if err := q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.FromAgent.Hex()),
-			SubnetID:     bigIntToNumeric(evt.FromSubnet),
+			SubnetID:     bigIntToNumeric(evt.FromSubnetId),
 			Amount:       bigIntToNumeric(evt.Amount),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
@@ -583,7 +584,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.ToAgent.Hex()),
-			SubnetID:     bigIntToNumeric(evt.ToSubnet),
+			SubnetID:     bigIntToNumeric(evt.ToSubnetId),
 			Amount:       bigIntToNumeric(evt.Amount),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
@@ -592,9 +593,9 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		return []redisEvent{makeEvent("Reallocated", lg, map[string]interface{}{
 			"staker":     evt.Staker.Hex(),
 			"fromAgent":  evt.FromAgent.Hex(),
-			"fromSubnet": evt.FromSubnet.String(),
+			"fromSubnet": evt.FromSubnetId.String(),
 			"toAgent":    evt.ToAgent.Hex(),
-			"toSubnet":   evt.ToSubnet.String(),
+			"toSubnet":   evt.ToSubnetId.String(),
 			"amount":     evt.Amount.String(),
 			"operator":   evt.Operator.Hex(),
 		})}, nil
