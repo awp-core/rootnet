@@ -940,4 +940,33 @@ contract E2ETest is EmissionSigningHelper {
         arr[1] = b;
         return arr;
     }
+
+    // ════════════════════════════════════════════
+    //  E2E 23: Cross-chain allocate (local + foreign subnetId)
+    // ════════════════════════════════════════════
+
+    function test_e2e_crossChainAllocate() public {
+        _registerUser(alice);
+        uint256 localSubnet = _registerSubnet(alice, subnetC1);
+        vm.prank(alice);
+        awpRegistry.activateSubnet(localSubnet);
+
+        // alice 质押并分配到本地子网
+        vm.startPrank(alice);
+        awp.approve(address(stakeNFT), 10_000 * 1e18);
+        stakeNFT.deposit(10_000 * 1e18, 52 weeks);
+        vault.allocate(alice, agentA, localSubnet, 3_000 * 1e18);
+
+        // 分配到 "外部" 子网（不同链的 subnetId）
+        uint256 foreignSubnet = (uint256(42161) << 64) | 99;
+        vault.allocate(alice, agentA, foreignSubnet, 2_000 * 1e18);
+        vm.stopPrank();
+
+        // 验证两个分配都已记录
+        assertEq(vault.getAgentStake(alice, agentA, localSubnet), 3_000 * 1e18);
+        assertEq(vault.getAgentStake(alice, agentA, foreignSubnet), 2_000 * 1e18);
+
+        // 总分配 = 5000，总质押 = 10000，因此未分配 = 5000
+        assertEq(vault.userTotalAllocated(alice), 5_000 * 1e18);
+    }
 }

@@ -842,4 +842,50 @@ contract AWPEmissionTest is EmissionSigningHelper {
         uint256 balAfterEpoch2 = awpToken.balanceOf(recipient1);
         assertTrue(balAfterEpoch2 > balAfterEpoch1);
     }
+
+    // ══════════════════════════════════════════════
+    // Governance setter tests (setDecayFactor / setEmissionSplitBps)
+    // ══════════════════════════════════════════════
+
+    function test_setDecayFactor() public {
+        vm.prank(treasury);
+        emission.setDecayFactor(995000); // ~0.5% decay
+        assertEq(emission.decayFactor(), 995000);
+    }
+
+    function test_setDecayFactor_tooHigh_reverts() public {
+        vm.prank(treasury);
+        vm.expectRevert(AWPEmission.InvalidParameter.selector);
+        emission.setDecayFactor(1000000); // >= DECAY_PRECISION
+    }
+
+    function test_setDecayFactor_zero_reverts() public {
+        vm.prank(treasury);
+        vm.expectRevert(AWPEmission.InvalidParameter.selector);
+        emission.setDecayFactor(0);
+    }
+
+    function test_setEmissionSplitBps() public {
+        vm.prank(treasury);
+        emission.setEmissionSplitBps(7000); // 70% to subnets
+        assertEq(emission.emissionSplitBps(), 7000);
+    }
+
+    function test_setEmissionSplitBps_tooHigh_reverts() public {
+        vm.prank(treasury);
+        vm.expectRevert(AWPEmission.InvalidParameter.selector);
+        emission.setEmissionSplitBps(10001); // > 100%
+    }
+
+    function test_setDecayFactor_notTimelock_reverts() public {
+        vm.prank(user);
+        vm.expectRevert(AWPEmission.NotTimelock.selector);
+        emission.setDecayFactor(995000);
+    }
+
+    function test_setEmissionSplitBps_notTimelock_reverts() public {
+        vm.prank(user);
+        vm.expectRevert(AWPEmission.NotTimelock.selector);
+        emission.setEmissionSplitBps(7000);
+    }
 }

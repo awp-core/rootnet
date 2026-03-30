@@ -283,4 +283,167 @@ contract StakingVaultTest is Test {
         vm.expectRevert(StakingVault.NotAWPRegistry.selector);
         vault.freezeAgentAllocations(user1, agent1);
     }
+
+    // ══════════════════════════════════════════════
+    // Gasless EIP-712 allocateFor / deallocateFor tests
+    // ══════════════════════════════════════════════
+
+    function _getVaultDigest(bytes32 structHash) internal view returns (bytes32) {
+        bytes32 domainSeparator = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256("StakingVault"),
+                keccak256("1"),
+                block.chainid,
+                address(vault)
+            )
+        );
+        return keccak256(abi.encodePacked("\x19\x01", domainSeparator, structHash));
+    }
+
+    function test_allocateFor_gasless() public {
+        (address signer, uint256 signerPk) = makeAddrAndKey("gaslessSigner");
+
+        // 给 signer 代币并质押
+        awp.transfer(signer, 10_000 ether);
+        vm.startPrank(signer);
+        awp.approve(address(stakeNFT), 10_000 ether);
+        stakeNFT.deposit(1000 ether, 52 weeks);
+        vm.stopPrank();
+
+        uint256 amount = 500 ether;
+        uint256 nonce = vault.nonces(signer);
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes32 structHash = keccak256(abi.encode(
+            keccak256("Allocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)"),
+            signer, agent1, SUBNET_1, amount, nonce, deadline
+        ));
+        bytes32 digest = _getVaultDigest(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
+
+        // relayer 提交 gasless 交易
+        vm.prank(user2);
+        vault.allocateFor(signer, agent1, SUBNET_1, amount, deadline, v, r, s);
+
+        assertEq(vault.getAgentStake(signer, agent1, SUBNET_1), amount);
+        assertEq(vault.nonces(signer), nonce + 1);
+    }
+
+    function test_allocateFor_expiredSignature_reverts() public {
+        (address signer, uint256 signerPk) = makeAddrAndKey("expiredSigner");
+
+        awp.transfer(signer, 10_000 ether);
+        vm.startPrank(signer);
+        awp.approve(address(stakeNFT), 10_000 ether);
+        stakeNFT.deposit(1000 ether, 52 weeks);
+        vm.stopPrank();
+
+        uint256 deadline = block.timestamp - 1; // 过期
+
+        bytes32 structHash = keccak256(abi.encode(
+            keccak256("Allocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)"),
+            signer, agent1, SUBNET_1, uint256(500 ether), uint256(0), deadline
+        ));
+        bytes32 digest = _getVaultDigest(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
+
+        vm.prank(user2);
+        vm.expectRevert(StakingVault.ExpiredSignature.selector);
+        vault.allocateFor(signer, agent1, SUBNET_1, 500 ether, deadline, v, r, s);
+    }
+
+    function test_allocateFor_wrongSigner_reverts() public {
+        (address signer, ) = makeAddrAndKey("wrongSignerUser");
+        (, uint256 wrongPk) = makeAddrAndKey("wrongKey");
+
+        awp.transfer(signer, 10_000 ether);
+        vm.startPrank(signer);
+        awp.approve(address(stakeNFT), 10_000 ether);
+        stakeNFT.deposit(1000 ether, 52 weeks);
+        vm.stopPrank();
+
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 nonce = vault.nonces(signer);
+
+        bytes32 structHash = keccak256(abi.encode(
+            keccak256("Allocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)"),
+            signer, agent1, SUBNET_1, uint256(500 ether), nonce, deadline
+        ));
+        bytes32 digest = _getVaultDigest(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongPk, digest); // 使用错误的私钥签名
+
+        vm.prank(user2);
+        vm.expectRevert(StakingVault.InvalidSignature.selector);
+        vault.allocateFor(signer, agent1, SUBNET_1, 500 ether, deadline, v, r, s);
+    }
+
+    function test_allocateFor_replayProtection() public {
+        (address signer, uint256 signerPk) = makeAddrAndKey("replaySigner");
+
+        awp.transfer(signer, 10_000 ether);
+        vm.startPrank(signer);
+        awp.approve(address(stakeNFT), 10_000 ether);
+        stakeNFT.deposit(2000 ether, 52 weeks);
+        vm.stopPrank();
+
+        uint256 amount = 500 ether;
+        uint256 nonce = vault.nonces(signer);
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes32 structHash = keccak256(abi.encode(
+            keccak256("Allocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)"),
+            signer, agent1, SUBNET_1, amount, nonce, deadline
+        ));
+        bytes32 digest = _getVaultDigest(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
+
+        // 第一次调用成功
+        vm.prank(user2);
+        vault.allocateFor(signer, agent1, SUBNET_1, amount, deadline, v, r, s);
+
+        // 第二次使用相同签名应该失败（nonce 已递增）
+        vm.prank(user2);
+        vm.expectRevert(StakingVault.InvalidSignature.selector);
+        vault.allocateFor(signer, agent1, SUBNET_1, amount, deadline, v, r, s);
+    }
+
+    function test_deallocateFor_gasless() public {
+        (address signer, uint256 signerPk) = makeAddrAndKey("deallocSigner");
+
+        awp.transfer(signer, 10_000 ether);
+        vm.startPrank(signer);
+        awp.approve(address(stakeNFT), 10_000 ether);
+        stakeNFT.deposit(1000 ether, 52 weeks);
+        vault.allocate(signer, agent1, SUBNET_1, 500 ether);
+        vm.stopPrank();
+
+        uint256 amount = 200 ether;
+        uint256 nonce = vault.nonces(signer);
+        uint256 deadline = block.timestamp + 1 hours;
+
+        bytes32 structHash = keccak256(abi.encode(
+            keccak256("Deallocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)"),
+            signer, agent1, SUBNET_1, amount, nonce, deadline
+        ));
+        bytes32 digest = _getVaultDigest(structHash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
+
+        vm.prank(user2);
+        vault.deallocateFor(signer, agent1, SUBNET_1, amount, deadline, v, r, s);
+
+        assertEq(vault.getAgentStake(signer, agent1, SUBNET_1), 300 ether);
+        assertEq(vault.nonces(signer), nonce + 1);
+    }
+
+    // ══════════════════════════════════════════════
+    // UUPS upgrade authorization tests
+    // ══════════════════════════════════════════════
+
+    function test_vaultUpgradeByNonTreasury_reverts() public {
+        StakingVault newImpl = new StakingVault();
+        vm.prank(user1);
+        vm.expectRevert(StakingVault.NotAWPRegistry.selector);
+        vault.upgradeToAndCall(address(newImpl), "");
+    }
 }

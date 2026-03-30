@@ -260,4 +260,18 @@ contract AWPDAOTest is Test {
         assertEq(against, 0, "againstVotes should be 0");
         assertEq(abstain, 0, "abstainVotes should be 0");
     }
+
+    // ══════════════════════════════════════════════
+    // castVoteBySig blocked tests
+    // ══════════════════════════════════════════════
+
+    function test_castVoteBySig_reverts() public {
+        vm.expectRevert(AWPDAO.UsecastVoteWithParams.selector);
+        dao.castVoteBySig(0, 1, address(0), "");
+    }
+
+    function test_castVoteWithReasonAndParamsBySig_reverts() public {
+        vm.expectRevert(AWPDAO.UsecastVoteWithParams.selector);
+        dao.castVoteWithReasonAndParamsBySig(0, 1, address(0), "", "", "");
+    }
 }
