@@ -224,8 +224,26 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 		}
 	}
 
+	// 7. Refresh active alpha tokens cache for keeper compoundFees (every poll, cheap DB query)
+	idx.refreshActiveAlphaTokens(ctx, gen.New(idx.pool))
+
 	slog.Info("scan complete", "blocks", toBlock-fromBlock+1, "logs", len(logs), "events", len(events))
 	return nil
+}
+
+// refreshActiveAlphaTokens caches the list of alpha tokens for Active subnets in Redis.
+// Keeper reads this to know which LP positions to compound fees for.
+func (idx *Indexer) refreshActiveAlphaTokens(ctx context.Context, q *gen.Queries) {
+	rows, err := q.ListActiveAlphaTokens(ctx, idx.chainID)
+	if err != nil {
+		return // non-critical, skip silently
+	}
+	data, err := json.Marshal(rows)
+	if err != nil {
+		return
+	}
+	key := fmt.Sprintf("active_alpha_tokens:%d", idx.chainID)
+	idx.rds.Set(ctx, key, data, 25*time.Hour) // TTL slightly longer than compound interval (24h)
 }
 
 // detectReorg walks back from lastBlock checking stored block hashes against the chain.

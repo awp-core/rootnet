@@ -38,3 +38,6 @@ UPDATE subnets SET burned = TRUE WHERE subnet_id = $1;
 
 -- name: GetActiveSubnets :many
 SELECT * FROM subnets WHERE chain_id = $1 AND status = 'Active' AND burned = FALSE ORDER BY subnet_id;
+
+-- name: ListActiveAlphaTokens :many
+SELECT alpha_token FROM subnets WHERE chain_id = $1 AND status = 'Active' AND alpha_token != '';

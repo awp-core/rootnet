@@ -18,14 +18,15 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
-// Keeper is the on-chain scheduled task executor responsible for settling epochs and updating caches
+// Keeper is the on-chain scheduled task executor responsible for settling epochs, updating caches, and compounding LP fees
 type Keeper struct {
 	client      *ethclient.Client
 	awpEmission *bindings.AWPEmission
 	awpToken    *bindings.AWPToken
+	lpManager   *bindings.LPManagerBase
 	key         *ecdsa.PrivateKey
 	chainID     *big.Int
-	chainIDInt  int64 // 用于Redis key的chain ID
+	chainIDInt  int64
 	cron        *cron.Cron
 	redis       *redis.Client
 	logger      *slog.Logger
@@ -60,6 +61,7 @@ func NewKeeper(
 	client *ethclient.Client,
 	awpEmissionAddr common.Address,
 	awpTokenAddr common.Address,
+	lpManagerAddr common.Address,
 	key *ecdsa.PrivateKey,
 	chainID *big.Int,
 	rdb *redis.Client,
@@ -75,10 +77,19 @@ func NewKeeper(
 		return nil, fmt.Errorf("failed to bind AWPToken contract: %w", err)
 	}
 
+	var lpMgr *bindings.LPManagerBase
+	if lpManagerAddr != (common.Address{}) {
+		lpMgr, err = bindings.NewLPManagerBase(lpManagerAddr, client)
+		if err != nil {
+			return nil, fmt.Errorf("failed to bind LPManager contract: %w", err)
+		}
+	}
+
 	return &Keeper{
 		client:      client,
 		awpEmission: awpEmission,
 		awpToken:    awpToken,
+		lpManager:   lpMgr,
 		key:         key,
 		chainID:     chainID,
 		chainIDInt:  chainID.Int64(),
@@ -105,6 +116,15 @@ func (k *Keeper) Start(_ context.Context) {
 		k.updateTokenPrices(ctx)
 	}); err != nil {
 		k.logger.Error("failed to add cron", "error", err)
+	}
+
+	// Compound LP fees every 24 hours (if LPManager is configured)
+	if k.lpManager != nil {
+		if _, err := k.cron.AddFunc("@every 24h", func() {
+			k.compoundAllFees(ctx)
+		}); err != nil {
+			k.logger.Error("failed to add compound fees cron", "error", err)
+		}
 	}
 
 	k.cron.Start()
@@ -278,4 +298,60 @@ func (k *Keeper) updateTokenPrices(ctx context.Context) {
 		"dailyEmission", dailyEmission.String(),
 		"totalWeight", totalWeight.String(),
 	)
+}
+
+// compoundAllFees iterates active subnet alpha tokens and compounds LP fees for each.
+// Called every 24h by cron. Each compoundFees call collects accrued trading fees from
+// the LP position and reinvests them as additional liquidity.
+func (k *Keeper) compoundAllFees(ctx context.Context) {
+	k.txMu.Lock()
+	defer k.txMu.Unlock()
+
+	// Read active subnet alpha tokens from Redis cache
+	// The indexer populates this key after SubnetActivated events
+	alphaTokensKey := fmt.Sprintf("active_alpha_tokens:%d", k.chainIDInt)
+	data, err := k.redis.Get(ctx, alphaTokensKey).Result()
+	if err != nil {
+		k.logger.Debug("no active alpha tokens cached for compounding (will be populated by indexer)", "chainId", k.chainIDInt)
+		return
+	}
+
+	var alphaTokens []string
+	if err := json.Unmarshal([]byte(data), &alphaTokens); err != nil {
+		k.logger.Error("failed to parse active alpha tokens", "error", err)
+		return
+	}
+
+	if len(alphaTokens) == 0 {
+		return
+	}
+
+	auth, err := k.auth()
+	if err != nil {
+		k.logger.Error("failed to create tx signer for compoundFees", "error", err)
+		return
+	}
+
+	compounded := 0
+	for _, tokenHex := range alphaTokens {
+		token := common.HexToAddress(tokenHex)
+
+		timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		auth.Context = timeoutCtx
+
+		tx, txErr := k.lpManager.CompoundFees(auth, token)
+		cancel()
+
+		if txErr != nil {
+			// Skip silently — most likely no fees accumulated
+			k.logger.Debug("compoundFees skipped", "alphaToken", tokenHex, "error", txErr)
+			continue
+		}
+		k.logger.Info("compoundFees tx sent", "alphaToken", tokenHex, "txHash", tx.Hash().Hex())
+		compounded++
+	}
+
+	if compounded > 0 {
+		k.logger.Info("LP fee compounding complete", "compounded", compounded, "total", len(alphaTokens))
+	}
 }

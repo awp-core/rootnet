@@ -128,6 +128,30 @@ func (q *Queries) InsertSubnet(ctx context.Context, arg InsertSubnetParams) erro
 	return err
 }
 
+const listActiveAlphaTokens = `-- name: ListActiveAlphaTokens :many
+SELECT alpha_token FROM subnets WHERE chain_id = $1 AND status = 'Active' AND alpha_token != ''
+`
+
+func (q *Queries) ListActiveAlphaTokens(ctx context.Context, chainID int64) ([]string, error) {
+	rows, err := q.db.Query(ctx, listActiveAlphaTokens, chainID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var alpha_token string
+		if err := rows.Scan(&alpha_token); err != nil {
+			return nil, err
+		}
+		items = append(items, alpha_token)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubnets = `-- name: ListSubnets :many
 SELECT subnet_id, chain_id, owner, name, symbol, subnet_contract, skills_uri, min_stake, alpha_token, lp_pool, status, created_at, activated_at, immunity_ends_at, burned FROM subnets WHERE chain_id = $1 AND burned = FALSE ORDER BY subnet_id DESC LIMIT $2 OFFSET $3
 `

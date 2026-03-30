@@ -67,7 +67,8 @@ func newKeeperForChain(rpcURL string, chainID *big.Int, rdb *redis.Client, cfg *
 
 	awpEmissionAddr := common.HexToAddress(cfg.AWPEmissionAddress)
 	awpTokenAddr := common.HexToAddress(cfg.AWPTokenAddress)
-	return chain.NewKeeper(client, awpEmissionAddr, awpTokenAddr, key, chainID, rdb, logger)
+	lpManagerAddr := common.HexToAddress(cfg.LPManagerAddress)
+	return chain.NewKeeper(client, awpEmissionAddr, awpTokenAddr, lpManagerAddr, key, chainID, rdb, logger)
 }
 
 // startKeepers starts one or more keeper goroutines depending on configuration.
