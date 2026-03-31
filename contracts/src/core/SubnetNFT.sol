@@ -23,6 +23,7 @@ contract SubnetNFT is ERC721 {
     struct SubnetMeta {
         string skillsURI;         // Skills file URI (OpenClaw skill discovery)
         uint128 minStake;         // Minimum stake requirement for agents (0 = no minimum)
+        string metadataURI;       // Custom metadata JSON URI (overrides on-chain generation)
     }
 
     /// @notice Full subnet data stored in NFT (returned by getSubnetData)
@@ -53,6 +54,7 @@ contract SubnetNFT is ERC721 {
 
     event SkillsURIUpdated(uint256 indexed tokenId, string skillsURI);
     event MinStakeUpdated(uint256 indexed tokenId, uint128 minStake);
+    event MetadataURIUpdated(uint256 indexed tokenId, string metadataURI);
 
     modifier onlyAWPRegistry() {
         if (msg.sender != awpRegistry) revert NotAWPRegistry();
@@ -123,6 +125,15 @@ contract SubnetNFT is ERC721 {
         emit MinStakeUpdated(tokenId, minStake_);
     }
 
+    /// @notice Set custom metadata URI for this subnet NFT (only NFT owner)
+    /// @dev When set, tokenURI returns this URI instead of on-chain generated JSON.
+    ///      Set to empty string to revert to on-chain metadata.
+    function setMetadataURI(uint256 tokenId, string calldata metadataURI_) external {
+        if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
+        _meta[tokenId].metadataURI = metadataURI_;
+        emit MetadataURIUpdated(tokenId, metadataURI_);
+    }
+
     // ═══════════════════════════════════════════════
     // ── View functions ──
     // ═══════════════════════════════════════════════
@@ -161,12 +172,17 @@ contract SubnetNFT is ERC721 {
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         _requireOwned(tokenId);
 
-        // If baseURI is set, use it (external metadata server)
+        // Priority 1: per-token custom metadata URI (set by subnet owner)
+        if (bytes(_meta[tokenId].metadataURI).length > 0) {
+            return _meta[tokenId].metadataURI;
+        }
+
+        // Priority 2: global baseURI (set by AWPRegistry governance)
         if (bytes(_baseTokenURI).length > 0) {
             return string.concat(_baseTokenURI, tokenId.toString());
         }
 
-        // Otherwise, generate on-chain JSON metadata
+        // Priority 3: on-chain generated JSON metadata
         SubnetIdentity storage id = _identity[tokenId];
         SubnetMeta storage meta = _meta[tokenId];
 
