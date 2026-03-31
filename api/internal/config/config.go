@@ -43,6 +43,7 @@ type Config struct {
 	TreasuryAddress     string `env:"TREASURY_ADDRESS"`
 	StakeNFTAddress     string `env:"STAKE_NFT_ADDRESS"`
 	LPManagerAddress    string `env:"LP_MANAGER_ADDRESS"`
+	PoolManagerAddress  string `env:"POOL_MANAGER" envDefault:""` // DEX V4 PoolManager (for alpha price reads)
 	AlphaFactoryAddress string `env:"ALPHA_FACTORY_ADDRESS"`
 
 	// Vanity address mining config

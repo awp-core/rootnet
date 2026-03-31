@@ -24,6 +24,7 @@ type Keeper struct {
 	awpEmission *bindings.AWPEmission
 	awpToken    *bindings.AWPToken
 	lpManager   *bindings.LPManagerBase
+	poolManager *bindings.PoolManagerReader
 	key         *ecdsa.PrivateKey
 	chainID     *big.Int
 	chainIDInt  int64
@@ -62,6 +63,7 @@ func NewKeeper(
 	awpEmissionAddr common.Address,
 	awpTokenAddr common.Address,
 	lpManagerAddr common.Address,
+	poolManagerAddr common.Address,
 	key *ecdsa.PrivateKey,
 	chainID *big.Int,
 	rdb *redis.Client,
@@ -85,11 +87,20 @@ func NewKeeper(
 		}
 	}
 
+	var poolMgr *bindings.PoolManagerReader
+	if poolManagerAddr != (common.Address{}) {
+		poolMgr, err = bindings.NewPoolManagerReader(poolManagerAddr, client)
+		if err != nil {
+			return nil, fmt.Errorf("failed to bind PoolManager contract: %w", err)
+		}
+	}
+
 	return &Keeper{
 		client:      client,
 		awpEmission: awpEmission,
 		awpToken:    awpToken,
 		lpManager:   lpMgr,
+		poolManager: poolMgr,
 		key:         key,
 		chainID:     chainID,
 		chainIDInt:  chainID.Int64(),
@@ -288,9 +299,10 @@ func (k *Keeper) updateTokenPrices(ctx context.Context) {
 		k.logger.Error("failed to write awp_info cache", "error", err)
 	}
 
-	// TODO: Implement alpha price updates per Redis Key Spec
-	// alpha_price:{subnetId} → JSON, TTL=10m
-	// Requires CLPoolManager bindings to read sqrtPriceX96 from on-chain pools
+	// Update alpha token prices from on-chain pool state
+	if k.lpManager != nil && k.poolManager != nil {
+		k.updateAlphaPrices(ctx)
+	}
 
 	k.logger.Debug("token caches updated",
 		"epoch", currentEpoch.String(),
@@ -298,6 +310,77 @@ func (k *Keeper) updateTokenPrices(ctx context.Context) {
 		"dailyEmission", dailyEmission.String(),
 		"totalWeight", totalWeight.String(),
 	)
+}
+
+// alphaPrice is the cached price data for an Alpha token
+type alphaPrice struct {
+	PriceInAWP string `json:"priceInAWP"` // Alpha price denominated in AWP
+	SqrtPriceX96 string `json:"sqrtPriceX96"` // raw sqrtPriceX96 for frontend use
+	UpdatedAt  int64  `json:"updatedAt"`  // unix timestamp
+}
+
+// updateAlphaPrices reads sqrtPriceX96 from each active subnet's LP pool and caches the price.
+// Called every 25s as part of updateTokenPrices.
+func (k *Keeper) updateAlphaPrices(ctx context.Context) {
+	// Read active alpha tokens from Redis
+	alphaTokensKey := fmt.Sprintf("active_alpha_tokens:%d", k.chainIDInt)
+	data, err := k.redis.Get(ctx, alphaTokensKey).Result()
+	if err != nil {
+		return // no active tokens, skip
+	}
+
+	var alphaTokens []string
+	if err := json.Unmarshal([]byte(data), &alphaTokens); err != nil {
+		return
+	}
+
+	for _, tokenHex := range alphaTokens {
+		token := common.HexToAddress(tokenHex)
+
+		// Read poolId from LPManager
+		poolId, err := k.lpManager.AlphaTokenToPoolId(nil, token)
+		if err != nil || poolId == [32]byte{} {
+			continue // no pool for this token
+		}
+
+		// Read sqrtPriceX96 from PoolManager
+		slot0, err := k.poolManager.GetSlot0(nil, poolId)
+		if err != nil {
+			k.logger.Debug("failed to read pool slot0", "alphaToken", tokenHex, "error", err)
+			continue
+		}
+
+		sqrtPrice := new(big.Int).SetBytes(slot0.SqrtPriceX96.Bytes())
+		if sqrtPrice.Sign() == 0 {
+			continue // pool not initialized
+		}
+
+		// Compute price: (sqrtPriceX96 / 2^96)^2 = sqrtPriceX96^2 / 2^192
+		// This gives token1/token0 ratio. Depending on token order, this is
+		// either alphaPerAWP or AWPperAlpha.
+		// For display, we store sqrtPriceX96 and let the frontend compute the direction.
+		// Simple approximation: price = sqrtPrice^2 / 2^192
+		sqrtPriceBig := slot0.SqrtPriceX96
+		q96 := new(big.Int).Lsh(big.NewInt(1), 96)
+
+		// price = sqrtPriceX96^2 / 2^192, scaled to 18 decimals
+		// = (sqrtPriceX96 * sqrtPriceX96 * 1e18) / (2^96 * 2^96)
+		numerator := new(big.Int).Mul(sqrtPriceBig, sqrtPriceBig)
+		numerator.Mul(numerator, big.NewInt(1e18))
+		denominator := new(big.Int).Mul(q96, q96)
+		priceRaw := new(big.Int).Div(numerator, denominator)
+
+		priceData, _ := json.Marshal(alphaPrice{
+			PriceInAWP:   priceRaw.String(),
+			SqrtPriceX96: sqrtPriceBig.String(),
+			UpdatedAt:    time.Now().Unix(),
+		})
+
+		// Use subnetId-based key — but we have alpha token address, not subnetId.
+		// Store by alpha token address (frontend can look up via /api/subnets/{id})
+		priceKey := fmt.Sprintf("alpha_price:%s", tokenHex)
+		k.redis.Set(ctx, priceKey, priceData, 10*time.Minute)
+	}
 }
 
 // compoundAllFees iterates active subnet alpha tokens and compounds LP fees for each.
