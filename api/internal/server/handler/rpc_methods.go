@@ -203,7 +203,7 @@ func (h *Handler) rpcUsersGet(ctx context.Context, raw json.RawMessage) (any, *R
 	user, err := h.queries.GetUser(ctx, gen.GetUserParams{Address: address, ChainID: h.cfg.ChainID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &RPCErr{Code: rpcInvalidParams, Message: "user not found"}
+			return nil, &RPCErr{Code: rpcNotFound, Message: "user not found"}
 		}
 		return nil, internalErr("failed to get user")
 	}
@@ -256,6 +256,12 @@ func (h *Handler) rpcAddressCheck(ctx context.Context, raw json.RawMessage) (any
 // ═══════════════════════════════════════════════
 
 func (h *Handler) rpcNonceGet(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
+	// Rate limit（与 REST 端点一致）
+	if ip := rpcClientIP(ctx); ip != "" {
+		if exceeded, _ := h.limiter.CheckAndIncrement(ctx, "nonce", ip); exceeded {
+			return nil, &RPCErr{Code: rpcInvalidRequest, Message: "rate limit exceeded"}
+		}
+	}
 	var p addressParams
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, &RPCErr{Code: rpcInvalidParams, Message: "invalid params"}
@@ -275,6 +281,11 @@ func (h *Handler) rpcNonceGet(ctx context.Context, raw json.RawMessage) (any, *R
 }
 
 func (h *Handler) rpcNonceGetStaking(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
+	if ip := rpcClientIP(ctx); ip != "" {
+		if exceeded, _ := h.limiter.CheckAndIncrement(ctx, "nonce", ip); exceeded {
+			return nil, &RPCErr{Code: rpcInvalidRequest, Message: "rate limit exceeded"}
+		}
+	}
 	var p addressParams
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, &RPCErr{Code: rpcInvalidParams, Message: "invalid params"}
@@ -333,7 +344,7 @@ func (h *Handler) rpcAgentsGetDetail(ctx context.Context, raw json.RawMessage) (
 	user, err := h.queries.GetUser(ctx, gen.GetUserParams{Address: agent, ChainID: h.cfg.ChainID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &RPCErr{Code: rpcInvalidParams, Message: "agent not found"}
+			return nil, &RPCErr{Code: rpcNotFound, Message: "agent not found"}
 		}
 		return nil, internalErr("failed to get agent detail")
 	}
@@ -355,17 +366,22 @@ func (h *Handler) rpcAgentsLookup(ctx context.Context, raw json.RawMessage) (any
 	user, err := h.queries.GetUser(ctx, gen.GetUserParams{Address: agent, ChainID: h.cfg.ChainID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &RPCErr{Code: rpcInvalidParams, Message: "agent not found"}
+			return nil, &RPCErr{Code: rpcNotFound, Message: "agent not found"}
 		}
 		return nil, internalErr("failed to lookup agent")
 	}
 	if user.BoundTo == "" {
-		return nil, &RPCErr{Code: rpcInvalidParams, Message: "agent not bound"}
+		return nil, &RPCErr{Code: rpcNotFound, Message: "agent not bound"}
 	}
 	return map[string]string{"ownerAddress": user.BoundTo}, nil
 }
 
 func (h *Handler) rpcAgentsBatchInfo(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
+	if ip := rpcClientIP(ctx); ip != "" {
+		if exceeded, _ := h.limiter.CheckAndIncrement(ctx, "batch_agent_info", ip); exceeded {
+			return nil, &RPCErr{Code: rpcInvalidRequest, Message: "rate limit exceeded"}
+		}
+	}
 	var p struct {
 		Agents   []string `json:"agents"`
 		SubnetID string   `json:"subnetId"`
@@ -523,6 +539,11 @@ func (h *Handler) rpcStakingGetFrozen(ctx context.Context, raw json.RawMessage) 
 	return frozen, nil
 }
 
+func (h *Handler) rpcStakingGetPending(_ context.Context, _ json.RawMessage) (any, *RPCErr) {
+	// 双槽模式下 reallocate 即时生效，无待处理记录
+	return []struct{}{}, nil
+}
+
 func (h *Handler) rpcStakingGetAgentSubnetStake(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
 		Agent    string `json:"agent"`
@@ -643,7 +664,7 @@ func (h *Handler) rpcSubnetsGet(ctx context.Context, raw json.RawMessage) (any, 
 	subnet, err := h.queries.GetSubnet(ctx, subnetNum)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &RPCErr{Code: rpcInvalidParams, Message: "subnet not found"}
+			return nil, &RPCErr{Code: rpcNotFound, Message: "subnet not found"}
 		}
 		return nil, internalErr("failed to get subnet")
 	}
@@ -663,7 +684,7 @@ func (h *Handler) rpcSubnetsGetSkills(ctx context.Context, raw json.RawMessage) 
 	skillsURI, err := h.queries.GetSubnetSkills(ctx, subnetNum)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &RPCErr{Code: rpcInvalidParams, Message: "subnet not found"}
+			return nil, &RPCErr{Code: rpcNotFound, Message: "subnet not found"}
 		}
 		return nil, internalErr("failed to get subnet skills")
 	}
@@ -671,7 +692,7 @@ func (h *Handler) rpcSubnetsGetSkills(ctx context.Context, raw json.RawMessage) 
 	if skillsURI.Valid {
 		uri = skillsURI.String
 	}
-	return map[string]interface{}{"subnetId": p.SubnetID, "skillsURI": uri}, nil
+	return map[string]interface{}{"subnetId": subnetNum, "skillsURI": uri}, nil
 }
 
 func (h *Handler) rpcSubnetsGetEarnings(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
@@ -721,7 +742,7 @@ func (h *Handler) rpcSubnetsGetAgentInfo(ctx context.Context, raw json.RawMessag
 	if err == nil && total.Valid {
 		stakeStr = total.Int.String()
 	}
-	return map[string]any{"agent": agent, "subnetId": p.SubnetID, "stake": stakeStr}, nil
+	return map[string]any{"agent": agent, "subnetId": subnetNum, "stake": stakeStr}, nil
 }
 
 // ═══════════════════════════════════════════════
@@ -821,7 +842,7 @@ func (h *Handler) rpcTokensGetAlphaInfo(ctx context.Context, raw json.RawMessage
 	subnet, err := h.queries.GetSubnet(ctx, subnetNum)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &RPCErr{Code: rpcInvalidParams, Message: "subnet not found"}
+			return nil, &RPCErr{Code: rpcNotFound, Message: "subnet not found"}
 		}
 		return nil, internalErr("failed to get subnet info")
 	}
@@ -912,7 +933,7 @@ func (h *Handler) rpcGovernanceGetProposal(ctx context.Context, raw json.RawMess
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &RPCErr{Code: rpcInvalidParams, Message: "proposal not found"}
+			return nil, &RPCErr{Code: rpcNotFound, Message: "proposal not found"}
 		}
 		return nil, internalErr("failed to get proposal")
 	}

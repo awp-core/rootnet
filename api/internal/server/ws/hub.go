@@ -83,7 +83,10 @@ func NewHub(rdb *redis.Client, logger *slog.Logger) *Hub {
 }
 
 // SetAllocationQuerier 注入分配查询接口（用于推送时附带当前余额）
+// 必须在 Hub.Run() 之前调用
 func (h *Hub) SetAllocationQuerier(q AllocationQuerier, chainID int64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.allocQuery = q
 	h.chainID = chainID
 }
@@ -184,6 +187,12 @@ var allocEventTypes = map[string]bool{
 	"Reallocated": true,
 }
 
+// allocDelivery 记录需要推送的分配变更（在锁外收集，锁外查询 DB，锁外发送）
+type allocDelivery struct {
+	client *Client
+	key    string // "agent:subnetId"
+}
+
 // broadcastToClients sends a message to all connected clients (respecting filter settings)
 func (h *Hub) broadcastToClients(msg []byte) {
 	// 先解析 type（不关心 data 类型，避免类型不匹配导致 unmarshal 失败）
@@ -202,9 +211,6 @@ func (h *Hub) broadcastToClients(msg []byte) {
 		}
 	}
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	// 提取涉及的 subnetId 列表（用于子网级匹配）
 	var allocSubnets []string
 	if len(allocKeys) > 0 {
@@ -219,58 +225,44 @@ func (h *Hub) broadcastToClients(msg []byte) {
 		}
 	}
 
-	for client := range h.clients {
-		sent := false
-		evicted := false
-		hasWatches := len(client.allocWatches) > 0 || len(client.subnetWatches) > 0
+	// Phase 1: 持锁收集需要推送的客户端列表（不做 DB 查询）
+	var deliveries []allocDelivery
 
-		// 1. 检查分配订阅推送（精确匹配 + 子网级匹配）
+	h.mu.Lock()
+	for client := range h.clients {
+		hasWatches := len(client.allocWatches) > 0 || len(client.subnetWatches) > 0
+		matched := false
+
+		// 1. 分配订阅推送（收集匹配的 key，不发送）
 		if hasWatches && len(allocKeys) > 0 {
-			// 1a. 精确匹配 agent:subnetId
+			matchedKeys := make(map[string]bool)
+
+			// 1a. 精确匹配 agent:subnetId（不 break，收集所有匹配）
 			for _, key := range allocKeys {
 				if client.allocWatches[key] {
-					enriched := h.enrichAllocEvent(evt, key)
-					if data, err := json.Marshal(enriched); err == nil {
-						select {
-						case client.send <- data:
-							sent = true
-						default:
-							delete(h.clients, client)
-							close(client.send)
-							evicted = true
-						}
-					}
-					break
+					matchedKeys[key] = true
 				}
 			}
-			// 1b. 子网级匹配（agent 省略）
-			if !sent && !evicted {
-				for _, sid := range allocSubnets {
-					if client.subnetWatches[sid] {
-						for _, key := range allocKeys {
-							if strings.HasSuffix(key, ":"+sid) {
-								enriched := h.enrichAllocEvent(evt, key)
-								if data, err := json.Marshal(enriched); err == nil {
-									select {
-									case client.send <- data:
-										sent = true
-									default:
-										delete(h.clients, client)
-										close(client.send)
-										evicted = true
-									}
-								}
-								break
-							}
+
+			// 1b. 子网级匹配（收集所有匹配子网的 key）
+			for _, sid := range allocSubnets {
+				if client.subnetWatches[sid] {
+					for _, key := range allocKeys {
+						if strings.HasSuffix(key, ":"+sid) && !matchedKeys[key] {
+							matchedKeys[key] = true
 						}
-						break
 					}
 				}
+			}
+
+			for key := range matchedKeys {
+				deliveries = append(deliveries, allocDelivery{client: client, key: key})
+				matched = true
 			}
 		}
 
-		// 2. 常规 type 过滤推送（跳过已发送或已驱逐的客户端）
-		if !sent && !evicted {
+		// 2. 常规 type 过滤推送（直接发送原始消息，不需要 DB 查询）
+		if !matched {
 			if len(client.filters) > 0 && eventType != "" {
 				if !client.filters[eventType] {
 					continue
@@ -281,6 +273,29 @@ func (h *Hub) broadcastToClients(msg []byte) {
 			default:
 				delete(h.clients, client)
 				close(client.send)
+			}
+		}
+	}
+	h.mu.Unlock()
+
+	// Phase 2: 在锁外做 DB 查询并发送 enriched 消息
+	if len(deliveries) > 0 {
+		for _, d := range deliveries {
+			enriched := h.enrichAllocEvent(evt, d.key)
+			data, err := json.Marshal(enriched)
+			if err != nil {
+				continue
+			}
+			select {
+			case d.client.send <- data:
+			default:
+				// 缓冲区满，标记驱逐
+				h.mu.Lock()
+				if _, ok := h.clients[d.client]; ok {
+					delete(h.clients, d.client)
+					close(d.client.send)
+				}
+				h.mu.Unlock()
 			}
 		}
 	}
@@ -310,7 +325,7 @@ func extractAllocKeys(eventType string, data map[string]interface{}) []string {
 	return keys
 }
 
-// enrichAllocEvent 为分配事件附加当前余额
+// enrichAllocEvent 为分配事件附加当前余额（在锁外调用）
 func (h *Hub) enrichAllocEvent(evt broadcastEvent, watchKey string) map[string]interface{} {
 	result := map[string]interface{}{
 		"type":        "AllocationChanged",
@@ -318,17 +333,22 @@ func (h *Hub) enrichAllocEvent(evt broadcastEvent, watchKey string) map[string]i
 		"data":        evt.Data,
 	}
 
-	// 解析 agent 和 subnetId
 	parts := strings.SplitN(watchKey, ":", 2)
 	if len(parts) == 2 {
 		agent, subnetID := parts[0], parts[1]
 		result["agent"] = agent
 		result["subnetId"] = subnetID
-		// 查询当前余额（如果 querier 已注入）
-		if h.allocQuery != nil {
-			if currentStake, err := h.allocQuery.GetAgentSubnetStakeWS(
-				context.Background(), h.chainID, agent, subnetID,
-			); err == nil {
+
+		// 读取 allocQuery/chainID 需要加锁（SetAllocationQuerier 也持锁写入）
+		h.mu.RLock()
+		q := h.allocQuery
+		cid := h.chainID
+		h.mu.RUnlock()
+
+		if q != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if currentStake, err := q.GetAgentSubnetStakeWS(ctx, cid, agent, subnetID); err == nil {
 				result["currentStake"] = currentStake
 			}
 		}

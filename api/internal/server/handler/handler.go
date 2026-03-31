@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/cortexia/rootnet/api/internal/config"
 	"github.com/cortexia/rootnet/api/internal/db/gen"
@@ -26,6 +27,11 @@ type Handler struct {
 	limiter *ratelimit.Limiter
 	chain   ChainReader           // optional: for on-chain reads (nonce, etc.)
 	chains  []config.ChainConfig // loaded chains (nil in single-chain mode)
+
+	// JSON-RPC 方法表缓存（sync.Once 初始化）
+	rpcMethodsOnce    sync.Once
+	rpcMethodTable    map[string]methodEntry
+	rpcDiscoverResult []methodInfo
 }
 
 // ChainReader provides read-only access to on-chain state (optional dependency)

@@ -21,7 +21,7 @@ func NewWSAllocQuerier(queries *gen.Queries) *WSAllocQuerier {
 // GetAgentSubnetStakeWS 查询 (agent, subnetId) 当前分配量
 func (q *WSAllocQuerier) GetAgentSubnetStakeWS(ctx context.Context, chainID int64, agent string, subnetID string) (string, error) {
 	id, ok := new(big.Int).SetString(subnetID, 10)
-	if !ok {
+	if !ok || id.Sign() <= 0 {
 		return "0", nil
 	}
 	subnetNum := pgtype.Numeric{Int: id, Exp: 0, Valid: true}

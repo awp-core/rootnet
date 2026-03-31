@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"sync"
+
+	"github.com/cortexia/rootnet/api/internal/ratelimit"
 )
 
 // JSON-RPC 2.0 错误码
@@ -13,7 +16,16 @@ const (
 	rpcMethodNotFound = -32601
 	rpcInvalidParams  = -32602
 	rpcInternalError  = -32603
+	rpcNotFound       = -32001 // 应用层：资源不存在
 )
+
+// rpcCtxKey 用于在 context 中存储请求信息
+type rpcCtxKey struct{}
+
+// rpcCtxVal 存储 RPC 请求的元信息（如客户端 IP）
+type rpcCtxVal struct {
+	ClientIP string
+}
 
 // RPCRequest JSON-RPC 2.0 请求
 type RPCRequest struct {
@@ -74,6 +86,11 @@ func (h *Handler) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	// 限制请求体大小
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB
 
+	// 注入客户端 IP 到 context（用于 rate limiting）
+	ctx := context.WithValue(r.Context(), rpcCtxKey{}, &rpcCtxVal{
+		ClientIP: ratelimit.GetClientIP(r),
+	})
+
 	var raw json.RawMessage
 	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 		h.writeJSON(w, http.StatusOK, RPCResponse{
@@ -107,10 +124,17 @@ func (h *Handler) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		// 批量请求并发执行
 		responses := make([]RPCResponse, len(reqs))
+		var wg sync.WaitGroup
 		for i, req := range reqs {
-			responses[i] = h.dispatchRPC(r.Context(), req)
+			wg.Add(1)
+			go func(idx int, r RPCRequest) {
+				defer wg.Done()
+				responses[idx] = h.dispatchRPC(ctx, r)
+			}(i, req)
 		}
+		wg.Wait()
 		h.writeJSON(w, http.StatusOK, responses)
 		return
 	}
@@ -124,8 +148,30 @@ func (h *Handler) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := h.dispatchRPC(r.Context(), req)
+	resp := h.dispatchRPC(ctx, req)
 	h.writeJSON(w, http.StatusOK, resp)
+}
+
+// rpcClientIP 从 context 中提取客户端 IP
+func rpcClientIP(ctx context.Context) string {
+	if v, ok := ctx.Value(rpcCtxKey{}).(*rpcCtxVal); ok {
+		return v.ClientIP
+	}
+	return ""
+}
+
+// initRPCMethods 初始化方法注册表（在首次调用时缓存）
+func (h *Handler) initRPCMethods() {
+	h.rpcMethodsOnce.Do(func() {
+		h.rpcMethodTable = h.rpcMethods()
+		h.rpcDiscoverResult = func() []methodInfo {
+			infos := make([]methodInfo, 0, len(h.rpcMethodTable))
+			for _, m := range h.rpcMethodTable {
+				infos = append(infos, m.info)
+			}
+			return infos
+		}()
+	})
 }
 
 // dispatchRPC 分发单个 JSON-RPC 请求
@@ -134,18 +180,13 @@ func (h *Handler) dispatchRPC(ctx context.Context, req RPCRequest) RPCResponse {
 		return RPCResponse{JSONRPC: "2.0", Error: &RPCErr{Code: rpcInvalidRequest, Message: "jsonrpc must be \"2.0\""}, ID: req.ID}
 	}
 
-	methods := h.rpcMethods()
+	h.initRPCMethods()
 
-	// 内置 rpc.discover
 	if req.Method == "rpc.discover" {
-		infos := make([]methodInfo, 0, len(methods))
-		for _, m := range methods {
-			infos = append(infos, m.info)
-		}
-		return RPCResponse{JSONRPC: "2.0", Result: map[string]any{"methods": infos}, ID: req.ID}
+		return RPCResponse{JSONRPC: "2.0", Result: map[string]any{"methods": h.rpcDiscoverResult}, ID: req.ID}
 	}
 
-	entry, ok := methods[req.Method]
+	entry, ok := h.rpcMethodTable[req.Method]
 	if !ok {
 		return RPCResponse{JSONRPC: "2.0", Error: &RPCErr{Code: rpcMethodNotFound, Message: "method not found: " + req.Method}, ID: req.ID}
 	}
@@ -271,6 +312,10 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 			Params: []paramInfo{
 				{Name: "address", Type: "string", Required: true, Description: "用户地址 (0x...)"},
 			},
+		}},
+		"staking.getPending": {fn: h.rpcStakingGetPending, info: methodInfo{
+			Name: "staking.getPending", Description: "获取待处理的分配变更（当前总是空数组）",
+			Params: []paramInfo{},
 		}},
 		"staking.getAgentSubnetStake": {fn: h.rpcStakingGetAgentSubnetStake, info: methodInfo{
 			Name: "staking.getAgentSubnetStake", Description: "获取 agent 在某子网的质押量",

@@ -2188,7 +2188,8 @@ func TestJSONRPC_SubnetsGetSkills(t *testing.T) {
 	if result["skillsURI"] != "ipfs://QmSkillsHash" {
 		t.Errorf("expected skillsURI=ipfs://QmSkillsHash, got %v", result["skillsURI"])
 	}
-	if result["subnetId"] != "2001" {
+	// subnetId 返回为 pgtype.Numeric，JSON 序列化为 number
+	if fmt.Sprintf("%v", result["subnetId"]) != "2001" {
 		t.Errorf("expected subnetId=2001, got %v", result["subnetId"])
 	}
 }
@@ -2499,8 +2500,8 @@ func TestJSONRPC_UsersGetNotFound(t *testing.T) {
 	var resp map[string]any
 	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
 	errObj := resp["error"].(map[string]any)
-	if errObj["code"].(float64) != -32602 {
-		t.Errorf("expected -32602, got %v", errObj["code"])
+	if errObj["code"].(float64) != -32001 {
+		t.Errorf("expected -32001 (not found), got %v", errObj["code"])
 	}
 	if errObj["message"] != "user not found" {
 		t.Errorf("expected 'user not found', got %v", errObj["message"])
@@ -2516,8 +2517,8 @@ func TestJSONRPC_SubnetsGetNotFound(t *testing.T) {
 	var resp map[string]any
 	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
 	errObj := resp["error"].(map[string]any)
-	if errObj["code"].(float64) != -32602 {
-		t.Errorf("expected -32602, got %v", errObj["code"])
+	if errObj["code"].(float64) != -32001 {
+		t.Errorf("expected -32001 (not found), got %v", errObj["code"])
 	}
 	if errObj["message"] != "subnet not found" {
 		t.Errorf("expected 'subnet not found', got %v", errObj["message"])
