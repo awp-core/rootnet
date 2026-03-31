@@ -3,6 +3,7 @@ pragma solidity ^0.8.20;
 
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 
 /// @title SubnetNFT — Subnet NFT with on-chain metadata
 /// @notice Each subnet = one NFT. Carries immutable identity (name, subnetManager, alphaToken)
@@ -159,7 +160,30 @@ contract SubnetNFT is ERC721 {
 
     function tokenURI(uint256 tokenId) public view override returns (string memory) {
         _requireOwned(tokenId);
-        return string.concat(_baseTokenURI, tokenId.toString());
+
+        // If baseURI is set, use it (external metadata server)
+        if (bytes(_baseTokenURI).length > 0) {
+            return string.concat(_baseTokenURI, tokenId.toString());
+        }
+
+        // Otherwise, generate on-chain JSON metadata
+        SubnetIdentity storage id = _identity[tokenId];
+        SubnetMeta storage meta = _meta[tokenId];
+
+        string memory json = string.concat(
+            '{"name":"', id.name,
+            '","description":"AWP Subnet #', tokenId.toString(),
+            '","external_url":"', meta.skillsURI,
+            '","attributes":[',
+                '{"trait_type":"Subnet Manager","value":"', Strings.toHexString(id.subnetManager),
+                '"},{"trait_type":"Alpha Token","value":"', Strings.toHexString(id.alphaToken),
+                '"},{"trait_type":"Min Stake","value":"', uint256(meta.minStake).toString(),
+                '"},{"trait_type":"Chain ID","value":"', (tokenId >> 64).toString(),
+                '"},{"trait_type":"Local ID","value":"', (tokenId & ((1 << 64) - 1)).toString(),
+            '"}]}'
+        );
+
+        return string.concat("data:application/json;base64,", Base64.encode(bytes(json)));
     }
 
     function _baseURI() internal view override returns (string memory) {

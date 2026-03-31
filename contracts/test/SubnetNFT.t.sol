@@ -133,12 +133,18 @@ contract SubnetNFTTest is Test {
     // tokenURI
     // ──────────────────────────────────────────────
 
-    function test_tokenURI_emptyBaseURI() public {
+    function test_tokenURI_onchainMetadata() public {
         vm.prank(awpRegistry);
         nft.mint(alice, 7, "Test", address(0x1), address(0x2), 0, "");
 
-        // when baseURI is empty, tokenURI returns empty + tokenId.toString()
-        assertEq(nft.tokenURI(7), "7");
+        // when baseURI is empty, tokenURI returns on-chain generated JSON (data URI)
+        string memory uri = nft.tokenURI(7);
+        assertTrue(bytes(uri).length > 0);
+        // Should start with data:application/json;base64,
+        bytes memory prefix = bytes("data:application/json;base64,");
+        for (uint256 i = 0; i < prefix.length; i++) {
+            assertEq(bytes(uri)[i], prefix[i]);
+        }
     }
 
     function test_tokenURI_withBaseURI() public {
