@@ -128,8 +128,10 @@ func NewRouter(p RouterParams) chi.Router {
 		})
 	}
 
+	// JSON-RPC 2.0 入口（供 LLM agent 调用，支持 rpc.discover）
+	r.Post("/v2", h.HandleRPC)
+
 	// Vanity salt management + computation (optional)
-	// Vanity salt management (always available if factory configured)
 	r.Route("/api/vanity", func(r chi.Router) {
 		r.Get("/mining-params", h.GetMiningParams)
 		r.Post("/upload-salts", h.UploadSalts)

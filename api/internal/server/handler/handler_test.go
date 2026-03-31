@@ -1594,3 +1594,192 @@ func TestE2E_AddressCaseNormalization(t *testing.T) {
 		}
 	})
 }
+
+// ════════════════════════════════════════════════════════════
+// JSON-RPC 2.0 — /v2
+// ════════════════════════════════════════════════════════════
+
+func TestJSONRPC_Discover(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"rpc.discover","id":1}`
+	rr := env.request("POST", "/v2", body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+
+	if resp["jsonrpc"] != "2.0" {
+		t.Error("expected jsonrpc 2.0")
+	}
+	result, ok := resp["result"].(map[string]any)
+	if !ok {
+		t.Fatal("expected result object")
+	}
+	methods, ok := result["methods"].([]any)
+	if !ok || len(methods) == 0 {
+		t.Fatal("expected non-empty methods array")
+	}
+
+	// 验证至少包含关键方法
+	methodNames := make(map[string]bool)
+	for _, m := range methods {
+		if mm, ok := m.(map[string]any); ok {
+			methodNames[mm["name"].(string)] = true
+		}
+	}
+	for _, expected := range []string{
+		"registry.get", "staking.getBalance", "subnets.list",
+		"emission.getCurrent", "tokens.getAWP", "governance.listProposals",
+	} {
+		if !methodNames[expected] {
+			t.Errorf("missing method in discover: %s", expected)
+		}
+	}
+}
+
+func TestJSONRPC_HealthCheck(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"health.check","id":2}`
+	rr := env.request("POST", "/v2", body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	result := resp["result"].(map[string]any)
+	if result["status"] != "ok" {
+		t.Errorf("expected status ok, got %v", result["status"])
+	}
+}
+
+func TestJSONRPC_RegistryGet(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"registry.get","id":3}`
+	rr := env.request("POST", "/v2", body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	result := resp["result"].(map[string]any)
+	if result["awpRegistry"] != "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+		t.Errorf("unexpected awpRegistry: %v", result["awpRegistry"])
+	}
+	if result["chainId"].(float64) != 31337 {
+		t.Errorf("unexpected chainId: %v", result["chainId"])
+	}
+}
+
+func TestJSONRPC_MethodNotFound(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"nonexistent.method","id":4}`
+	rr := env.request("POST", "/v2", body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32601 {
+		t.Errorf("expected method not found error (-32601), got %v", errObj["code"])
+	}
+}
+
+func TestJSONRPC_InvalidParams(t *testing.T) {
+	env := newTestEnv(t)
+
+	// 无效地址
+	body := `{"jsonrpc":"2.0","method":"users.get","params":{"address":"invalid"},"id":5}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32602 {
+		t.Errorf("expected invalid params error (-32602), got %v", errObj["code"])
+	}
+}
+
+func TestJSONRPC_BatchRequest(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `[
+		{"jsonrpc":"2.0","method":"health.check","id":1},
+		{"jsonrpc":"2.0","method":"registry.get","id":2},
+		{"jsonrpc":"2.0","method":"users.count","id":3}
+	]`
+	rr := env.request("POST", "/v2", body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var responses []map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &responses)
+	if len(responses) != 3 {
+		t.Fatalf("expected 3 responses in batch, got %d", len(responses))
+	}
+
+	// 每个响应都应有 result（无 error）
+	for i, resp := range responses {
+		if resp["error"] != nil {
+			t.Errorf("batch response %d has error: %v", i, resp["error"])
+		}
+		if resp["result"] == nil {
+			t.Errorf("batch response %d missing result", i)
+		}
+	}
+}
+
+func TestJSONRPC_UsersGet(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	addr := "0x0000000000000000000000000000000000001234"
+	_, _ = env.pool.Exec(ctx,
+		"INSERT INTO users (chain_id, address, registered_at) VALUES (31337, $1, 100)", addr)
+
+	body := `{"jsonrpc":"2.0","method":"users.get","params":{"address":"0x0000000000000000000000000000000000001234"},"id":6}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	user := result["user"].(map[string]any)
+	if user["address"] != addr {
+		t.Errorf("expected address %s, got %v", addr, user["address"])
+	}
+}
+
+func TestJSONRPC_SubnetsGet(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
+		 VALUES (31337, 1, '0xowner', 'TestSubnet', 'TS', '0xsc', '0xat', 'Active', 100)`)
+
+	body := `{"jsonrpc":"2.0","method":"subnets.get","params":{"subnetId":"1"},"id":7}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["name"] != "TestSubnet" {
+		t.Errorf("expected name TestSubnet, got %v", result["name"])
+	}
+}
