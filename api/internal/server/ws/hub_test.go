@@ -397,3 +397,54 @@ func TestHub_AllocationWatch_Reallocated(t *testing.T) {
 		t.Fatal("should receive AllocationChanged for Reallocated to-side")
 	}
 }
+
+func TestHub_SubnetWatch(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	// 仅订阅 subnetId，不指定 agent
+	client := &Client{
+		hub:           h,
+		send:          make(chan []byte, 256),
+		filters:       make(map[string]bool),
+		allocWatches:  make(map[string]bool),
+		subnetWatches: map[string]bool{"12345": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	// 任意 agent 在该 subnet 上分配都应推送
+	msg := []byte(`{"type":"Allocated","blockNumber":200,"txHash":"0xaaa","data":{"staker":"0xS","agent":"0xAnyAgent","subnetId":"12345","amount":"999","operator":"0xO"}}`)
+	h.broadcastToClients(msg)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+		if evt["subnetId"] != "12345" {
+			t.Errorf("expected subnetId 12345, got %v", evt["subnetId"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("subnet watch should receive AllocationChanged for any agent")
+	}
+
+	// 不同 subnet 不应触发推送（会走普通广播，但客户端无 filter 所以仍收到原始事件）
+	otherMsg := []byte(`{"type":"Allocated","blockNumber":201,"txHash":"0xbbb","data":{"staker":"0xS","agent":"0xOther","subnetId":"99999","amount":"1","operator":"0xO"}}`)
+	h.broadcastToClients(otherMsg)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		// 不匹配的 subnet，应以原始 Allocated 发送
+		if evt["type"] != "Allocated" {
+			t.Errorf("expected original Allocated, got %v", evt["type"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("should still receive non-matching events as normal broadcast")
+	}
+}

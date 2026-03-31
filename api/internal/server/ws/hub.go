@@ -26,9 +26,10 @@ type Client struct {
 	hub              *Hub
 	conn             *websocket.Conn
 	send             chan []byte
-	filters          map[string]bool       // event type filters
-	allocWatches     map[string]bool       // "agent:subnetId" 格式的监听 key
-	ip               string                // client IP for connection limit tracking
+	filters          map[string]bool // event type filters
+	allocWatches     map[string]bool // "agent:subnetId" 精确匹配
+	subnetWatches    map[string]bool // "subnetId" 整子网匹配（agent 省略时）
+	ip               string          // client IP for connection limit tracking
 }
 
 // AllocationQuerier 查询 (agent, subnetId) 当前分配量（由 handler 层注入）
@@ -204,14 +205,29 @@ func (h *Hub) broadcastToClients(msg []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	// 提取涉及的 subnetId 列表（用于子网级匹配）
+	var allocSubnets []string
+	if len(allocKeys) > 0 {
+		seen := make(map[string]bool)
+		for _, key := range allocKeys {
+			if parts := strings.SplitN(key, ":", 2); len(parts) == 2 {
+				if !seen[parts[1]] {
+					allocSubnets = append(allocSubnets, parts[1])
+					seen[parts[1]] = true
+				}
+			}
+		}
+	}
+
 	for client := range h.clients {
 		sent := false
+		hasWatches := len(client.allocWatches) > 0 || len(client.subnetWatches) > 0
 
-		// 1. 检查 allocWatches（分配订阅推送）
-		if len(client.allocWatches) > 0 && len(allocKeys) > 0 {
+		// 1. 检查分配订阅推送（精确匹配 + 子网级匹配）
+		if hasWatches && len(allocKeys) > 0 {
+			// 1a. 精确匹配 agent:subnetId
 			for _, key := range allocKeys {
 				if client.allocWatches[key] {
-					// 构造包含当前余额的推送消息
 					enriched := h.enrichAllocEvent(evt, key)
 					if data, err := json.Marshal(enriched); err == nil {
 						select {
@@ -222,7 +238,31 @@ func (h *Hub) broadcastToClients(msg []byte) {
 							close(client.send)
 						}
 					}
-					break // 每个事件只推送一次给同一客户端
+					break
+				}
+			}
+			// 1b. 子网级匹配（agent 省略）
+			if !sent {
+				for _, sid := range allocSubnets {
+					if client.subnetWatches[sid] {
+						// 找到匹配的 allocKey 用于 enrich
+						for _, key := range allocKeys {
+							if strings.HasSuffix(key, ":"+sid) {
+								enriched := h.enrichAllocEvent(evt, key)
+								if data, err := json.Marshal(enriched); err == nil {
+									select {
+									case client.send <- data:
+										sent = true
+									default:
+										delete(h.clients, client)
+										close(client.send)
+									}
+								}
+								break
+							}
+						}
+						break
+					}
 				}
 			}
 		}
@@ -338,12 +378,13 @@ func (h *Hub) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	conn.SetReadLimit(4096)
 
 	client := &Client{
-		hub:          h,
-		conn:         conn,
-		send:         make(chan []byte, 256),
-		filters:      make(map[string]bool),
-		allocWatches: make(map[string]bool),
-		ip:           ip,
+		hub:           h,
+		conn:          conn,
+		send:          make(chan []byte, 256),
+		filters:       make(map[string]bool),
+		allocWatches:  make(map[string]bool),
+		subnetWatches: make(map[string]bool),
+		ip:            ip,
 	}
 
 	h.register <- client
@@ -394,15 +435,23 @@ func (h *Hub) readPump(ctx context.Context, client *Client) {
 		// 处理分配监听订阅
 		if len(fm.WatchAllocations) > 0 && len(fm.WatchAllocations) <= 100 {
 			h.mu.Lock()
-			client.allocWatches = make(map[string]bool, len(fm.WatchAllocations))
+			client.allocWatches = make(map[string]bool)
+			client.subnetWatches = make(map[string]bool)
 			for _, w := range fm.WatchAllocations {
-				if len(w.Agent) == 42 && len(w.SubnetID) > 0 && len(w.SubnetID) <= 30 {
+				if w.SubnetID == "" || len(w.SubnetID) > 30 {
+					continue
+				}
+				if w.Agent == "" {
+					// 省略 agent = 订阅整个子网
+					client.subnetWatches[w.SubnetID] = true
+				} else if len(w.Agent) == 42 {
 					key := strings.ToLower(w.Agent) + ":" + w.SubnetID
 					client.allocWatches[key] = true
 				}
 			}
 			h.mu.Unlock()
-			h.logger.Debug("client updated allocation watches", "count", len(fm.WatchAllocations))
+			h.logger.Debug("client updated allocation watches",
+				"exact", len(client.allocWatches), "subnet", len(client.subnetWatches))
 		}
 	}
 }
