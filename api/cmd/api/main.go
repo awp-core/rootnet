@@ -168,7 +168,9 @@ func newVanityHandler(cfg *config.Config, queries *gen.Queries, limiter *ratelim
 }
 
 // wireChainReader creates a lightweight chain client for on-chain reads (nonce, etc.)
-func wireChainReader(lc fx.Lifecycle, h *handler.Handler, cfg *config.Config, logger *slog.Logger) {
+func wireChainReader(lc fx.Lifecycle, h *handler.Handler, hub *ws.Hub, queries *gen.Queries, cfg *config.Config, logger *slog.Logger) {
+	// 注入 WebSocket 分配查询接口
+	hub.SetAllocationQuerier(handler.NewWSAllocQuerier(queries), cfg.ChainID)
 	addrs := map[string]string{
 		"AWPRegistry":  cfg.AWPRegistryAddress,
 		"AWPToken":     cfg.AWPTokenAddress,

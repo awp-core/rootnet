@@ -311,3 +311,89 @@ func TestHub_SlowClientEviction(t *testing.T) {
 		t.Fatalf("expected 0 clients, got %d", count)
 	}
 }
+
+func TestHub_AllocationWatch(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	watchClient := &Client{
+		hub:          h,
+		send:         make(chan []byte, 256),
+		filters:      make(map[string]bool),
+		allocWatches: map[string]bool{"0xagent1:12345": true},
+	}
+	normalClient := &Client{
+		hub:          h,
+		send:         make(chan []byte, 256),
+		filters:      make(map[string]bool),
+		allocWatches: make(map[string]bool),
+	}
+
+	h.mu.Lock()
+	h.clients[watchClient] = true
+	h.clients[normalClient] = true
+	h.mu.Unlock()
+
+	allocMsg := []byte(`{"type":"Allocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xStaker1","agent":"0xAgent1","subnetId":"12345","amount":"1000","operator":"0xOp1"}}`)
+	h.broadcastToClients(allocMsg)
+
+	// watchClient 应收到 AllocationChanged
+	select {
+	case msg := <-watchClient.send:
+		var evt map[string]interface{}
+		if err := json.Unmarshal(msg, &evt); err != nil {
+			t.Fatalf("failed to parse: %v", err)
+		}
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+		if evt["sourceEvent"] != "Allocated" {
+			t.Errorf("expected sourceEvent Allocated, got %v", evt["sourceEvent"])
+		}
+		if evt["agent"] != "0xagent1" {
+			t.Errorf("expected agent 0xagent1, got %v", evt["agent"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("watchClient should have received AllocationChanged")
+	}
+
+	// normalClient 应收到原始事件
+	select {
+	case msg := <-normalClient.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(msg, &evt)
+		if evt["type"] != "Allocated" {
+			t.Errorf("normalClient expected Allocated, got %v", evt["type"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("normalClient should have received Allocated")
+	}
+}
+
+func TestHub_AllocationWatch_Reallocated(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	client := &Client{
+		hub:          h,
+		send:         make(chan []byte, 256),
+		filters:      make(map[string]bool),
+		allocWatches: map[string]bool{"0xtoagent:200": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	msg := []byte(`{"type":"Reallocated","blockNumber":60,"txHash":"0xr","data":{"staker":"0xS","fromAgent":"0xFromAgent","fromSubnet":"100","toAgent":"0xToAgent","toSubnet":"200","amount":"500","operator":"0xO"}}`)
+	h.broadcastToClients(msg)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("should receive AllocationChanged for Reallocated to-side")
+	}
+}
