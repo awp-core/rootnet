@@ -284,18 +284,20 @@ parse_address() {
 AWP_TOKEN_ADDRESS=$(parse_address "AWPToken:")
 FACTORY_ADDRESS=$(parse_address "AlphaTokenFactory:")
 TREASURY_ADDRESS=$(parse_address "Treasury:")
-AWP_REGISTRY_ADDRESS=$(parse_address "AWPRegistry:")
+AWP_REGISTRY_IMPL=$(parse_address "AWPRegistry impl:")
+AWP_REGISTRY_ADDRESS=$(parse_address "AWPRegistry proxy:")
 SUBNETNFT_ADDRESS=$(parse_address "SubnetNFT:")
-LP_MANAGER_ADDRESS=$(parse_address "LPManager:")
+LP_MANAGER_ADDRESS=$(parse_address "LPManager")
 AWP_EMISSION_IMPL=$(parse_address "AWPEmission impl:")
 AWP_EMISSION_ADDRESS=$(parse_address "AWPEmission proxy:")
-STAKING_VAULT_ADDRESS=$(parse_address "StakingVault:")
+STAKING_VAULT_IMPL=$(parse_address "StakingVault impl:")
+STAKING_VAULT_ADDRESS=$(parse_address "StakingVault proxy:")
 STAKENFT_ADDRESS=$(parse_address "StakeNFT:")
 DAO_ADDRESS=$(parse_address "AWPDAO:")
 SUBNET_MANAGER_IMPL=$(parse_address "SubnetManager impl:")
 
-for var in AWP_TOKEN_ADDRESS FACTORY_ADDRESS TREASURY_ADDRESS AWP_REGISTRY_ADDRESS SUBNETNFT_ADDRESS \
-           LP_MANAGER_ADDRESS AWP_EMISSION_IMPL AWP_EMISSION_ADDRESS STAKING_VAULT_ADDRESS \
+for var in AWP_TOKEN_ADDRESS FACTORY_ADDRESS TREASURY_ADDRESS AWP_REGISTRY_IMPL AWP_REGISTRY_ADDRESS SUBNETNFT_ADDRESS \
+           LP_MANAGER_ADDRESS AWP_EMISSION_IMPL AWP_EMISSION_ADDRESS STAKING_VAULT_IMPL STAKING_VAULT_ADDRESS \
            STAKENFT_ADDRESS DAO_ADDRESS SUBNET_MANAGER_IMPL; do
     [[ -n "${!var:-}" ]] || error "Failed to parse $var"
 done
@@ -365,7 +367,9 @@ RELAYER_PRIVATE_KEY=$RELAYER_PRIVATE_KEY
 KEEPER_PRIVATE_KEY=$KEEPER_PRIVATE_KEY
 
 # ── For verification (internal) ──
+AWP_REGISTRY_IMPL=$AWP_REGISTRY_IMPL
 AWP_EMISSION_IMPL=$AWP_EMISSION_IMPL
+STAKING_VAULT_IMPL=$STAKING_VAULT_IMPL
 SUBNET_MANAGER_IMPL=$SUBNET_MANAGER_IMPL
 ENVFILE
 
@@ -409,6 +413,8 @@ else
         8453)  VERIFIER_URL="https://api.basescan.org/api" ;;
         84532) VERIFIER_URL="https://api-sepolia.basescan.org/api" ;;
         1)     VERIFIER_URL="https://api.etherscan.io/api" ;;
+        42161) VERIFIER_URL="https://api.arbiscan.io/api" ;;
+        421614) VERIFIER_URL="https://api-sepolia.arbiscan.io/api" ;;
     esac
     VF="--etherscan-api-key $ETHERSCAN_API_KEY"
     [[ -n "$VERIFIER_URL" ]] && VF="$VF --verifier-url $VERIFIER_URL"
@@ -419,30 +425,44 @@ else
         local cmd="forge verify-contract $addr $contract --chain-id $CHAIN_ID $VF --watch"
         [[ -n "$args" ]] && cmd="$cmd --constructor-args $args"
         info "Verifying $label at $addr ..."
-        eval "$cmd" 2>&1 | tail -3 || warn "Verification failed for $label"
+        eval "$cmd" 2>&1 | tail -3 || warn "Verification failed for $label (may already be verified)"
     }
 
+    INITIAL_MINT_WEI=$(echo "${INITIAL_MINT:-200000000} * 1000000000000000000" | bc)
+
+    # ── Standalone contracts (direct constructor args) ──
     vc "$AWP_TOKEN_ADDRESS" "src/token/AWPToken.sol:AWPToken" \
-        "$(cast abi-encode 'c(string,string,address)' 'AWP Token' 'AWP' "$DEPLOYER")" "AWPToken"
+        "$(cast abi-encode 'c(string,string,address,uint256)' 'AWP Token' 'AWP' "$DEPLOYER" "$INITIAL_MINT_WEI")" "AWPToken"
     vc "$FACTORY_ADDRESS" "src/token/AlphaTokenFactory.sol:AlphaTokenFactory" \
         "$(cast abi-encode 'c(address,uint64)' "$DEPLOYER" "$VANITY_RULE")" "AlphaTokenFactory"
     vc "$TREASURY_ADDRESS" "src/governance/Treasury.sol:Treasury" \
         "$(cast abi-encode 'c(uint256,address[],address[],address)' 172800 '[]' '[0x0000000000000000000000000000000000000000]' "$DEPLOYER")" "Treasury"
-    vc "$AWP_REGISTRY_ADDRESS" "src/AWPRegistry.sol:AWPRegistry" \
-        "$(cast abi-encode 'c(address,address,address)' "$DEPLOYER" "$TREASURY_ADDRESS" "$GUARDIAN")" "AWPRegistry"
     vc "$SUBNETNFT_ADDRESS" "src/core/SubnetNFT.sol:SubnetNFT" \
         "$(cast abi-encode 'c(string,string,address)' 'AWP Subnet' 'AWPSUB' "$AWP_REGISTRY_ADDRESS")" "SubnetNFT"
-    [[ -n "$POOL_MANAGER" && -n "$POSITION_MANAGER" && -n "$PERMIT2" ]] && \
-    vc "$LP_MANAGER_ADDRESS" "src/core/LPManager.sol:LPManager" \
-        "$(cast abi-encode 'c(address,address,address,address,address)' "$AWP_REGISTRY_ADDRESS" "$POOL_MANAGER" "$POSITION_MANAGER" "$PERMIT2" "$AWP_TOKEN_ADDRESS")" "LPManager"
-    [[ -n "${AWP_EMISSION_IMPL:-}" ]] && vc "$AWP_EMISSION_IMPL" "src/token/AWPEmission.sol:AWPEmission" "" "AWPEmission (impl)"
-    [[ -n "${SUBNET_MANAGER_IMPL:-}" ]] && vc "$SUBNET_MANAGER_IMPL" "src/subnets/SubnetManager.sol:SubnetManager" "" "SubnetManager (impl)"
-    vc "$STAKING_VAULT_ADDRESS" "src/core/StakingVault.sol:StakingVault" \
-        "$(cast abi-encode 'c(address)' "$AWP_REGISTRY_ADDRESS")" "StakingVault"
     vc "$STAKENFT_ADDRESS" "src/core/StakeNFT.sol:StakeNFT" \
         "$(cast abi-encode 'c(address,address,address)' "$AWP_TOKEN_ADDRESS" "$STAKING_VAULT_ADDRESS" "$AWP_REGISTRY_ADDRESS")" "StakeNFT"
     vc "$DAO_ADDRESS" "src/governance/AWPDAO.sol:AWPDAO" \
         "$(cast abi-encode 'c(address,address,address,uint48,uint32,uint256)' "$STAKENFT_ADDRESS" "$AWP_TOKEN_ADDRESS" "$TREASURY_ADDRESS" 7200 50400 4)" "AWPDAO"
+
+    # ── DEX-specific LP Manager (auto-detect chain) ──
+    if [[ "$CHAIN_ID" == "56" || "$CHAIN_ID" == "97" ]]; then
+        [[ -n "$POOL_MANAGER" ]] && vc "$LP_MANAGER_ADDRESS" "src/core/LPManager.sol:LPManager" \
+            "$(cast abi-encode 'c(address,address,address,address,address)' "$AWP_REGISTRY_ADDRESS" "$POOL_MANAGER" "$POSITION_MANAGER" "$PERMIT2" "$AWP_TOKEN_ADDRESS")" "LPManager (PancakeSwap)"
+    else
+        [[ -n "$POOL_MANAGER" ]] && vc "$LP_MANAGER_ADDRESS" "src/core/LPManagerUni.sol:LPManagerUni" \
+            "$(cast abi-encode 'c(address,address,address,address,address)' "$AWP_REGISTRY_ADDRESS" "$POOL_MANAGER" "$POSITION_MANAGER" "$PERMIT2" "$AWP_TOKEN_ADDRESS")" "LPManager (Uniswap)"
+    fi
+
+    # ── UUPS implementation contracts (no constructor args — _disableInitializers only) ──
+    [[ -n "${AWP_REGISTRY_IMPL:-}" ]] && vc "$AWP_REGISTRY_IMPL" "src/AWPRegistry.sol:AWPRegistry" "" "AWPRegistry (impl)"
+    [[ -n "${AWP_EMISSION_IMPL:-}" ]] && vc "$AWP_EMISSION_IMPL" "src/token/AWPEmission.sol:AWPEmission" "" "AWPEmission (impl)"
+    [[ -n "${STAKING_VAULT_IMPL:-}" ]] && vc "$STAKING_VAULT_IMPL" "src/core/StakingVault.sol:StakingVault" "" "StakingVault (impl)"
+    if [[ "$CHAIN_ID" == "56" || "$CHAIN_ID" == "97" ]]; then
+        [[ -n "${SUBNET_MANAGER_IMPL:-}" ]] && vc "$SUBNET_MANAGER_IMPL" "src/subnets/SubnetManager.sol:SubnetManager" "" "SubnetManager (impl)"
+    else
+        [[ -n "${SUBNET_MANAGER_IMPL:-}" ]] && vc "$SUBNET_MANAGER_IMPL" "src/subnets/SubnetManagerUni.sol:SubnetManagerUni" "" "SubnetManagerUni (impl)"
+    fi
+
     info "Verification complete!"
 fi
 
