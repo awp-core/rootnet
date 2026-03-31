@@ -221,6 +221,7 @@ func (h *Hub) broadcastToClients(msg []byte) {
 
 	for client := range h.clients {
 		sent := false
+		evicted := false
 		hasWatches := len(client.allocWatches) > 0 || len(client.subnetWatches) > 0
 
 		// 1. 检查分配订阅推送（精确匹配 + 子网级匹配）
@@ -236,16 +237,16 @@ func (h *Hub) broadcastToClients(msg []byte) {
 						default:
 							delete(h.clients, client)
 							close(client.send)
+							evicted = true
 						}
 					}
 					break
 				}
 			}
 			// 1b. 子网级匹配（agent 省略）
-			if !sent {
+			if !sent && !evicted {
 				for _, sid := range allocSubnets {
 					if client.subnetWatches[sid] {
-						// 找到匹配的 allocKey 用于 enrich
 						for _, key := range allocKeys {
 							if strings.HasSuffix(key, ":"+sid) {
 								enriched := h.enrichAllocEvent(evt, key)
@@ -256,6 +257,7 @@ func (h *Hub) broadcastToClients(msg []byte) {
 									default:
 										delete(h.clients, client)
 										close(client.send)
+										evicted = true
 									}
 								}
 								break
@@ -267,8 +269,8 @@ func (h *Hub) broadcastToClients(msg []byte) {
 			}
 		}
 
-		// 2. 常规 type 过滤推送
-		if !sent {
+		// 2. 常规 type 过滤推送（跳过已发送或已驱逐的客户端）
+		if !sent && !evicted {
 			if len(client.filters) > 0 && eventType != "" {
 				if !client.filters[eventType] {
 					continue

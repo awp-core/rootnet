@@ -3,6 +3,7 @@ package handler_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"math/big"
@@ -1781,5 +1782,898 @@ func TestJSONRPC_SubnetsGet(t *testing.T) {
 	result := resp["result"].(map[string]any)
 	if result["name"] != "TestSubnet" {
 		t.Errorf("expected name TestSubnet, got %v", result["name"])
+	}
+}
+
+// ════════════════════════════════════════════════════════════
+// JSON-RPC 2.0 — Protocol-level tests
+// ════════════════════════════════════════════════════════════
+
+func TestJSONRPC_GETMethodRejected(t *testing.T) {
+	env := newTestEnv(t)
+	rr := env.request("GET", "/v2", "")
+	// Chi 路由只注册了 POST /v2，GET 请求由 Chi 返回 405
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("expected 405, got %d: %s", rr.Code, rr.Body.String())
+	}
+}
+
+func TestJSONRPC_InvalidJSON(t *testing.T) {
+	env := newTestEnv(t)
+	rr := env.request("POST", "/v2", `{invalid json!!!`)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32700 {
+		t.Errorf("expected parse error (-32700), got %v", errObj["code"])
+	}
+}
+
+func TestJSONRPC_MissingVersion(t *testing.T) {
+	env := newTestEnv(t)
+
+	// 没有 jsonrpc 字段
+	body := `{"method":"health.check","id":1}`
+	rr := env.request("POST", "/v2", body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32600 {
+		t.Errorf("expected invalid request error (-32600), got %v", errObj["code"])
+	}
+
+	// jsonrpc 字段值错误
+	body2 := `{"jsonrpc":"1.0","method":"health.check","id":2}`
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	errObj2 := resp2["error"].(map[string]any)
+	if errObj2["code"].(float64) != -32600 {
+		t.Errorf("expected invalid request error (-32600) for wrong version, got %v", errObj2["code"])
+	}
+}
+
+func TestJSONRPC_EmptyBatch(t *testing.T) {
+	env := newTestEnv(t)
+	rr := env.request("POST", "/v2", `[]`)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32600 {
+		t.Errorf("expected invalid request error (-32600), got %v", errObj["code"])
+	}
+	if msg, ok := errObj["message"].(string); !ok || msg != "empty batch" {
+		t.Errorf("expected 'empty batch' message, got %v", errObj["message"])
+	}
+}
+
+func TestJSONRPC_BatchSizeExceeded(t *testing.T) {
+	env := newTestEnv(t)
+
+	// 构建 21 个请求的批量数组
+	batch := "["
+	for i := 1; i <= 21; i++ {
+		if i > 1 {
+			batch += ","
+		}
+		batch += fmt.Sprintf(`{"jsonrpc":"2.0","method":"health.check","id":%d}`, i)
+	}
+	batch += "]"
+
+	rr := env.request("POST", "/v2", batch)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32600 {
+		t.Errorf("expected invalid request error (-32600), got %v", errObj["code"])
+	}
+}
+
+func TestJSONRPC_NullParams(t *testing.T) {
+	env := newTestEnv(t)
+
+	// null params — 对无参方法应正常工作
+	body := `{"jsonrpc":"2.0","method":"health.check","params":null,"id":1}`
+	rr := env.request("POST", "/v2", body)
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error with null params: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["status"] != "ok" {
+		t.Errorf("expected status ok, got %v", result["status"])
+	}
+
+	// 缺少 params 字段 — 同样应正常
+	body2 := `{"jsonrpc":"2.0","method":"health.check","id":2}`
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	if resp2["error"] != nil {
+		t.Fatalf("unexpected error with missing params: %v", resp2["error"])
+	}
+}
+
+func TestJSONRPC_IDPreservation(t *testing.T) {
+	env := newTestEnv(t)
+
+	// 字符串 ID
+	body1 := `{"jsonrpc":"2.0","method":"health.check","id":"my-string-id"}`
+	rr1 := env.request("POST", "/v2", body1)
+	var resp1 map[string]any
+	_ = json.Unmarshal(rr1.Body.Bytes(), &resp1)
+	if resp1["id"] != "my-string-id" {
+		t.Errorf("expected string id 'my-string-id', got %v", resp1["id"])
+	}
+
+	// 数字 ID
+	body2 := `{"jsonrpc":"2.0","method":"health.check","id":42}`
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	if resp2["id"].(float64) != 42 {
+		t.Errorf("expected numeric id 42, got %v", resp2["id"])
+	}
+
+	// null ID
+	body3 := `{"jsonrpc":"2.0","method":"health.check","id":null}`
+	rr3 := env.request("POST", "/v2", body3)
+	var resp3 map[string]any
+	_ = json.Unmarshal(rr3.Body.Bytes(), &resp3)
+	if resp3["id"] != nil {
+		t.Errorf("expected null id, got %v", resp3["id"])
+	}
+}
+
+// ════════════════════════════════════════════════════════════
+// JSON-RPC 2.0 — Staking method tests
+// ════════════════════════════════════════════════════════════
+
+func TestJSONRPC_StakingGetBalance(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	addr := "0x0000000000000000000000000000000000aabb01"
+
+	// 插入 stake position（总质押 = 10001）— 使用 numericFromInt64 保证 Exp=0
+	if err := env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+		ChainID: 31337, TokenID: 1, Owner: addr, Amount: numericFromInt64(7001),
+		LockEndTime: 99999, CreatedAt: 100,
+	}); err != nil {
+		t.Fatalf("InsertStakePosition 1 failed: %v", err)
+	}
+	if err := env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+		ChainID: 31337, TokenID: 2, Owner: addr, Amount: numericFromInt64(3000),
+		LockEndTime: 99999, CreatedAt: 200,
+	}); err != nil {
+		t.Fatalf("InsertStakePosition 2 failed: %v", err)
+	}
+
+	// 插入 user_balances（已分配 = 4001）
+	if err := env.queries.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: 31337, UserAddress: addr}); err != nil {
+		t.Fatalf("InitUserBalance failed: %v", err)
+	}
+	if err := env.queries.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
+		ChainID: 31337, UserAddress: addr, TotalAllocated: numericFromInt64(4001),
+	}); err != nil {
+		t.Fatalf("AddUserAllocated failed: %v", err)
+	}
+
+	body := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getBalance","params":{"address":"%s"},"id":1}`, addr)
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["totalStaked"] != "10001" {
+		t.Errorf("expected totalStaked=10001, got %v", result["totalStaked"])
+	}
+	if result["totalAllocated"] != "4001" {
+		t.Errorf("expected totalAllocated=4001, got %v", result["totalAllocated"])
+	}
+	if result["unallocated"] != "6000" {
+		t.Errorf("expected unallocated=6000, got %v", result["unallocated"])
+	}
+}
+
+func TestJSONRPC_StakingGetAllocations(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	addr := "0x0000000000000000000000000000000000aabb02"
+
+	// 插入 3 条 allocation（用 raw SQL 避免 sqlc 参数问题）
+	for i := int64(1); i <= 3; i++ {
+		agent := fmt.Sprintf("0x00000000000000000000000000000000000000a%d", i)
+		if _, err := env.pool.Exec(ctx,
+			`INSERT INTO stake_allocations (chain_id, user_address, agent_address, subnet_id, amount) VALUES ($1, $2, $3, $4, $5)`,
+			int64(31337), addr, agent, i*100, i*1000,
+		); err != nil {
+			t.Fatalf("insert allocation %d: %v", i, err)
+		}
+	}
+
+	body := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getAllocations","params":{"address":"%s","page":1,"limit":2},"id":1}`, addr)
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result, ok := resp["result"].([]any)
+	if !ok {
+		t.Fatal("expected result to be array")
+	}
+	if len(result) != 2 {
+		t.Errorf("expected 2 allocations (limit=2), got %d; body=%s", len(result), rr.Body.String())
+	}
+
+	// 第二页应有 1 条
+	body2 := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getAllocations","params":{"address":"%s","page":2,"limit":2},"id":2}`, addr)
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	result2 := resp2["result"].([]any)
+	if len(result2) != 1 {
+		t.Errorf("expected 1 allocation on page 2, got %d; body=%s", len(result2), rr2.Body.String())
+	}
+}
+
+func TestJSONRPC_StakingGetAgentSubnetStake(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	agent := "0x00000000000000000000000000000000000000a1"
+	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID: 31337, UserAddress: "0x0000000000000000000000000000000000user01",
+		AgentAddress: agent, SubnetID: numericFromInt64(500), Amount: numericFromInt64(7777),
+	})
+
+	body := `{"jsonrpc":"2.0","method":"staking.getAgentSubnetStake","params":{"agent":"0x00000000000000000000000000000000000000a1","subnetId":"500"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["amount"] != "7777" {
+		t.Errorf("expected amount=7777, got %v", result["amount"])
+	}
+}
+
+func TestJSONRPC_StakingGetAgentSubnets(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	agent := "0x00000000000000000000000000000000000000b1"
+	// 插入同一 agent 在不同子网的 allocation
+	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID: 31337, UserAddress: "0x0000000000000000000000000000000000user01",
+		AgentAddress: agent, SubnetID: numericFromInt64(100), Amount: numericFromInt64(5000),
+	})
+	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID: 31337, UserAddress: "0x0000000000000000000000000000000000user01",
+		AgentAddress: agent, SubnetID: numericFromInt64(200), Amount: numericFromInt64(3000),
+	})
+
+	body := `{"jsonrpc":"2.0","method":"staking.getAgentSubnets","params":{"agent":"0x00000000000000000000000000000000000000b1"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result, ok := resp["result"].([]any)
+	if !ok {
+		t.Fatal("expected result to be array")
+	}
+	if len(result) != 2 {
+		t.Errorf("expected 2 subnets, got %d", len(result))
+	}
+}
+
+func TestJSONRPC_StakingGetSubnetTotalStake(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	// 插入多个 agent 在同一子网的 allocation — 使用不能被10整除的数避免 pgx NUMERIC Exp>0
+	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID: 31337, UserAddress: "0x0000000000000000000000000000000000user01",
+		AgentAddress: "0x00000000000000000000000000000000000000c1",
+		SubnetID: numericFromInt64(999), Amount: numericFromInt64(5001),
+	})
+	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID: 31337, UserAddress: "0x0000000000000000000000000000000000user02",
+		AgentAddress: "0x00000000000000000000000000000000000000c2",
+		SubnetID: numericFromInt64(999), Amount: numericFromInt64(3002),
+	})
+
+	body := `{"jsonrpc":"2.0","method":"staking.getSubnetTotalStake","params":{"subnetId":"999"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["total"] != "8003" {
+		t.Errorf("expected total=8003, got %v", result["total"])
+	}
+}
+
+// ════════════════════════════════════════════════════════════
+// JSON-RPC 2.0 — Subnet method tests
+// ════════════════════════════════════════════════════════════
+
+func TestJSONRPC_SubnetsList(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	// 插入不同状态的子网
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
+		 VALUES (31337, 1001, '0xowner1', 'Sub1', 'S1', '0xsc1', '0xat1', 'Active', 100)`)
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
+		 VALUES (31337, 1002, '0xowner2', 'Sub2', 'S2', '0xsc2', '0xat2', 'Pending', 200)`)
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
+		 VALUES (31337, 1003, '0xowner3', 'Sub3', 'S3', '0xsc3', '0xat3', 'Active', 300)`)
+
+	// 测试不带过滤
+	body := `{"jsonrpc":"2.0","method":"subnets.list","params":{},"id":1}`
+	rr := env.request("POST", "/v2", body)
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].([]any)
+	if len(result) != 3 {
+		t.Errorf("expected 3 subnets, got %d", len(result))
+	}
+
+	// 测试按状态过滤
+	body2 := `{"jsonrpc":"2.0","method":"subnets.list","params":{"status":"Active"},"id":2}`
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	if resp2["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp2["error"])
+	}
+	result2 := resp2["result"].([]any)
+	if len(result2) != 2 {
+		t.Errorf("expected 2 Active subnets, got %d", len(result2))
+	}
+}
+
+func TestJSONRPC_SubnetsGetSkills(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at, skills_uri)
+		 VALUES (31337, 2001, '0xowner', 'SkillSub', 'SK', '0xsc', '0xat', 'Active', 100, 'ipfs://QmSkillsHash')`)
+
+	body := `{"jsonrpc":"2.0","method":"subnets.getSkills","params":{"subnetId":"2001"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["skillsURI"] != "ipfs://QmSkillsHash" {
+		t.Errorf("expected skillsURI=ipfs://QmSkillsHash, got %v", result["skillsURI"])
+	}
+	if result["subnetId"] != "2001" {
+		t.Errorf("expected subnetId=2001, got %v", result["subnetId"])
+	}
+}
+
+func TestJSONRPC_SubnetsGetEarnings(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
+		 VALUES (31337, 3001, '0xowner', 'EarnSub', 'ES', '0xsc', '0xat', 'Active', 100)`)
+
+	// 验证空结果（无 epoch 数据）
+	body := `{"jsonrpc":"2.0","method":"subnets.getEarnings","params":{"subnetId":"3001"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].([]any)
+	if len(result) != 0 {
+		t.Errorf("expected 0 earnings, got %d", len(result))
+	}
+}
+
+// ════════════════════════════════════════════════════════════
+// JSON-RPC 2.0 — Other method tests
+// ════════════════════════════════════════════════════════════
+
+func TestJSONRPC_AddressCheck(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	addr := "0x0000000000000000000000000000000000aabb03"
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO users (chain_id, address, bound_to, recipient, registered_at)
+		 VALUES (31337, $1, '0x0000000000000000000000000000000000owner1', '0x0000000000000000000000000000000000recip1', 100)`, addr)
+
+	body := fmt.Sprintf(`{"jsonrpc":"2.0","method":"address.check","params":{"address":"%s"},"id":1}`, addr)
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["isRegistered"] != true {
+		t.Errorf("expected isRegistered=true, got %v", result["isRegistered"])
+	}
+	if result["boundTo"] != "0x0000000000000000000000000000000000owner1" {
+		t.Errorf("expected boundTo, got %v", result["boundTo"])
+	}
+	if result["recipient"] != "0x0000000000000000000000000000000000recip1" {
+		t.Errorf("expected recipient, got %v", result["recipient"])
+	}
+
+	// 未注册地址应返回 isRegistered=false
+	body2 := `{"jsonrpc":"2.0","method":"address.check","params":{"address":"0x0000000000000000000000000000000000ff0000"},"id":2}`
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	result2 := resp2["result"].(map[string]any)
+	if result2["isRegistered"] != false {
+		t.Errorf("expected isRegistered=false for unknown address, got %v", result2["isRegistered"])
+	}
+}
+
+func TestJSONRPC_AgentsGetByOwner(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	owner := "0x0000000000000000000000000000000000000b01"
+	agent1 := "0x0000000000000000000000000000000000000b02"
+	agent2 := "0x0000000000000000000000000000000000000b03"
+
+	// 插入 owner
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, '')`, owner)
+	// 插入绑定到 owner 的 agent
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2)`, agent1, owner)
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2)`, agent2, owner)
+
+	body := fmt.Sprintf(`{"jsonrpc":"2.0","method":"agents.getByOwner","params":{"owner":"%s"},"id":1}`, owner)
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].([]any)
+	if len(result) != 2 {
+		t.Errorf("expected 2 agents, got %d", len(result))
+	}
+}
+
+func TestJSONRPC_AgentsLookup(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	agent := "0x0000000000000000000000000000000000000c01"
+	owner := "0x0000000000000000000000000000000000000c02"
+
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2)`, agent, owner)
+
+	body := fmt.Sprintf(`{"jsonrpc":"2.0","method":"agents.lookup","params":{"agent":"%s"},"id":1}`, agent)
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["ownerAddress"] != owner {
+		t.Errorf("expected ownerAddress=%s, got %v", owner, result["ownerAddress"])
+	}
+}
+
+func TestJSONRPC_ChainsList(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"chains.list","id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result, ok := resp["result"].([]any)
+	if !ok || len(result) == 0 {
+		t.Fatal("expected non-empty chains list")
+	}
+	chain := result[0].(map[string]any)
+	if chain["chainId"].(float64) != 31337 {
+		t.Errorf("expected chainId=31337, got %v", chain["chainId"])
+	}
+}
+
+func TestJSONRPC_GovernanceListProposals(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	_ = env.queries.InsertProposal(ctx, gen.InsertProposalParams{
+		ChainID: 31337, ProposalID: "1001",
+		Proposer: "0x0000000000000000000000000000000000prop01",
+		Description: pgtype.Text{String: "Test proposal 1", Valid: true},
+		Status: "Active",
+	})
+	_ = env.queries.InsertProposal(ctx, gen.InsertProposalParams{
+		ChainID: 31337, ProposalID: "1002",
+		Proposer: "0x0000000000000000000000000000000000prop02",
+		Description: pgtype.Text{String: "Test proposal 2", Valid: true},
+		Status: "Executed",
+	})
+
+	// 不过滤
+	body := `{"jsonrpc":"2.0","method":"governance.listProposals","params":{},"id":1}`
+	rr := env.request("POST", "/v2", body)
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].([]any)
+	if len(result) != 2 {
+		t.Errorf("expected 2 proposals, got %d", len(result))
+	}
+
+	// 按状态过滤
+	body2 := `{"jsonrpc":"2.0","method":"governance.listProposals","params":{"status":"Active"},"id":2}`
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	result2 := resp2["result"].([]any)
+	if len(result2) != 1 {
+		t.Errorf("expected 1 Active proposal, got %d", len(result2))
+	}
+}
+
+func TestJSONRPC_GovernanceGetProposal(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	_ = env.queries.InsertProposal(ctx, gen.InsertProposalParams{
+		ChainID: 31337, ProposalID: "2001",
+		Proposer: "0x0000000000000000000000000000000000prop01",
+		Description: pgtype.Text{String: "Single proposal", Valid: true},
+		Status: "Succeeded",
+	})
+
+	body := `{"jsonrpc":"2.0","method":"governance.getProposal","params":{"proposalId":"2001"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["description"] != "Single proposal" {
+		t.Errorf("expected description='Single proposal', got %v", result["description"])
+	}
+}
+
+func TestJSONRPC_GovernanceTreasury(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"governance.getTreasury","id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["treasuryAddress"] != "0x1234567890abcdef1234567890abcdef12345678" {
+		t.Errorf("unexpected treasury address: %v", result["treasuryAddress"])
+	}
+}
+
+func TestJSONRPC_EmissionSchedule(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"emission.getSchedule","id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+
+	// 应有 currentDailyEmission 字段
+	if result["currentDailyEmission"] == nil {
+		t.Error("expected currentDailyEmission field")
+	}
+
+	// 应有 projections 数组，含 3 个条目（30/90/365天）
+	projections, ok := result["projections"].([]any)
+	if !ok || len(projections) != 3 {
+		t.Fatalf("expected 3 projections, got %v", result["projections"])
+	}
+
+	// 验证每个 projection 结构
+	for _, p := range projections {
+		proj := p.(map[string]any)
+		if proj["days"] == nil || proj["totalEmission"] == nil || proj["finalDailyRate"] == nil {
+			t.Errorf("projection missing fields: %v", proj)
+		}
+	}
+}
+
+func TestJSONRPC_EmissionListEpochs(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	// 空结果
+	body := `{"jsonrpc":"2.0","method":"emission.listEpochs","params":{},"id":1}`
+	rr := env.request("POST", "/v2", body)
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].([]any)
+	if len(result) != 0 {
+		t.Errorf("expected 0 epochs, got %d", len(result))
+	}
+
+	// 插入 epoch 数据
+	_, _ = env.pool.Exec(ctx,
+		"INSERT INTO epochs (chain_id, epoch_id, start_time, daily_emission) VALUES (31337, $1, $2, $3)",
+		0, 86400, 15800000)
+	_, _ = env.pool.Exec(ctx,
+		"INSERT INTO epochs (chain_id, epoch_id, start_time, daily_emission) VALUES (31337, $1, $2, $3)",
+		1, 172800, 15750000)
+
+	body2 := `{"jsonrpc":"2.0","method":"emission.listEpochs","params":{},"id":2}`
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	result2 := resp2["result"].([]any)
+	if len(result2) != 2 {
+		t.Errorf("expected 2 epochs, got %d", len(result2))
+	}
+}
+
+// ════════════════════════════════════════════════════════════
+// JSON-RPC 2.0 — Error case tests
+// ════════════════════════════════════════════════════════════
+
+func TestJSONRPC_UsersGetNotFound(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"users.get","params":{"address":"0x0000000000000000000000000000000000099999"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32602 {
+		t.Errorf("expected -32602, got %v", errObj["code"])
+	}
+	if errObj["message"] != "user not found" {
+		t.Errorf("expected 'user not found', got %v", errObj["message"])
+	}
+}
+
+func TestJSONRPC_SubnetsGetNotFound(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"subnets.get","params":{"subnetId":"999999"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32602 {
+		t.Errorf("expected -32602, got %v", errObj["code"])
+	}
+	if errObj["message"] != "subnet not found" {
+		t.Errorf("expected 'subnet not found', got %v", errObj["message"])
+	}
+}
+
+func TestJSONRPC_InvalidSubnetID(t *testing.T) {
+	env := newTestEnv(t)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"zero", `{"jsonrpc":"2.0","method":"subnets.get","params":{"subnetId":"0"},"id":1}`},
+		{"negative", `{"jsonrpc":"2.0","method":"subnets.get","params":{"subnetId":"-1"},"id":2}`},
+		{"non-numeric", `{"jsonrpc":"2.0","method":"subnets.get","params":{"subnetId":"abc"},"id":3}`},
+		{"empty", `{"jsonrpc":"2.0","method":"subnets.get","params":{"subnetId":""},"id":4}`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := env.request("POST", "/v2", tc.body)
+			var resp map[string]any
+			_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+			errObj, ok := resp["error"].(map[string]any)
+			if !ok {
+				t.Fatal("expected error response")
+			}
+			if errObj["code"].(float64) != -32602 {
+				t.Errorf("expected -32602, got %v", errObj["code"])
+			}
+		})
+	}
+}
+
+func TestJSONRPC_MissingRequiredAddress(t *testing.T) {
+	env := newTestEnv(t)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"empty-params", `{"jsonrpc":"2.0","method":"users.get","params":{},"id":1}`},
+		{"missing-address", `{"jsonrpc":"2.0","method":"staking.getBalance","params":{},"id":2}`},
+		{"invalid-address", `{"jsonrpc":"2.0","method":"users.get","params":{"address":"not-an-address"},"id":3}`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := env.request("POST", "/v2", tc.body)
+			var resp map[string]any
+			_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+			errObj, ok := resp["error"].(map[string]any)
+			if !ok {
+				t.Fatal("expected error response")
+			}
+			if errObj["code"].(float64) != -32602 {
+				t.Errorf("expected -32602, got %v", errObj["code"])
+			}
+		})
+	}
+}
+
+// ════════════════════════════════════════════════════════════
+// JSON-RPC 2.0 — E2E flow test
+// ════════════════════════════════════════════════════════════
+
+func TestJSONRPC_E2E_StakingFlow(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	userAddr := "0x0000000000000000000000000000000000e2e001"
+	agentAddr := "0x0000000000000000000000000000000000e2e002"
+
+	// Step 1: 创建用户
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO users (chain_id, address, bound_to, registered_at) VALUES (31337, $1, '', 100)`, userAddr)
+
+	// 验证用户存在
+	body := fmt.Sprintf(`{"jsonrpc":"2.0","method":"users.get","params":{"address":"%s"},"id":1}`, userAddr)
+	rr := env.request("POST", "/v2", body)
+	var resp1 map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp1)
+	if resp1["error"] != nil {
+		t.Fatalf("Step 1 failed: %v", resp1["error"])
+	}
+
+	// Step 2: 插入 stake positions（总质押 = 15001）
+	if err := env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+		ChainID: 31337, TokenID: 101, Owner: userAddr, Amount: numericFromInt64(10001),
+		LockEndTime: 99999, CreatedAt: 100,
+	}); err != nil {
+		t.Fatalf("InsertStakePosition 1: %v", err)
+	}
+	if err := env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+		ChainID: 31337, TokenID: 102, Owner: userAddr, Amount: numericFromInt64(5000),
+		LockEndTime: 99999, CreatedAt: 200,
+	}); err != nil {
+		t.Fatalf("InsertStakePosition 2: %v", err)
+	}
+
+	// Step 3: 插入 allocations
+	if err := env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID: 31337, UserAddress: userAddr, AgentAddress: agentAddr,
+		SubnetID: numericFromInt64(500), Amount: numericFromInt64(8001), UpdatedBlock: 100,
+	}); err != nil {
+		t.Fatalf("UpsertStakeAllocation: %v", err)
+	}
+	if err := env.queries.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: 31337, UserAddress: userAddr}); err != nil {
+		t.Fatalf("InitUserBalance: %v", err)
+	}
+	if err := env.queries.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
+		ChainID: 31337, UserAddress: userAddr, TotalAllocated: numericFromInt64(8001), UpdatedBlock: 100,
+	}); err != nil {
+		t.Fatalf("AddUserAllocated: %v", err)
+	}
+
+	// Step 4: 查询 balance
+	body4 := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getBalance","params":{"address":"%s"},"id":4}`, userAddr)
+	rr4 := env.request("POST", "/v2", body4)
+	var resp4 map[string]any
+	_ = json.Unmarshal(rr4.Body.Bytes(), &resp4)
+	if resp4["error"] != nil {
+		t.Fatalf("Step 4 failed: %v", resp4["error"])
+	}
+	balance := resp4["result"].(map[string]any)
+	if balance["totalStaked"] != "15001" {
+		t.Errorf("expected totalStaked=15001, got %v", balance["totalStaked"])
+	}
+	if balance["totalAllocated"] != "8001" {
+		t.Errorf("expected totalAllocated=8001, got %v", balance["totalAllocated"])
+	}
+	if balance["unallocated"] != "7000" {
+		t.Errorf("expected unallocated=7000, got %v", balance["unallocated"])
+	}
+
+	// Step 5: 查询 allocations
+	body5 := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getAllocations","params":{"address":"%s"},"id":5}`, userAddr)
+	rr5 := env.request("POST", "/v2", body5)
+	var resp5 map[string]any
+	_ = json.Unmarshal(rr5.Body.Bytes(), &resp5)
+	allocs := resp5["result"].([]any)
+	if len(allocs) != 1 {
+		t.Fatalf("expected 1 allocation, got %d", len(allocs))
+	}
+
+	// Step 6: 查询 agent subnet stake
+	body6 := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getAgentSubnetStake","params":{"agent":"%s","subnetId":"500"},"id":6}`, agentAddr)
+	rr6 := env.request("POST", "/v2", body6)
+	var resp6 map[string]any
+	_ = json.Unmarshal(rr6.Body.Bytes(), &resp6)
+	if resp6["error"] != nil {
+		t.Fatalf("Step 6 failed: %v", resp6["error"])
+	}
+	stakeResult := resp6["result"].(map[string]any)
+	if stakeResult["amount"] != "8001" {
+		t.Errorf("expected agent subnet stake=8001, got %v", stakeResult["amount"])
 	}
 }
