@@ -113,7 +113,7 @@ func NewKeeper(
 // acquireLock 尝试获取 Redis 分布式锁，防止多实例 keeper 同时运行
 func (k *Keeper) acquireLock(ctx context.Context) bool {
 	lockKey := fmt.Sprintf("keeper:lock:%d", k.chainIDInt)
-	ok, err := k.redis.SetNX(ctx, lockKey, "1", 60*time.Second).Result()
+	ok, err := k.redis.SetNX(ctx, lockKey, "1", 90*time.Second).Result()
 	if err != nil {
 		k.logger.Warn("failed to acquire keeper lock", "error", err)
 		return false
@@ -124,7 +124,7 @@ func (k *Keeper) acquireLock(ctx context.Context) bool {
 // renewLock 续期分布式锁
 func (k *Keeper) renewLock(ctx context.Context) {
 	lockKey := fmt.Sprintf("keeper:lock:%d", k.chainIDInt)
-	k.redis.Expire(ctx, lockKey, 60*time.Second)
+	k.redis.Expire(ctx, lockKey, 90*time.Second)
 }
 
 // releaseLock 释放分布式锁

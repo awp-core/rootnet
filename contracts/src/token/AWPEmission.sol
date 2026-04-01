@@ -242,17 +242,20 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         _epochAllocations[effectiveEpoch] = packed;
         _epochTotalWeight[effectiveEpoch] = tw;
 
-        emit AllocationsSubmitted(0, recipients_, weights_);
+        emit AllocationsSubmitted(effectiveEpoch, recipients_, weights_);
     }
 
     // ══════════════════════════════════════════════
     //  Guardian parameter configuration
     // ══════════════════════════════════════════════
 
+    /// @notice Minimum decay factor (90% of DECAY_PRECISION = max 10% decay per epoch)
+    uint256 public constant MIN_DECAY_FACTOR = 900000;
+
     /// @notice Update the per-epoch decay factor (Guardian only)
-    /// @param newDecayFactor Must be <= DECAY_PRECISION (no growth allowed)
+    /// @param newDecayFactor Must be >= MIN_DECAY_FACTOR and < DECAY_PRECISION
     function setDecayFactor(uint256 newDecayFactor) external onlyGuardian {
-        if (newDecayFactor == 0 || newDecayFactor >= DECAY_PRECISION) revert InvalidParameter();
+        if (newDecayFactor < MIN_DECAY_FACTOR || newDecayFactor >= DECAY_PRECISION) revert InvalidParameter();
         decayFactor = newDecayFactor;
     }
 

@@ -10,10 +10,12 @@ import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {SubnetNFT} from "../src/core/SubnetNFT.sol";
 import {LPManager} from "../src/core/LPManager.sol";
+import {LPManagerUni} from "../src/core/LPManagerUni.sol";
 import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
 import {SubnetManager} from "../src/subnets/SubnetManager.sol";
+import {SubnetManagerUni} from "../src/subnets/SubnetManagerUni.sol";
 
 /// @title Predict — Print the deterministic addresses for all contracts given the current .env salts
 /// @dev Run: forge script script/Predict.s.sol
@@ -96,12 +98,21 @@ contract Predict is Script {
         );
         console.log("SubnetNFT:         ", subnetNFT);
 
-        // LPManager
-        address lpMgr = _predict(
-            _readSalt("SALT_LP_MANAGER"),
-            abi.encodePacked(type(LPManager).creationCode, abi.encode(awpRegistry, poolManager, positionManager, permit2Addr, awp))
-        );
-        console.log("LPManager:         ", lpMgr);
+        // LPManager (chain-conditional: PancakeSwap on BSC, Uniswap on others)
+        address lpMgr;
+        if (block.chainid == 56) {
+            lpMgr = _predict(
+                _readSalt("SALT_LP_MANAGER"),
+                abi.encodePacked(type(LPManager).creationCode, abi.encode(awpRegistry, poolManager, positionManager, permit2Addr, awp))
+            );
+            console.log("LPManager (Pancake):", lpMgr);
+        } else {
+            lpMgr = _predict(
+                _readSalt("SALT_LP_MANAGER"),
+                abi.encodePacked(type(LPManagerUni).creationCode, abi.encode(awpRegistry, poolManager, positionManager, permit2Addr, awp))
+            );
+            console.log("LPManager (Uni):   ", lpMgr);
+        }
 
         // AWPEmission impl (no args)
         address emissionImpl = _predict(
@@ -144,12 +155,21 @@ contract Predict is Script {
         );
         console.log("StakeNFT:          ", stakeNft);
 
-        // SubnetManager impl
-        address subnetMgrImpl = _predict(
-            _readSalt("SALT_SUBNET_MANAGER_IMPL"),
-            abi.encodePacked(type(SubnetManager).creationCode)
-        );
-        console.log("SubnetManager impl:", subnetMgrImpl);
+        // SubnetManager impl (chain-conditional)
+        address subnetMgrImpl;
+        if (block.chainid == 56) {
+            subnetMgrImpl = _predict(
+                _readSalt("SALT_SUBNET_MANAGER_IMPL"),
+                abi.encodePacked(type(SubnetManager).creationCode)
+            );
+            console.log("SubnetMgr (Pancake):", subnetMgrImpl);
+        } else {
+            subnetMgrImpl = _predict(
+                _readSalt("SALT_SUBNET_MANAGER_IMPL"),
+                abi.encodePacked(type(SubnetManagerUni).creationCode)
+            );
+            console.log("SubnetMgr (Uni):   ", subnetMgrImpl);
+        }
 
         // AWPDAO (matches Deploy.s.sol params)
         address dao = _predict(
