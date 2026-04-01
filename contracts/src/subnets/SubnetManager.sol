@@ -277,6 +277,7 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
     // ═══════════════════════════════════════════════
 
     function _addSingleSidedLiquidity(uint256 amount) internal virtual {
+        PoolKey memory pk = poolKey; // 缓存到 memory，避免多次 SLOAD
         (, int24 currentTick) = _getSlot0();
 
         // Floor-align currentTick to tickSpacing
@@ -316,12 +317,12 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
         bytes memory actions = abi.encodePacked(ACT_CL_MINT_POSITION, ACT_SETTLE_PAIR);
         bytes[] memory params = new bytes[](2);
         params[0] = abi.encode(
-            poolKey, tickLower, tickUpper, liquidity,
+            pk, tickLower, tickUpper, liquidity,
             awpIs0 ? uint128(amount) : uint128(0),
             awpIs0 ? uint128(0) : uint128(amount),
             address(this), bytes("")
         );
-        params[1] = abi.encode(poolKey.currency0, poolKey.currency1);
+        params[1] = abi.encode(pk.currency0, pk.currency1);
 
         ICLPositionManager(clPositionManager).modifyLiquidities(abi.encode(actions, params), block.timestamp);
         emit LiquidityAdded(tokenId, amount);
@@ -332,6 +333,7 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
     // ═══════════════════════════════════════════════
 
     function _buybackAndBurn(uint256 amount) internal virtual {
+        PoolKey memory pk = poolKey; // 缓存到 memory
         IERC20(address(awpToken)).forceApprove(permit2, amount);
         IPermit2(permit2).approve(address(awpToken), clSwapRouter, uint160(amount), uint48(block.timestamp + 600));
 
@@ -353,7 +355,7 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
 
         bytes memory actions = abi.encodePacked(ACT_CL_SWAP_EXACT_IN_SINGLE, ACT_SETTLE_ALL, ACT_TAKE_ALL);
         bytes[] memory params = new bytes[](3);
-        params[0] = abi.encode(poolKey, zeroForOne, uint128(amount), minOut, bytes(""));
+        params[0] = abi.encode(pk, zeroForOne, uint128(amount), minOut, bytes(""));
         params[1] = abi.encode(address(awpToken), amount);
         params[2] = abi.encode(address(alphaToken), 0);
 

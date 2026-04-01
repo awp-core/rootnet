@@ -139,37 +139,69 @@ func (h *Handler) BatchAgentInfo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	results := make([]agentInfoItem, 0, len(req.Agents))
 
+	// Validate and normalize all addresses upfront
+	validAddrs := make([]string, 0, len(req.Agents))
 	for _, addr := range req.Agents {
 		if !isValidAddress(addr) {
 			continue
 		}
-		addr = normalizeAddr(addr)
-		user, err := h.queries.GetUser(ctx, gen.GetUserParams{
-			Address: addr,
-			ChainID: h.cfg.ChainID,
-		})
-		if err != nil {
+		validAddrs = append(validAddrs, normalizeAddr(addr))
+	}
+
+	if len(validAddrs) == 0 {
+		h.writeJSON(w, http.StatusOK, []agentInfoItem{})
+		return
+	}
+
+	// Batch query: fetch all users in one DB call
+	users, err := h.queries.GetUsersBatch(ctx, gen.GetUsersBatchParams{
+		ChainID:   h.cfg.ChainID,
+		Addresses: validAddrs,
+	})
+	if err != nil {
+		h.logger.Error("failed to batch get users", "error", err)
+		h.writeError(w, http.StatusInternalServerError, "failed to get agent info")
+		return
+	}
+	userMap := make(map[string]gen.GetUsersBatchRow, len(users))
+	for _, u := range users {
+		userMap[u.Address] = u
+	}
+
+	// Batch query: fetch all stakes in one DB call
+	stakes, err := h.queries.GetAgentSubnetStakesBatch(ctx, gen.GetAgentSubnetStakesBatchParams{
+		ChainID:  h.cfg.ChainID,
+		Agents:   validAddrs,
+		SubnetID: subnetNum,
+	})
+	if err != nil {
+		h.logger.Error("failed to batch get stakes", "error", err)
+		h.writeError(w, http.StatusInternalServerError, "failed to get agent info")
+		return
+	}
+	stakeMap := make(map[string]string, len(stakes))
+	for _, s := range stakes {
+		if s.Total.Valid {
+			stakeMap[s.AgentAddress] = s.Total.Int.String()
+		}
+	}
+
+	// Assemble results preserving input order
+	results := make([]agentInfoItem, 0, len(validAddrs))
+	for _, addr := range validAddrs {
+		user, ok := userMap[addr]
+		if !ok {
 			continue
 		}
-
 		item := agentInfoItem{
 			Address: user.Address,
 			BoundTo: user.BoundTo,
 			Stake:   "0",
 		}
-
-		// Fetch the agent's stake in the specified subnet
-		stake, err := h.queries.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{
-			ChainID:      h.cfg.ChainID,
-			AgentAddress: addr,
-			SubnetID:     subnetNum,
-		})
-		if err == nil && stake.Valid {
-			item.Stake = stake.Int.String()
+		if s, ok := stakeMap[addr]; ok {
+			item.Stake = s
 		}
-
 		results = append(results, item)
 	}
 

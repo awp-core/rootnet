@@ -278,6 +278,50 @@ func (q *Queries) UpsertUserBinding(ctx context.Context, arg UpsertUserBindingPa
 	return err
 }
 
+const getUsersBatch = `-- name: GetUsersBatch :many
+SELECT address, chain_id, bound_to, recipient, registered_at FROM users
+WHERE chain_id = $1 AND address = ANY($2::CHAR(42)[])
+`
+
+type GetUsersBatchParams struct {
+	ChainID   int64    `json:"chain_id"`
+	Addresses []string `json:"addresses"`
+}
+
+type GetUsersBatchRow struct {
+	Address      string `json:"address"`
+	ChainID      int64  `json:"chain_id"`
+	BoundTo      string `json:"bound_to"`
+	Recipient    string `json:"recipient"`
+	RegisteredAt int64  `json:"registered_at"`
+}
+
+func (q *Queries) GetUsersBatch(ctx context.Context, arg GetUsersBatchParams) ([]GetUsersBatchRow, error) {
+	rows, err := q.db.Query(ctx, getUsersBatch, arg.ChainID, arg.Addresses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUsersBatchRow{}
+	for rows.Next() {
+		var i GetUsersBatchRow
+		if err := rows.Scan(
+			&i.Address,
+			&i.ChainID,
+			&i.BoundTo,
+			&i.Recipient,
+			&i.RegisteredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertUserRecipient = `-- name: UpsertUserRecipient :exec
 INSERT INTO users (chain_id, address, recipient) VALUES ($1, $2, $3)
 ON CONFLICT (chain_id, address) DO UPDATE SET recipient = EXCLUDED.recipient

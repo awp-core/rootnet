@@ -385,6 +385,44 @@ func (q *Queries) SubtractStakeAllocation(ctx context.Context, arg SubtractStake
 	return err
 }
 
+const getAgentSubnetStakesBatch = `-- name: GetAgentSubnetStakesBatch :many
+SELECT agent_address, COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total
+FROM stake_allocations
+WHERE chain_id = $1 AND agent_address = ANY($2::CHAR(42)[]) AND subnet_id = $3 AND frozen = FALSE
+GROUP BY agent_address
+`
+
+type GetAgentSubnetStakesBatchParams struct {
+	ChainID  int64          `json:"chain_id"`
+	Agents   []string       `json:"agents"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
+}
+
+type GetAgentSubnetStakesBatchRow struct {
+	AgentAddress string         `json:"agent_address"`
+	Total        pgtype.Numeric `json:"total"`
+}
+
+func (q *Queries) GetAgentSubnetStakesBatch(ctx context.Context, arg GetAgentSubnetStakesBatchParams) ([]GetAgentSubnetStakesBatchRow, error) {
+	rows, err := q.db.Query(ctx, getAgentSubnetStakesBatch, arg.ChainID, arg.Agents, arg.SubnetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetAgentSubnetStakesBatchRow{}
+	for rows.Next() {
+		var i GetAgentSubnetStakesBatchRow
+		if err := rows.Scan(&i.AgentAddress, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertStakeAllocation = `-- name: UpsertStakeAllocation :exec
 INSERT INTO stake_allocations (chain_id, user_address, agent_address, subnet_id, amount, frozen, updated_block)
 VALUES ($1, $2, $3, $4, $5, FALSE, $6)

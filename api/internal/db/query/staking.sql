@@ -58,3 +58,9 @@ DELETE FROM stake_allocations WHERE chain_id = $1 AND user_address = $2 AND froz
 
 -- name: GetUsersWithFrozenAllocations :many
 SELECT DISTINCT user_address FROM stake_allocations WHERE chain_id = $1 AND frozen = TRUE;
+
+-- name: GetAgentSubnetStakesBatch :many
+SELECT agent_address, COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total
+FROM stake_allocations
+WHERE chain_id = $1 AND agent_address = ANY($2::CHAR(42)[]) AND subnet_id = $3 AND frozen = FALSE
+GROUP BY agent_address;

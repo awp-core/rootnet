@@ -231,19 +231,34 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 	return nil
 }
 
-// refreshActiveAlphaTokens caches the list of alpha tokens for Active subnets in Redis.
-// Keeper reads this to know which LP positions to compound fees for.
+// refreshActiveAlphaTokens caches active alpha tokens in Redis.
+// Stores both the flat token list (for compoundFees) and the subnetId→token map (for price keying by subnetId).
 func (idx *Indexer) refreshActiveAlphaTokens(ctx context.Context, q *gen.Queries) {
-	rows, err := q.ListActiveAlphaTokens(ctx, idx.chainID)
+	rows, err := q.ListActiveAlphaTokensWithSubnetID(ctx, idx.chainID)
 	if err != nil {
 		return // non-critical, skip silently
 	}
-	data, err := json.Marshal(rows)
-	if err != nil {
-		return
+
+	// Build flat token list (backward compat for compoundFees) and subnetId→token map
+	tokens := make([]string, 0, len(rows))
+	subnetMap := make(map[string]string, len(rows)) // subnetId (decimal string) → alphaToken
+	for _, r := range rows {
+		tokens = append(tokens, r.AlphaToken)
+		if r.SubnetID.Valid && r.SubnetID.Int != nil {
+			subnetMap[r.SubnetID.Int.String()] = r.AlphaToken
+		}
 	}
-	key := fmt.Sprintf("active_alpha_tokens:%d", idx.chainID)
-	idx.rds.Set(ctx, key, data, 25*time.Hour) // TTL slightly longer than compound interval (24h)
+
+	pipe := idx.rds.Pipeline()
+	if data, err := json.Marshal(tokens); err == nil {
+		pipe.Set(ctx, fmt.Sprintf("active_alpha_tokens:%d", idx.chainID), data, 25*time.Hour)
+	}
+	if data, err := json.Marshal(subnetMap); err == nil {
+		pipe.Set(ctx, fmt.Sprintf("active_alpha_subnet_map:%d", idx.chainID), data, 25*time.Hour)
+	}
+	if _, err := pipe.Exec(ctx); err != nil {
+		slog.Error("failed to cache active alpha tokens", "error", err)
+	}
 }
 
 // detectReorg walks back from lastBlock checking stored block hashes against the chain.

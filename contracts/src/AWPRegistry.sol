@@ -559,15 +559,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     /// @notice Activate a subnet: Pending → Active (only the NFT Owner may call)
     function activateSubnet(uint256 subnetId) external nonReentrant whenNotPaused {
         if (ISubnetNFT(subnetNFT).ownerOf(subnetId) != msg.sender) revert NotOwner();
-        SubnetInfo storage info = subnets[subnetId];
-        if (info.status != SubnetStatus.Pending) revert InvalidSubnetStatus();
-
-        if (activeSubnetIds.length() >= MAX_ACTIVE_SUBNETS) revert MaxActiveSubnetsReached();
-        info.status = SubnetStatus.Active;
-        info.activatedAt = uint64(block.timestamp);
-        activeSubnetIds.add(subnetId);
-
-        emit SubnetActivated(subnetId);
+        _activateSubnet(subnetId);
     }
 
     /// @notice Gasless activate subnet: relayer pays gas, NFT owner signs EIP-712
@@ -576,16 +568,18 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         uint8 v, bytes32 r, bytes32 s
     ) external nonReentrant whenNotPaused {
         _verifyDigest(user, keccak256(abi.encode(ACTIVATE_SUBNET_TYPEHASH, user, subnetId, nonces[user]++, deadline)), deadline, v, r, s);
-
         if (ISubnetNFT(subnetNFT).ownerOf(subnetId) != user) revert NotOwner();
+        _activateSubnet(subnetId);
+    }
+
+    /// @dev Shared activation logic
+    function _activateSubnet(uint256 subnetId) internal {
         SubnetInfo storage info = subnets[subnetId];
         if (info.status != SubnetStatus.Pending) revert InvalidSubnetStatus();
-
         if (activeSubnetIds.length() >= MAX_ACTIVE_SUBNETS) revert MaxActiveSubnetsReached();
         info.status = SubnetStatus.Active;
         info.activatedAt = uint64(block.timestamp);
         activeSubnetIds.add(subnetId);
-
         emit SubnetActivated(subnetId);
     }
 

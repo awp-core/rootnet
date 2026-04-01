@@ -41,3 +41,6 @@ SELECT * FROM subnets WHERE chain_id = $1 AND status = 'Active' AND burned = FAL
 
 -- name: ListActiveAlphaTokens :many
 SELECT alpha_token FROM subnets WHERE chain_id = $1 AND status = 'Active' AND alpha_token != '';
+
+-- name: ListActiveAlphaTokensWithSubnetID :many
+SELECT subnet_id, alpha_token FROM subnets WHERE chain_id = $1 AND status = 'Active' AND alpha_token != '';

@@ -106,51 +106,7 @@ func (h *Handler) rpcHealthCheck(_ context.Context, _ json.RawMessage) (any, *RP
 }
 
 func (h *Handler) rpcHealthDetailed(ctx context.Context, _ json.RawMessage) (any, *RPCErr) {
-	health := map[string]interface{}{"status": "ok"}
-
-	chainIDs := []int64{h.cfg.ChainID}
-	if h.chains != nil {
-		chainIDs = make([]int64, len(h.chains))
-		for i, c := range h.chains {
-			chainIDs[i] = c.ChainID
-		}
-	}
-
-	chainsHealth := make([]map[string]interface{}, 0, len(chainIDs))
-	for _, cid := range chainIDs {
-		if cid == 0 {
-			continue
-		}
-		ch := map[string]interface{}{"chainId": cid}
-		if syncState, err := h.queries.GetSyncState(ctx, gen.GetSyncStateParams{
-			ChainID: cid, ContractName: "indexer",
-		}); err == nil {
-			ch["indexerLastBlock"] = syncState.LastBlock
-		}
-		emissionKey := fmt.Sprintf("emission_current:%d", cid)
-		if ttl, err := h.rdb.TTL(ctx, emissionKey).Result(); err == nil && ttl > 0 {
-			ch["keeperCacheAlive"] = true
-		} else {
-			ch["keeperCacheAlive"] = false
-		}
-		chainsHealth = append(chainsHealth, ch)
-	}
-	health["chains"] = chainsHealth
-
-	if err := h.rdb.Ping(ctx).Err(); err != nil {
-		health["redis"] = "error"
-		health["status"] = "degraded"
-	} else {
-		health["redis"] = "ok"
-	}
-	if _, err := h.queries.GetUserCount(ctx, h.cfg.ChainID); err != nil {
-		health["database"] = "error"
-		health["status"] = "degraded"
-	} else {
-		health["database"] = "ok"
-	}
-
-	return health, nil
+	return h.buildDetailedHealth(ctx), nil
 }
 
 // ═══════════════════════════════════════════════
@@ -401,22 +357,54 @@ func (h *Handler) rpcAgentsBatchInfo(ctx context.Context, raw json.RawMessage) (
 		return nil, rpcErr
 	}
 
-	results := make([]agentInfoItem, 0, len(p.Agents))
+	// Validate and normalize all addresses upfront
+	validAddrs := make([]string, 0, len(p.Agents))
 	for _, addr := range p.Agents {
 		if !isValidAddress(addr) {
 			continue
 		}
-		addr = normalizeAddr(addr)
-		user, err := h.queries.GetUser(ctx, gen.GetUserParams{Address: addr, ChainID: h.cfg.ChainID})
-		if err != nil {
+		validAddrs = append(validAddrs, normalizeAddr(addr))
+	}
+	if len(validAddrs) == 0 {
+		return []agentInfoItem{}, nil
+	}
+
+	// Batch query: fetch all users in one DB call
+	users, err := h.queries.GetUsersBatch(ctx, gen.GetUsersBatchParams{
+		ChainID: h.cfg.ChainID, Addresses: validAddrs,
+	})
+	if err != nil {
+		return nil, internalErr("failed to get agent info")
+	}
+	userMap := make(map[string]gen.GetUsersBatchRow, len(users))
+	for _, u := range users {
+		userMap[u.Address] = u
+	}
+
+	// Batch query: fetch all stakes in one DB call
+	stakes, err := h.queries.GetAgentSubnetStakesBatch(ctx, gen.GetAgentSubnetStakesBatchParams{
+		ChainID: h.cfg.ChainID, Agents: validAddrs, SubnetID: subnetNum,
+	})
+	if err != nil {
+		return nil, internalErr("failed to get agent info")
+	}
+	stakeMap := make(map[string]string, len(stakes))
+	for _, s := range stakes {
+		if s.Total.Valid {
+			stakeMap[s.AgentAddress] = s.Total.Int.String()
+		}
+	}
+
+	// Assemble results preserving input order
+	results := make([]agentInfoItem, 0, len(validAddrs))
+	for _, addr := range validAddrs {
+		user, ok := userMap[addr]
+		if !ok {
 			continue
 		}
 		item := agentInfoItem{Address: user.Address, BoundTo: user.BoundTo, Stake: "0"}
-		stake, err := h.queries.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{
-			ChainID: h.cfg.ChainID, AgentAddress: addr, SubnetID: subnetNum,
-		})
-		if err == nil && stake.Valid {
-			item.Stake = stake.Int.String()
+		if s, ok := stakeMap[addr]; ok {
+			item.Stake = s
 		}
 		results = append(results, item)
 	}
@@ -857,17 +845,12 @@ func (h *Handler) rpcTokensGetAlphaPrice(ctx context.Context, raw json.RawMessag
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, &RPCErr{Code: rpcInvalidParams, Message: "invalid params"}
 	}
-	subnetNum, rpcErr := parseSubnetNum(p.SubnetID)
-	if rpcErr != nil {
+	// Validate subnetId is a positive integer
+	if _, rpcErr := parseSubnetNum(p.SubnetID); rpcErr != nil {
 		return nil, rpcErr
 	}
 
-	subnet, err := h.queries.GetSubnet(ctx, subnetNum)
-	if err != nil {
-		return map[string]any{}, nil
-	}
-
-	key := fmt.Sprintf("alpha_price:%s", subnet.AlphaToken)
+	key := fmt.Sprintf("alpha_price:%s", p.SubnetID)
 	val, err := h.rdb.Get(ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {

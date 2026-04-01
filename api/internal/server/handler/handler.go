@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -121,10 +122,9 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// HealthDetailed returns detailed system health including indexer lag, keeper status, chain info
-func (h *Handler) HealthDetailed(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
+// buildDetailedHealth gathers per-chain health, Redis connectivity, and DB connectivity.
+// Shared by both HealthDetailed (REST) and rpcHealthDetailed (JSON-RPC).
+func (h *Handler) buildDetailedHealth(ctx context.Context) map[string]interface{} {
 	health := map[string]interface{}{
 		"status": "ok",
 	}
@@ -180,7 +180,12 @@ func (h *Handler) HealthDetailed(w http.ResponseWriter, r *http.Request) {
 		health["database"] = "ok"
 	}
 
-	h.writeJSON(w, http.StatusOK, health)
+	return health
+}
+
+// HealthDetailed returns detailed system health including indexer lag, keeper status, chain info
+func (h *Handler) HealthDetailed(w http.ResponseWriter, r *http.Request) {
+	h.writeJSON(w, http.StatusOK, h.buildDetailedHealth(r.Context()))
 }
 
 // eip712DomainResponse provides all info needed to construct EIP-712 signatures for gasless relay

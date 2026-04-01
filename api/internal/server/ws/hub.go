@@ -278,18 +278,28 @@ func (h *Hub) broadcastToClients(msg []byte) {
 	}
 	h.mu.Unlock()
 
-	// Phase 2: 在锁外做 DB 查询并发送 enriched 消息
+	// Phase 2: 在锁外做 DB 查询并发送 enriched 消息（按 key 去重查询）
 	if len(deliveries) > 0 {
+		// 2a: 按 watchKey 去重，每个 key 只查一次 DB
+		enrichCache := make(map[string][]byte)
 		for _, d := range deliveries {
-			enriched := h.enrichAllocEvent(evt, d.key)
-			data, err := json.Marshal(enriched)
-			if err != nil {
+			if _, ok := enrichCache[d.key]; !ok {
+				enriched := h.enrichAllocEvent(evt, d.key)
+				if data, err := json.Marshal(enriched); err == nil {
+					enrichCache[d.key] = data
+				}
+			}
+		}
+
+		// 2b: 用缓存结果发送给所有匹配客户端
+		for _, d := range deliveries {
+			data, ok := enrichCache[d.key]
+			if !ok {
 				continue
 			}
 			select {
 			case d.client.send <- data:
 			default:
-				// 缓冲区满，标记驱逐
 				h.mu.Lock()
 				if _, ok := h.clients[d.client]; ok {
 					delete(h.clients, d.client)

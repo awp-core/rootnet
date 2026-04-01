@@ -319,67 +319,118 @@ type alphaPrice struct {
 	UpdatedAt  int64  `json:"updatedAt"`  // unix timestamp
 }
 
+// alphaPriceResult holds the computed price data for a single alpha token (used by worker goroutines)
+type alphaPriceResult struct {
+	key  string
+	data []byte
+}
+
 // updateAlphaPrices reads sqrtPriceX96 from each active subnet's LP pool and caches the price.
 // Called every 25s as part of updateTokenPrices.
+// Uses a bounded worker pool (max 10 concurrent) to parallelize RPC calls across tokens.
+// Redis keys are keyed by subnetId (alpha_price:{subnetId}) per spec.
 func (k *Keeper) updateAlphaPrices(ctx context.Context) {
-	// Read active alpha tokens from Redis
-	alphaTokensKey := fmt.Sprintf("active_alpha_tokens:%d", k.chainIDInt)
-	data, err := k.redis.Get(ctx, alphaTokensKey).Result()
+	// Read subnetId→alphaToken map from Redis (populated by indexer)
+	subnetMapKey := fmt.Sprintf("active_alpha_subnet_map:%d", k.chainIDInt)
+	data, err := k.redis.Get(ctx, subnetMapKey).Result()
 	if err != nil {
 		return // no active tokens, skip
 	}
 
-	var alphaTokens []string
-	if err := json.Unmarshal([]byte(data), &alphaTokens); err != nil {
+	var subnetMap map[string]string // subnetId → alphaToken
+	if err := json.Unmarshal([]byte(data), &subnetMap); err != nil {
 		return
 	}
 
-	for _, tokenHex := range alphaTokens {
-		token := common.HexToAddress(tokenHex)
+	if len(subnetMap) == 0 {
+		return
+	}
 
-		// Read poolId from LPManager
-		poolId, err := k.lpManager.AlphaTokenToPoolId(nil, token)
-		if err != nil || poolId == [32]byte{} {
-			continue // no pool for this token
+	type subnetToken struct {
+		subnetID string
+		token    string
+	}
+	entries := make([]subnetToken, 0, len(subnetMap))
+	for sid, tok := range subnetMap {
+		entries = append(entries, subnetToken{subnetID: sid, token: tok})
+	}
+
+	// Bounded worker pool: max 10 concurrent RPC goroutines
+	const maxWorkers = 10
+	sem := make(chan struct{}, maxWorkers)
+	results := make(chan alphaPriceResult, len(entries))
+
+	var wg sync.WaitGroup
+	for _, entry := range entries {
+		wg.Add(1)
+		go func(e subnetToken) {
+			defer wg.Done()
+			sem <- struct{}{}        // acquire slot
+			defer func() { <-sem }() // release slot
+
+			token := common.HexToAddress(e.token)
+
+			// Read poolId from LPManager (sequential: GetSlot0 depends on poolId)
+			poolId, err := k.lpManager.AlphaTokenToPoolId(nil, token)
+			if err != nil || poolId == [32]byte{} {
+				return // no pool for this token
+			}
+
+			// Read sqrtPriceX96 from PoolManager
+			slot0, err := k.poolManager.GetSlot0(nil, poolId)
+			if err != nil {
+				k.logger.Debug("failed to read pool slot0", "subnetId", e.subnetID, "alphaToken", e.token, "error", err)
+				return
+			}
+
+			sqrtPrice := new(big.Int).SetBytes(slot0.SqrtPriceX96.Bytes())
+			if sqrtPrice.Sign() == 0 {
+				return // pool not initialized
+			}
+
+			// Compute price: (sqrtPriceX96 / 2^96)^2 = sqrtPriceX96^2 / 2^192
+			sqrtPriceBig := slot0.SqrtPriceX96
+			q96 := new(big.Int).Lsh(big.NewInt(1), 96)
+
+			// price = sqrtPriceX96^2 / 2^192, scaled to 18 decimals
+			numerator := new(big.Int).Mul(sqrtPriceBig, sqrtPriceBig)
+			numerator.Mul(numerator, big.NewInt(1e18))
+			denominator := new(big.Int).Mul(q96, q96)
+			priceRaw := new(big.Int).Div(numerator, denominator)
+
+			priceData, _ := json.Marshal(alphaPrice{
+				PriceInAWP:   priceRaw.String(),
+				SqrtPriceX96: sqrtPriceBig.String(),
+				UpdatedAt:    time.Now().Unix(),
+			})
+
+			results <- alphaPriceResult{
+				key:  fmt.Sprintf("alpha_price:%s", e.subnetID),
+				data: priceData,
+			}
+		}(entry)
+	}
+
+	// Close results channel after all workers finish
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collect results and write all to Redis via pipeline
+	var collected []alphaPriceResult
+	for r := range results {
+		collected = append(collected, r)
+	}
+
+	if len(collected) > 0 {
+		pipe := k.redis.Pipeline()
+		for _, r := range collected {
+			pipe.Set(ctx, r.key, r.data, 10*time.Minute)
 		}
-
-		// Read sqrtPriceX96 from PoolManager
-		slot0, err := k.poolManager.GetSlot0(nil, poolId)
-		if err != nil {
-			k.logger.Debug("failed to read pool slot0", "alphaToken", tokenHex, "error", err)
-			continue
+		if _, err := pipe.Exec(ctx); err != nil {
+			k.logger.Error("failed to pipeline alpha prices to Redis", "error", err)
 		}
-
-		sqrtPrice := new(big.Int).SetBytes(slot0.SqrtPriceX96.Bytes())
-		if sqrtPrice.Sign() == 0 {
-			continue // pool not initialized
-		}
-
-		// Compute price: (sqrtPriceX96 / 2^96)^2 = sqrtPriceX96^2 / 2^192
-		// This gives token1/token0 ratio. Depending on token order, this is
-		// either alphaPerAWP or AWPperAlpha.
-		// For display, we store sqrtPriceX96 and let the frontend compute the direction.
-		// Simple approximation: price = sqrtPrice^2 / 2^192
-		sqrtPriceBig := slot0.SqrtPriceX96
-		q96 := new(big.Int).Lsh(big.NewInt(1), 96)
-
-		// price = sqrtPriceX96^2 / 2^192, scaled to 18 decimals
-		// = (sqrtPriceX96 * sqrtPriceX96 * 1e18) / (2^96 * 2^96)
-		numerator := new(big.Int).Mul(sqrtPriceBig, sqrtPriceBig)
-		numerator.Mul(numerator, big.NewInt(1e18))
-		denominator := new(big.Int).Mul(q96, q96)
-		priceRaw := new(big.Int).Div(numerator, denominator)
-
-		priceData, _ := json.Marshal(alphaPrice{
-			PriceInAWP:   priceRaw.String(),
-			SqrtPriceX96: sqrtPriceBig.String(),
-			UpdatedAt:    time.Now().Unix(),
-		})
-
-		// Use subnetId-based key — but we have alpha token address, not subnetId.
-		// Store by alpha token address (frontend can look up via /api/subnets/{id})
-		priceKey := fmt.Sprintf("alpha_price:%s", tokenHex)
-		k.redis.Set(ctx, priceKey, priceData, 10*time.Minute)
 	}
 }
 
@@ -387,11 +438,8 @@ func (k *Keeper) updateAlphaPrices(ctx context.Context) {
 // Called every 24h by cron. Each compoundFees call collects accrued trading fees from
 // the LP position and reinvests them as additional liquidity.
 func (k *Keeper) compoundAllFees(ctx context.Context) {
-	k.txMu.Lock()
-	defer k.txMu.Unlock()
+	// 不再全程持锁 — 每笔交易单独持锁，避免阻塞 settleEpoch
 
-	// Read active subnet alpha tokens from Redis cache
-	// The indexer populates this key after SubnetActivated events
 	alphaTokensKey := fmt.Sprintf("active_alpha_tokens:%d", k.chainIDInt)
 	data, err := k.redis.Get(ctx, alphaTokensKey).Result()
 	if err != nil {
@@ -409,24 +457,25 @@ func (k *Keeper) compoundAllFees(ctx context.Context) {
 		return
 	}
 
-	auth, err := k.auth()
-	if err != nil {
-		k.logger.Error("failed to create tx signer for compoundFees", "error", err)
-		return
-	}
-
 	compounded := 0
 	for _, tokenHex := range alphaTokens {
 		token := common.HexToAddress(tokenHex)
 
+		// Per-tx lock：仅在发送交易期间持锁，不阻塞其他 keeper 操作
+		k.txMu.Lock()
+		auth, err := k.auth()
+		if err != nil {
+			k.txMu.Unlock()
+			k.logger.Error("failed to create tx signer for compoundFees", "error", err)
+			return
+		}
 		timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		auth.Context = timeoutCtx
-
 		tx, txErr := k.lpManager.CompoundFees(auth, token)
+		k.txMu.Unlock()
 		cancel()
 
 		if txErr != nil {
-			// Skip silently — most likely no fees accumulated
 			k.logger.Debug("compoundFees skipped", "alphaToken", tokenHex, "error", txErr)
 			continue
 		}

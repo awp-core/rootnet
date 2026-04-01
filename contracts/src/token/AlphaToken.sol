@@ -25,19 +25,16 @@ contract AlphaToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable
     uint256 public subnetId;
 
     /// @notice Admin address (AWPRegistry), responsible for minter management and pause control
+    /// @dev Packed with mintersLocked (1 byte) + createdAt (8 bytes) into one 32-byte slot
     address public admin;
+    bool public mintersLocked;
+    uint64 public createdAt;
 
     /// @notice Minter whitelist
     mapping(address => bool) public minters;
 
     /// @notice Minter pause status (used to pause minting rights when banning a subnet)
     mapping(address => bool) public minterPaused;
-
-    /// @notice Whether the minter list is permanently locked (set to true after setSubnetMinter)
-    bool public mintersLocked;
-
-    /// @notice Token creation timestamp (used for time-based minting cap)
-    uint64 public createdAt;
 
     /// @notice Total supply snapshot at the moment setSubnetMinter locks the minter list
     /// @dev Pre-minted tokens (admin LP mint) are excluded from the time-based cap calculation

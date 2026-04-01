@@ -152,6 +152,35 @@ func (q *Queries) ListActiveAlphaTokens(ctx context.Context, chainID int64) ([]s
 	return items, nil
 }
 
+const listActiveAlphaTokensWithSubnetID = `-- name: ListActiveAlphaTokensWithSubnetID :many
+SELECT subnet_id, alpha_token FROM subnets WHERE chain_id = $1 AND status = 'Active' AND alpha_token != ''
+`
+
+type ListActiveAlphaTokensWithSubnetIDRow struct {
+	SubnetID   pgtype.Numeric `json:"subnet_id"`
+	AlphaToken string         `json:"alpha_token"`
+}
+
+func (q *Queries) ListActiveAlphaTokensWithSubnetID(ctx context.Context, chainID int64) ([]ListActiveAlphaTokensWithSubnetIDRow, error) {
+	rows, err := q.db.Query(ctx, listActiveAlphaTokensWithSubnetID, chainID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveAlphaTokensWithSubnetIDRow{}
+	for rows.Next() {
+		var i ListActiveAlphaTokensWithSubnetIDRow
+		if err := rows.Scan(&i.SubnetID, &i.AlphaToken); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubnets = `-- name: ListSubnets :many
 SELECT subnet_id, chain_id, owner, name, symbol, subnet_contract, skills_uri, min_stake, alpha_token, lp_pool, status, created_at, activated_at, immunity_ends_at, burned FROM subnets WHERE chain_id = $1 AND burned = FALSE ORDER BY subnet_id DESC LIMIT $2 OFFSET $3
 `

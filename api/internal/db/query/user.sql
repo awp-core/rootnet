@@ -46,3 +46,7 @@ WHERE users.registered_at = 0;
 -- name: GetUsersByBoundTo :many
 SELECT address, bound_to, recipient, registered_at FROM users
 WHERE bound_to = $1 AND chain_id = $2 ORDER BY address LIMIT 500;
+
+-- name: GetUsersBatch :many
+SELECT address, chain_id, bound_to, recipient, registered_at FROM users
+WHERE chain_id = $1 AND address = ANY($2::CHAR(42)[]);

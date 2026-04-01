@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
 )
@@ -64,24 +65,22 @@ func (h *Handler) GetAlphaInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetAlphaPrice retrieves the Alpha token price from the Redis cache.
-// Looks up the alpha token address from the subnet, then reads the cached price.
+// Reads directly from alpha_price:{subnetId} — no DB lookup needed.
 func (h *Handler) GetAlphaPrice(w http.ResponseWriter, r *http.Request) {
-	subnetID, err := parseSubnetID(r)
-	if err != nil {
+	subnetIDRaw := chi.URLParam(r, "subnetId")
+	if subnetIDRaw == "" {
+		h.writeError(w, http.StatusBadRequest, "missing subnetId parameter")
+		return
+	}
+	// Validate subnetId is a positive integer
+	if _, err := parseSubnetIDString(subnetIDRaw); err != nil {
 		h.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
 	ctx := r.Context()
 
-	// Look up alpha token address from subnet
-	subnet, dbErr := h.queries.GetSubnet(ctx, subnetID)
-	if dbErr != nil {
-		h.writeJSON(w, http.StatusOK, map[string]any{})
-		return
-	}
-
-	key := fmt.Sprintf("alpha_price:%s", subnet.AlphaToken)
+	key := fmt.Sprintf("alpha_price:%s", subnetIDRaw)
 	val, err := h.rdb.Get(ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
