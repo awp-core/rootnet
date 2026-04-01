@@ -153,7 +153,7 @@ contract Deploy is Script {
             ));
             console.log("AWPEmission impl:", address(emissionImpl));
 
-            uint256 genesisTime = vm.envOr("GENESIS_TIME", block.timestamp);
+            uint256 genesisTime = vm.envUint("GENESIS_TIME"); // 必须显式设置，否则 CREATE2 地址不一致
             bytes memory initData = abi.encodeCall(AWPEmission.initialize, (address(awp), guardian, INITIAL_DAILY_EMISSION, genesisTime, EPOCH_DURATION));
             emission = AWPEmission(_create2(
                 saltEmissionProxy,

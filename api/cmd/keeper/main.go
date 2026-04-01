@@ -48,8 +48,16 @@ func newRedis(lc fx.Lifecycle, cfg *config.Config) (*redis.Client, error) {
 	return rdb, nil
 }
 
+// keeperAddrs holds resolved per-chain contract addresses for a keeper
+type keeperAddrs struct {
+	AWPEmission string
+	AWPToken    string
+	LPManager   string
+	PoolManager string
+}
+
 // newKeeperForChain creates a Keeper for a single chain using the given RPC URL and chain ID
-func newKeeperForChain(rpcURL string, chainID *big.Int, rdb *redis.Client, cfg *config.Config, logger *slog.Logger) (*chain.Keeper, error) {
+func newKeeperForChain(rpcURL string, chainID *big.Int, addrs keeperAddrs, rdb *redis.Client, cfg *config.Config, logger *slog.Logger) (*chain.Keeper, error) {
 	if cfg.KeeperPrivateKey == "" {
 		return nil, fmt.Errorf("KEEPER_PRIVATE_KEY is required")
 	}
@@ -65,10 +73,10 @@ func newKeeperForChain(rpcURL string, chainID *big.Int, rdb *redis.Client, cfg *
 		return nil, fmt.Errorf("failed to dial RPC: %w", err)
 	}
 
-	awpEmissionAddr := common.HexToAddress(cfg.AWPEmissionAddress)
-	awpTokenAddr := common.HexToAddress(cfg.AWPTokenAddress)
-	lpManagerAddr := common.HexToAddress(cfg.LPManagerAddress)
-	poolManagerAddr := common.HexToAddress(cfg.PoolManagerAddress)
+	awpEmissionAddr := common.HexToAddress(addrs.AWPEmission)
+	awpTokenAddr := common.HexToAddress(addrs.AWPToken)
+	lpManagerAddr := common.HexToAddress(addrs.LPManager)
+	poolManagerAddr := common.HexToAddress(addrs.PoolManager)
 	return chain.NewKeeper(client, awpEmissionAddr, awpTokenAddr, lpManagerAddr, poolManagerAddr, key, chainID, rdb, logger)
 }
 
@@ -101,7 +109,13 @@ func startSingleChain(lc fx.Lifecycle, rdb *redis.Client, cfg *config.Config, lo
 	}
 	client.Close() // newKeeperForChain会创建自己的连接
 
-	k, err := newKeeperForChain(cfg.RPCURL, chainID, rdb, cfg, logger)
+	addrs := keeperAddrs{
+		AWPEmission: cfg.AWPEmissionAddress,
+		AWPToken:    cfg.AWPTokenAddress,
+		LPManager:   cfg.LPManagerAddress,
+		PoolManager: cfg.PoolManagerAddress,
+	}
+	k, err := newKeeperForChain(cfg.RPCURL, chainID, addrs, rdb, cfg, logger)
 	if err != nil {
 		return fmt.Errorf("keeper: %w", err)
 	}
@@ -136,7 +150,14 @@ func startMultiChain(lc fx.Lifecycle, rdb *redis.Client, cfg *config.Config, log
 	// 创建所有keeper（在启动前完成，失败则阻止启动）
 	entries := make([]keeperEntry, 0, len(chains))
 	for _, ch := range chains {
-		k, kerr := newKeeperForChain(ch.RPCURL, big.NewInt(ch.ChainID), rdb, cfg, logger)
+		// Per-chain 地址覆盖优先于全局 env
+		addrs := keeperAddrs{
+			AWPEmission: config.ResolveAddress(ch.AWPEmission, cfg.AWPEmissionAddress),
+			AWPToken:    config.ResolveAddress(ch.AWPToken, cfg.AWPTokenAddress),
+			LPManager:   config.ResolveAddress(ch.LPManager, cfg.LPManagerAddress),
+			PoolManager: config.ResolveAddress(ch.PoolManager, cfg.PoolManagerAddress),
+		}
+		k, kerr := newKeeperForChain(ch.RPCURL, big.NewInt(ch.ChainID), addrs, rdb, cfg, logger)
 		if kerr != nil {
 			return fmt.Errorf("keeper for %s (chainId=%d): %w", ch.Name, ch.ChainID, kerr)
 		}

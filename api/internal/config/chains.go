@@ -31,6 +31,7 @@ type ChainConfig struct {
 	StakeNFT     string `yaml:"stakeNFT" json:"-"`
 	SubnetNFT    string `yaml:"subnetNFT" json:"-"`
 	DAOAddress   string `yaml:"dao" json:"-"`
+	LPManager    string `yaml:"lpManager" json:"-"`
 }
 
 // ResolveAddress 返回 per-chain 地址覆盖，如果为空则返回全局默认值
