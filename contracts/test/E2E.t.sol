@@ -81,7 +81,7 @@ contract E2ETest is Test {
         AWPEmission emissionImpl = new AWPEmission();
         bytes memory emissionInitData = abi.encodeCall(
             AWPEmission.initialize,
-            (address(awp), address(treasury), deployer, INITIAL_DAILY, block.timestamp, EPOCH)
+            (address(awp), deployer, INITIAL_DAILY, block.timestamp, EPOCH)
         );
         ERC1967Proxy emissionProxy = new ERC1967Proxy(address(emissionImpl), emissionInitData);
         emission = AWPEmission(address(emissionProxy));
@@ -313,17 +313,18 @@ contract E2ETest is Test {
 
         vm.roll(block.number + 1);
 
+        // DAO proposal: change initialAlphaPrice via Timelock
         address[] memory targets = new address[](1);
-        targets[0] = address(emission);
+        targets[0] = address(awpRegistry);
         uint256[] memory values = new uint256[](1);
         bytes[] memory calldatas = new bytes[](1);
-        calldatas[0] = abi.encodeCall(emission.emergencySetWeight, (uint256(1), uint256(0), subnetC1, uint96(500)));
-        bytes32 descHash = keccak256("Set weight for subnet 1");
+        calldatas[0] = abi.encodeCall(awpRegistry.setInitialAlphaPrice, (42e18));
+        bytes32 descHash = keccak256("Set initial alpha price");
 
         uint256[] memory propTokenIds = new uint256[](1);
         propTokenIds[0] = tokenId;
         vm.prank(alice);
-        uint256 proposalId = dao.proposeWithTokens(targets, values, calldatas, "Set weight for subnet 1", propTokenIds);
+        uint256 proposalId = dao.proposeWithTokens(targets, values, calldatas, "Set initial alpha price", propTokenIds);
 
         vm.roll(block.number + 2);
 
@@ -339,7 +340,7 @@ contract E2ETest is Test {
         vm.warp(block.timestamp + 2);
         dao.execute(targets, values, calldatas, descHash);
 
-        assertEq(emission.getTotalWeight(), 500);
+        assertEq(awpRegistry.initialAlphaPrice(), 42e18);
     }
 
     // ════════════════════════════════════════════

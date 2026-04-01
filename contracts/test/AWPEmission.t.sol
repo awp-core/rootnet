@@ -33,7 +33,7 @@ contract AWPEmissionTest is Test {
         AWPEmission emissionImpl = new AWPEmission();
         bytes memory initData = abi.encodeCall(
             AWPEmission.initialize,
-            (address(awpToken), treasury, treasury, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
+            (address(awpToken), treasury, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
         );
         ERC1967Proxy emissionProxy = new ERC1967Proxy(address(emissionImpl), initData);
         emission = AWPEmission(address(emissionProxy));
@@ -234,12 +234,9 @@ contract AWPEmissionTest is Test {
         emission.settleEpoch(200);
 
         assertEq(emission.settledEpoch(), 2);
-        // Recipient should receive 50% of the emission
+        // Recipient receives 100% of the emission (no DAO split)
         uint256 subnetBal = awpToken.balanceOf(recipient1);
         assertTrue(subnetBal > 0);
-        // Treasury should receive the DAO share
-        uint256 treasuryBal = awpToken.balanceOf(treasury);
-        assertTrue(treasuryBal > 0);
     }
 
     function test_settleEpochBatched_oneByOne() public {
@@ -309,12 +306,10 @@ contract AWPEmissionTest is Test {
         assertEq(emission.settleProgress(), 0);
         assertEq(emission.settledEpoch(), 2);
 
-        // 4 equal-weight recipients, each receives 1/4 of the subnet pool
-        // Epoch 0 (no decay) + Epoch 1 (with decay) — both distributed because
-        // activeEpoch is promoted to 1 during epoch 0 settlement (weights pre-submitted)
-        uint256 epoch0Pool = INITIAL_DAILY_EMISSION / 2;
+        // 4 equal-weight recipients, each receives 1/4 of the full emission pool (100%)
+        uint256 epoch0Pool = INITIAL_DAILY_EMISSION;
         uint256 decayedEmission = INITIAL_DAILY_EMISSION * 996844 / 1000000;
-        uint256 epoch1Pool = decayedEmission / 2;
+        uint256 epoch1Pool = decayedEmission;
         uint256 expected = (epoch0Pool + epoch1Pool) / 4;
         assertEq(awpToken.balanceOf(recipient1), expected);
         assertEq(awpToken.balanceOf(recipient2), expected);
@@ -347,12 +342,12 @@ contract AWPEmissionTest is Test {
     }
 
     function test_settleEpochNoRecipients() public {
-        // No allocations — all emission goes to the DAO
+        // No allocations — nothing is minted (Guardian must include treasury in recipients for DAO share)
         vm.warp(block.timestamp + EPOCH_DURATION + 1);
         emission.settleEpoch(200);
 
-        uint256 treasuryBal = awpToken.balanceOf(treasury);
-        assertEq(treasuryBal, INITIAL_DAILY_EMISSION);
+        // No recipients → 0 minted this epoch
+        assertEq(awpToken.balanceOf(treasury), 0);
     }
 
     function test_settleEpochTooEarly() public {
@@ -365,72 +360,6 @@ contract AWPEmissionTest is Test {
         vm.expectRevert(AWPEmission.InvalidParameter.selector);
         emission.settleEpoch(0);
     }
-
-    // ── emergencySetWeight tests ──
-
-    function test_emergencySetWeight() public {
-        // Submit allocations for epoch 1
-        address[] memory addrs = new address[](1);
-        addrs[0] = recipient1;
-        uint96[] memory ws = new uint96[](1);
-        ws[0] = 100;
-        _submitAsGuardianForEpoch(addrs, ws, 1);
-
-        // Settle epoch 0 to advance to epoch 1
-        _settleEpoch0();
-        // Settle epoch 1 to promote activeEpoch=1
-        vm.warp(block.timestamp + EPOCH_DURATION + 1);
-        emission.settleEpoch(200);
-        assertEq(emission.activeEpoch(), 1);
-
-        // Emergency override weight (epoch=1, index=0, addr=recipient1)
-        vm.prank(treasury);
-        emission.emergencySetWeight(1, 0, recipient1, 500);
-
-        assertEq(emission.getWeight(recipient1), 500);
-        assertEq(emission.getTotalWeight(), 500);
-    }
-
-    function test_emergencySetWeight_revertsForNonTimelock() public {
-        vm.prank(user);
-        vm.expectRevert(AWPEmission.NotTimelock.selector);
-        emission.emergencySetWeight(0, 0, recipient1, 100);
-    }
-
-    function test_emergencySetWeight_revertsIndexOutOfBounds() public {
-        // index out of bounds (no allocations at epoch 0)
-        vm.prank(treasury);
-        vm.expectRevert(AWPEmission.InvalidParameter.selector);
-        emission.emergencySetWeight(0, 0, recipient1, 100);
-    }
-
-    function test_emergencySetWeight_revertsDuringSettlement() public {
-        // Submit allocations for epoch 1
-        address[] memory addrs = new address[](2);
-        addrs[0] = recipient1;
-        addrs[1] = recipient2;
-        uint96[] memory ws = new uint96[](2);
-        ws[0] = 100;
-        ws[1] = 100;
-        _submitAsGuardianForEpoch(addrs, ws, 1);
-
-        // Settle epoch 0
-        _settleEpoch0();
-
-        // Trigger settle epoch 1 with limit=1 to enter settlement in progress
-        vm.warp(block.timestamp + EPOCH_DURATION + 1);
-        emission.settleEpoch(1);
-        assertTrue(emission.settleProgress() > 0);
-
-        // Cannot emergencySetWeight while settlement is in progress
-        vm.prank(treasury);
-        vm.expectRevert(AWPEmission.SettlementInProgress.selector);
-        emission.emergencySetWeight(1, 0, recipient1, 200);
-
-        // Complete settlement
-        emission.settleEpoch(200);
-    }
-
 
     // ── Multi-recipient proportional distribution ──
 
@@ -478,11 +407,6 @@ contract AWPEmissionTest is Test {
         emission.settleEpoch(1);
         assertTrue(emission.settleProgress() > 0);
 
-        // Cannot emergencySetWeight during settlement
-        vm.prank(treasury);
-        vm.expectRevert(AWPEmission.SettlementInProgress.selector);
-        emission.emergencySetWeight(1, 0, recipient1, 200);
-
         // Cannot submitAllocations during settlement
         address[] memory addrs2 = new address[](1);
         addrs2[0] = recipient3;
@@ -526,11 +450,11 @@ contract AWPEmissionTest is Test {
         assertEq(emission.getRecipientCount(), 1);
     }
 
-    function test_upgrade_revertsForNonTimelock() public {
+    function test_upgrade_revertsForNonGuardian() public {
         AWPEmission newImpl = new AWPEmission();
 
         vm.prank(user);
-        vm.expectRevert(AWPEmission.NotTimelock.selector);
+        vm.expectRevert(AWPEmission.NotGuardian.selector);
         emission.upgradeToAndCall(address(newImpl), "");
     }
 
@@ -623,27 +547,9 @@ contract AWPEmissionTest is Test {
         emission.setDecayFactor(0);
     }
 
-    function test_setEmissionSplitBps() public {
-        vm.prank(treasury);
-        emission.setEmissionSplitBps(7000); // 70% to subnets
-        assertEq(emission.emissionSplitBps(), 7000);
-    }
-
-    function test_setEmissionSplitBps_tooHigh_reverts() public {
-        vm.prank(treasury);
-        vm.expectRevert(AWPEmission.InvalidParameter.selector);
-        emission.setEmissionSplitBps(10001); // > 100%
-    }
-
-    function test_setDecayFactor_notTimelock_reverts() public {
+    function test_setDecayFactor_notGuardian_reverts() public {
         vm.prank(user);
-        vm.expectRevert(AWPEmission.NotTimelock.selector);
+        vm.expectRevert(AWPEmission.NotGuardian.selector);
         emission.setDecayFactor(995000);
-    }
-
-    function test_setEmissionSplitBps_notTimelock_reverts() public {
-        vm.prank(user);
-        vm.expectRevert(AWPEmission.NotTimelock.selector);
-        emission.setEmissionSplitBps(7000);
     }
 }

@@ -79,7 +79,7 @@ contract IntegrationTest is Test {
         AWPEmission emissionImpl = new AWPEmission();
         bytes memory emissionInitData = abi.encodeCall(
             AWPEmission.initialize,
-            (address(awp), address(treasury), deployer, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
+            (address(awp), deployer, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
         );
         ERC1967Proxy emissionProxy = new ERC1967Proxy(address(emissionImpl), emissionInitData);
         emission = AWPEmission(address(emissionProxy));
@@ -248,15 +248,11 @@ contract IntegrationTest is Test {
         _settleOneEpoch();
 
         uint256 subnetBal = awp.balanceOf(subnetManager1);
-        // Epoch 0 (no decay, weights promoted from epoch 1) + Epoch 1 (decayed)
-        uint256 epoch0Subnet = INITIAL_DAILY_EMISSION / 2;
+        // Epoch 0 (no decay, 100% to recipients) + Epoch 1 (decayed, 100%)
+        uint256 epoch0Subnet = INITIAL_DAILY_EMISSION;
         uint256 decayedEmission = INITIAL_DAILY_EMISSION * 996844 / 1000000;
-        uint256 epoch1Subnet = decayedEmission / 2;
+        uint256 epoch1Subnet = decayedEmission;
         assertEq(subnetBal, epoch0Subnet + epoch1Subnet);
-
-        // DAO receives rest
-        uint256 treasuryBal = awp.balanceOf(address(treasury));
-        assertTrue(treasuryBal > 90_000_000 * 1e18);
 
         // 11. Third epoch
         _submitWeight(subnetManager1, uint96(1000));
@@ -422,10 +418,10 @@ contract IntegrationTest is Test {
         _settleOneEpoch();
         _settleOneEpoch();
 
-        // Epoch 0 (weights promoted from epoch 1) + Epoch 1 (decayed)
-        uint256 epoch0Pool = INITIAL_DAILY_EMISSION / 2;
+        // Epoch 0 (weights promoted from epoch 1, 100%) + Epoch 1 (decayed, 100%)
+        uint256 epoch0Pool = INITIAL_DAILY_EMISSION;
         uint256 decayedEmission = INITIAL_DAILY_EMISSION * 996844 / 1000000;
-        uint256 epoch1Pool = decayedEmission / 2;
+        uint256 epoch1Pool = decayedEmission;
         uint256 totalPool = epoch0Pool + epoch1Pool;
         uint256 expected1 = totalPool * 100 / 600;
         uint256 expected2 = totalPool * 200 / 600;

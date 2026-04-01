@@ -28,8 +28,8 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice AWP token contract reference
     IAWPToken public awpToken;                      // slot 1
 
-    /// @notice Treasury (Timelock) address — holds governance operation rights + receives DAO share
-    address public treasury;                        // slot 2
+    /// @dev Freed slot 2: was treasury address (DAO share now handled by including treasury in recipients)
+    address private __freed_treasury;               // slot 2
 
     /// @notice Epoch duration in seconds (default 1 day = 86400)
     uint256 public epochDuration;                   // slot 3 (reused from freed slot)
@@ -97,8 +97,8 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice Decay factor per epoch (default 996844 / 1000000 ≈ 0.3156% decay)
     uint256 public decayFactor;                     // slot 24
 
-    /// @notice Emission split: basis points to subnet recipients (default 5000 = 50%)
-    uint256 public emissionSplitBps;                // slot 25
+    /// @dev Freed slot 25: was emissionSplitBps (split now fully dynamic via Guardian recipients)
+    uint256 private __freed_slot25;                 // slot 25
 
     /// @notice Guardian address — manages oracle config across chains (cross-chain multisig)
     address public guardian;                         // slot 26
@@ -117,8 +117,6 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     //  Error definitions
     // ══════════════════════════════════════════════
 
-    /// @dev Caller is not the Timelock
-    error NotTimelock();
     /// @dev Recipient address is the zero address
     error InvalidRecipient();
     /// @dev Mint amount is zero
@@ -144,12 +142,6 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     //  Modifiers
     // ══════════════════════════════════════════════
 
-    /// @dev Only the Timelock may call
-    modifier onlyTimelock() {
-        if (msg.sender != treasury) revert NotTimelock();
-        _;
-    }
-
     /// @dev Only the Guardian (cross-chain multisig) may call
     modifier onlyGuardian() {
         if (msg.sender != guardian) revert NotGuardian();
@@ -167,14 +159,12 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
     /// @notice Initialize the emission contract (called on proxy deployment)
     /// @param awpToken_ AWP token contract address
-    /// @param treasury_ Treasury address (Timelock) — receives DAO share + holds governance rights
-    /// @param guardian_ Guardian address (cross-chain multisig) — manages oracle config
+    /// @param guardian_ Guardian address (cross-chain Safe multisig) — controls weights, decay, upgrades
     /// @param initialDailyEmission_ Daily emission for the first epoch (wei)
     /// @param genesisTime_ Genesis timestamp for epoch calculation
     /// @param epochDuration_ Epoch duration in seconds (default 86400 = 1 day)
     function initialize(
         address awpToken_,
-        address treasury_,
         address guardian_,
         uint256 initialDailyEmission_,
         uint256 genesisTime_,
@@ -185,14 +175,12 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         __EIP712_init("AWPEmission", "2");
 
         awpToken = IAWPToken(awpToken_);
-        treasury = treasury_;
         guardian = guardian_;
         currentDailyEmission = initialDailyEmission_;
         genesisTime = genesisTime_;
         epochDuration = epochDuration_;
         maxRecipients = 10000;
         decayFactor = 996844;
-        emissionSplitBps = 5000;
         _cachedMaxSupply = IAWPToken(awpToken_).MAX_SUPPLY();
     }
 
@@ -209,8 +197,10 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     //  UUPS upgrade authorization
     // ══════════════════════════════════════════════
 
-    /// @dev Only the Timelock may authorize an upgrade
-    function _authorizeUpgrade(address) internal override onlyTimelock {}
+    /// @dev Only the Guardian may authorize an upgrade
+    function _authorizeUpgrade(address) internal view override {
+        if (msg.sender != guardian) revert NotGuardian();
+    }
 
     // ══════════════════════════════════════════════
     //  Guardian weight submission (replaces Oracle multi-sig)
@@ -256,41 +246,14 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     // ══════════════════════════════════════════════
-    //  Governance parameter configuration (onlyTimelock)
+    //  Guardian parameter configuration
     // ══════════════════════════════════════════════
 
-    /// @notice Emergency overwrite a recipient entry at a given index (Timelock only, used when oracle fails)
-    /// @dev Caller provides epoch and index for O(1) access. Replaces both address and weight at that slot.
-    /// @param epoch_ Target epoch
-    /// @param index Index in the packed allocations array
-    /// @param addr New recipient address
-    /// @param weight New weight value (uint96)
-    function emergencySetWeight(uint256 epoch_, uint256 index, address addr, uint96 weight) external onlyTimelock {
-        if (settleProgress != 0) revert SettlementInProgress();
-        if (addr == address(0)) revert InvalidRecipient();
-
-        uint256[] storage allocs = _epochAllocations[epoch_];
-        if (index >= allocs.length) revert InvalidParameter();
-
-        uint96 oldW = uint96(allocs[index]);
-        allocs[index] = (uint256(uint160(addr)) << 96) | uint256(weight);
-        _epochTotalWeight[epoch_] = _epochTotalWeight[epoch_] - oldW + weight;
-
-        emit GovernanceWeightUpdated(addr, weight);
-    }
-
-    /// @notice Update the per-epoch decay factor (onlyTimelock)
+    /// @notice Update the per-epoch decay factor (Guardian only)
     /// @param newDecayFactor Must be <= DECAY_PRECISION (no growth allowed)
-    function setDecayFactor(uint256 newDecayFactor) external onlyTimelock {
+    function setDecayFactor(uint256 newDecayFactor) external onlyGuardian {
         if (newDecayFactor == 0 || newDecayFactor >= DECAY_PRECISION) revert InvalidParameter();
         decayFactor = newDecayFactor;
-    }
-
-    /// @notice Update the emission split (onlyTimelock)
-    /// @param newSplitBps Must be <= 10000 (100%)
-    function setEmissionSplitBps(uint256 newSplitBps) external onlyTimelock {
-        if (newSplitBps > 10000) revert InvalidParameter();
-        emissionSplitBps = newSplitBps;
     }
 
     // ══════════════════════════════════════════════
@@ -339,8 +302,8 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
                 activeEpoch = settledEpoch + 1;
             }
 
-            // Recipient pool = total emission × 50%
-            _snapshotPool = epochEmissionLocked * emissionSplitBps / 10000;
+            // 100% emission → recipients（Guardian 可将 treasury 加入 recipients 实现 DAO 分成）
+            _snapshotPool = epochEmissionLocked;
             _epochMinted = 0;
 
             // Snapshot weight and recipient count from the active epoch
@@ -398,18 +361,8 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         }
         _epochMinted = minted;
 
-        // ── Phase 3: Finalize — mint DAO share ──
+        // ── Phase 3: Finalize ──
         if (end >= snapshotLen) {
-            uint256 daoShare = minted >= epochEmissionLocked
-                ? 0
-                : epochEmissionLocked - minted;
-            uint256 actualDaoMinted = 0;
-            if (daoShare > 0 && awpRemaining > 0) {
-                actualDaoMinted = daoShare > awpRemaining ? awpRemaining : daoShare;
-                awpToken.mint(treasury, actualDaoMinted);
-            }
-            emit DAOMatchDistributed(epoch, actualDaoMinted);
-
             _snapshotPool = 0;
             _epochMinted = 0;
             settleProgress = 0;

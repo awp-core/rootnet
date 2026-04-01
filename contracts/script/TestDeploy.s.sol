@@ -38,7 +38,7 @@ contract TestDeploy is Script {
         AWPEmission em;
         {
             AWPEmission emImpl = new AWPEmission();
-            bytes memory initData = abi.encodeCall(AWPEmission.initialize, (address(awp), address(treasury), deployer, 15_800_000e18, block.timestamp, 1 days));
+            bytes memory initData = abi.encodeCall(AWPEmission.initialize, (address(awp), deployer, 15_800_000e18, block.timestamp, 1 days));
             em = AWPEmission(address(new ERC1967Proxy(address(emImpl), initData)));
         }
 
