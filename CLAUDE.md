@@ -17,7 +17,7 @@ docs/architecture.md — Read the relevant section before starting any task.
 - Frontend sends transactions directly to chain via wagmi/viem
 - Three independent Go processes: api (HTTP+WS) / indexer (event sync) / keeper (scheduled on-chain ops)
 - Indexer → Redis Pub/Sub → API WebSocket
-- Indexer uses 15-block confirmation depth to avoid chain reorgs
+- Indexer uses optimistic indexing (processes up to chain tip, no confirmation delay) with block hash chain verification for reorg detection (max 64-block rollback)
 
 ## Core Architecture (11 contracts)
 - AWPRegistry.sol = Unified entry: subnet management + account system (UUPS proxy). No deposit/withdraw — staking via StakeNFT. No epoch logic. EIP-712 domain name "AWPRegistry". No mandatory registration — every address is implicitly a root. `register()` is optional (= `setRecipient(msg.sender)`). Tree-based binding via `bind(target)`. `grantDelegate(delegate)` / `revokeDelegate(delegate)` for delegation. Gasless: bindFor, setRecipientFor, registerSubnetFor, registerSubnetForWithPermit. SubnetId globally unique: `(block.chainid << 64) | localCounter`. **Allocation functions moved to StakingVault.**
