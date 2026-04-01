@@ -7,6 +7,8 @@ CREATE TABLE users (
     PRIMARY KEY (chain_id, address)
 );
 
+CREATE INDEX idx_users_bound_to ON users(chain_id, bound_to) WHERE bound_to != '';
+
 CREATE TABLE subnets (
     subnet_id        NUMERIC(78,0) PRIMARY KEY,
     chain_id         BIGINT NOT NULL DEFAULT 0,
@@ -27,6 +29,7 @@ CREATE TABLE subnets (
 CREATE INDEX idx_subnets_owner ON subnets(owner);
 CREATE INDEX idx_subnets_status ON subnets(status);
 CREATE INDEX idx_subnets_chain ON subnets(chain_id);
+CREATE INDEX idx_subnets_chain_status ON subnets(chain_id, status);
 
 CREATE TABLE stake_allocations (
     chain_id      BIGINT NOT NULL DEFAULT 0,
@@ -39,6 +42,7 @@ CREATE TABLE stake_allocations (
     PRIMARY KEY (chain_id, user_address, agent_address, subnet_id)
 );
 CREATE INDEX idx_sa_subnet ON stake_allocations(subnet_id);
+CREATE INDEX idx_sa_frozen ON stake_allocations(chain_id, frozen) WHERE frozen = TRUE;
 
 CREATE TABLE user_balances (
     chain_id        BIGINT NOT NULL DEFAULT 0,

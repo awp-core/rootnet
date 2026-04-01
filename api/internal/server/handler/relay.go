@@ -13,6 +13,7 @@ import (
 	"github.com/cortexia/rootnet/api/internal/chain"
 	"github.com/cortexia/rootnet/api/internal/chain/bindings"
 	"github.com/cortexia/rootnet/api/internal/ratelimit"
+	"github.com/go-chi/chi/v5"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -699,4 +700,21 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 	}
 
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
+}
+
+// GetRelayStatus GET /api/relay/status/{txHash} — 查询 relay 交易的链上确认状态
+func (rh *RelayHandler) GetRelayStatus(w http.ResponseWriter, r *http.Request) {
+	txHash := chi.URLParam(r, "txHash")
+	if txHash == "" || len(txHash) != 66 {
+		rh.writeError(w, http.StatusBadRequest, "invalid txHash")
+		return
+	}
+
+	status, err := rh.relayer.GetTxStatus(r.Context(), txHash)
+	if err != nil {
+		rh.writeJSON(w, http.StatusOK, map[string]string{"status": "unknown", "txHash": txHash})
+		return
+	}
+
+	rh.writeJSON(w, http.StatusOK, status)
 }

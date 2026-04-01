@@ -117,9 +117,23 @@ func isValidAddress(addr string) bool {
 	return true
 }
 
-// Health is the health-check endpoint
+// Health is the health-check endpoint (checks DB + Redis connectivity for load balancer use)
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
-	h.writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	ctx := r.Context()
+	status := "ok"
+
+	if _, err := h.queries.GetUserCount(ctx, h.cfg.ChainID); err != nil {
+		status = "degraded"
+	}
+	if err := h.rdb.Ping(ctx).Err(); err != nil {
+		status = "degraded"
+	}
+
+	code := http.StatusOK
+	if status != "ok" {
+		code = http.StatusServiceUnavailable
+	}
+	h.writeJSON(w, code, map[string]string{"status": status})
 }
 
 // buildDetailedHealth gathers per-chain health, Redis connectivity, and DB connectivity.

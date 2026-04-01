@@ -22,6 +22,23 @@ type ChainConfig struct {
 	Permit2         string `yaml:"permit2" json:"-"`
 	SwapRouter      string `yaml:"swapRouter" json:"-"`
 	StateView       string `yaml:"stateView" json:"-"`
+
+	// 可选的 per-chain 合约地址覆盖（为空时使用全局 env 配置）
+	AWPRegistry  string `yaml:"awpRegistry" json:"-"`
+	AWPToken     string `yaml:"awpToken" json:"-"`
+	AWPEmission  string `yaml:"awpEmission" json:"-"`
+	StakingVault string `yaml:"stakingVault" json:"-"`
+	StakeNFT     string `yaml:"stakeNFT" json:"-"`
+	SubnetNFT    string `yaml:"subnetNFT" json:"-"`
+	DAOAddress   string `yaml:"dao" json:"-"`
+}
+
+// ResolveAddress 返回 per-chain 地址覆盖，如果为空则返回全局默认值
+func ResolveAddress(perChain, global string) string {
+	if perChain != "" {
+		return perChain
+	}
+	return global
 }
 
 // ChainsFile is the top-level structure of chains.yaml

@@ -110,10 +110,39 @@ func NewKeeper(
 	}, nil
 }
 
+// acquireLock 尝试获取 Redis 分布式锁，防止多实例 keeper 同时运行
+func (k *Keeper) acquireLock(ctx context.Context) bool {
+	lockKey := fmt.Sprintf("keeper:lock:%d", k.chainIDInt)
+	ok, err := k.redis.SetNX(ctx, lockKey, "1", 60*time.Second).Result()
+	if err != nil {
+		k.logger.Warn("failed to acquire keeper lock", "error", err)
+		return false
+	}
+	return ok
+}
+
+// renewLock 续期分布式锁
+func (k *Keeper) renewLock(ctx context.Context) {
+	lockKey := fmt.Sprintf("keeper:lock:%d", k.chainIDInt)
+	k.redis.Expire(ctx, lockKey, 60*time.Second)
+}
+
+// releaseLock 释放分布式锁
+func (k *Keeper) releaseLock() {
+	lockKey := fmt.Sprintf("keeper:lock:%d", k.chainIDInt)
+	k.redis.Del(context.Background(), lockKey)
+}
+
 // Start launches the scheduled task scheduler.
 func (k *Keeper) Start(_ context.Context) {
 	ctx, cancel := context.WithCancel(context.Background())
 	k.cancel = cancel
+
+	// 分布式锁：防止多个 keeper 实例同时运行
+	if !k.acquireLock(ctx) {
+		k.logger.Error("another keeper instance is already running for this chain, exiting", "chainId", k.chainIDInt)
+		return
+	}
 
 	// Attempt to settle epoch every 30 seconds
 	if _, err := k.cron.AddFunc("@every 30s", func() {
@@ -138,16 +167,24 @@ func (k *Keeper) Start(_ context.Context) {
 		}
 	}
 
+	// 每 30 秒续期分布式锁（TTL 60s，确保锁不过期）
+	if _, err := k.cron.AddFunc("@every 30s", func() {
+		k.renewLock(ctx)
+	}); err != nil {
+		k.logger.Error("failed to add lock renewal cron", "error", err)
+	}
+
 	k.cron.Start()
 	k.logger.Info("Keeper scheduled tasks started")
 }
 
-// Stop halts the scheduled task scheduler
+// Stop halts the scheduled task scheduler and releases the distributed lock
 func (k *Keeper) Stop() {
 	if k.cancel != nil {
 		k.cancel()
 	}
 	k.cron.Stop()
+	k.releaseLock()
 	k.logger.Info("Keeper scheduled tasks stopped")
 }
 

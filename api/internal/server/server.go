@@ -125,6 +125,7 @@ func NewRouter(p RouterParams) chi.Router {
 			r.Post("/deallocate", p.RelayHandler.RelayDeallocate)
 			r.Post("/activate-subnet", p.RelayHandler.RelayActivateSubnet)
 			r.Post("/register-subnet", p.RelayHandler.RelayRegisterSubnet)
+			r.Get("/status/{txHash}", p.RelayHandler.GetRelayStatus)
 		})
 	}
 

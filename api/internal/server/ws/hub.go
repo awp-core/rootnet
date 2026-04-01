@@ -145,7 +145,9 @@ func (h *Hub) Run(ctx context.Context) {
 			if !ok {
 				h.logger.Warn("Redis subscription channel closed, attempting reconnect...")
 				_ = pubsub.Close()
-				// Reconnect loop with backoff — keep existing client connections alive
+				// Reconnect loop with exponential backoff — keep client connections alive
+				backoff := time.Second
+				const maxBackoff = 30 * time.Second
 				for {
 					select {
 					case <-ctx.Done():
@@ -166,11 +168,25 @@ func (h *Hub) Run(ctx context.Context) {
 						return
 					default:
 					}
-					time.Sleep(3 * time.Second)
+					time.Sleep(backoff)
 					pubsub = h.rdb.Subscribe(ctx, "chain_events")
-					redisCh = pubsub.Channel()
-					h.logger.Info("Redis Pub/Sub reconnected")
-					break
+					// 验证连接是否真正成功
+					pingCtx, pingCancel := context.WithTimeout(ctx, 3*time.Second)
+					err := pubsub.Ping(pingCtx)
+					pingCancel()
+					if err == nil {
+						redisCh = pubsub.Channel()
+						h.logger.Info("Redis Pub/Sub reconnected")
+						break
+					}
+					h.logger.Warn("Redis reconnect failed, retrying", "backoff", backoff, "error", err)
+					_ = pubsub.Close()
+					if backoff < maxBackoff {
+						backoff *= 2
+						if backoff > maxBackoff {
+							backoff = maxBackoff
+						}
+					}
 				}
 				continue // restart the main select loop with new redisCh
 			}

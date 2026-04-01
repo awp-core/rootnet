@@ -3,6 +3,7 @@ package chain
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -13,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/redis/go-redis/v9"
 )
 
 // Relayer submits gasless transactions using a relayer private key (bindFor / setRecipientFor / registerSubnetFor)
@@ -25,7 +27,16 @@ type Relayer struct {
 	chainID      *big.Int
 	logger       *slog.Logger
 	mu           sync.Mutex // serializes tx submissions to prevent nonce collisions
+	rdb          *redis.Client // for tx status tracking
 }
+
+// RelayTxStatus Redis 中存储的交易状态
+type RelayTxStatus struct {
+	Status    string `json:"status"` // "pending", "confirmed", "failed"
+	TxHash   string `json:"txHash"`
+	BlockNum uint64 `json:"blockNumber,omitempty"`
+}
+
 
 // NewRelayer creates a Relayer instance
 func NewRelayer(
@@ -34,6 +45,7 @@ func NewRelayer(
 	stakingVaultAddr common.Address,
 	key *ecdsa.PrivateKey,
 	chainID *big.Int,
+	rdb *redis.Client,
 	logger *slog.Logger,
 ) (*Relayer, error) {
 	awpRegistry, err := bindings.NewAWPRegistry(awpRegistryAddr, client)
@@ -50,6 +62,7 @@ func NewRelayer(
 		stakingVault: stakingVault,
 		key:          key,
 		chainID:      chainID,
+		rdb:          rdb,
 		logger:       logger,
 	}, nil
 }
@@ -58,6 +71,67 @@ func NewRelayer(
 // Used by relay handlers to pre-check that a signature's nonce is still valid before submitting.
 func (r *Relayer) CheckNonce(user common.Address) (*big.Int, error) {
 	return r.awpRegistry.Nonces(nil, user)
+}
+
+// trackTx 异步追踪交易 receipt，结果写入 Redis
+func (r *Relayer) trackTx(txHash string) {
+	if r.rdb == nil {
+		return
+	}
+	key := "relay:status:" + txHash
+	status := RelayTxStatus{Status: "pending", TxHash: txHash}
+	data, _ := json.Marshal(status)
+	r.rdb.Set(context.Background(), key, data, 10*time.Minute)
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+
+		hash := common.HexToHash(txHash)
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				// 超时，标记失败
+				status := RelayTxStatus{Status: "failed", TxHash: txHash}
+				data, _ := json.Marshal(status)
+				r.rdb.Set(context.Background(), key, data, 10*time.Minute)
+				return
+			case <-ticker.C:
+				receipt, err := r.client.TransactionReceipt(ctx, hash)
+				if err != nil {
+					continue // 还在 pending
+				}
+				st := "confirmed"
+				if receipt.Status == 0 {
+					st = "failed"
+				}
+				result := RelayTxStatus{Status: st, TxHash: txHash, BlockNum: receipt.BlockNumber.Uint64()}
+				data, _ := json.Marshal(result)
+				r.rdb.Set(context.Background(), key, data, 10*time.Minute)
+				return
+			}
+		}
+	}()
+}
+
+// GetTxStatus 查询 relay 交易状态
+func (r *Relayer) GetTxStatus(ctx context.Context, txHash string) (*RelayTxStatus, error) {
+	if r.rdb == nil {
+		return nil, fmt.Errorf("redis not configured")
+	}
+	key := "relay:status:" + txHash
+	val, err := r.rdb.Get(ctx, key).Result()
+	if err != nil {
+		return nil, err
+	}
+	var status RelayTxStatus
+	if err := json.Unmarshal([]byte(val), &status); err != nil {
+		return nil, err
+	}
+	return &status, nil
 }
 
 func (r *Relayer) auth(ctx context.Context) (*bind.TransactOpts, error) {
@@ -87,8 +161,10 @@ func (r *Relayer) RelayBind(ctx context.Context, agent common.Address, target co
 		return "", fmt.Errorf("BindFor tx: %w", err)
 	}
 
-	r.logger.Info("relay bindFor sent", "txHash", tx.Hash().Hex(), "agent", agent.Hex(), "target", target.Hex())
-	return tx.Hash().Hex(), nil
+	txHashHex := tx.Hash().Hex()
+	r.logger.Info("relay bindFor sent", "txHash", txHashHex, "agent", agent.Hex(), "target", target.Hex())
+	r.trackTx(txHashHex)
+	return txHashHex, nil
 }
 
 // RelaySetRecipient relays a setRecipientFor transaction (V2: renamed from setRewardRecipientFor)
@@ -110,6 +186,7 @@ func (r *Relayer) RelaySetRecipient(ctx context.Context, user common.Address, re
 	}
 
 	r.logger.Info("relay setRecipientFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "recipient", recipient.Hex())
+	r.trackTx(tx.Hash().Hex())
 	return tx.Hash().Hex(), nil
 }
 
@@ -132,6 +209,7 @@ func (r *Relayer) RelayAllocate(ctx context.Context, staker common.Address, agen
 	}
 
 	r.logger.Info("relay allocateFor sent", "txHash", tx.Hash().Hex(), "staker", staker.Hex(), "agent", agent.Hex())
+	r.trackTx(tx.Hash().Hex())
 	return tx.Hash().Hex(), nil
 }
 
@@ -154,6 +232,7 @@ func (r *Relayer) RelayDeallocate(ctx context.Context, staker common.Address, ag
 	}
 
 	r.logger.Info("relay deallocateFor sent", "txHash", tx.Hash().Hex(), "staker", staker.Hex(), "agent", agent.Hex())
+	r.trackTx(tx.Hash().Hex())
 	return tx.Hash().Hex(), nil
 }
 
@@ -176,6 +255,7 @@ func (r *Relayer) RelayActivateSubnet(ctx context.Context, user common.Address, 
 	}
 
 	r.logger.Info("relay activateSubnetFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "subnetId", subnetId.String())
+	r.trackTx(tx.Hash().Hex())
 	return tx.Hash().Hex(), nil
 }
 
@@ -210,5 +290,6 @@ func (r *Relayer) RelayRegisterSubnet(
 	}
 
 	r.logger.Info("relay registerSubnetFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "name", params.Name)
+	r.trackTx(tx.Hash().Hex())
 	return tx.Hash().Hex(), nil
 }

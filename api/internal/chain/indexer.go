@@ -13,6 +13,7 @@ import (
 
 	"github.com/cortexia/rootnet/api/internal/db/gen"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/jackc/pgx/v5"
@@ -458,7 +459,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// StakeNFT.Deposited — new stake position created
 	if evt, err := stakeNFT.ParseDeposited(lg); err == nil {
 		// Read position from chain to get the actual createdAt timestamp
-		pos, err := idx.chain.StakeNFT.Positions(nil, evt.TokenId)
+		pos, err := idx.chain.StakeNFT.Positions(&bind.CallOpts{Context: ctx}, evt.TokenId)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read position for createdAt: %w", err)
 		}
@@ -483,7 +484,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// StakeNFT.PositionIncreased — position amount/lock updated
 	if evt, err := stakeNFT.ParsePositionIncreased(lg); err == nil {
 		// Read updated position from chain to get new total amount
-		pos, err := idx.chain.StakeNFT.Positions(nil, evt.TokenId)
+		pos, err := idx.chain.StakeNFT.Positions(&bind.CallOpts{Context: ctx}, evt.TokenId)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read position: %w", err)
 		}
@@ -639,7 +640,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		// Read skillsURI and minStake from SubnetNFT on-chain (not included in event)
 		skillsURI := ""
 		minStake := big.NewInt(0)
-		if nftData, nftErr := idx.chain.SubnetNFT.GetSubnetData(nil, evt.SubnetId); nftErr == nil {
+		if nftData, nftErr := idx.chain.SubnetNFT.GetSubnetData(&bind.CallOpts{Context: ctx}, evt.SubnetId); nftErr == nil {
 			skillsURI = nftData.SkillsURI
 			if nftData.MinStake != nil {
 				minStake = nftData.MinStake

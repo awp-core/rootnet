@@ -94,7 +94,7 @@ func newLimiter(rdb *redis.Client, logger *slog.Logger) *ratelimit.Limiter {
 
 // newRelayHandler creates RelayHandler (optional: returns nil if RELAYER_PRIVATE_KEY not set)
 // If key is configured but invalid, returns error to fail fast
-func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, limiter *ratelimit.Limiter, logger *slog.Logger) (*handler.RelayHandler, error) {
+func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, rdb *redis.Client, limiter *ratelimit.Limiter, logger *slog.Logger) (*handler.RelayHandler, error) {
 	if cfg.RelayerPrivateKey == "" {
 		logger.Info("RELAYER_PRIVATE_KEY not set, relay endpoints disabled")
 		return nil, nil
@@ -121,7 +121,7 @@ func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, limiter *ratelimit.Lim
 
 	awpRegistryAddr := common.HexToAddress(cfg.AWPRegistryAddress)
 	stakingVaultAddr := common.HexToAddress(cfg.StakingVaultAddress)
-	relayer, err := chain.NewRelayer(client, awpRegistryAddr, stakingVaultAddr, key, chainID, logger)
+	relayer, err := chain.NewRelayer(client, awpRegistryAddr, stakingVaultAddr, key, chainID, rdb, logger)
 	if err != nil {
 		client.Close()
 		return nil, fmt.Errorf("create relayer: %w", err)

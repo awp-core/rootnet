@@ -141,15 +141,15 @@ func startMultiChain(lc fx.Lifecycle, pool *pgxpool.Pool, rdb *redis.Client, cfg
 	// 创建所有chain client和indexer（在启动前完成，失败则阻止启动）
 	entries := make([]indexerEntry, 0, len(chains))
 	for _, ch := range chains {
-		// 为每条链创建chain client（使用chains.yaml中的RPC URL，但合约地址仍从env读取）
+		// 为每条链创建 chain client（per-chain 地址覆盖优先于全局 env）
 		addrs := map[string]string{
-			"AWPRegistry":  cfg.AWPRegistryAddress,
-			"AWPToken":     cfg.AWPTokenAddress,
-			"AWPEmission":  cfg.AWPEmissionAddress,
-			"StakingVault": cfg.StakingVaultAddress,
-			"SubnetNFT":    cfg.SubnetNFTAddress,
-			"AWPDAO":       cfg.DAOAddress,
-			"StakeNFT":     cfg.StakeNFTAddress,
+			"AWPRegistry":  config.ResolveAddress(ch.AWPRegistry, cfg.AWPRegistryAddress),
+			"AWPToken":     config.ResolveAddress(ch.AWPToken, cfg.AWPTokenAddress),
+			"AWPEmission":  config.ResolveAddress(ch.AWPEmission, cfg.AWPEmissionAddress),
+			"StakingVault": config.ResolveAddress(ch.StakingVault, cfg.StakingVaultAddress),
+			"SubnetNFT":    config.ResolveAddress(ch.SubnetNFT, cfg.SubnetNFTAddress),
+			"AWPDAO":       config.ResolveAddress(ch.DAOAddress, cfg.DAOAddress),
+			"StakeNFT":     config.ResolveAddress(ch.StakeNFT, cfg.StakeNFTAddress),
 		}
 		dialCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		client, clientErr := chain.NewClient(dialCtx, ch.RPCURL, addrs)
