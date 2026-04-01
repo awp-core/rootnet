@@ -9,11 +9,11 @@ import {IAWPToken} from "../interfaces/IAWPToken.sol";
 import {IAWPEmission} from "../interfaces/IAWPEmission.sol";
 
 /// @title AWPEmission V3 — UUPS upgradeable emission contract (epoch-versioned weight distribution engine)
-/// @notice Manages epoch-versioned recipient weights, computes exponential decay emission, and batch-mints AWP to recipients and the DAO.
+/// @notice Guardian-only weight submission, no Oracle/Timelock dependency.
 /// @dev Epoch-versioned design: submitAllocations writes to a future epoch slot without clearing old data.
 ///      settleEpoch promotes the latest submitted weights as activeEpoch when available.
-///      Adds multi-oracle batch weight submission (EIP-712 signature verification).
-///      DAO configures parameters via Timelock calls to emergencySetWeight.
+///      Guardian (cross-chain multisig) submits weights directly — no Oracle signatures or Timelock.
+///      100% of epoch emission goes to recipients; Guardian includes treasury in recipients for DAO share.
 ///      Anyone can call settleEpoch to trigger settlement.
 ///      AWPEmission now owns its own epoch timing (genesisTime + epochDuration).
 contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable, IAWPEmission {
@@ -257,7 +257,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     // ══════════════════════════════════════════════
-    //  Oracle configuration (onlyTimelock)
+    //  Guardian self-management
     // ══════════════════════════════════════════════
 
     /// @notice Update the guardian address (only Guardian may call — self-sovereign)
@@ -297,7 +297,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             if (epochEmissionLocked == 0) revert MiningComplete();
 
             // Promote activeEpoch if new weights were submitted for the epoch being settled
-            // Oracle writes to effectiveEpoch > settledEpoch, so check settledEpoch + 1
+            // Guardian writes to effectiveEpoch > settledEpoch, so check settledEpoch + 1
             if (_epochTotalWeight[settledEpoch + 1] > 0) {
                 activeEpoch = settledEpoch + 1;
             }

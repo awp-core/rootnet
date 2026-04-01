@@ -69,7 +69,7 @@ contract AWPEmissionTest is Test {
         emission.submitAllocations(addrs, ws, effectiveEpoch);
     }
 
-    /// @dev Settle epoch 0 (no weights, all goes to DAO) to advance to epoch 1
+    /// @dev Settle epoch 0 (no weights, 0 AWP minted, emission budget unused this epoch) to advance to epoch 1
     function _settleEpoch0() internal {
         vm.warp(block.timestamp + EPOCH_DURATION + 1);
         emission.settleEpoch(200);
@@ -81,6 +81,26 @@ contract AWPEmissionTest is Test {
         vm.prank(user);
         vm.expectRevert(AWPEmission.NotGuardian.selector);
         emission.setGuardian(user);
+    }
+
+    function test_setGuardian_success() public {
+        address newGuardian = makeAddr("newGuardian");
+        vm.prank(treasury); // treasury == guardian in tests
+        emission.setGuardian(newGuardian);
+        assertEq(emission.guardian(), newGuardian);
+
+        // Old guardian can no longer submit
+        address[] memory addrs = new address[](1);
+        addrs[0] = recipient1;
+        uint96[] memory ws = new uint96[](1);
+        ws[0] = 100;
+        vm.prank(treasury);
+        vm.expectRevert(AWPEmission.NotGuardian.selector);
+        emission.submitAllocations(addrs, ws, 1);
+
+        // New guardian can submit
+        vm.prank(newGuardian);
+        emission.submitAllocations(addrs, ws, 1);
     }
 
     function test_submitAllocations_onlyGuardian() public {
@@ -526,7 +546,7 @@ contract AWPEmissionTest is Test {
     }
 
     // ══════════════════════════════════════════════
-    // Governance setter tests (setDecayFactor / setEmissionSplitBps)
+    // Governance setter tests (setDecayFactor)
     // ══════════════════════════════════════════════
 
     function test_setDecayFactor() public {

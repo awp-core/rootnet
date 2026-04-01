@@ -153,7 +153,7 @@ contract Deploy is Script {
             console.log("AWPEmission impl:", address(emissionImpl));
 
             uint256 genesisTime = vm.envOr("GENESIS_TIME", block.timestamp);
-            bytes memory initData = abi.encodeCall(AWPEmission.initialize, (address(awp), deployer, INITIAL_DAILY_EMISSION, genesisTime, EPOCH_DURATION));
+            bytes memory initData = abi.encodeCall(AWPEmission.initialize, (address(awp), guardian, INITIAL_DAILY_EMISSION, genesisTime, EPOCH_DURATION));
             emission = AWPEmission(_create2(
                 saltEmissionProxy,
                 abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(address(emissionImpl), initData))

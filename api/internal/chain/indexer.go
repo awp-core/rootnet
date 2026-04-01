@@ -843,14 +843,6 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// ── AWPEmission events ──
 
-	// GovernanceWeightUpdated (emitted from AWPEmission) — weight data lives on-chain; only publish Redis event
-	if evt, err := awpEmission.ParseGovernanceWeightUpdated(lg); err == nil {
-		return []redisEvent{makeEvent("GovernanceWeightUpdated", lg, map[string]interface{}{
-			"addr":   evt.Addr.Hex(),
-			"weight": evt.Weight.String(),
-		})}, nil
-	}
-
 	// RecipientAWPDistributed (emitted from AWPEmission)
 	if evt, err := awpEmission.ParseRecipientAWPDistributed(lg); err == nil {
 		if err := q.InsertRecipientAWPDistribution(ctx, gen.InsertRecipientAWPDistributionParams{
@@ -865,21 +857,6 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			"epoch":     evt.Epoch.String(),
 			"recipient": evt.Recipient.Hex(),
 			"awpAmount": evt.AwpAmount.String(),
-		})}, nil
-	}
-
-	// DAOMatchDistributed (emitted from AWPEmission)
-	if evt, err := awpEmission.ParseDAOMatchDistributed(lg); err == nil {
-		if err := q.UpdateEpochDAO(ctx, gen.UpdateEpochDAOParams{
-			ChainID:     idx.chainID,
-			EpochID:     evt.Epoch.Int64(),
-			DaoEmission: bigIntToNumeric(evt.Amount),
-		}); err != nil {
-			return nil, fmt.Errorf("UpdateEpochDAO: %w", err)
-		}
-		return []redisEvent{makeEvent("DAOMatchDistributed", lg, map[string]interface{}{
-			"epoch":  evt.Epoch.String(),
-			"amount": evt.Amount.String(),
 		})}, nil
 	}
 
@@ -917,18 +894,6 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			"nonce":      evt.Nonce.String(),
 			"recipients": addrs,
 			"weights":    ws,
-		})}, nil
-	}
-
-	// OracleConfigUpdated (emitted from AWPEmission)
-	if evt, err := awpEmission.ParseOracleConfigUpdated(lg); err == nil {
-		addrs := make([]string, len(evt.Oracles))
-		for i, o := range evt.Oracles {
-			addrs[i] = strings.ToLower(o.Hex())
-		}
-		return []redisEvent{makeEvent("OracleConfigUpdated", lg, map[string]interface{}{
-			"oracles":   addrs,
-			"threshold": evt.Threshold.String(),
 		})}, nil
 	}
 

@@ -23,11 +23,11 @@ docs/architecture.md — Read the relevant section before starting any task.
 - AWPRegistry.sol = Unified entry: subnet management + account system (UUPS proxy). No deposit/withdraw — staking via StakeNFT. No epoch logic. EIP-712 domain name "AWPRegistry". No mandatory registration — every address is implicitly a root. `register()` is optional (= `setRecipient(msg.sender)`). Tree-based binding via `bind(target)`. `grantDelegate(delegate)` / `revokeDelegate(delegate)` for delegation. Gasless: bindFor, setRecipientFor, registerSubnetFor, registerSubnetForWithPermit. SubnetId globally unique: `(block.chainid << 64) | localCounter`. **Allocation functions moved to StakingVault.**
 - StakeNFT.sol = ERC721 position NFT (not Enumerable). Deposit AWP with lock period. Each position = NFT with (amount, lockEndTime, createdAt). Transferable. O(1) balance tracking via _userTotalStaked. addToPosition blocked on expired locks (PositionExpired).
 - StakingVault.sol = UUPS proxy with EIP-712 gasless support. `allocate(staker, agent, subnetId, amount)` — caller must be staker or delegate (reads AWPRegistry.delegates). `deallocate`, `reallocate` same auth. Gasless: `allocateFor`, `deallocateFor`. EIP-712 domain name "StakingVault". Cross-chain allocate: subnetId from any chain, no on-chain status check. subnetId=0 rejected. Auto-enumerates agent subnets via EnumerableSet.
-- AWPEmission.sol = UUPS upgradeable proxy: generic address→weight distribution engine. Epoch authority: genesisTime + epochDuration (1 day). currentEpoch() = (block.timestamp - genesisTime) / epochDuration. Oracle multi-sig submits epoch-versioned packed allocations (submitAllocations(address[] recipients, uint96[] weights, bytes[] signatures, uint256 effectiveEpoch)). settleEpoch(limit) batch-mints AWP via mintAndCall (triggers SubnetManager.onTransferReceived). settledEpoch tracks settlement progress. emergencySetWeight(epoch, index, addr, weight) for Timelock override. onlyTimelock manages oracle config.
+- AWPEmission.sol = UUPS upgradeable proxy: generic address→weight distribution engine. Epoch authority: genesisTime + epochDuration (1 day). currentEpoch() = (block.timestamp - genesisTime) / epochDuration. Guardian (cross-chain multisig) submits epoch-versioned packed allocations (submitAllocations(address[] recipients, uint96[] weights, uint256 effectiveEpoch)). settleEpoch(limit) batch-mints AWP via mintAndCall (triggers SubnetManager.onTransferReceived). settledEpoch tracks settlement progress. 100% emission to recipients; Guardian includes treasury in recipients for DAO share. onlyGuardian manages all configuration.
 - AWPDAO.sol = Inherits OZ Governor, GovernorSettings, GovernorTimelockControl. Overrides _getVotes and _countVote for StakeNFT-based voting (no delegate/checkpoint). No awpRegistry dependency. Voters submit tokenId[] arrays. Voting power = amount * sqrt(min(remainingTime, 54 weeks) / 7 days). Anti-manipulation: only NFTs with createdAt < proposalCreatedAt (strict: >= blocks same-block mint+vote). Per-tokenId double-vote prevention. totalVotingPower > 0 required for proposal creation. Two proposal types: proposeWithTokens (executable via Timelock) and signalPropose (vote-only). propose() is blocked.
 - SubnetNFT.sol = ERC721 with on-chain identity storage. tokenId = subnetId. Stores immutable fields: name, subnetManager, alphaToken. Stores owner-updatable fields: skillsURI (via setSkillsURI), minStake (via setMinStake), metadataURI (via setMetadataURI, overrides tokenURI). Events: SkillsURIUpdated, MinStakeUpdated, MetadataURIUpdated. tokenURI 3-tier: per-token metadataURI → global baseURI → on-chain Base64 JSON. Lifecycle status managed by AWPRegistry, not SubnetNFT.
 - SubnetManager.sol = Default subnet contract (deployed behind ERC1967Proxy via AWPRegistry when subnetManager=address(0)). UUPS upgradeable + AccessControlUpgradeable + ReentrancyGuardUpgradeable + IERC1363Receiver. Three roles: MERKLE_ROLE (submit Merkle roots), STRATEGY_ROLE (AWP handling), TRANSFER_ROLE (token transfers). Merkle claim mints Alpha to users. AWP strategy: Reserve / AddLiquidity / BuybackBurn. onTransferReceived auto-executes strategy on AWP receipt via mintAndCall. DEX addresses injected at init time via dexConfig (not hardcoded).
-- LPManager = onlyAWPRegistry; compoundFees(alphaToken) reinvests accumulated LP fees (called by Keeper cron). StakeNFT = independent; AWPEmission = onlyTimelock (governance)
+- LPManager = onlyAWPRegistry; compoundFees(alphaToken) reinvests accumulated LP fees (called by Keeper cron). StakeNFT = independent; AWPEmission = onlyGuardian (governance)
 
 ## Tokens
 - AWP: 10B MAX_SUPPLY; initial mint configurable per chain (INITIAL_MINT constructor param, immutable); emission via AWPEmission. mintAndCall(to, amount, data) triggers ERC1363 callback on recipient.
@@ -40,13 +40,12 @@ docs/architecture.md — Read the relevant section before starting any task.
 - Allocations use plain uint128 mapping, no struct wrapper
 - AWPRegistry manages activeSubnetIds locally with MAX_ACTIVE_SUBNETS = 10000 constant; AWPEmission has maxRecipients = 10000
 
-> **AWP Emission: DRAFT — mechanism not finalized. Descriptions below are preliminary.**
-
 ## Emission
-- Epoch 0 is a warmup epoch: no recipient allocations (all emission goes to DAO). Oracle must submit for effectiveEpoch >= 1 before epoch 0 is settled; weights take effect starting epoch 1.
+- Guardian-only submission: cross-chain multisig submits weights directly via submitAllocations (no Oracle signatures, no Timelock dependency).
+- Epoch 0 is a warmup epoch: no recipient allocations, 0 AWP minted (emission budget unused). Guardian must submit for effectiveEpoch >= 1 before epoch 0 is settled; weights take effect starting epoch 1.
 - Exponential decay: currentEmission *= 996844 / 1000000
-- Per epoch: 50% mintAndCall to subnets (by governanceWeight), daoShare = total - subnet minted
-- Recipients omitted from submitAllocations have their share go to DAO. weight=0 entries are rejected to save gas. addr==address(0) entries are rejected by emergencySetWeight.
+- Per epoch: 100% mintAndCall to recipients (by weight). Guardian includes treasury address in recipients for DAO share.
+- Removed: oracle multi-sig, emissionSplitBps, emergencySetWeight, daoShare. weight=0 entries are rejected to save gas. addr==address(0) entries are rejected.
 
 ## AlphaTokenFactory
 - Uses CREATE2 full deployment (no Clones / EIP-1167 proxy). Each AlphaToken is a standalone contract with no delegatecall overhead.
@@ -87,7 +86,7 @@ AWPToken(constructor: name, symbol, deployer, initialMint) → AlphaTokenFactory
 - Same CREATE2 salts + unified initialMint (200M) → identical AWPToken addresses on all chains. LPManager/SubnetManager bytecode differs by DEX (Uniswap vs PancakeSwap) so BSC addresses differ for these two contracts
 - SubnetId: (block.chainid << 64) | localCounter — globally unique
 - Allocate is local: user allocates on their staking chain to any chain's subnet
-- Emission: per-chain AWPEmission, oracle coordinates quotas
+- Emission: per-chain AWPEmission, Guardian coordinates quotas
 - DAO: per-chain AWPDAO + Treasury, off-chain aggregated voting
 - AWPToken: per-chain independent mint (INITIAL_MINT configurable)
 
@@ -121,7 +120,7 @@ AWPToken(constructor: name, symbol, deployer, initialMint) → AlphaTokenFactory
 - deregisterSubnet: users must manually deallocate from deregistered subnets (deallocate has no status check); frontend should alert on SubnetDeregistered
 - subnetManager == address(0) auto-deploys SubnetManager proxy if defaultSubnetManagerImpl is set
 - setSubnetMinter permanently locked; ban uses minterPaused
-- AWPEmission weights submitted by oracle multi-sig; epoch-versioned packed allocations
+- AWPEmission weights submitted by Guardian multi-sig; epoch-versioned packed allocations
 - AWPRegistry.unbanSubnet checks MAX_ACTIVE_SUBNETS before re-adding
 - AWP: deployer is never a minter; renounceAdmin permanently locks
 - settleEpoch has nonReentrant
