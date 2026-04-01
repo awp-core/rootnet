@@ -19,6 +19,7 @@ import {SubnetManager} from "../src/subnets/SubnetManager.sol";
 /// @dev Run: forge script script/Predict.s.sol
 ///      Use this to verify vanity addresses before deployment.
 ///      No broadcast — pure read-only address computation.
+///      Constructor args MUST match Deploy.s.sol exactly.
 contract Predict is Script {
     address constant DETERMINISTIC_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
@@ -41,22 +42,23 @@ contract Predict is Script {
         address poolManager = vm.envAddress("POOL_MANAGER");
         address positionManager = vm.envAddress("POSITION_MANAGER");
         address permit2Addr = vm.envAddress("PERMIT2");
+        uint64 vanityRule = uint64(vm.envOr("VANITY_RULE", uint256(0)));
 
-        // AWPToken
+        // AWPToken (3-param constructor, no initialMint — matches Deploy.s.sol)
         address awp = _predict(
             _readSalt("SALT_AWP_TOKEN"),
             abi.encodePacked(type(AWPToken).creationCode, abi.encode("AWP Token", "AWP", deployer))
         );
         console.log("AWPToken:          ", awp);
 
-        // AlphaTokenFactory
+        // AlphaTokenFactory (read VANITY_RULE from env)
         address factory = _predict(
             _readSalt("SALT_ALPHA_FACTORY"),
-            abi.encodePacked(type(AlphaTokenFactory).creationCode, abi.encode(deployer, uint64(0x1001FFFF12101514)))
+            abi.encodePacked(type(AlphaTokenFactory).creationCode, abi.encode(deployer, vanityRule))
         );
         console.log("AlphaTokenFactory: ", factory);
 
-        // Treasury
+        // Treasury (matches Deploy.s.sol params)
         address treasury;
         {
             address[] memory proposers = new address[](0);
@@ -69,12 +71,23 @@ contract Predict is Script {
         }
         console.log("Treasury:          ", treasury);
 
-        // AWPRegistry
-        address awpRegistry = _predict(
-            _readSalt("SALT_AWP_REGISTRY"),
-            abi.encodePacked(type(AWPRegistry).creationCode, abi.encode(deployer, treasury, guardian))
+        // AWPRegistry impl (no args — matches Deploy.s.sol)
+        address awpRegistryImpl = _predict(
+            _readSalt("SALT_AWP_REGISTRY_IMPL"),
+            abi.encodePacked(type(AWPRegistry).creationCode)
         );
-        console.log("AWPRegistry:           ", awpRegistry);
+        console.log("AWPRegistry impl:  ", awpRegistryImpl);
+
+        // AWPRegistry proxy (ERC1967Proxy with initialize data)
+        address awpRegistry;
+        {
+            bytes memory registryInitData = abi.encodeCall(AWPRegistry.initialize, (deployer, treasury, guardian));
+            awpRegistry = _predict(
+                _readSalt("SALT_AWP_REGISTRY"),
+                abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(awpRegistryImpl, registryInitData))
+            );
+        }
+        console.log("AWPRegistry proxy: ", awpRegistry);
 
         // SubnetNFT
         address subnetNFT = _predict(
@@ -90,26 +103,39 @@ contract Predict is Script {
         );
         console.log("LPManager:         ", lpMgr);
 
-        // AWPEmission
+        // AWPEmission impl (no args)
         address emissionImpl = _predict(
             _readSalt("SALT_EMISSION_IMPL"),
             abi.encodePacked(type(AWPEmission).creationCode)
         );
         console.log("AWPEmission impl:  ", emissionImpl);
 
-        bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, deployer, INITIAL_DAILY_EMISSION, uint256(0), EPOCH_DURATION));
+        // AWPEmission proxy (with guardian and GENESIS_TIME — matches Deploy.s.sol)
+        uint256 genesisTime = vm.envUint("GENESIS_TIME");
+        bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, guardian, INITIAL_DAILY_EMISSION, genesisTime, EPOCH_DURATION));
         address emissionProxy = _predict(
             _readSalt("SALT_EMISSION_PROXY"),
             abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(emissionImpl, initData))
         );
         console.log("AWPEmission proxy: ", emissionProxy);
 
-        // StakingVault
-        address vault = _predict(
-            _readSalt("SALT_STAKING_VAULT"),
-            abi.encodePacked(type(StakingVault).creationCode, abi.encode(awpRegistry))
+        // StakingVault impl (no args)
+        address vaultImpl = _predict(
+            _readSalt("SALT_STAKING_VAULT_IMPL"),
+            abi.encodePacked(type(StakingVault).creationCode)
         );
-        console.log("StakingVault:      ", vault);
+        console.log("StakingVault impl: ", vaultImpl);
+
+        // StakingVault proxy (with awpRegistry and treasury — matches Deploy.s.sol)
+        address vault;
+        {
+            bytes memory vaultInitData = abi.encodeCall(StakingVault.initialize, (awpRegistry, treasury));
+            vault = _predict(
+                _readSalt("SALT_STAKING_VAULT"),
+                abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(vaultImpl, vaultInitData))
+            );
+        }
+        console.log("StakingVault proxy:", vault);
 
         // StakeNFT
         address stakeNft = _predict(
@@ -125,7 +151,7 @@ contract Predict is Script {
         );
         console.log("SubnetManager impl:", subnetMgrImpl);
 
-        // AWPDAO
+        // AWPDAO (matches Deploy.s.sol params)
         address dao = _predict(
             _readSalt("SALT_DAO"),
             abi.encodePacked(type(AWPDAO).creationCode, abi.encode(

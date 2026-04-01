@@ -11,6 +11,13 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CHAINS_FILE="$PROJECT_DIR/chains.yaml"
 
+# GENESIS_TIME must be set for deterministic AWPEmission proxy address
+if [ -z "${GENESIS_TIME:-}" ]; then
+    echo "ERROR: GENESIS_TIME must be set (Unix timestamp for emission epoch start)"
+    exit 1
+fi
+export GENESIS_TIME
+
 if [[ ! -f "$CHAINS_FILE" ]]; then
     echo "ERROR: $CHAINS_FILE not found"
     exit 1
@@ -77,6 +84,12 @@ print(json.dumps(c))
     # Run standard deploy script with --skip-mine (reuses shared salt.json)
     cd "$PROJECT_DIR"
     ./scripts/deploy.sh --skip-mine
+
+    cp "$PROJECT_DIR/api/.env" "$PROJECT_DIR/api/.env.${chain_name}" 2>/dev/null || true
+
+    if [ "$dex" = "pancakeswap_v4" ]; then
+        echo "NOTE: LPManager and SubnetManager addresses differ on this chain (different DEX bytecode)"
+    fi
 
     echo ""
     echo "✓ Deployment to $chain_name complete"

@@ -16,6 +16,7 @@ import {Treasury} from "../src/governance/Treasury.sol";
 /// @title TestDeploy — Simplified deployment (used for E2E tests)
 contract TestDeploy is Script {
     function run() external {
+        // NOTE: Minimal deployment for testing. AWPDAO, SubnetManager impl, and defaultSubnetManagerImpl are omitted.
         address deployer = msg.sender;
         vm.startBroadcast();
 
