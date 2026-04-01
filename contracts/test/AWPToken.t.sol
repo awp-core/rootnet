@@ -69,8 +69,10 @@ contract AWPTokenTest is Test {
         bob = makeAddr("bob");
         minter = makeAddr("minter");
 
-        vm.prank(deployer);
-        token = new AWPToken("AWP Token", "AWP", deployer, 200_000_000 * 1e18);
+        vm.startPrank(deployer);
+        token = new AWPToken("AWP Token", "AWP", deployer);
+        token.initialMint(200_000_000 * 1e18);
+        vm.stopPrank();
     }
 
     // ── Constructor tests ──

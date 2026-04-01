@@ -40,7 +40,8 @@ contract AWPRegistryTest is Test {
         vm.startPrank(deployer);
 
         // Deploy tokens
-        awp = new AWPToken("AWP Token", "AWP", deployer, 200_000_000 * 1e18);
+        awp = new AWPToken("AWP Token", "AWP", deployer);
+        awp.initialMint(200_000_000 * 1e18);
 
         // Deploy Treasury
         address[] memory proposers = new address[](0);

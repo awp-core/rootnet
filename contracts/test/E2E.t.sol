@@ -61,7 +61,8 @@ contract E2ETest is Test {
 
     function _deploy() internal {
         vm.startPrank(deployer);
-        awp = new AWPToken("AWP Token", "AWP", deployer, 200_000_000 * 1e18);
+        awp = new AWPToken("AWP Token", "AWP", deployer);
+        awp.initialMint(200_000_000 * 1e18);
         factory = new AlphaTokenFactory(deployer, 0);
 
         address[] memory p = new address[](0);
@@ -445,7 +446,7 @@ contract E2ETest is Test {
         _settleEpoch();
         _settleEpoch();
         uint256 afterEpoch1 = awp.totalSupply();
-        assertTrue(afterEpoch1 > awp.INITIAL_MINT());
+        assertTrue(afterEpoch1 > 200_000_000 * 1e18);
 
         uint256 remaining = awp.MAX_SUPPLY() - awp.totalSupply();
         assertTrue(remaining > 0);

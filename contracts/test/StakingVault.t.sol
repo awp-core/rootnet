@@ -39,7 +39,8 @@ contract StakingVaultTest is Test {
         genesisTime = block.timestamp;
 
         // Deploy AWPToken (deployer gets INITIAL_MINT)
-        awp = new AWPToken("AWP", "AWP", deployer, 200_000_000 * 1e18);
+        awp = new AWPToken("AWP", "AWP", deployer);
+        awp.initialMint(200_000_000 * 1e18);
 
         // Deploy StakingVault + StakeNFT (circular dependency)
         // This test contract (address(this)) acts as awpRegistry

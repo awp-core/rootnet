@@ -26,7 +26,8 @@ contract AWPEmissionTest is Test {
         vm.startPrank(deployer);
 
         // Deploy AWPToken (constructor mints 200M to deployer)
-        awpToken = new AWPToken("AWP", "AWP", deployer, 200_000_000 * 1e18);
+        awpToken = new AWPToken("AWP", "AWP", deployer);
+        awpToken.initialMint(200_000_000 * 1e18);
 
         // Deploy AWPEmission (UUPS proxy pattern)
         // treasury == guardian in tests

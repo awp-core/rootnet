@@ -53,7 +53,8 @@ contract IntegrationTest is Test {
         vm.startPrank(deployer);
 
         // Step 1: AWPToken
-        awp = new AWPToken("AWP Token", "AWP", deployer, 200_000_000 * 1e18);
+        awp = new AWPToken("AWP Token", "AWP", deployer);
+        awp.initialMint(200_000_000 * 1e18);
 
         // Step 2: AlphaTokenFactory
         factory = new AlphaTokenFactory(deployer, 0);

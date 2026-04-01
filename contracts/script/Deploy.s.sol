@@ -75,12 +75,13 @@ contract Deploy is Script {
 
         vm.startBroadcast(deployerPrivateKey);
 
-        // Step 1: AWPToken
-        uint256 initialMint = vm.envOr("INITIAL_MINT", uint256(200_000_000)) * 1e18;
+        // Step 1: AWPToken (constructor has no initialMint — keeps CREATE2 address identical across chains)
         AWPToken awp = AWPToken(_create2(
             saltAWPToken,
-            abi.encodePacked(type(AWPToken).creationCode, abi.encode("AWP Token", "AWP", deployer, initialMint))
+            abi.encodePacked(type(AWPToken).creationCode, abi.encode("AWP Token", "AWP", deployer))
         ));
+        uint256 initialMintAmount = vm.envOr("INITIAL_MINT", uint256(200_000_000)) * 1e18;
+        awp.initialMint(initialMintAmount);
         console.log("AWPToken:", address(awp));
 
         // Step 2: AlphaTokenFactory
@@ -263,7 +264,7 @@ contract Deploy is Script {
         require(awp.admin() == address(0), "Admin should be renounced");
         require(awp.minters(address(emission)), "Emission should be minter");
         require(awpRegistry.registryInitialized(), "Registry should be initialized");
-        require(awp.balanceOf(deployer) == initialMint - treasuryAmount - liquidityAmount - airdropAmount, "Deployer balance mismatch after distribution");
+        require(awp.balanceOf(deployer) == initialMintAmount - treasuryAmount - liquidityAmount - airdropAmount, "Deployer balance mismatch after distribution");
 
         console.log("=== Deployment Complete ===");
     }

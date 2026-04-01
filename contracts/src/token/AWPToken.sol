@@ -17,14 +17,14 @@ contract AWPToken is ERC20, ERC20Permit, ERC20Burnable {
     /// @notice AWP maximum supply: 10 billion tokens (18 decimals)
     uint256 public constant MAX_SUPPLY = 10_000_000_000 * 1e18;
 
-    /// @notice Constructor pre-mint amount transferred to the deployer for distribution
-    uint256 public immutable INITIAL_MINT;
-
     /// @notice Minter whitelist; only authorized addresses may call mint()
     mapping(address => bool) public minters;
 
     /// @notice Admin address; set to address(0) after renounceAdmin(), permanently locked
     address public admin;
+
+    /// @notice Whether initialMint has been called (one-time only)
+    bool public initialMinted;
 
     /// @dev Caller is not the admin
     error NotAdmin();
@@ -34,23 +34,31 @@ contract AWPToken is ERC20, ERC20Permit, ERC20Burnable {
     error ExceedsMaxSupply();
     /// @dev ERC1363 callback returned an incorrect value
     error InvalidCallback();
+    /// @dev initialMint already called
+    error AlreadyMinted();
 
     /// @notice Deploy the AWP token
-    /// @param name_        Token name (e.g. "AWP Token")
-    /// @param symbol_      Token symbol (e.g. "AWP")
-    /// @param deployer_    Deployer address — receives admin rights and the initial pre-mint
-    /// @param initialMint_ Amount to pre-mint to deployer (0 = no pre-mint)
-    /// @dev deployer_ is **not** a minter; AWPEmission must be explicitly authorized via addMinter
-    constructor(string memory name_, string memory symbol_, address deployer_, uint256 initialMint_)
+    /// @param name_     Token name (e.g. "AWP Token")
+    /// @param symbol_   Token symbol (e.g. "AWP")
+    /// @param deployer_ Deployer address — receives admin rights
+    /// @dev initialMint is NOT in constructor — keeps CREATE2 bytecode identical across chains.
+    ///      Call initialMint() after deployment to pre-mint tokens.
+    constructor(string memory name_, string memory symbol_, address deployer_)
         ERC20(name_, symbol_)
         ERC20Permit(name_)
     {
-        // Set deployer as admin
         admin = deployer_;
-        INITIAL_MINT = initialMint_;
-        // Pre-mint to deployer for subsequent distribution (skip if zero for emission-only chains)
-        if (initialMint_ > 0) {
-            _mint(deployer_, initialMint_);
+    }
+
+    /// @notice One-time pre-mint to admin for distribution (admin only, callable once)
+    /// @param amount Amount to mint (0 = no-op)
+    function initialMint(uint256 amount) external {
+        if (msg.sender != admin) revert NotAdmin();
+        if (initialMinted) revert AlreadyMinted();
+        initialMinted = true;
+        if (amount > 0) {
+            if (amount > MAX_SUPPLY) revert ExceedsMaxSupply();
+            _mint(admin, amount);
         }
     }
 
