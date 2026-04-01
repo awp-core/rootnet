@@ -74,17 +74,75 @@ type redisEvent struct {
 	Data        interface{} `json:"data"`
 }
 
-// Run starts the indexer main loop: read sync progress → filter logs → process events → update progress → publish Redis
+// Run starts the indexer main loop. Tries eth_subscribe (WebSocket) for real-time block
+// notifications; falls back to 3s polling if subscription is unavailable or disconnects.
 func (idx *Indexer) Run(ctx context.Context) error {
 	slog.Info("indexer started")
-	ticker := time.NewTicker(pollInterval)
-	defer ticker.Stop()
+
+	for {
+		// Try subscription-based mode first
+		err := idx.runSubscription(ctx)
+		if err == nil || ctx.Err() != nil {
+			return ctx.Err()
+		}
+		slog.Warn("subscription mode unavailable, falling back to polling", "error", err)
+
+		// Fallback: polling mode until context cancelled or subscription retried
+		if err := idx.runPolling(ctx); err != nil {
+			return err
+		}
+	}
+}
+
+// runSubscription uses eth_subscribe("newHeads") for real-time block notifications.
+// Returns error if subscription cannot be established (caller falls back to polling).
+func (idx *Indexer) runSubscription(ctx context.Context) error {
+	headers := make(chan *types.Header, 16)
+	sub, err := idx.chain.Eth.SubscribeNewHead(ctx, headers)
+	if err != nil {
+		return fmt.Errorf("subscribe new heads: %w", err)
+	}
+	defer sub.Unsubscribe()
+	slog.Info("indexer using eth_subscribe mode (real-time)")
+
+	// 初始 catch-up：处理订阅建立前遗漏的区块
+	if err := idx.poll(ctx); err != nil {
+		slog.Error("initial catch-up poll failed", "error", err)
+	}
 
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Info("indexer received stop signal")
+			return nil
+		case err := <-sub.Err():
+			slog.Warn("subscription disconnected", "error", err)
+			return fmt.Errorf("subscription error: %w", err) // caller will retry or fallback
+		case header := <-headers:
+			slog.Debug("new block via subscription", "block", header.Number.Uint64())
+			if err := idx.poll(ctx); err != nil {
+				slog.Error("poll failed (subscription mode)", "error", err)
+			}
+		}
+	}
+}
+
+// runPolling uses a 3-second ticker as fallback when subscription is unavailable.
+// Runs for 60 seconds then returns to let the caller retry subscription.
+func (idx *Indexer) runPolling(ctx context.Context) error {
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	// 60 秒后重试订阅模式
+	retryTimer := time.NewTimer(60 * time.Second)
+	defer retryTimer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
 			return ctx.Err()
+		case <-retryTimer.C:
+			slog.Info("polling timeout, retrying subscription mode")
+			return nil // return to Run() loop to retry subscription
 		case <-ticker.C:
 			if err := idx.poll(ctx); err != nil {
 				slog.Error("poll failed", "error", err)
