@@ -215,226 +215,226 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 	return map[string]methodEntry{
 		// ── registry ──
 		"registry.get": {fn: h.rpcRegistryGet, info: methodInfo{
-			Name: "registry.get", Description: "获取所有合约地址和 EIP-712 域信息", Params: []paramInfo{},
+			Name: "registry.get", Description: "Get all contract addresses and EIP-712 domain info", Params: []paramInfo{},
 		}},
 
 		// ── health ──
 		"health.check": {fn: h.rpcHealthCheck, info: methodInfo{
-			Name: "health.check", Description: "健康检查", Params: []paramInfo{},
+			Name: "health.check", Description: "Health check", Params: []paramInfo{},
 		}},
 		"health.detailed": {fn: h.rpcHealthDetailed, info: methodInfo{
-			Name: "health.detailed", Description: "详细健康状态（含各链 indexer/keeper 状态）", Params: []paramInfo{},
+			Name: "health.detailed", Description: "Detailed health status (per-chain indexer/keeper)", Params: []paramInfo{},
 		}},
 
 		// ── chains ──
 		"chains.list": {fn: h.rpcChainsList, info: methodInfo{
-			Name: "chains.list", Description: "获取支持的链列表", Params: []paramInfo{},
+			Name: "chains.list", Description: "List supported chains", Params: []paramInfo{},
 		}},
 
 		// ── users ──
 		"users.list": {fn: h.rpcUsersList, info: methodInfo{
-			Name: "users.list", Description: "分页获取用户列表",
+			Name: "users.list", Description: "List users (paginated)",
 			Params: []paramInfo{
-				{Name: "page", Type: "integer", Required: false, Description: "页码（默认 1）"},
-				{Name: "limit", Type: "integer", Required: false, Description: "每页数量（默认 20，最大 100）"},
+				{Name: "page", Type: "integer", Required: false, Description: "Page number (default 1)"},
+				{Name: "limit", Type: "integer", Required: false, Description: "Items per page (default 20, max 100)"},
 			},
 		}},
 		"users.count": {fn: h.rpcUsersCount, info: methodInfo{
-			Name: "users.count", Description: "获取用户总数", Params: []paramInfo{},
+			Name: "users.count", Description: "Get total user count", Params: []paramInfo{},
 		}},
 		"users.get": {fn: h.rpcUsersGet, info: methodInfo{
-			Name: "users.get", Description: "获取用户详情（含余额和绑定的 agent）",
+			Name: "users.get", Description: "Get user details (balance + bound agents)",
 			Params: []paramInfo{
-				{Name: "address", Type: "string", Required: true, Description: "用户地址 (0x...)"},
+				{Name: "address", Type: "string", Required: true, Description: "User address (0x...)"},
 			},
 		}},
 
 		// ── address ──
 		"address.check": {fn: h.rpcAddressCheck, info: methodInfo{
-			Name: "address.check", Description: "检查地址注册状态、绑定和收款地址",
+			Name: "address.check", Description: "Check address registration, binding, and recipient",
 			Params: []paramInfo{
-				{Name: "address", Type: "string", Required: true, Description: "地址 (0x...)"},
+				{Name: "address", Type: "string", Required: true, Description: "Address (0x...)"},
 			},
 		}},
 
 		// ── nonce ──
 		"nonce.get": {fn: h.rpcNonceGet, info: methodInfo{
-			Name: "nonce.get", Description: "获取 AWPRegistry EIP-712 nonce",
+			Name: "nonce.get", Description: "Get AWPRegistry EIP-712 nonce",
 			Params: []paramInfo{
-				{Name: "address", Type: "string", Required: true, Description: "地址 (0x...)"},
+				{Name: "address", Type: "string", Required: true, Description: "Address (0x...)"},
 			},
 		}},
 		"nonce.getStaking": {fn: h.rpcNonceGetStaking, info: methodInfo{
-			Name: "nonce.getStaking", Description: "获取 StakingVault EIP-712 nonce",
+			Name: "nonce.getStaking", Description: "Get StakingVault EIP-712 nonce",
 			Params: []paramInfo{
-				{Name: "address", Type: "string", Required: true, Description: "地址 (0x...)"},
+				{Name: "address", Type: "string", Required: true, Description: "Address (0x...)"},
 			},
 		}},
 
 		// ── agents ──
 		"agents.getByOwner": {fn: h.rpcAgentsGetByOwner, info: methodInfo{
-			Name: "agents.getByOwner", Description: "获取绑定到指定 owner 的所有 agent",
+			Name: "agents.getByOwner", Description: "Get all agents bound to an owner",
 			Params: []paramInfo{
-				{Name: "owner", Type: "string", Required: true, Description: "owner 地址 (0x...)"},
+				{Name: "owner", Type: "string", Required: true, Description: "Owner address (0x...)"},
 			},
 		}},
 		"agents.getDetail": {fn: h.rpcAgentsGetDetail, info: methodInfo{
-			Name: "agents.getDetail", Description: "获取 agent 详情",
+			Name: "agents.getDetail", Description: "Get agent details",
 			Params: []paramInfo{
-				{Name: "agent", Type: "string", Required: true, Description: "agent 地址 (0x...)"},
+				{Name: "agent", Type: "string", Required: true, Description: "Agent address (0x...)"},
 			},
 		}},
 		"agents.lookup": {fn: h.rpcAgentsLookup, info: methodInfo{
-			Name: "agents.lookup", Description: "查找 agent 的 owner",
+			Name: "agents.lookup", Description: "Look up agent owner",
 			Params: []paramInfo{
-				{Name: "agent", Type: "string", Required: true, Description: "agent 地址 (0x...)"},
+				{Name: "agent", Type: "string", Required: true, Description: "Agent address (0x...)"},
 			},
 		}},
 		"agents.batchInfo": {fn: h.rpcAgentsBatchInfo, info: methodInfo{
-			Name: "agents.batchInfo", Description: "批量查询 agent 信息及在指定子网的质押量",
+			Name: "agents.batchInfo", Description: "Batch query agent info and stake in a subnet",
 			Params: []paramInfo{
-				{Name: "agents", Type: "array<string>", Required: true, Description: "agent 地址列表（最多 100 个）"},
-				{Name: "subnetId", Type: "string", Required: true, Description: "子网 ID"},
+				{Name: "agents", Type: "array<string>", Required: true, Description: "Agent address list (max 100)"},
+				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
 			},
 		}},
 
 		// ── staking ──
 		"staking.getBalance": {fn: h.rpcStakingGetBalance, info: methodInfo{
-			Name: "staking.getBalance", Description: "获取用户 AWP 质押余额（总质押/已分配/可用）",
+			Name: "staking.getBalance", Description: "Get user AWP staking balance (staked/allocated/available)",
 			Params: []paramInfo{
-				{Name: "address", Type: "string", Required: true, Description: "用户地址 (0x...)"},
+				{Name: "address", Type: "string", Required: true, Description: "User address (0x...)"},
 			},
 		}},
 		"staking.getPositions": {fn: h.rpcStakingGetPositions, info: methodInfo{
-			Name: "staking.getPositions", Description: "获取用户的 StakeNFT 持仓列表",
+			Name: "staking.getPositions", Description: "Get user StakeNFT positions",
 			Params: []paramInfo{
-				{Name: "address", Type: "string", Required: true, Description: "用户地址 (0x...)"},
+				{Name: "address", Type: "string", Required: true, Description: "User address (0x...)"},
 			},
 		}},
 		"staking.getAllocations": {fn: h.rpcStakingGetAllocations, info: methodInfo{
-			Name: "staking.getAllocations", Description: "获取用户的质押分配列表（分页）",
+			Name: "staking.getAllocations", Description: "Get user stake allocations (paginated)",
 			Params: []paramInfo{
-				{Name: "address", Type: "string", Required: true, Description: "用户地址 (0x...)"},
-				{Name: "page", Type: "integer", Required: false, Description: "页码（默认 1）"},
-				{Name: "limit", Type: "integer", Required: false, Description: "每页数量（默认 20，最大 100）"},
+				{Name: "address", Type: "string", Required: true, Description: "User address (0x...)"},
+				{Name: "page", Type: "integer", Required: false, Description: "Page number (default 1)"},
+				{Name: "limit", Type: "integer", Required: false, Description: "Items per page (default 20, max 100)"},
 			},
 		}},
 		"staking.getFrozen": {fn: h.rpcStakingGetFrozen, info: methodInfo{
-			Name: "staking.getFrozen", Description: "获取用户冻结的质押分配",
+			Name: "staking.getFrozen", Description: "Get user frozen allocations",
 			Params: []paramInfo{
-				{Name: "address", Type: "string", Required: true, Description: "用户地址 (0x...)"},
+				{Name: "address", Type: "string", Required: true, Description: "User address (0x...)"},
 			},
 		}},
 		"staking.getPending": {fn: h.rpcStakingGetPending, info: methodInfo{
-			Name: "staking.getPending", Description: "获取待处理的分配变更（当前总是空数组）",
+			Name: "staking.getPending", Description: "Get pending allocation changes (always empty)",
 			Params: []paramInfo{},
 		}},
 		"staking.getAgentSubnetStake": {fn: h.rpcStakingGetAgentSubnetStake, info: methodInfo{
-			Name: "staking.getAgentSubnetStake", Description: "获取 agent 在某子网的质押量",
+			Name: "staking.getAgentSubnetStake", Description: "Get agent stake in a subnet",
 			Params: []paramInfo{
-				{Name: "agent", Type: "string", Required: true, Description: "agent 地址 (0x...)"},
-				{Name: "subnetId", Type: "string", Required: true, Description: "子网 ID"},
+				{Name: "agent", Type: "string", Required: true, Description: "Agent address (0x...)"},
+				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
 			},
 		}},
 		"staking.getAgentSubnets": {fn: h.rpcStakingGetAgentSubnets, info: methodInfo{
-			Name: "staking.getAgentSubnets", Description: "获取 agent 参与的所有子网及质押量",
+			Name: "staking.getAgentSubnets", Description: "Get all subnets an agent participates in",
 			Params: []paramInfo{
-				{Name: "agent", Type: "string", Required: true, Description: "agent 地址 (0x...)"},
+				{Name: "agent", Type: "string", Required: true, Description: "Agent address (0x...)"},
 			},
 		}},
 		"staking.getSubnetTotalStake": {fn: h.rpcStakingGetSubnetTotalStake, info: methodInfo{
-			Name: "staking.getSubnetTotalStake", Description: "获取子网总质押量",
+			Name: "staking.getSubnetTotalStake", Description: "Get subnet total stake",
 			Params: []paramInfo{
-				{Name: "subnetId", Type: "string", Required: true, Description: "子网 ID"},
+				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
 			},
 		}},
 
 		// ── subnets ──
 		"subnets.list": {fn: h.rpcSubnetsList, info: methodInfo{
-			Name: "subnets.list", Description: "分页获取子网列表（可按状态筛选）",
+			Name: "subnets.list", Description: "List subnets (paginated, optional status filter)",
 			Params: []paramInfo{
-				{Name: "status", Type: "string", Required: false, Description: "状态筛选: Pending/Active/Paused/Banned"},
-				{Name: "page", Type: "integer", Required: false, Description: "页码（默认 1）"},
-				{Name: "limit", Type: "integer", Required: false, Description: "每页数量（默认 20，最大 100）"},
+				{Name: "status", Type: "string", Required: false, Description: "Status filter: Pending/Active/Paused/Banned"},
+				{Name: "page", Type: "integer", Required: false, Description: "Page number (default 1)"},
+				{Name: "limit", Type: "integer", Required: false, Description: "Items per page (default 20, max 100)"},
 			},
 		}},
 		"subnets.get": {fn: h.rpcSubnetsGet, info: methodInfo{
-			Name: "subnets.get", Description: "获取子网详情",
+			Name: "subnets.get", Description: "Get subnet details",
 			Params: []paramInfo{
-				{Name: "subnetId", Type: "string", Required: true, Description: "子网 ID"},
+				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
 			},
 		}},
 		"subnets.getSkills": {fn: h.rpcSubnetsGetSkills, info: methodInfo{
-			Name: "subnets.getSkills", Description: "获取子网 skills URI",
+			Name: "subnets.getSkills", Description: "Get subnet skills URI",
 			Params: []paramInfo{
-				{Name: "subnetId", Type: "string", Required: true, Description: "子网 ID"},
+				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
 			},
 		}},
 		"subnets.getEarnings": {fn: h.rpcSubnetsGetEarnings, info: methodInfo{
-			Name: "subnets.getEarnings", Description: "获取子网 AWP 收益历史（分页）",
+			Name: "subnets.getEarnings", Description: "Get subnet AWP earnings history (paginated)",
 			Params: []paramInfo{
-				{Name: "subnetId", Type: "string", Required: true, Description: "子网 ID"},
-				{Name: "page", Type: "integer", Required: false, Description: "页码（默认 1）"},
-				{Name: "limit", Type: "integer", Required: false, Description: "每页数量（默认 20，最大 100）"},
+				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
+				{Name: "page", Type: "integer", Required: false, Description: "Page number (default 1)"},
+				{Name: "limit", Type: "integer", Required: false, Description: "Items per page (default 20, max 100)"},
 			},
 		}},
 		"subnets.getAgentInfo": {fn: h.rpcSubnetsGetAgentInfo, info: methodInfo{
-			Name: "subnets.getAgentInfo", Description: "获取 agent 在子网的质押信息",
+			Name: "subnets.getAgentInfo", Description: "Get agent staking info in a subnet",
 			Params: []paramInfo{
-				{Name: "subnetId", Type: "string", Required: true, Description: "子网 ID"},
-				{Name: "agent", Type: "string", Required: true, Description: "agent 地址 (0x...)"},
+				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
+				{Name: "agent", Type: "string", Required: true, Description: "Agent address (0x...)"},
 			},
 		}},
 
 		// ── emission ──
 		"emission.getCurrent": {fn: h.rpcEmissionGetCurrent, info: methodInfo{
-			Name: "emission.getCurrent", Description: "获取当前排放数据", Params: []paramInfo{},
+			Name: "emission.getCurrent", Description: "Get current emission data", Params: []paramInfo{},
 		}},
 		"emission.getSchedule": {fn: h.rpcEmissionGetSchedule, info: methodInfo{
-			Name: "emission.getSchedule", Description: "获取排放预测（30/90/365 天）", Params: []paramInfo{},
+			Name: "emission.getSchedule", Description: "Get emission projections (30/90/365 days)", Params: []paramInfo{},
 		}},
 		"emission.listEpochs": {fn: h.rpcEmissionListEpochs, info: methodInfo{
-			Name: "emission.listEpochs", Description: "分页获取 epoch 列表",
+			Name: "emission.listEpochs", Description: "List epochs (paginated)",
 			Params: []paramInfo{
-				{Name: "page", Type: "integer", Required: false, Description: "页码（默认 1）"},
-				{Name: "limit", Type: "integer", Required: false, Description: "每页数量（默认 20，最大 100）"},
+				{Name: "page", Type: "integer", Required: false, Description: "Page number (default 1)"},
+				{Name: "limit", Type: "integer", Required: false, Description: "Items per page (default 20, max 100)"},
 			},
 		}},
 
 		// ── tokens ──
 		"tokens.getAWP": {fn: h.rpcTokensGetAWP, info: methodInfo{
-			Name: "tokens.getAWP", Description: "获取 AWP 代币信息", Params: []paramInfo{},
+			Name: "tokens.getAWP", Description: "Get AWP token info", Params: []paramInfo{},
 		}},
 		"tokens.getAlphaInfo": {fn: h.rpcTokensGetAlphaInfo, info: methodInfo{
-			Name: "tokens.getAlphaInfo", Description: "获取子网 Alpha 代币信息",
+			Name: "tokens.getAlphaInfo", Description: "Get subnet Alpha token info",
 			Params: []paramInfo{
-				{Name: "subnetId", Type: "string", Required: true, Description: "子网 ID"},
+				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
 			},
 		}},
 		"tokens.getAlphaPrice": {fn: h.rpcTokensGetAlphaPrice, info: methodInfo{
-			Name: "tokens.getAlphaPrice", Description: "获取子网 Alpha 代币价格",
+			Name: "tokens.getAlphaPrice", Description: "Get subnet Alpha token price",
 			Params: []paramInfo{
-				{Name: "subnetId", Type: "string", Required: true, Description: "子网 ID"},
+				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
 			},
 		}},
 
 		// ── governance ──
 		"governance.listProposals": {fn: h.rpcGovernanceListProposals, info: methodInfo{
-			Name: "governance.listProposals", Description: "分页获取治理提案（可按状态筛选）",
+			Name: "governance.listProposals", Description: "List governance proposals (paginated, optional status filter)",
 			Params: []paramInfo{
-				{Name: "status", Type: "string", Required: false, Description: "状态筛选: Active/Canceled/Defeated/Succeeded/Queued/Expired/Executed"},
-				{Name: "page", Type: "integer", Required: false, Description: "页码（默认 1）"},
-				{Name: "limit", Type: "integer", Required: false, Description: "每页数量（默认 20，最大 100）"},
+				{Name: "status", Type: "string", Required: false, Description: "Status filter: Active/Canceled/Defeated/Succeeded/Queued/Expired/Executed"},
+				{Name: "page", Type: "integer", Required: false, Description: "Page number (default 1)"},
+				{Name: "limit", Type: "integer", Required: false, Description: "Items per page (default 20, max 100)"},
 			},
 		}},
 		"governance.getProposal": {fn: h.rpcGovernanceGetProposal, info: methodInfo{
-			Name: "governance.getProposal", Description: "获取单个治理提案详情",
+			Name: "governance.getProposal", Description: "Get governance proposal details",
 			Params: []paramInfo{
-				{Name: "proposalId", Type: "string", Required: true, Description: "提案 ID"},
+				{Name: "proposalId", Type: "string", Required: true, Description: "Proposal ID"},
 			},
 		}},
 		"governance.getTreasury": {fn: h.rpcGovernanceTreasury, info: methodInfo{
-			Name: "governance.getTreasury", Description: "获取 Treasury 合约地址", Params: []paramInfo{},
+			Name: "governance.getTreasury", Description: "Get Treasury contract address", Params: []paramInfo{},
 		}},
 	}
 }
