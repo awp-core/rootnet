@@ -25,9 +25,9 @@ docs/architecture.md — Read the relevant section before starting any task.
 - StakingVault.sol = UUPS proxy with EIP-712 gasless support. `allocate(staker, agent, subnetId, amount)` — caller must be staker or delegate (reads AWPRegistry.delegates). `deallocate`, `reallocate` same auth. Gasless: `allocateFor`, `deallocateFor`. EIP-712 domain name "StakingVault". Cross-chain allocate: subnetId from any chain, no on-chain status check. subnetId=0 rejected. Auto-enumerates agent subnets via EnumerableSet.
 - AWPEmission.sol = UUPS upgradeable proxy: generic address→weight distribution engine. Epoch authority: genesisTime + epochDuration (1 day). currentEpoch() = (block.timestamp - genesisTime) / epochDuration. Oracle multi-sig submits epoch-versioned packed allocations (submitAllocations(address[] recipients, uint96[] weights, bytes[] signatures, uint256 effectiveEpoch)). settleEpoch(limit) batch-mints AWP via mintAndCall (triggers SubnetManager.onTransferReceived). settledEpoch tracks settlement progress. emergencySetWeight(epoch, index, addr, weight) for Timelock override. onlyTimelock manages oracle config.
 - AWPDAO.sol = Inherits OZ Governor, GovernorSettings, GovernorTimelockControl. Overrides _getVotes and _countVote for StakeNFT-based voting (no delegate/checkpoint). No awpRegistry dependency. Voters submit tokenId[] arrays. Voting power = amount * sqrt(min(remainingTime, 54 weeks) / 7 days). Anti-manipulation: only NFTs with createdAt < proposalCreatedAt (strict: >= blocks same-block mint+vote). Per-tokenId double-vote prevention. totalVotingPower > 0 required for proposal creation. Two proposal types: proposeWithTokens (executable via Timelock) and signalPropose (vote-only). propose() is blocked.
-- SubnetNFT.sol = ERC721 with on-chain identity storage. tokenId = subnetId. Stores immutable fields: name, subnetManager, alphaToken. Stores owner-updatable fields: skillsURI (via setSkillsURI), minStake (via setMinStake). Events: SkillsURIUpdated, MinStakeUpdated. Lifecycle status managed by AWPRegistry, not SubnetNFT.
-- SubnetManager.sol = Default subnet contract (deployed behind ERC1967Proxy via AWPRegistry when subnetManager=address(0)). Initializable + AccessControlUpgradeable + ReentrancyGuardUpgradeable + IERC1363Receiver. Three roles: MERKLE_ROLE (submit Merkle roots), STRATEGY_ROLE (AWP handling), TRANSFER_ROLE (token transfers). Merkle claim mints Alpha to users. AWP strategy: Reserve / AddLiquidity / BuybackBurn. onTransferReceived auto-executes strategy on AWP receipt via mintAndCall. PancakeSwap V4 BSC mainnet addresses hardcoded.
-- LPManager = onlyAWPRegistry; StakeNFT = independent; AWPEmission = onlyTimelock (governance)
+- SubnetNFT.sol = ERC721 with on-chain identity storage. tokenId = subnetId. Stores immutable fields: name, subnetManager, alphaToken. Stores owner-updatable fields: skillsURI (via setSkillsURI), minStake (via setMinStake), metadataURI (via setMetadataURI, overrides tokenURI). Events: SkillsURIUpdated, MinStakeUpdated, MetadataURIUpdated. tokenURI 3-tier: per-token metadataURI → global baseURI → on-chain Base64 JSON. Lifecycle status managed by AWPRegistry, not SubnetNFT.
+- SubnetManager.sol = Default subnet contract (deployed behind ERC1967Proxy via AWPRegistry when subnetManager=address(0)). UUPS upgradeable + AccessControlUpgradeable + ReentrancyGuardUpgradeable + IERC1363Receiver. Three roles: MERKLE_ROLE (submit Merkle roots), STRATEGY_ROLE (AWP handling), TRANSFER_ROLE (token transfers). Merkle claim mints Alpha to users. AWP strategy: Reserve / AddLiquidity / BuybackBurn. onTransferReceived auto-executes strategy on AWP receipt via mintAndCall. DEX addresses injected at init time via dexConfig (not hardcoded).
+- LPManager = onlyAWPRegistry; compoundFees(alphaToken) reinvests accumulated LP fees (called by Keeper cron). StakeNFT = independent; AWPEmission = onlyTimelock (governance)
 
 ## Tokens
 - AWP: 10B MAX_SUPPLY; initial mint configurable per chain (INITIAL_MINT constructor param, immutable); emission via AWPEmission. mintAndCall(to, amount, data) triggers ERC1363 callback on recipient.
@@ -71,14 +71,14 @@ docs/architecture.md — Read the relevant section before starting any task.
 - Epoch duration: 1 day (daily epochs, AWPEmission only)
 
 ## Deployment Sequence
-AWPToken(constructor mint 200M) → AlphaTokenFactory(deployer, vanityRule)
+AWPToken(constructor: name, symbol, deployer, initialMint) → AlphaTokenFactory(deployer, vanityRule)
 → Treasury → AWPRegistry impl → ERC1967Proxy(impl, initialize(deployer, treasury, guardian)) → SubnetNFT → LPManager
 → AWPEmission impl → ERC1967Proxy(impl, initData with genesisTime_ and epochDuration_)
-→ StakingVault impl → ERC1967Proxy(impl, initialize(awpRegistry)) → StakeNFT(awpToken, stakingVault, awpRegistry)
+→ StakingVault impl → ERC1967Proxy(impl, initialize(awpRegistry, treasury)) → StakeNFT(awpToken, stakingVault, awpRegistry)
 → SubnetManager impl
 → AWPDAO (6 params, no awpRegistry_)
 → grantRole(dao) + renounce + addMinter(awpEmissionProxy) + renounceAdmin + AlphaTokenFactory.setAddresses
-→ AWPRegistry.initializeRegistry (deployer calls, then zeroed; 8 addresses)
+→ AWPRegistry.initializeRegistry (deployer calls, then zeroed; 9 params: 8 addresses + dexConfig bytes)
 → AWP transfer distribution
 
 ## Multi-Chain
@@ -115,7 +115,7 @@ AWPToken(constructor mint 200M) → AlphaTokenFactory(deployer, vanityRule)
 - `resolveRecipient(addr)` walks boundTo chain to root for reward distribution
 - StakeNFT: only NFTs with createdAt < proposalCreatedAt can vote (strict: >= blocks same-block)
 - StakeNFT: addToPosition blocked on expired locks (PositionExpired)
-- StakingVault: allocate/reallocate reject subnetId=0
+- StakingVault: allocate/deallocate/reallocate all reject subnetId=0
 - SubnetNFT.minStake is stored on-chain but NOT enforced by AWPRegistry.allocate (used as off-chain/coordinator reference only)
 - AWPDAO: totalVotingPower > 0 required for proposals
 - deregisterSubnet: users must manually deallocate from deregistered subnets (deallocate has no status check); frontend should alert on SubnetDeregistered

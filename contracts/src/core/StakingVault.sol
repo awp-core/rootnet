@@ -288,6 +288,7 @@ contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
 
     /// @dev Internal deallocate logic (shared by deallocate and deallocateFor)
     function _deallocate(address staker, address agent, uint256 subnetId, uint256 amount) internal {
+        if (subnetId == 0) revert InvalidAmount();
         if (amount == 0 || amount > type(uint128).max) revert InvalidAmount();
 
         uint128 amt128 = uint128(amount);
