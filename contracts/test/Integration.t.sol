@@ -17,10 +17,9 @@ import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {EmissionSigningHelper} from "./helpers/EmissionSigningHelper.sol";
 
 /// @title Integration — Full deployment + registration + staking + emission flow
-contract IntegrationTest is EmissionSigningHelper {
+contract IntegrationTest is Test {
     AWPToken awp;
     AlphaTokenFactory factory;
     AWPEmission emission;
@@ -44,11 +43,6 @@ contract IntegrationTest is EmissionSigningHelper {
 
     uint256 constant INITIAL_DAILY_EMISSION = 15_800_000 * 1e18;
     uint256 constant EPOCH_DURATION = 1 days;
-
-    // Oracle private keys
-    uint256 constant ORACLE_PK1 = 0xA1;
-    uint256 constant ORACLE_PK2 = 0xA2;
-    uint256 constant ORACLE_PK3 = 0xA3;
 
     function setUp() public {
         _fullDeployment();
@@ -81,7 +75,7 @@ contract IntegrationTest is EmissionSigningHelper {
         nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(awpRegistry));
         lp = new MockLPManager(address(awpRegistry), address(awp));
 
-        // Step 8: AWPEmission (UUPS proxy)
+        // Step 8: AWPEmission (UUPS proxy) — deployer == guardian in tests
         AWPEmission emissionImpl = new AWPEmission();
         bytes memory emissionInitData = abi.encodeCall(
             AWPEmission.initialize,
@@ -141,14 +135,6 @@ contract IntegrationTest is EmissionSigningHelper {
 
         vm.stopPrank();
 
-        // Configure oracles
-        address[] memory oracleList = new address[](3);
-        oracleList[0] = vm.addr(ORACLE_PK1);
-        oracleList[1] = vm.addr(ORACLE_PK2);
-        oracleList[2] = vm.addr(ORACLE_PK3);
-        vm.prank(deployer); // guardian = deployer in tests
-        emission.setOracleConfig(oracleList, 2);
-
         // Verify post-deployment state
         assertEq(awp.balanceOf(deployer), 10_000_000 * 1e18);
         assertEq(awp.balanceOf(address(treasury)), 90_000_000 * 1e18);
@@ -162,7 +148,7 @@ contract IntegrationTest is EmissionSigningHelper {
         emission.settleEpoch(200);
     }
 
-    // ── Oracle signing helpers ──
+    // ── Guardian submission helpers ──
 
     function _sortByAddress(address[] memory addrs, uint96[] memory ws) internal pure {
         uint256 n = addrs.length;
@@ -178,12 +164,9 @@ contract IntegrationTest is EmissionSigningHelper {
 
     function _submitWeights(address[] memory recipients, uint96[] memory weights) internal {
         _sortByAddress(recipients, weights);
-        uint256 nonce = emission.allocationNonce();
         uint256 effectiveEpoch = emission.settledEpoch() + 1;
-        bytes[] memory sigs = new bytes[](2);
-        sigs[0] = _signAllocations(ORACLE_PK1, recipients, weights, nonce, effectiveEpoch, address(emission));
-        sigs[1] = _signAllocations(ORACLE_PK2, recipients, weights, nonce, effectiveEpoch, address(emission));
-        emission.submitAllocations(recipients, weights, sigs, effectiveEpoch);
+        vm.prank(deployer); // deployer == guardian in tests
+        emission.submitAllocations(recipients, weights, effectiveEpoch);
     }
 
     function _submitWeight(address _recipient, uint96 weight) internal {

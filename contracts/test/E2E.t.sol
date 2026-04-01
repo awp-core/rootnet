@@ -18,10 +18,9 @@ import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {IGovernor} from "@openzeppelin/contracts/governance/IGovernor.sol";
-import {EmissionSigningHelper} from "./helpers/EmissionSigningHelper.sol";
 
 /// @title E2E — End-to-end tests based on the architecture document (Account System V2)
-contract E2ETest is EmissionSigningHelper {
+contract E2ETest is Test {
     AWPToken awp;
     AlphaTokenFactory factory;
     AWPEmission emission;
@@ -56,11 +55,6 @@ contract E2ETest is EmissionSigningHelper {
     uint256 constant EPOCH = 1 days;
     uint256 constant LP_COST = 1_000_000 * 1e18; // 100M Alpha * 0.01 AWP
 
-    // Oracle private keys
-    uint256 constant ORACLE_PK1 = 0xA1;
-    uint256 constant ORACLE_PK2 = 0xA2;
-    uint256 constant ORACLE_PK3 = 0xA3;
-
     function setUp() public {
         _deploy();
     }
@@ -83,7 +77,7 @@ contract E2ETest is EmissionSigningHelper {
         nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(awpRegistry));
         lp = new MockLPManager(address(awpRegistry), address(awp));
 
-        // Deploy AWPEmission (UUPS proxy)
+        // Deploy AWPEmission (UUPS proxy) — deployer == guardian in tests
         AWPEmission emissionImpl = new AWPEmission();
         bytes memory emissionInitData = abi.encodeCall(
             AWPEmission.initialize,
@@ -121,20 +115,10 @@ contract E2ETest is EmissionSigningHelper {
             address(lp), address(vault), address(stakeNFT), address(0), ""
         );
 
-        vm.stopPrank();
-
-        // Configure oracles
-        address[] memory oracleList = new address[](3);
-        oracleList[0] = vm.addr(ORACLE_PK1);
-        oracleList[1] = vm.addr(ORACLE_PK2);
-        oracleList[2] = vm.addr(ORACLE_PK3);
-        vm.prank(deployer); // guardian = deployer in tests
-        emission.setOracleConfig(oracleList, 2);
-
         // Distribute tokens from deployer
-        vm.startPrank(deployer);
         awp.transfer(address(treasury), 50_000_000 * 1e18);
         awp.transfer(airdropAddr, 150_000_000 * 1e18);
+
         vm.stopPrank();
 
         // Distribute AWP to test users
@@ -197,12 +181,9 @@ contract E2ETest is EmissionSigningHelper {
 
     function _submitWeights(address[] memory recipients, uint96[] memory weights) internal {
         _sortByAddress(recipients, weights);
-        uint256 nonce = emission.allocationNonce();
         uint256 effectiveEpoch = emission.settledEpoch() + 1;
-        bytes[] memory sigs = new bytes[](2);
-        sigs[0] = _signAllocations(ORACLE_PK1, recipients, weights, nonce, effectiveEpoch, address(emission));
-        sigs[1] = _signAllocations(ORACLE_PK2, recipients, weights, nonce, effectiveEpoch, address(emission));
-        emission.submitAllocations(recipients, weights, sigs, effectiveEpoch);
+        vm.prank(deployer); // deployer == guardian in tests
+        emission.submitAllocations(recipients, weights, effectiveEpoch);
     }
 
     function _submitWeight(address _recipient, uint96 weight) internal {

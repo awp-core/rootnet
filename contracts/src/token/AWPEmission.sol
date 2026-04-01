@@ -5,7 +5,6 @@ import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Ini
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
-import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IAWPToken} from "../interfaces/IAWPToken.sol";
 import {IAWPEmission} from "../interfaces/IAWPEmission.sol";
 
@@ -74,23 +73,23 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @dev Cumulative AWP minted in Phase 2
     uint256 private _epochMinted;                   // slot 16
 
-    /// @notice List of oracle addresses
-    address[] public oracles;                       // slot 17
+    /// @dev Freed slot 17: was oracles[] array (Guardian replaced Oracle multi-sig)
+    address[] private __freed_oracles;               // slot 17
 
-    /// @notice Multisig threshold (requires >= threshold valid signatures)
-    uint256 public oracleThreshold;                 // slot 18
+    /// @dev Freed slot 18: was oracleThreshold
+    uint256 private __freed_slot18;                  // slot 18
 
-    /// @notice Allocation submission nonce, prevents replay attacks
-    uint256 public allocationNonce;                 // slot 19
+    /// @dev Freed slot 19: was allocationNonce
+    uint256 private __freed_slot19;                  // slot 19
 
     /// @notice Maximum number of recipients allowed
     uint256 public maxRecipients;                   // slot 20
 
-    /// @dev Reserved slot 21: was awpRegistry reference (no longer needed)
+    /// @dev Freed slot 21: was awpRegistry reference
     uint256 private __freed_slot21;                 // slot 21
 
-    /// @notice O(1) oracle membership lookup (maintained by setOracleConfig)
-    mapping(address => bool) public isOracleMap;    // slot 22
+    /// @dev Freed slot 22: was isOracleMap (Guardian replaced Oracle)
+    mapping(address => bool) private __freed_isOracleMap; // slot 22
 
     /// @notice Cached AWP MAX_SUPPLY (set in initialize, avoids repeated cross-contract call)
     uint256 private _cachedMaxSupply;               // slot 23
@@ -115,14 +114,6 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     uint256 public constant DECAY_PRECISION = 1000000;
 
     // ══════════════════════════════════════════════
-    //  EIP-712 type hashes
-    // ══════════════════════════════════════════════
-
-    /// @dev EIP-712 type hash: SubmitAllocations(address[] recipients, uint96[] weights, uint256 nonce, uint256 effectiveEpoch)
-    bytes32 private constant ALLOCATION_TYPEHASH =
-        keccak256("SubmitAllocations(address[] recipients,uint96[] weights,uint256 nonce,uint256 effectiveEpoch)");
-
-    // ══════════════════════════════════════════════
     //  Error definitions
     // ══════════════════════════════════════════════
 
@@ -138,18 +129,6 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     error MiningComplete();
     /// @dev Settlement is in progress; weights/recipients cannot be modified
     error SettlementInProgress();
-    /// @dev Oracle is not configured
-    error OracleNotConfigured();
-    /// @dev Oracle configuration is invalid (invalid threshold or address list)
-    error InvalidOracleConfig();
-    /// @dev Number of valid signatures is below the threshold
-    error InvalidSignatureCount();
-    /// @dev Duplicate address in oracle array
-    error DuplicateOracle();
-    /// @dev Signer is not a registered oracle
-    error UnknownOracle();
-    /// @dev Same signer appears more than once
-    error DuplicateSigner();
     /// @dev Array lengths do not match
     error ArrayLengthMismatch();
     /// @dev Parameter value is invalid
@@ -234,69 +213,29 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     function _authorizeUpgrade(address) internal override onlyTimelock {}
 
     // ══════════════════════════════════════════════
-    //  Multi-oracle batch weight submission (EIP-712 signature verification)
+    //  Guardian weight submission (replaces Oracle multi-sig)
     // ══════════════════════════════════════════════
 
-    /// @notice Submit oracle-signed recipient weight allocations for a future epoch
-    /// @dev Requires >= oracleThreshold valid oracle signatures using EIP-712 structured signing.
-    ///      Packs address (160 bits) and weight (96 bits) into a single uint256 per recipient.
+    /// @notice Submit recipient weight allocations for a future epoch (Guardian only)
+    /// @dev Guardian is a cross-chain multisig that reads all chains' stake data off-chain,
+    ///      computes weights, and submits identical allocations to every chain's AWPEmission.
     ///      Recipients MUST be sorted in ascending address order (duplicates rejected).
     /// @param recipients_ Array of recipient addresses (must be sorted ascending)
     /// @param weights_ Corresponding weight array (uint96)
-    /// @param signatures Array of oracle signatures (65 bytes each)
     /// @param effectiveEpoch The future epoch these weights take effect in
     function submitAllocations(
         address[] calldata recipients_,
         uint96[] calldata weights_,
-        bytes[] calldata signatures,
         uint256 effectiveEpoch
-    ) external {
-        // Cannot submit during active settlement (prevents reentrant overwrite via mintAndCall callback)
+    ) external onlyGuardian {
         if (settleProgress != 0) revert SettlementInProgress();
-        // Allow submission for any epoch > settledEpoch (including already-elapsed epochs for catch-up)
         if (effectiveEpoch <= settledEpoch) revert MustBeFutureEpoch();
-        // Check that oracle is configured
-        if (oracleThreshold == 0) revert OracleNotConfigured();
-        // Check that signature count does not exceed total oracle count
-        if (signatures.length > oracles.length) revert InvalidSignatureCount();
-        // Check array length match
         if (recipients_.length != weights_.length) revert ArrayLengthMismatch();
-        // Check recipient count does not exceed the maximum
         if (recipients_.length > maxRecipients) revert InvalidParameter();
 
-        // Construct EIP-712 struct hash (arrays encoded per EIP-712 spec: keccak256 of concatenated padded elements)
-        bytes32 structHash = keccak256(
-            abi.encode(
-                ALLOCATION_TYPEHASH,
-                _hashAddressArray(recipients_),
-                _hashUint96Array(weights_),
-                allocationNonce,
-                effectiveEpoch
-            )
-        );
-        bytes32 digest = _hashTypedDataV4(structHash);
-
-        // Verify signatures: check each signature comes from a registered oracle with no duplicates
-        uint256 validCount = 0;
-        address[] memory seen = new address[](signatures.length);
-        for (uint256 i = 0; i < signatures.length;) {
-            address signer = ECDSA.recover(digest, signatures[i]);
-            if (!isOracleMap[signer]) revert UnknownOracle();
-            // Check for duplicate signatures
-            for (uint256 j = 0; j < validCount;) {
-                if (seen[j] == signer) revert DuplicateSigner();
-                unchecked { ++j; }
-            }
-            seen[validCount] = signer;
-            unchecked { ++validCount; ++i; }
-        }
-        if (validCount < oracleThreshold) revert InvalidSignatureCount();
-
-        // Clear previous submission for same effectiveEpoch (O(1) length reset)
         delete _epochAllocations[effectiveEpoch];
         _epochTotalWeight[effectiveEpoch] = 0;
 
-        // Build packed array in memory, then assign to storage in one shot
         uint256 len = recipients_.length;
         uint256[] memory packed = new uint256[](len);
         uint256 tw = 0;
@@ -305,7 +244,6 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             uint96 w = weights_[i];
             if (addr == address(0)) revert InvalidRecipient();
             if (w == 0) revert InvalidAmount();
-            // Duplicate check: require sorted ascending order
             if (i > 0 && uint160(addr) <= uint160(recipients_[i - 1])) revert DuplicateRecipient();
             packed[i] = (uint256(uint160(addr)) << 96) | uint256(w);
             tw += w;
@@ -314,10 +252,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         _epochAllocations[effectiveEpoch] = packed;
         _epochTotalWeight[effectiveEpoch] = tw;
 
-        // Increment nonce to prevent replay
-        allocationNonce++;
-
-        emit AllocationsSubmitted(allocationNonce - 1, recipients_, weights_);
+        emit AllocationsSubmitted(0, recipients_, weights_);
     }
 
     // ══════════════════════════════════════════════
@@ -344,45 +279,6 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         emit GovernanceWeightUpdated(addr, weight);
     }
 
-    /// @notice Timelock-only full allocation submission — bypasses oracle signatures.
-    /// @dev Emergency fallback: allows DAO to directly submit weights when oracle is unavailable.
-    ///      Same validation as submitAllocations (sorted, non-zero, bounded) but no signature check.
-    /// @param recipients_ Sorted ascending recipient addresses
-    /// @param weights_ Corresponding weight array (uint96)
-    /// @param effectiveEpoch The future epoch these weights take effect in
-    function timelockSubmitAllocations(
-        address[] calldata recipients_,
-        uint96[] calldata weights_,
-        uint256 effectiveEpoch
-    ) external onlyTimelock {
-        if (settleProgress != 0) revert SettlementInProgress();
-        if (effectiveEpoch <= settledEpoch) revert MustBeFutureEpoch();
-        if (recipients_.length != weights_.length) revert ArrayLengthMismatch();
-        if (recipients_.length > maxRecipients) revert InvalidParameter();
-
-        delete _epochAllocations[effectiveEpoch];
-        _epochTotalWeight[effectiveEpoch] = 0;
-
-        uint256 len = recipients_.length;
-        uint256[] memory packed = new uint256[](len);
-        uint256 tw = 0;
-        for (uint256 i = 0; i < len;) {
-            address addr = recipients_[i];
-            uint96 w = weights_[i];
-            if (addr == address(0)) revert InvalidRecipient();
-            if (w == 0) revert InvalidAmount();
-            if (i > 0 && uint160(addr) <= uint160(recipients_[i - 1])) revert DuplicateRecipient();
-            packed[i] = (uint256(uint160(addr)) << 96) | uint256(w);
-            tw += w;
-            unchecked { ++i; }
-        }
-        _epochAllocations[effectiveEpoch] = packed;
-        _epochTotalWeight[effectiveEpoch] = tw;
-
-        allocationNonce++;
-        emit AllocationsSubmitted(allocationNonce - 1, recipients_, weights_);
-    }
-
     /// @notice Update the per-epoch decay factor (onlyTimelock)
     /// @param newDecayFactor Must be <= DECAY_PRECISION (no growth allowed)
     function setDecayFactor(uint256 newDecayFactor) external onlyTimelock {
@@ -401,48 +297,18 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     //  Oracle configuration (onlyTimelock)
     // ══════════════════════════════════════════════
 
-    /// @notice Update the guardian address (only Timelock may call)
-    /// @dev DAO governance can replace guardian via Timelock proposal
-    function setGuardian(address g) external onlyTimelock {
+    /// @notice Update the guardian address (only Guardian may call — self-sovereign)
+    /// @dev Guardian manages itself. If Guardian keys are lost, Timelock can recover via UUPS upgrade.
+    function setGuardian(address g) external onlyGuardian {
         guardian = g;
     }
 
-    /// @notice Set the oracle address list and multisig threshold (Guardian only)
-    /// @dev Guardian is a cross-chain multisig ensuring oracle consistency across all chains.
-    ///      Single-chain DAO cannot unilaterally change oracle — must go through Guardian.
-    /// @param oracles_ New oracle address array
-    /// @param threshold_ New multisig threshold
-    function setOracleConfig(address[] calldata oracles_, uint256 threshold_) external onlyGuardian {
-        if (settleProgress != 0) revert SettlementInProgress();
-        if (threshold_ == 0 || threshold_ > oracles_.length) revert InvalidOracleConfig();
-
-        // Check for zero addresses and duplicates
-        for (uint256 i = 0; i < oracles_.length;) {
-            if (oracles_[i] == address(0)) revert InvalidOracleConfig();
-            for (uint256 j = 0; j < i;) {
-                if (oracles_[j] == oracles_[i]) revert DuplicateOracle();
-                unchecked { ++j; }
-            }
-            unchecked { ++i; }
-        }
-
-        // Clear old mapping entries, then delete array
-        for (uint256 i = 0; i < oracles.length;) {
-            isOracleMap[oracles[i]] = false;
-            unchecked { ++i; }
-        }
-        delete oracles;
-
-        // Copy new array and set mapping
-        for (uint256 i = 0; i < oracles_.length;) {
-            oracles.push(oracles_[i]);
-            isOracleMap[oracles_[i]] = true;
-            unchecked { ++i; }
-        }
-        oracleThreshold = threshold_;
-
-        emit OracleConfigUpdated(oracles_, threshold_);
-    }
+    // ══════════════════════════════════════════════
+    //  DEPRECATED — Oracle configuration removed (Guardian replaces Oracle)
+    // ══════════════════════════════════════════════
+    // Oracle infrastructure (oracles[], oracleThreshold, isOracleMap, submitAllocations with signatures)
+    // has been replaced by Guardian-only submitAllocations. The storage slots are freed but preserved
+    // for UUPS proxy upgrade compatibility.
 
     // ══════════════════════════════════════════════
     //  Emission settlement (3-phase design, callable by anyone)
@@ -559,11 +425,6 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     //  View
     // ══════════════════════════════════════════════
 
-    /// @notice Get the number of oracles
-    function getOracleCount() external view returns (uint256) {
-        return oracles.length;
-    }
-
     /// @notice Get the number of recipients in the active epoch
     function getRecipientCount() external view returns (uint256) {
         return _epochAllocations[activeEpoch].length;
@@ -602,42 +463,6 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     // ══════════════════════════════════════════════
     //  Internal
     // ══════════════════════════════════════════════
-
-    /// @dev EIP-712 compliant hash of address[]: keccak256 of concatenated 32-byte padded addresses.
-    function _hashAddressArray(address[] calldata arr) internal pure returns (bytes32) {
-        uint256 len = arr.length;
-        uint256 ptr;
-        assembly {
-            ptr := mload(0x40)
-            mstore(0x40, add(ptr, mul(len, 32))) // advance free memory pointer
-        }
-        for (uint256 i = 0; i < len;) {
-            bytes32 v = bytes32(uint256(uint160(arr[i])));
-            assembly { mstore(add(ptr, mul(i, 32)), v) }
-            unchecked { ++i; }
-        }
-        bytes32 result;
-        assembly { result := keccak256(ptr, mul(len, 32)) }
-        return result;
-    }
-
-    /// @dev EIP-712 compliant hash of uint96[]: keccak256 of concatenated 32-byte padded values.
-    function _hashUint96Array(uint96[] calldata arr) internal pure returns (bytes32) {
-        uint256 len = arr.length;
-        uint256 ptr;
-        assembly {
-            ptr := mload(0x40)
-            mstore(0x40, add(ptr, mul(len, 32))) // advance free memory pointer
-        }
-        for (uint256 i = 0; i < len;) {
-            bytes32 v = bytes32(uint256(arr[i]));
-            assembly { mstore(add(ptr, mul(i, 32)), v) }
-            unchecked { ++i; }
-        }
-        bytes32 result;
-        assembly { result := keccak256(ptr, mul(len, 32)) }
-        return result;
-    }
 
     /// @dev Scan a packed allocations array to find the weight for a given address
     function _scanWeight(uint256[] storage allocations, address addr) internal view returns (uint96) {

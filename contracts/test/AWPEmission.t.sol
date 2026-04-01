@@ -5,9 +5,8 @@ import {Test} from "forge-std/Test.sol";
 import {AWPEmission} from "../src/token/AWPEmission.sol";
 import {AWPToken} from "../src/token/AWPToken.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {EmissionSigningHelper} from "./helpers/EmissionSigningHelper.sol";
 
-contract AWPEmissionTest is EmissionSigningHelper {
+contract AWPEmissionTest is Test {
     AWPEmission public emission;
     AWPToken public awpToken;
 
@@ -23,19 +22,6 @@ contract AWPEmissionTest is EmissionSigningHelper {
     uint256 constant INITIAL_DAILY_EMISSION = 15_800_000 * 1e18;
     uint256 constant EPOCH_DURATION = 1 days;
 
-    // Oracle private keys and addresses
-    uint256 oracle1Pk = 0xA1;
-    uint256 oracle2Pk = 0xA2;
-    uint256 oracle3Pk = 0xA3;
-    uint256 oracle4Pk = 0xA4;
-    uint256 oracle5Pk = 0xA5;
-
-    address oracle1 = vm.addr(0xA1);
-    address oracle2 = vm.addr(0xA2);
-    address oracle3 = vm.addr(0xA3);
-    address oracle4 = vm.addr(0xA4);
-    address oracle5 = vm.addr(0xA5);
-
     function setUp() public {
         vm.startPrank(deployer);
 
@@ -43,7 +29,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         awpToken = new AWPToken("AWP", "AWP", deployer, 200_000_000 * 1e18);
 
         // Deploy AWPEmission (UUPS proxy pattern)
-        // AWPEmission now has its own epoch timing
+        // treasury == guardian in tests
         AWPEmission emissionImpl = new AWPEmission();
         bytes memory initData = abi.encodeCall(
             AWPEmission.initialize,
@@ -55,20 +41,10 @@ contract AWPEmissionTest is EmissionSigningHelper {
         // Grant AWPEmission minting permission (no renounceAdmin; tests need flexibility)
         awpToken.addMinter(address(emission));
 
-        // Configure oracles: 5 oracles, threshold 3 (treasury == guardian in tests)
-        address[] memory oracleList = new address[](5);
-        oracleList[0] = oracle1;
-        oracleList[1] = oracle2;
-        oracleList[2] = oracle3;
-        oracleList[3] = oracle4;
-        oracleList[4] = oracle5;
         vm.stopPrank();
-
-        vm.prank(treasury);
-        emission.setOracleConfig(oracleList, 3);
     }
 
-    // ── Helper: submit allocations via oracle signatures ──
+    // ── Helper: submit allocations as guardian ──
 
     /// @dev Sort addresses ascending (bubble sort) and reorder weights to match
     function _sortByAddress(address[] memory addrs, uint96[] memory ws) internal pure {
@@ -83,18 +59,14 @@ contract AWPEmissionTest is EmissionSigningHelper {
         }
     }
 
-    function _submitWithOracles(address[] memory addrs, uint96[] memory ws) internal {
-        _submitWithOraclesForEpoch(addrs, ws, emission.settledEpoch() + 1);
+    function _submitAsGuardian(address[] memory addrs, uint96[] memory ws) internal {
+        _submitAsGuardianForEpoch(addrs, ws, emission.settledEpoch() + 1);
     }
 
-    function _submitWithOraclesForEpoch(address[] memory addrs, uint96[] memory ws, uint256 effectiveEpoch) internal {
+    function _submitAsGuardianForEpoch(address[] memory addrs, uint96[] memory ws, uint256 effectiveEpoch) internal {
         _sortByAddress(addrs, ws);
-        uint256 nonce = emission.allocationNonce();
-        bytes[] memory sigs = new bytes[](3);
-        sigs[0] = _signAllocations(oracle1Pk, addrs, ws, nonce, effectiveEpoch, address(emission));
-        sigs[1] = _signAllocations(oracle2Pk, addrs, ws, nonce, effectiveEpoch, address(emission));
-        sigs[2] = _signAllocations(oracle3Pk, addrs, ws, nonce, effectiveEpoch, address(emission));
-        emission.submitAllocations(addrs, ws, sigs, effectiveEpoch);
+        vm.prank(treasury); // treasury == guardian in tests
+        emission.submitAllocations(addrs, ws, effectiveEpoch);
     }
 
     /// @dev Settle epoch 0 (no weights, all goes to DAO) to advance to epoch 1
@@ -103,61 +75,23 @@ contract AWPEmissionTest is EmissionSigningHelper {
         emission.settleEpoch(200);
     }
 
-    // ── Oracle configuration tests ──
+    // ── Guardian access control tests ──
 
-    function test_setOracleConfig() public {
-        // setUp has configured 5 oracles with threshold 3
-        assertEq(emission.getOracleCount(), 5);
-        assertEq(emission.oracleThreshold(), 3);
+    function test_setGuardian_onlyGuardian() public {
+        vm.prank(user);
+        vm.expectRevert(AWPEmission.NotGuardian.selector);
+        emission.setGuardian(user);
     }
 
-    function test_setOracleConfig_revertsForNonGuardian() public {
-        address[] memory oList = new address[](1);
-        oList[0] = oracle1;
+    function test_submitAllocations_onlyGuardian() public {
+        address[] memory addrs = new address[](1);
+        addrs[0] = recipient1;
+        uint96[] memory ws = new uint96[](1);
+        ws[0] = 100;
 
         vm.prank(user);
         vm.expectRevert(AWPEmission.NotGuardian.selector);
-        emission.setOracleConfig(oList, 1);
-    }
-
-    function test_setOracleConfig_revertsForZeroThreshold() public {
-        address[] memory oList = new address[](1);
-        oList[0] = oracle1;
-
-        vm.prank(treasury);
-        vm.expectRevert(AWPEmission.InvalidOracleConfig.selector);
-        emission.setOracleConfig(oList, 0);
-    }
-
-    function test_setOracleConfig_revertsForThresholdExceedsOracles() public {
-        address[] memory oList = new address[](2);
-        oList[0] = oracle1;
-        oList[1] = oracle2;
-
-        vm.prank(treasury);
-        vm.expectRevert(AWPEmission.InvalidOracleConfig.selector);
-        emission.setOracleConfig(oList, 3);
-    }
-
-    function test_setOracleConfig_revertsForZeroAddress() public {
-        address[] memory oList = new address[](2);
-        oList[0] = oracle1;
-        oList[1] = address(0);
-
-        vm.prank(treasury);
-        vm.expectRevert(AWPEmission.InvalidOracleConfig.selector);
-        emission.setOracleConfig(oList, 1);
-    }
-
-    function test_setOracleConfig_revertsForDuplicateOracle() public {
-        address[] memory oList = new address[](3);
-        oList[0] = oracle1;
-        oList[1] = oracle2;
-        oList[2] = oracle1; // duplicate
-
-        vm.prank(treasury);
-        vm.expectRevert(AWPEmission.DuplicateOracle.selector);
-        emission.setOracleConfig(oList, 2);
+        emission.submitAllocations(addrs, ws, 1);
     }
 
     // ── submitAllocations tests ──
@@ -171,7 +105,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         ws[0] = 300;
         ws[1] = 100;
 
-        _submitWithOracles(addrs, ws);
+        _submitAsGuardian(addrs, ws);
 
         // Verify weight updates in epoch 1
         assertEq(emission.getEpochWeight(1, recipient1), 300);
@@ -187,7 +121,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         uint96[] memory ws1 = new uint96[](2);
         ws1[0] = 300;
         ws1[1] = 100;
-        _submitWithOracles(addrs1, ws1);
+        _submitAsGuardian(addrs1, ws1);
 
         assertEq(emission.getEpochTotalWeight(1), 400);
 
@@ -198,7 +132,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         uint96[] memory ws2 = new uint96[](2);
         ws2[0] = 500;
         ws2[1] = 200;
-        _submitWithOraclesForEpoch(addrs2, ws2, 1);
+        _submitAsGuardianForEpoch(addrs2, ws2, 1);
 
         // Old recipient weights zeroed out (for epoch 1)
         assertEq(emission.getEpochWeight(1, recipient1), 0);
@@ -209,83 +143,6 @@ contract AWPEmissionTest is EmissionSigningHelper {
         assertEq(emission.getEpochTotalWeight(1), 700);
     }
 
-    function test_submitAllocations_revertsBeforeOracleConfig() public {
-        // Deploy a new emission without configuring oracles
-        vm.startPrank(deployer);
-        AWPEmission impl2 = new AWPEmission();
-        bytes memory initData2 = abi.encodeCall(
-            AWPEmission.initialize,
-            (address(awpToken), treasury, treasury, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
-        );
-        ERC1967Proxy proxy2 = new ERC1967Proxy(address(impl2), initData2);
-        AWPEmission emission2 = AWPEmission(address(proxy2));
-        vm.stopPrank();
-
-        address[] memory addrs = new address[](1);
-        addrs[0] = recipient1;
-        uint96[] memory ws = new uint96[](1);
-        ws[0] = 100;
-        bytes[] memory sigs = new bytes[](1);
-        sigs[0] = _signAllocations(oracle1Pk, addrs, ws, 0, 1, address(emission2));
-
-        vm.expectRevert(AWPEmission.OracleNotConfigured.selector);
-        emission2.submitAllocations(addrs, ws, sigs, 1);
-    }
-
-    function test_submitAllocations_revertsBelowThreshold() public {
-        address[] memory addrs = new address[](1);
-        addrs[0] = recipient1;
-        uint96[] memory ws = new uint96[](1);
-        ws[0] = 100;
-        uint256 nonce = emission.allocationNonce();
-        uint256 effectiveEpoch = emission.settledEpoch() + 1;
-
-        // Only 2 signatures, but threshold is 3
-        bytes[] memory sigs = new bytes[](2);
-        sigs[0] = _signAllocations(oracle1Pk, addrs, ws, nonce, effectiveEpoch, address(emission));
-        sigs[1] = _signAllocations(oracle2Pk, addrs, ws, nonce, effectiveEpoch, address(emission));
-
-        vm.expectRevert(AWPEmission.InvalidSignatureCount.selector);
-        emission.submitAllocations(addrs, ws, sigs, effectiveEpoch);
-    }
-
-    function test_submitAllocations_revertsDuplicateSigner() public {
-        address[] memory addrs = new address[](1);
-        addrs[0] = recipient1;
-        uint96[] memory ws = new uint96[](1);
-        ws[0] = 100;
-        uint256 nonce = emission.allocationNonce();
-        uint256 effectiveEpoch = emission.settledEpoch() + 1;
-
-        // The same oracle signs twice
-        bytes[] memory sigs = new bytes[](3);
-        sigs[0] = _signAllocations(oracle1Pk, addrs, ws, nonce, effectiveEpoch, address(emission));
-        sigs[1] = _signAllocations(oracle1Pk, addrs, ws, nonce, effectiveEpoch, address(emission)); // duplicate
-        sigs[2] = _signAllocations(oracle2Pk, addrs, ws, nonce, effectiveEpoch, address(emission));
-
-        vm.expectRevert(AWPEmission.DuplicateSigner.selector);
-        emission.submitAllocations(addrs, ws, sigs, effectiveEpoch);
-    }
-
-    function test_submitAllocations_revertsUnknownOracle() public {
-        address[] memory addrs = new address[](1);
-        addrs[0] = recipient1;
-        uint96[] memory ws = new uint96[](1);
-        ws[0] = 100;
-        uint256 nonce = emission.allocationNonce();
-        uint256 effectiveEpoch = emission.settledEpoch() + 1;
-
-        // Sign with a non-oracle private key
-        uint256 fakeOraclePk = 0xDEAD;
-        bytes[] memory sigs = new bytes[](3);
-        sigs[0] = _signAllocations(oracle1Pk, addrs, ws, nonce, effectiveEpoch, address(emission));
-        sigs[1] = _signAllocations(oracle2Pk, addrs, ws, nonce, effectiveEpoch, address(emission));
-        sigs[2] = _signAllocations(fakeOraclePk, addrs, ws, nonce, effectiveEpoch, address(emission));
-
-        vm.expectRevert(AWPEmission.UnknownOracle.selector);
-        emission.submitAllocations(addrs, ws, sigs, effectiveEpoch);
-    }
-
     function test_submitAllocations_revertsExceedsMaxRecipients() public {
         assertEq(emission.maxRecipients(), 10000);
 
@@ -294,70 +151,22 @@ contract AWPEmissionTest is EmissionSigningHelper {
         addrs[0] = recipient1;
         uint96[] memory ws = new uint96[](1);
         ws[0] = 100;
-        _submitWithOracles(addrs, ws);
+        _submitAsGuardian(addrs, ws);
         assertEq(emission.getEpochTotalWeight(1), 100);
     }
 
     function test_submitAllocations_revertsDuplicateRecipient() public {
-        // Same address appears twice in recipients
+        // Same address appears twice in recipients (not sorted ascending)
         address[] memory addrs = new address[](2);
         addrs[0] = recipient1;
         addrs[1] = recipient1; // duplicate
         uint96[] memory ws = new uint96[](2);
         ws[0] = 100;
         ws[1] = 200;
-        uint256 nonce = emission.allocationNonce();
-        uint256 effectiveEpoch = emission.settledEpoch() + 1;
 
-        bytes[] memory sigs = new bytes[](3);
-        sigs[0] = _signAllocations(oracle1Pk, addrs, ws, nonce, effectiveEpoch, address(emission));
-        sigs[1] = _signAllocations(oracle2Pk, addrs, ws, nonce, effectiveEpoch, address(emission));
-        sigs[2] = _signAllocations(oracle3Pk, addrs, ws, nonce, effectiveEpoch, address(emission));
-
+        vm.prank(treasury);
         vm.expectRevert(AWPEmission.DuplicateRecipient.selector);
-        emission.submitAllocations(addrs, ws, sigs, effectiveEpoch);
-    }
-
-    function test_submitAllocations_nonceIncrement() public {
-        address[] memory addrs = new address[](1);
-        addrs[0] = recipient1;
-        uint96[] memory ws = new uint96[](1);
-        ws[0] = 100;
-
-        // First submission, nonce=0
-        assertEq(emission.allocationNonce(), 0);
-        _submitWithOracles(addrs, ws);
-
-        // nonce should have incremented to 1
-        assertEq(emission.allocationNonce(), 1);
-
-        // Second submission for epoch 2 (different epoch), nonce=1
-        ws[0] = 200;
-        _submitWithOraclesForEpoch(addrs, ws, 2);
-
-        assertEq(emission.allocationNonce(), 2);
-        assertEq(emission.getEpochWeight(2, recipient1), 200);
-    }
-
-    function test_submitAllocations_revertsNonceReplay() public {
-        address[] memory addrs = new address[](1);
-        addrs[0] = recipient1;
-        uint96[] memory ws = new uint96[](1);
-        ws[0] = 100;
-
-        // Submit nonce=0, effectiveEpoch=1
-        uint256 nonce0 = emission.allocationNonce();
-        uint256 effectiveEpoch = emission.settledEpoch() + 1;
-        bytes[] memory sigs0 = new bytes[](3);
-        sigs0[0] = _signAllocations(oracle1Pk, addrs, ws, nonce0, effectiveEpoch, address(emission));
-        sigs0[1] = _signAllocations(oracle2Pk, addrs, ws, nonce0, effectiveEpoch, address(emission));
-        sigs0[2] = _signAllocations(oracle3Pk, addrs, ws, nonce0, effectiveEpoch, address(emission));
-        emission.submitAllocations(addrs, ws, sigs0, effectiveEpoch);
-        assertEq(emission.allocationNonce(), 1);
-
-        // Replay the same nonce=0 signatures — current nonce is 1, so the digest won't match
-        vm.expectRevert();
-        emission.submitAllocations(addrs, ws, sigs0, effectiveEpoch);
+        emission.submitAllocations(addrs, ws, 1);
     }
 
     function test_submitAllocations_revertsMustBeFutureEpoch() public {
@@ -366,16 +175,11 @@ contract AWPEmissionTest is EmissionSigningHelper {
         addrs[0] = recipient1;
         uint96[] memory ws = new uint96[](1);
         ws[0] = 100;
-        uint256 nonce = emission.allocationNonce();
         uint256 currentEp = emission.settledEpoch();
 
-        bytes[] memory sigs = new bytes[](3);
-        sigs[0] = _signAllocations(oracle1Pk, addrs, ws, nonce, currentEp, address(emission));
-        sigs[1] = _signAllocations(oracle2Pk, addrs, ws, nonce, currentEp, address(emission));
-        sigs[2] = _signAllocations(oracle3Pk, addrs, ws, nonce, currentEp, address(emission));
-
+        vm.prank(treasury);
         vm.expectRevert(AWPEmission.MustBeFutureEpoch.selector);
-        emission.submitAllocations(addrs, ws, sigs, currentEp);
+        emission.submitAllocations(addrs, ws, currentEp);
     }
 
     function test_submitAllocations_blockedDuringSettlement() public {
@@ -386,7 +190,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         uint96[] memory ws = new uint96[](2);
         ws[0] = 100;
         ws[1] = 100;
-        _submitWithOraclesForEpoch(addrs, ws, 1);
+        _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0 then start settling epoch 1 with limit=1
         _settleEpoch0();
@@ -400,21 +204,14 @@ contract AWPEmissionTest is EmissionSigningHelper {
         uint96[] memory ws2 = new uint96[](1);
         ws2[0] = 200;
 
-        // Build sigs before expectRevert (allocationNonce() is a view call that would consume the expectRevert)
-        _sortByAddress(addrs2, ws2);
-        uint256 nonce = emission.allocationNonce();
-        bytes[] memory sigs = new bytes[](3);
-        sigs[0] = _signAllocations(oracle1Pk, addrs2, ws2, nonce, 3, address(emission));
-        sigs[1] = _signAllocations(oracle2Pk, addrs2, ws2, nonce, 3, address(emission));
-        sigs[2] = _signAllocations(oracle3Pk, addrs2, ws2, nonce, 3, address(emission));
-
+        vm.prank(treasury);
         vm.expectRevert(abi.encodeWithSignature("SettlementInProgress()"));
-        emission.submitAllocations(addrs2, ws2, sigs, 3);
+        emission.submitAllocations(addrs2, ws2, 3);
 
         // Complete settlement — then submission succeeds
         emission.settleEpoch(200);
         assertEq(emission.settleProgress(), 0);
-        _submitWithOraclesForEpoch(addrs2, ws2, 3);
+        _submitAsGuardianForEpoch(addrs2, ws2, 3);
         assertEq(emission.getEpochWeight(3, recipient3), 200);
     }
 
@@ -426,7 +223,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         addrs[0] = recipient1;
         uint96[] memory ws = new uint96[](1);
         ws[0] = 100;
-        _submitWithOraclesForEpoch(addrs, ws, 1);
+        _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0 (no weights -> all to DAO)
         _settleEpoch0();
@@ -455,7 +252,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         ws[0] = 100;
         ws[1] = 200;
         ws[2] = 300;
-        _submitWithOraclesForEpoch(addrs, ws, 1);
+        _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0 first
         _settleEpoch0();
@@ -497,7 +294,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         ws[1] = 100;
         ws[2] = 100;
         ws[3] = 100;
-        _submitWithOraclesForEpoch(addrs, ws, 1);
+        _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0
         _settleEpoch0();
@@ -531,7 +328,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         addrs[0] = recipient1;
         uint96[] memory ws = new uint96[](1);
         ws[0] = 100;
-        _submitWithOraclesForEpoch(addrs, ws, 1);
+        _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Epoch 0 (no decay, no weights) — use relative warp for fork compatibility
         vm.warp(block.timestamp + 2 days);
@@ -577,7 +374,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         addrs[0] = recipient1;
         uint96[] memory ws = new uint96[](1);
         ws[0] = 100;
-        _submitWithOraclesForEpoch(addrs, ws, 1);
+        _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0 to advance to epoch 1
         _settleEpoch0();
@@ -615,7 +412,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         uint96[] memory ws = new uint96[](2);
         ws[0] = 100;
         ws[1] = 100;
-        _submitWithOraclesForEpoch(addrs, ws, 1);
+        _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0
         _settleEpoch0();
@@ -634,98 +431,6 @@ contract AWPEmissionTest is EmissionSigningHelper {
         emission.settleEpoch(200);
     }
 
-    // ── timelockSubmitAllocations tests ──
-
-    /// @dev Helper: sort two addresses ascending for submitAllocations sorted-order requirement
-    function _sorted2(address a, address b) internal pure returns (address lo, address hi) {
-        return uint160(a) < uint160(b) ? (a, b) : (b, a);
-    }
-
-    function test_timelockSubmitAllocations() public {
-        (address lo, address hi) = _sorted2(recipient1, recipient2);
-        address[] memory addrs = new address[](2);
-        addrs[0] = lo;
-        addrs[1] = hi;
-        uint96[] memory ws = new uint96[](2);
-        ws[0] = 300;
-        ws[1] = 700;
-
-        vm.prank(treasury);
-        emission.timelockSubmitAllocations(addrs, ws, 1);
-
-        assertEq(emission.getEpochWeight(1, lo), 300);
-        assertEq(emission.getEpochWeight(1, hi), 700);
-    }
-
-    function test_timelockSubmitAllocations_revertsForNonTimelock() public {
-        address[] memory addrs = new address[](1);
-        addrs[0] = recipient1;
-        uint96[] memory ws = new uint96[](1);
-        ws[0] = 100;
-
-        vm.prank(user);
-        vm.expectRevert(AWPEmission.NotTimelock.selector);
-        emission.timelockSubmitAllocations(addrs, ws, 1);
-    }
-
-    function test_timelockSubmitAllocations_revertsUnsortedRecipients() public {
-        (address lo, address hi) = _sorted2(recipient1, recipient2);
-        address[] memory addrs = new address[](2);
-        addrs[0] = hi; // intentionally reversed
-        addrs[1] = lo;
-        uint96[] memory ws = new uint96[](2);
-        ws[0] = 100;
-        ws[1] = 100;
-
-        vm.prank(treasury);
-        vm.expectRevert(AWPEmission.DuplicateRecipient.selector);
-        emission.timelockSubmitAllocations(addrs, ws, 1);
-    }
-
-    function test_timelockSubmitAllocations_revertsDuringSettlement() public {
-        (address lo, address hi) = _sorted2(recipient1, recipient2);
-        address[] memory addrs = new address[](2);
-        addrs[0] = lo;
-        addrs[1] = hi;
-        uint96[] memory ws = new uint96[](2);
-        ws[0] = 100;
-        ws[1] = 100;
-        _submitWithOraclesForEpoch(addrs, ws, 1);
-
-        _settleEpoch0();
-        vm.warp(block.timestamp + EPOCH_DURATION + 1);
-        emission.settleEpoch(1); // partial settlement
-        assertTrue(emission.settleProgress() > 0);
-
-        vm.prank(treasury);
-        vm.expectRevert(AWPEmission.SettlementInProgress.selector);
-        emission.timelockSubmitAllocations(addrs, ws, 2);
-
-        emission.settleEpoch(200); // complete
-    }
-
-    function test_timelockSubmitAllocations_settleAndDistribute() public {
-        (address lo, address hi) = _sorted2(recipient1, recipient2);
-        address[] memory addrs = new address[](2);
-        addrs[0] = lo;
-        addrs[1] = hi;
-        uint96[] memory ws = new uint96[](2);
-        ws[0] = 600;
-        ws[1] = 400;
-
-        vm.prank(treasury);
-        emission.timelockSubmitAllocations(addrs, ws, 1);
-
-        _settleEpoch0();
-        vm.warp(block.timestamp + EPOCH_DURATION + 1);
-        emission.settleEpoch(200);
-
-        // Both recipients should have received AWP
-        assertTrue(awpToken.balanceOf(lo) > 0, "lo should receive AWP");
-        assertTrue(awpToken.balanceOf(hi) > 0, "hi should receive AWP");
-        // 600 vs 400 weight → lo gets more
-        assertTrue(awpToken.balanceOf(lo) > awpToken.balanceOf(hi), "lo should get more (600 vs 400)");
-    }
 
     // ── Multi-recipient proportional distribution ──
 
@@ -737,7 +442,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         uint96[] memory ws = new uint96[](2);
         ws[0] = 300;
         ws[1] = 100;
-        _submitWithOraclesForEpoch(addrs, ws, 1);
+        _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0
         _settleEpoch0();
@@ -763,7 +468,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         uint96[] memory ws = new uint96[](2);
         ws[0] = 100;
         ws[1] = 100;
-        _submitWithOraclesForEpoch(addrs, ws, 1);
+        _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0
         _settleEpoch0();
@@ -778,14 +483,14 @@ contract AWPEmissionTest is EmissionSigningHelper {
         vm.expectRevert(AWPEmission.SettlementInProgress.selector);
         emission.emergencySetWeight(1, 0, recipient1, 200);
 
-        // CAN submitAllocations for future epochs during settlement (epoch-versioned design)
-
-        // Cannot setOracleConfig during settlement
-        address[] memory newOracles = new address[](1);
-        newOracles[0] = oracle1;
+        // Cannot submitAllocations during settlement
+        address[] memory addrs2 = new address[](1);
+        addrs2[0] = recipient3;
+        uint96[] memory ws2 = new uint96[](1);
+        ws2[0] = 200;
         vm.prank(treasury);
         vm.expectRevert(AWPEmission.SettlementInProgress.selector);
-        emission.setOracleConfig(newOracles, 1);
+        emission.submitAllocations(addrs2, ws2, 3);
 
         // Complete remaining settlement batches
         emission.settleEpoch(200);
@@ -800,7 +505,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         addrs[0] = recipient1;
         uint96[] memory ws = new uint96[](1);
         ws[0] = 500;
-        _submitWithOraclesForEpoch(addrs, ws, 1);
+        _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0
         _settleEpoch0();
@@ -829,47 +534,6 @@ contract AWPEmissionTest is EmissionSigningHelper {
         emission.upgradeToAndCall(address(newImpl), "");
     }
 
-    /// @dev Test that old signatures become invalid after oracle replacement
-    function test_setOracleConfig_replaceAfterSubmission() public {
-        // First submission (nonce=0) for epoch 1
-        address[] memory addrs = new address[](1);
-        addrs[0] = recipient1;
-        uint96[] memory ws = new uint96[](1);
-        ws[0] = 100;
-        _submitWithOracles(addrs, ws);
-        assertEq(emission.allocationNonce(), 1);
-
-        // Replace with a completely new oracle set
-        uint256 newPk1 = 0xB1;
-        uint256 newPk2 = 0xB2;
-        uint256 newPk3 = 0xB3;
-        address[] memory newOracles = new address[](3);
-        newOracles[0] = vm.addr(newPk1);
-        newOracles[1] = vm.addr(newPk2);
-        newOracles[2] = vm.addr(newPk3);
-        vm.prank(treasury);
-        emission.setOracleConfig(newOracles, 2);
-
-        // Old oracle signatures for nonce=1, epoch 2 should be rejected
-        ws[0] = 200;
-        uint256 nonce1 = emission.allocationNonce();
-        uint256 effectiveEpoch = 2;
-        bytes[] memory oldSigs = new bytes[](3);
-        oldSigs[0] = _signAllocations(oracle1Pk, addrs, ws, nonce1, effectiveEpoch, address(emission));
-        oldSigs[1] = _signAllocations(oracle2Pk, addrs, ws, nonce1, effectiveEpoch, address(emission));
-        oldSigs[2] = _signAllocations(oracle3Pk, addrs, ws, nonce1, effectiveEpoch, address(emission));
-        vm.expectRevert(AWPEmission.UnknownOracle.selector);
-        emission.submitAllocations(addrs, ws, oldSigs, effectiveEpoch);
-
-        // New oracle signatures should succeed
-        bytes[] memory newSigs = new bytes[](2);
-        newSigs[0] = _signAllocations(newPk1, addrs, ws, nonce1, effectiveEpoch, address(emission));
-        newSigs[1] = _signAllocations(newPk2, addrs, ws, nonce1, effectiveEpoch, address(emission));
-        emission.submitAllocations(addrs, ws, newSigs, effectiveEpoch);
-
-        assertEq(emission.getEpochWeight(effectiveEpoch, recipient1), 200);
-    }
-
     // ── Epoch-versioned weight tests ──
 
     function test_epochVersionedWeights_independentEpochs() public {
@@ -878,11 +542,11 @@ contract AWPEmissionTest is EmissionSigningHelper {
         addrs[0] = recipient1;
         uint96[] memory ws1 = new uint96[](1);
         ws1[0] = 100;
-        _submitWithOraclesForEpoch(addrs, ws1, 1);
+        _submitAsGuardianForEpoch(addrs, ws1, 1);
 
         uint96[] memory ws2 = new uint96[](1);
         ws2[0] = 500;
-        _submitWithOraclesForEpoch(addrs, ws2, 2);
+        _submitAsGuardianForEpoch(addrs, ws2, 2);
 
         // Verify weights are independent per epoch
         assertEq(emission.getEpochWeight(1, recipient1), 100);
@@ -897,7 +561,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         addrs[0] = recipient1;
         uint96[] memory ws = new uint96[](1);
         ws[0] = 100;
-        _submitWithOraclesForEpoch(addrs, ws, 1);
+        _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // activeEpoch is 0 initially
         assertEq(emission.activeEpoch(), 0);
@@ -914,7 +578,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         addrs[0] = recipient1;
         uint96[] memory ws = new uint96[](1);
         ws[0] = 100;
-        _submitWithOraclesForEpoch(addrs, ws, 1);
+        _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0
         _settleEpoch0();
@@ -927,7 +591,8 @@ contract AWPEmissionTest is EmissionSigningHelper {
         assertTrue(balAfterEpoch1 > 0);
 
         // Settle epoch 2 — no weights for epoch 2, activeEpoch stays at 1
-        vm.warp(block.timestamp + EPOCH_DURATION + 1);
+        // Note: use 3 days offset from genesis (block.timestamp=1 in setUp) to ensure epoch 2 is ready
+        vm.warp(3 * EPOCH_DURATION + 2);
         emission.settleEpoch(200);
         assertEq(emission.activeEpoch(), 1);
 
