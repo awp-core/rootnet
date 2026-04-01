@@ -313,6 +313,80 @@ contract AWPTokenTest is Test {
 
     // ── Fuzz tests ──
 
+    // ── initialMint tests ──
+
+    function test_initialMint_success() public {
+        // Deploy a fresh token (no initialMint in setUp)
+        address freshDeployer = makeAddr("freshDeployer");
+        vm.prank(freshDeployer);
+        AWPToken freshToken = new AWPToken("AWP", "AWP", freshDeployer);
+
+        assertEq(freshToken.totalSupply(), 0);
+        assertEq(freshToken.balanceOf(freshDeployer), 0);
+
+        vm.prank(freshDeployer);
+        freshToken.initialMint(200_000_000 * 1e18);
+
+        assertEq(freshToken.balanceOf(freshDeployer), 200_000_000 * 1e18);
+        assertEq(freshToken.totalSupply(), 200_000_000 * 1e18);
+        assertTrue(freshToken.initialMinted());
+    }
+
+    function test_initialMint_onlyAdmin() public {
+        address freshDeployer = makeAddr("freshDeployer2");
+        vm.prank(freshDeployer);
+        AWPToken freshToken = new AWPToken("AWP", "AWP", freshDeployer);
+
+        vm.prank(alice);
+        vm.expectRevert(AWPToken.NotAdmin.selector);
+        freshToken.initialMint(100 * 1e18);
+    }
+
+    function test_initialMint_calledOnce() public {
+        // setUp already called initialMint on `token`
+        assertTrue(token.initialMinted());
+
+        vm.prank(deployer);
+        vm.expectRevert(AWPToken.AlreadyMinted.selector);
+        token.initialMint(1 * 1e18);
+    }
+
+    function test_initialMint_zero() public {
+        address freshDeployer = makeAddr("freshDeployer3");
+        vm.prank(freshDeployer);
+        AWPToken freshToken = new AWPToken("AWP", "AWP", freshDeployer);
+
+        vm.prank(freshDeployer);
+        freshToken.initialMint(0);
+
+        assertTrue(freshToken.initialMinted());
+        assertEq(freshToken.totalSupply(), 0);
+        assertEq(freshToken.balanceOf(freshDeployer), 0);
+    }
+
+    function test_initialMint_exceedsMaxSupply() public {
+        address freshDeployer = makeAddr("freshDeployer4");
+        vm.prank(freshDeployer);
+        AWPToken freshToken = new AWPToken("AWP", "AWP", freshDeployer);
+
+        vm.prank(freshDeployer);
+        vm.expectRevert(AWPToken.ExceedsMaxSupply.selector);
+        freshToken.initialMint(MAX_SUPPLY + 1);
+    }
+
+    function test_noConstructorMint() public {
+        // After constructor (before initialMint), totalSupply == 0
+        address freshDeployer = makeAddr("freshDeployer5");
+        vm.prank(freshDeployer);
+        AWPToken freshToken = new AWPToken("AWP", "AWP", freshDeployer);
+
+        assertEq(freshToken.totalSupply(), 0);
+        assertEq(freshToken.balanceOf(freshDeployer), 0);
+        assertFalse(freshToken.initialMinted());
+    }
+
+    // ── Fuzz tests ──
+
     function testFuzz_mint_respectsMaxSupply(uint256 amount) public {
         vm.prank(deployer);
         token.addMinter(minter);

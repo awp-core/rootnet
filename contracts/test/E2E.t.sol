@@ -952,4 +952,138 @@ contract E2ETest is Test {
         // 总分配 = 5000，总质押 = 10000，因此未分配 = 5000
         assertEq(vault.userTotalAllocated(alice), 5_000 * 1e18);
     }
+
+    // ════════════════════════════════════════════
+    //  E2E 24: Guardian emission flow (deploy → submit → settle → verify 100%)
+    // ════════════════════════════════════════════
+
+    function test_e2e_guardianEmissionFlow() public {
+        _registerUser(alice);
+        uint256 sid = _registerSubnet(alice, subnetC1);
+        vm.prank(alice);
+        awpRegistry.activateSubnet(sid);
+
+        // Guardian submits weights for subnetC1
+        _submitWeight(subnetC1, uint96(500));
+
+        // Settle epoch 0 (weights promoted from epoch 1)
+        _settleEpoch();
+
+        // Settle epoch 1
+        _settleEpoch();
+
+        // subnetC1 receives 100% of emission (no DAO split)
+        uint256 epoch0Pool = INITIAL_DAILY;
+        uint256 epoch1Pool = INITIAL_DAILY * 996844 / 1000000;
+        assertEq(awp.balanceOf(subnetC1), epoch0Pool + epoch1Pool);
+        // Treasury gets nothing unless Guardian includes it
+        assertEq(awp.balanceOf(address(treasury)), 50_000_000 * 1e18); // unchanged from deploy
+
+        // Now Guardian includes treasury as a recipient for epoch 3
+        {
+            address[] memory addrs = new address[](2);
+            addrs[0] = subnetC1;
+            addrs[1] = address(treasury);
+            uint96[] memory ws = new uint96[](2);
+            ws[0] = 700;
+            ws[1] = 300;
+            _submitWeights(addrs, ws);
+        }
+
+        _settleEpoch();
+
+        // Treasury should now have received its weight share
+        uint256 treasuryBal = awp.balanceOf(address(treasury));
+        assertTrue(treasuryBal > 50_000_000 * 1e18); // more than initial distribution
+    }
+
+    // ════════════════════════════════════════════
+    //  E2E 25: Cross-chain subnetId encoding
+    // ════════════════════════════════════════════
+
+    function test_e2e_crossChainSubnetId() public {
+        _registerUser(alice);
+
+        // Register a subnet and verify its subnetId encoding
+        uint256 sid = _registerSubnet(alice, subnetC1);
+
+        // Verify encoding: (block.chainid << 64) | localCounter
+        uint256 encodedChainId = sid >> 64;
+        uint256 localId = sid & ((1 << 64) - 1);
+        assertEq(encodedChainId, block.chainid);
+        assertEq(localId, 1); // first subnet registered
+
+        // Register another — localId should be 2
+        uint256 sid2 = _registerSubnet(alice, subnetC2);
+        uint256 localId2 = sid2 & ((1 << 64) - 1);
+        assertEq(localId2, 2);
+
+        // Allocate to the registered subnet
+        vm.prank(alice);
+        awpRegistry.activateSubnet(sid);
+        vm.startPrank(alice);
+        awp.approve(address(stakeNFT), 5_000 * 1e18);
+        stakeNFT.deposit(5_000 * 1e18, 52 weeks);
+        vault.allocate(alice, agentA, sid, 2_000 * 1e18);
+        vm.stopPrank();
+
+        assertEq(vault.getAgentStake(alice, agentA, sid), 2_000 * 1e18);
+    }
+
+    // ════════════════════════════════════════════
+    //  E2E 26: Multi-epoch with Guardian resubmit
+    // ════════════════════════════════════════════
+
+    function test_e2e_multiEpochWithGuardianResubmit() public {
+        _registerUser(alice);
+        uint256 sid1 = _registerSubnet(alice, subnetC1);
+        uint256 sid2 = _registerSubnet(alice, subnetC2);
+        vm.startPrank(alice);
+        awpRegistry.activateSubnet(sid1);
+        awpRegistry.activateSubnet(sid2);
+        vm.stopPrank();
+
+        // Guardian submits epoch 1 weights: subnetC1=800, subnetC2=200
+        {
+            address[] memory addrs = new address[](2);
+            addrs[0] = subnetC1;
+            addrs[1] = subnetC2;
+            uint96[] memory ws = new uint96[](2);
+            ws[0] = 800;
+            ws[1] = 200;
+            _submitWeights(addrs, ws);
+        }
+
+        // Settle epoch 0 + epoch 1
+        _settleEpoch();
+        _settleEpoch();
+
+        uint256 sc1BalEpoch1 = awp.balanceOf(subnetC1);
+        uint256 sc2BalEpoch1 = awp.balanceOf(subnetC2);
+
+        // 4:1 ratio after epochs 0+1
+        assertApproxEqRel(sc1BalEpoch1, sc2BalEpoch1 * 4, 0.01e18);
+
+        // Guardian resubmits for epoch 3: now subnetC1=100, subnetC2=900
+        {
+            address[] memory addrs = new address[](2);
+            addrs[0] = subnetC1;
+            addrs[1] = subnetC2;
+            uint96[] memory ws = new uint96[](2);
+            ws[0] = 100;
+            ws[1] = 900;
+            _submitWeights(addrs, ws);
+        }
+
+        // Settle epoch 2
+        _settleEpoch();
+
+        uint256 sc1BalEpoch2 = awp.balanceOf(subnetC1);
+        uint256 sc2BalEpoch2 = awp.balanceOf(subnetC2);
+
+        // Epoch 2 incremental emission: subnetC2 got 9x more than subnetC1 in this epoch
+        uint256 sc1Epoch2Gain = sc1BalEpoch2 - sc1BalEpoch1;
+        uint256 sc2Epoch2Gain = sc2BalEpoch2 - sc2BalEpoch1;
+        assertApproxEqRel(sc2Epoch2Gain, sc1Epoch2Gain * 9, 0.01e18);
+    }
 }

@@ -449,4 +449,73 @@ contract IntegrationTest is Test {
         vm.prank(owner1);
         awpRegistry.register();
     }
+
+    // ══════════════════════════════════════════════
+    // New integration tests: Guardian/Timelock access control, treasury as recipient
+    // ══════════════════════════════════════════════
+
+    /// @notice Timelock cannot call AWPEmission.setGuardian (it's onlyGuardian)
+    function test_guardianCannotBeChangedByTimelock() public {
+        // deployer is the guardian in tests, not treasury/Timelock
+        // Timelock should NOT be able to change guardian
+        vm.prank(address(treasury));
+        vm.expectRevert(AWPEmission.NotGuardian.selector);
+        emission.setGuardian(address(0x999));
+    }
+
+    /// @notice Timelock cannot upgrade AWPEmission (it's onlyGuardian)
+    function test_timelockCannotUpgradeEmission() public {
+        AWPEmission newImpl = new AWPEmission();
+        vm.prank(address(treasury));
+        vm.expectRevert(AWPEmission.NotGuardian.selector);
+        emission.upgradeToAndCall(address(newImpl), "");
+    }
+
+    /// @notice Full flow with treasury as a recipient in emission
+    function test_fullFlowWithTreasuryAsRecipient() public {
+        vm.prank(airdrop);
+        awp.transfer(owner1, 2_000_000 * 1e18);
+
+        // Register user and subnet
+        vm.prank(owner1);
+        awpRegistry.register();
+
+        vm.startPrank(owner1);
+        awp.approve(address(awpRegistry), 1_000_000 * 1e18);
+        uint256 subnetId = awpRegistry.registerSubnet(
+            IAWPRegistry.SubnetParams("TestSubnet", "TSUB", subnetManager1, bytes32(0), 0, "")
+        );
+        awpRegistry.activateSubnet(subnetId);
+        vm.stopPrank();
+
+        // Guardian includes treasury as a recipient: subnetManager1=700, treasury=300
+        {
+            address[] memory addrs = new address[](2);
+            addrs[0] = subnetManager1;
+            addrs[1] = address(treasury);
+            uint96[] memory ws = new uint96[](2);
+            ws[0] = 700;
+            ws[1] = 300;
+            _sortByAddress(addrs, ws);
+            uint256 effectiveEpoch = emission.settledEpoch() + 1;
+            vm.prank(deployer); // deployer == guardian in tests
+            emission.submitAllocations(addrs, ws, effectiveEpoch);
+        }
+
+        uint256 treasuryBefore = awp.balanceOf(address(treasury));
+
+        // Settle epoch 0 + epoch 1
+        _settleOneEpoch();
+        _settleOneEpoch();
+
+        uint256 treasuryAfter = awp.balanceOf(address(treasury));
+        uint256 subnetBal = awp.balanceOf(subnetManager1);
+
+        // Treasury received emission share
+        uint256 treasuryGain = treasuryAfter - treasuryBefore;
+        assertTrue(treasuryGain > 0);
+
+        // 7:3 ratio (subnetManager1:treasury)
+        assertApproxEqRel(subnetBal, treasuryGain * 7 / 3, 0.01e18);
+    }
 }

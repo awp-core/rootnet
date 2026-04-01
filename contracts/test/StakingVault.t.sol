@@ -442,4 +442,31 @@ contract StakingVaultTest is Test {
         vm.expectRevert(StakingVault.NotTimelock.selector);
         vault.upgradeToAndCall(address(newImpl), "");
     }
+
+    // ══════════════════════════════════════════════
+    // New tests: deallocate rejects subnetId=0, treasury can upgrade
+    // ══════════════════════════════════════════════
+
+    function test_deallocate_revertsSubnetIdZero() public {
+        // First allocate to a valid subnet
+        vm.prank(user1);
+        vault.allocate(user1, agent1, SUBNET_1, 500 ether);
+
+        // Deallocate with subnetId=0 should revert
+        vm.prank(user1);
+        vm.expectRevert(StakingVault.InvalidAmount.selector);
+        vault.deallocate(user1, agent1, 0, 100 ether);
+    }
+
+    function test_vaultUpgradeByTreasury_succeeds() public {
+        // treasury is address(this) in the test setUp
+        StakingVault newImpl = new StakingVault();
+        // address(this) == treasury in setUp, so this call should succeed
+        vault.upgradeToAndCall(address(newImpl), "");
+
+        // Verify state is preserved after upgrade
+        assertEq(vault.awpRegistry(), address(this));
+        assertEq(vault.treasury(), address(this));
+        assertEq(vault.getAgentStake(user1, agent1, SUBNET_1), 0);
+    }
 }

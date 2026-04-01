@@ -573,4 +573,122 @@ contract AWPEmissionTest is Test {
         vm.expectRevert(AWPEmission.NotGuardian.selector);
         emission.setDecayFactor(995000);
     }
+
+    // ══════════════════════════════════════════════
+    // New tests: Guardian upgrade, 100% emission, treasury as recipient,
+    //            setDecayFactor by guardian, catch-up submission
+    // ══════════════════════════════════════════════
+
+    function test_upgradeViaGuardian() public {
+        // Guardian (treasury in tests) can upgrade the emission contract
+        AWPEmission newImpl = new AWPEmission();
+        vm.prank(treasury);
+        emission.upgradeToAndCall(address(newImpl), "");
+
+        // Verify state preserved after upgrade
+        assertEq(emission.guardian(), treasury);
+        assertEq(emission.maxRecipients(), 10000);
+    }
+
+    function test_epochSettlement_100percent() public {
+        // Verify 100% emission goes to recipients (no DAO split)
+        address[] memory addrs = new address[](1);
+        addrs[0] = recipient1;
+        uint96[] memory ws = new uint96[](1);
+        ws[0] = 100;
+        _submitAsGuardianForEpoch(addrs, ws, 1);
+
+        // Settle epoch 0 (promotes weights from epoch 1 as activeEpoch)
+        _settleEpoch0();
+
+        // Settle epoch 1
+        vm.warp(block.timestamp + EPOCH_DURATION + 1);
+        emission.settleEpoch(200);
+
+        // recipient1 should receive epoch 0 full emission + epoch 1 decayed emission
+        uint256 epoch0Pool = INITIAL_DAILY_EMISSION;
+        uint256 epoch1Pool = INITIAL_DAILY_EMISSION * 996844 / 1000000;
+        uint256 totalExpected = epoch0Pool + epoch1Pool;
+        assertEq(awpToken.balanceOf(recipient1), totalExpected);
+
+        // No other address received anything (no DAO split)
+        assertEq(awpToken.balanceOf(treasury), 0);
+    }
+
+    function test_guardianIncludesTreasury() public {
+        // Guardian adds treasury as a recipient — verify treasury gets its weight share
+        address[] memory addrs = new address[](2);
+        addrs[0] = recipient1;
+        addrs[1] = treasury;
+        uint96[] memory ws = new uint96[](2);
+        ws[0] = 300;
+        ws[1] = 100;
+        _submitAsGuardianForEpoch(addrs, ws, 1);
+
+        _settleEpoch0();
+        vm.warp(block.timestamp + EPOCH_DURATION + 1);
+        emission.settleEpoch(200);
+
+        uint256 bal1 = awpToken.balanceOf(recipient1);
+        uint256 balT = awpToken.balanceOf(treasury);
+
+        // 3:1 ratio (recipient1:treasury)
+        assertApproxEqRel(bal1, balT * 3, 0.01e18);
+        assertTrue(balT > 0);
+    }
+
+    function test_setDecayFactor_byGuardian() public {
+        vm.prank(treasury);
+        emission.setDecayFactor(990000);
+        assertEq(emission.decayFactor(), 990000);
+
+        // Now verify decay uses the new factor
+        address[] memory addrs = new address[](1);
+        addrs[0] = recipient1;
+        uint96[] memory ws = new uint96[](1);
+        ws[0] = 100;
+        _submitAsGuardianForEpoch(addrs, ws, 1);
+
+        _settleEpoch0();
+
+        // Settle epoch 1 with new decay factor
+        vm.warp(block.timestamp + EPOCH_DURATION + 1);
+        emission.settleEpoch(200);
+
+        uint256 decayedEmission = emission.currentDailyEmission();
+        assertEq(decayedEmission, INITIAL_DAILY_EMISSION * 990000 / 1000000);
+    }
+
+    function test_submitAllocations_catchUp() public {
+        // Submit for epoch 3 (skipping epoch 1 and 2)
+        address[] memory addrs = new address[](1);
+        addrs[0] = recipient1;
+        uint96[] memory ws = new uint96[](1);
+        ws[0] = 100;
+        _submitAsGuardianForEpoch(addrs, ws, 3);
+
+        uint256 genesis = emission.genesisTime();
+
+        // Settle epoch 0 — no weights for epoch 1, activeEpoch stays 0
+        vm.warp(genesis + EPOCH_DURATION * 2);
+        emission.settleEpoch(200);
+        assertEq(emission.settledEpoch(), 1);
+        assertEq(emission.activeEpoch(), 0);
+
+        // Settle epoch 1 — no weights for epoch 2, activeEpoch stays 0
+        vm.warp(genesis + EPOCH_DURATION * 3);
+        emission.settleEpoch(200);
+        assertEq(emission.settledEpoch(), 2);
+        assertEq(emission.activeEpoch(), 0);
+
+        // Settle epoch 2 — weights exist for epoch 3, activeEpoch promoted to 3
+        vm.warp(genesis + EPOCH_DURATION * 4);
+        emission.settleEpoch(200);
+        assertEq(emission.settledEpoch(), 3);
+        assertEq(emission.activeEpoch(), 3);
+
+        // recipient1 should receive epoch 2's emission (the first epoch using epoch 3 weights)
+        uint256 bal = awpToken.balanceOf(recipient1);
+        assertTrue(bal > 0);
+    }
 }
