@@ -31,7 +31,7 @@ var (
 
 // AWPEmissionMetaData contains all meta data concerning the AWPEmission contract.
 var AWPEmissionMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"constructor\",\"inputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"DECAY_PRECISION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"UPGRADE_INTERFACE_VERSION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"activeEpoch\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"allocationNonce\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"awpToken\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"contractIAWPToken\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"currentDailyEmission\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"currentEpoch\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"decayFactor\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"eip712Domain\",\"inputs\":[],\"outputs\":[{\"name\":\"fields\",\"type\":\"bytes1\",\"internalType\":\"bytes1\"},{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"version\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"verifyingContract\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"extensions\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"emergencySetWeight\",\"inputs\":[{\"name\":\"epoch_\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"index\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"addr\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"weight\",\"type\":\"uint96\",\"internalType\":\"uint96\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"emissionSplitBps\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"epochDuration\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"epochEmissionLocked\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"genesisTime\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getEpochRecipientCount\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getEpochTotalWeight\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getEpochWeight\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"addr\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint96\",\"internalType\":\"uint96\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getOracleCount\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getRecipient\",\"inputs\":[{\"name\":\"index\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getRecipientCount\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getTotalWeight\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getWeight\",\"inputs\":[{\"name\":\"addr\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint96\",\"internalType\":\"uint96\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"awpToken_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"treasury_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"initialDailyEmission_\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"genesisTime_\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"epochDuration_\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"isOracleMap\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"maxRecipients\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"oracleThreshold\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"oracles\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proxiableUUID\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"setDecayFactor\",\"inputs\":[{\"name\":\"newDecayFactor\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setEmissionSplitBps\",\"inputs\":[{\"name\":\"newSplitBps\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setOracleConfig\",\"inputs\":[{\"name\":\"oracles_\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"threshold_\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"settleEpoch\",\"inputs\":[{\"name\":\"limit\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"settleProgress\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"settledEpoch\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"submitAllocations\",\"inputs\":[{\"name\":\"recipients_\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"weights_\",\"type\":\"uint96[]\",\"internalType\":\"uint96[]\"},{\"name\":\"signatures\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"effectiveEpoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"treasury\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"upgradeToAndCall\",\"inputs\":[{\"name\":\"newImplementation\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"event\",\"name\":\"AllocationsSubmitted\",\"inputs\":[{\"name\":\"nonce\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"recipients\",\"type\":\"address[]\",\"indexed\":false,\"internalType\":\"address[]\"},{\"name\":\"weights\",\"type\":\"uint96[]\",\"indexed\":false,\"internalType\":\"uint96[]\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"DAOMatchDistributed\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"EIP712DomainChanged\",\"inputs\":[],\"anonymous\":false},{\"type\":\"event\",\"name\":\"EpochSettled\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"totalEmission\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"recipientCount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"GovernanceWeightUpdated\",\"inputs\":[{\"name\":\"addr\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"weight\",\"type\":\"uint96\",\"indexed\":false,\"internalType\":\"uint96\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"OracleConfigUpdated\",\"inputs\":[{\"name\":\"oracles\",\"type\":\"address[]\",\"indexed\":false,\"internalType\":\"address[]\"},{\"name\":\"threshold\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"RecipientAWPDistributed\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"recipient\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"awpAmount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Upgraded\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"AddressEmptyCode\",\"inputs\":[{\"name\":\"target\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ArrayLengthMismatch\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"DuplicateOracle\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"DuplicateRecipient\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"DuplicateSigner\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureLength\",\"inputs\":[{\"name\":\"length\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureS\",\"inputs\":[{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"ERC1967InvalidImplementation\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC1967NonPayable\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"EpochNotReady\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"FailedCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidAmount\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidInitialization\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidOracleConfig\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidParameter\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidRecipient\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidSignatureCount\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MiningComplete\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MustBeFutureEpoch\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotInitializing\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotTimelock\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"OracleNotConfigured\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ReentrancyGuardReentrantCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"SettlementInProgress\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnauthorizedCallContext\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnsupportedProxiableUUID\",\"inputs\":[{\"name\":\"slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"UnknownOracle\",\"inputs\":[]}]",
+	ABI: "[{\"type\":\"constructor\",\"inputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"DECAY_PRECISION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"UPGRADE_INTERFACE_VERSION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"activeEpoch\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"awpToken\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"contractIAWPToken\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"currentDailyEmission\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"currentEpoch\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"decayFactor\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"eip712Domain\",\"inputs\":[],\"outputs\":[{\"name\":\"fields\",\"type\":\"bytes1\",\"internalType\":\"bytes1\"},{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"version\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"verifyingContract\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"extensions\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"epochDuration\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"epochEmissionLocked\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"genesisTime\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getEpochRecipientCount\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getEpochTotalWeight\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getEpochWeight\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"addr\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint96\",\"internalType\":\"uint96\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getRecipient\",\"inputs\":[{\"name\":\"index\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getRecipientCount\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getTotalWeight\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getWeight\",\"inputs\":[{\"name\":\"addr\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint96\",\"internalType\":\"uint96\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"guardian\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"awpToken_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"guardian_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"initialDailyEmission_\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"genesisTime_\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"epochDuration_\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"maxRecipients\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proxiableUUID\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"setDecayFactor\",\"inputs\":[{\"name\":\"newDecayFactor\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setGuardian\",\"inputs\":[{\"name\":\"g\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"settleEpoch\",\"inputs\":[{\"name\":\"limit\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"settleProgress\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"settledEpoch\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"submitAllocations\",\"inputs\":[{\"name\":\"recipients_\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"weights_\",\"type\":\"uint96[]\",\"internalType\":\"uint96[]\"},{\"name\":\"effectiveEpoch\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"upgradeToAndCall\",\"inputs\":[{\"name\":\"newImplementation\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"event\",\"name\":\"AllocationsSubmitted\",\"inputs\":[{\"name\":\"nonce\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"recipients\",\"type\":\"address[]\",\"indexed\":false,\"internalType\":\"address[]\"},{\"name\":\"weights\",\"type\":\"uint96[]\",\"indexed\":false,\"internalType\":\"uint96[]\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"EIP712DomainChanged\",\"inputs\":[],\"anonymous\":false},{\"type\":\"event\",\"name\":\"EpochSettled\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"totalEmission\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"recipientCount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"RecipientAWPDistributed\",\"inputs\":[{\"name\":\"epoch\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"recipient\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"awpAmount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Upgraded\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"AddressEmptyCode\",\"inputs\":[{\"name\":\"target\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ArrayLengthMismatch\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"DuplicateRecipient\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ERC1967InvalidImplementation\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC1967NonPayable\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"EpochNotReady\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"FailedCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidAmount\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidInitialization\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidParameter\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidRecipient\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MiningComplete\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MustBeFutureEpoch\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotGuardian\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotInitializing\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ReentrancyGuardReentrantCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"SettlementInProgress\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnauthorizedCallContext\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnsupportedProxiableUUID\",\"inputs\":[{\"name\":\"slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]}]",
 }
 
 // AWPEmissionABI is the input ABI used to generate the binding from.
@@ -273,37 +273,6 @@ func (_AWPEmission *AWPEmissionCallerSession) ActiveEpoch() (*big.Int, error) {
 	return _AWPEmission.Contract.ActiveEpoch(&_AWPEmission.CallOpts)
 }
 
-// AllocationNonce is a free data retrieval call binding the contract method 0x5d77fd87.
-//
-// Solidity: function allocationNonce() view returns(uint256)
-func (_AWPEmission *AWPEmissionCaller) AllocationNonce(opts *bind.CallOpts) (*big.Int, error) {
-	var out []interface{}
-	err := _AWPEmission.contract.Call(opts, &out, "allocationNonce")
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// AllocationNonce is a free data retrieval call binding the contract method 0x5d77fd87.
-//
-// Solidity: function allocationNonce() view returns(uint256)
-func (_AWPEmission *AWPEmissionSession) AllocationNonce() (*big.Int, error) {
-	return _AWPEmission.Contract.AllocationNonce(&_AWPEmission.CallOpts)
-}
-
-// AllocationNonce is a free data retrieval call binding the contract method 0x5d77fd87.
-//
-// Solidity: function allocationNonce() view returns(uint256)
-func (_AWPEmission *AWPEmissionCallerSession) AllocationNonce() (*big.Int, error) {
-	return _AWPEmission.Contract.AllocationNonce(&_AWPEmission.CallOpts)
-}
-
 // AwpToken is a free data retrieval call binding the contract method 0x41a578cf.
 //
 // Solidity: function awpToken() view returns(address)
@@ -498,37 +467,6 @@ func (_AWPEmission *AWPEmissionCallerSession) Eip712Domain() (struct {
 	return _AWPEmission.Contract.Eip712Domain(&_AWPEmission.CallOpts)
 }
 
-// EmissionSplitBps is a free data retrieval call binding the contract method 0x349e60a8.
-//
-// Solidity: function emissionSplitBps() view returns(uint256)
-func (_AWPEmission *AWPEmissionCaller) EmissionSplitBps(opts *bind.CallOpts) (*big.Int, error) {
-	var out []interface{}
-	err := _AWPEmission.contract.Call(opts, &out, "emissionSplitBps")
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// EmissionSplitBps is a free data retrieval call binding the contract method 0x349e60a8.
-//
-// Solidity: function emissionSplitBps() view returns(uint256)
-func (_AWPEmission *AWPEmissionSession) EmissionSplitBps() (*big.Int, error) {
-	return _AWPEmission.Contract.EmissionSplitBps(&_AWPEmission.CallOpts)
-}
-
-// EmissionSplitBps is a free data retrieval call binding the contract method 0x349e60a8.
-//
-// Solidity: function emissionSplitBps() view returns(uint256)
-func (_AWPEmission *AWPEmissionCallerSession) EmissionSplitBps() (*big.Int, error) {
-	return _AWPEmission.Contract.EmissionSplitBps(&_AWPEmission.CallOpts)
-}
-
 // EpochDuration is a free data retrieval call binding the contract method 0x4ff0876a.
 //
 // Solidity: function epochDuration() view returns(uint256)
@@ -715,37 +653,6 @@ func (_AWPEmission *AWPEmissionCallerSession) GetEpochWeight(epoch *big.Int, add
 	return _AWPEmission.Contract.GetEpochWeight(&_AWPEmission.CallOpts, epoch, addr)
 }
 
-// GetOracleCount is a free data retrieval call binding the contract method 0x3f4e4251.
-//
-// Solidity: function getOracleCount() view returns(uint256)
-func (_AWPEmission *AWPEmissionCaller) GetOracleCount(opts *bind.CallOpts) (*big.Int, error) {
-	var out []interface{}
-	err := _AWPEmission.contract.Call(opts, &out, "getOracleCount")
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// GetOracleCount is a free data retrieval call binding the contract method 0x3f4e4251.
-//
-// Solidity: function getOracleCount() view returns(uint256)
-func (_AWPEmission *AWPEmissionSession) GetOracleCount() (*big.Int, error) {
-	return _AWPEmission.Contract.GetOracleCount(&_AWPEmission.CallOpts)
-}
-
-// GetOracleCount is a free data retrieval call binding the contract method 0x3f4e4251.
-//
-// Solidity: function getOracleCount() view returns(uint256)
-func (_AWPEmission *AWPEmissionCallerSession) GetOracleCount() (*big.Int, error) {
-	return _AWPEmission.Contract.GetOracleCount(&_AWPEmission.CallOpts)
-}
-
 // GetRecipient is a free data retrieval call binding the contract method 0x6d0cee75.
 //
 // Solidity: function getRecipient(uint256 index) view returns(address)
@@ -870,35 +777,35 @@ func (_AWPEmission *AWPEmissionCallerSession) GetWeight(addr common.Address) (*b
 	return _AWPEmission.Contract.GetWeight(&_AWPEmission.CallOpts, addr)
 }
 
-// IsOracleMap is a free data retrieval call binding the contract method 0x6535ad6d.
+// Guardian is a free data retrieval call binding the contract method 0x452a9320.
 //
-// Solidity: function isOracleMap(address ) view returns(bool)
-func (_AWPEmission *AWPEmissionCaller) IsOracleMap(opts *bind.CallOpts, arg0 common.Address) (bool, error) {
+// Solidity: function guardian() view returns(address)
+func (_AWPEmission *AWPEmissionCaller) Guardian(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _AWPEmission.contract.Call(opts, &out, "isOracleMap", arg0)
+	err := _AWPEmission.contract.Call(opts, &out, "guardian")
 
 	if err != nil {
-		return *new(bool), err
+		return *new(common.Address), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
 
 	return out0, err
 
 }
 
-// IsOracleMap is a free data retrieval call binding the contract method 0x6535ad6d.
+// Guardian is a free data retrieval call binding the contract method 0x452a9320.
 //
-// Solidity: function isOracleMap(address ) view returns(bool)
-func (_AWPEmission *AWPEmissionSession) IsOracleMap(arg0 common.Address) (bool, error) {
-	return _AWPEmission.Contract.IsOracleMap(&_AWPEmission.CallOpts, arg0)
+// Solidity: function guardian() view returns(address)
+func (_AWPEmission *AWPEmissionSession) Guardian() (common.Address, error) {
+	return _AWPEmission.Contract.Guardian(&_AWPEmission.CallOpts)
 }
 
-// IsOracleMap is a free data retrieval call binding the contract method 0x6535ad6d.
+// Guardian is a free data retrieval call binding the contract method 0x452a9320.
 //
-// Solidity: function isOracleMap(address ) view returns(bool)
-func (_AWPEmission *AWPEmissionCallerSession) IsOracleMap(arg0 common.Address) (bool, error) {
-	return _AWPEmission.Contract.IsOracleMap(&_AWPEmission.CallOpts, arg0)
+// Solidity: function guardian() view returns(address)
+func (_AWPEmission *AWPEmissionCallerSession) Guardian() (common.Address, error) {
+	return _AWPEmission.Contract.Guardian(&_AWPEmission.CallOpts)
 }
 
 // MaxRecipients is a free data retrieval call binding the contract method 0x88a13072.
@@ -930,68 +837,6 @@ func (_AWPEmission *AWPEmissionSession) MaxRecipients() (*big.Int, error) {
 // Solidity: function maxRecipients() view returns(uint256)
 func (_AWPEmission *AWPEmissionCallerSession) MaxRecipients() (*big.Int, error) {
 	return _AWPEmission.Contract.MaxRecipients(&_AWPEmission.CallOpts)
-}
-
-// OracleThreshold is a free data retrieval call binding the contract method 0xc379a75d.
-//
-// Solidity: function oracleThreshold() view returns(uint256)
-func (_AWPEmission *AWPEmissionCaller) OracleThreshold(opts *bind.CallOpts) (*big.Int, error) {
-	var out []interface{}
-	err := _AWPEmission.contract.Call(opts, &out, "oracleThreshold")
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// OracleThreshold is a free data retrieval call binding the contract method 0xc379a75d.
-//
-// Solidity: function oracleThreshold() view returns(uint256)
-func (_AWPEmission *AWPEmissionSession) OracleThreshold() (*big.Int, error) {
-	return _AWPEmission.Contract.OracleThreshold(&_AWPEmission.CallOpts)
-}
-
-// OracleThreshold is a free data retrieval call binding the contract method 0xc379a75d.
-//
-// Solidity: function oracleThreshold() view returns(uint256)
-func (_AWPEmission *AWPEmissionCallerSession) OracleThreshold() (*big.Int, error) {
-	return _AWPEmission.Contract.OracleThreshold(&_AWPEmission.CallOpts)
-}
-
-// Oracles is a free data retrieval call binding the contract method 0x5b69a7d8.
-//
-// Solidity: function oracles(uint256 ) view returns(address)
-func (_AWPEmission *AWPEmissionCaller) Oracles(opts *bind.CallOpts, arg0 *big.Int) (common.Address, error) {
-	var out []interface{}
-	err := _AWPEmission.contract.Call(opts, &out, "oracles", arg0)
-
-	if err != nil {
-		return *new(common.Address), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
-
-	return out0, err
-
-}
-
-// Oracles is a free data retrieval call binding the contract method 0x5b69a7d8.
-//
-// Solidity: function oracles(uint256 ) view returns(address)
-func (_AWPEmission *AWPEmissionSession) Oracles(arg0 *big.Int) (common.Address, error) {
-	return _AWPEmission.Contract.Oracles(&_AWPEmission.CallOpts, arg0)
-}
-
-// Oracles is a free data retrieval call binding the contract method 0x5b69a7d8.
-//
-// Solidity: function oracles(uint256 ) view returns(address)
-func (_AWPEmission *AWPEmissionCallerSession) Oracles(arg0 *big.Int) (common.Address, error) {
-	return _AWPEmission.Contract.Oracles(&_AWPEmission.CallOpts, arg0)
 }
 
 // ProxiableUUID is a free data retrieval call binding the contract method 0x52d1902d.
@@ -1087,77 +932,25 @@ func (_AWPEmission *AWPEmissionCallerSession) SettledEpoch() (*big.Int, error) {
 	return _AWPEmission.Contract.SettledEpoch(&_AWPEmission.CallOpts)
 }
 
-// Treasury is a free data retrieval call binding the contract method 0x61d027b3.
+// Initialize is a paid mutator transaction binding the contract method 0xd13f90b4.
 //
-// Solidity: function treasury() view returns(address)
-func (_AWPEmission *AWPEmissionCaller) Treasury(opts *bind.CallOpts) (common.Address, error) {
-	var out []interface{}
-	err := _AWPEmission.contract.Call(opts, &out, "treasury")
-
-	if err != nil {
-		return *new(common.Address), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
-
-	return out0, err
-
-}
-
-// Treasury is a free data retrieval call binding the contract method 0x61d027b3.
-//
-// Solidity: function treasury() view returns(address)
-func (_AWPEmission *AWPEmissionSession) Treasury() (common.Address, error) {
-	return _AWPEmission.Contract.Treasury(&_AWPEmission.CallOpts)
-}
-
-// Treasury is a free data retrieval call binding the contract method 0x61d027b3.
-//
-// Solidity: function treasury() view returns(address)
-func (_AWPEmission *AWPEmissionCallerSession) Treasury() (common.Address, error) {
-	return _AWPEmission.Contract.Treasury(&_AWPEmission.CallOpts)
-}
-
-// EmergencySetWeight is a paid mutator transaction binding the contract method 0xa7e5d57a.
-//
-// Solidity: function emergencySetWeight(uint256 epoch_, uint256 index, address addr, uint96 weight) returns()
-func (_AWPEmission *AWPEmissionTransactor) EmergencySetWeight(opts *bind.TransactOpts, epoch_ *big.Int, index *big.Int, addr common.Address, weight *big.Int) (*types.Transaction, error) {
-	return _AWPEmission.contract.Transact(opts, "emergencySetWeight", epoch_, index, addr, weight)
-}
-
-// EmergencySetWeight is a paid mutator transaction binding the contract method 0xa7e5d57a.
-//
-// Solidity: function emergencySetWeight(uint256 epoch_, uint256 index, address addr, uint96 weight) returns()
-func (_AWPEmission *AWPEmissionSession) EmergencySetWeight(epoch_ *big.Int, index *big.Int, addr common.Address, weight *big.Int) (*types.Transaction, error) {
-	return _AWPEmission.Contract.EmergencySetWeight(&_AWPEmission.TransactOpts, epoch_, index, addr, weight)
-}
-
-// EmergencySetWeight is a paid mutator transaction binding the contract method 0xa7e5d57a.
-//
-// Solidity: function emergencySetWeight(uint256 epoch_, uint256 index, address addr, uint96 weight) returns()
-func (_AWPEmission *AWPEmissionTransactorSession) EmergencySetWeight(epoch_ *big.Int, index *big.Int, addr common.Address, weight *big.Int) (*types.Transaction, error) {
-	return _AWPEmission.Contract.EmergencySetWeight(&_AWPEmission.TransactOpts, epoch_, index, addr, weight)
+// Solidity: function initialize(address awpToken_, address guardian_, uint256 initialDailyEmission_, uint256 genesisTime_, uint256 epochDuration_) returns()
+func (_AWPEmission *AWPEmissionTransactor) Initialize(opts *bind.TransactOpts, awpToken_ common.Address, guardian_ common.Address, initialDailyEmission_ *big.Int, genesisTime_ *big.Int, epochDuration_ *big.Int) (*types.Transaction, error) {
+	return _AWPEmission.contract.Transact(opts, "initialize", awpToken_, guardian_, initialDailyEmission_, genesisTime_, epochDuration_)
 }
 
 // Initialize is a paid mutator transaction binding the contract method 0xd13f90b4.
 //
-// Solidity: function initialize(address awpToken_, address treasury_, uint256 initialDailyEmission_, uint256 genesisTime_, uint256 epochDuration_) returns()
-func (_AWPEmission *AWPEmissionTransactor) Initialize(opts *bind.TransactOpts, awpToken_ common.Address, treasury_ common.Address, initialDailyEmission_ *big.Int, genesisTime_ *big.Int, epochDuration_ *big.Int) (*types.Transaction, error) {
-	return _AWPEmission.contract.Transact(opts, "initialize", awpToken_, treasury_, initialDailyEmission_, genesisTime_, epochDuration_)
+// Solidity: function initialize(address awpToken_, address guardian_, uint256 initialDailyEmission_, uint256 genesisTime_, uint256 epochDuration_) returns()
+func (_AWPEmission *AWPEmissionSession) Initialize(awpToken_ common.Address, guardian_ common.Address, initialDailyEmission_ *big.Int, genesisTime_ *big.Int, epochDuration_ *big.Int) (*types.Transaction, error) {
+	return _AWPEmission.Contract.Initialize(&_AWPEmission.TransactOpts, awpToken_, guardian_, initialDailyEmission_, genesisTime_, epochDuration_)
 }
 
 // Initialize is a paid mutator transaction binding the contract method 0xd13f90b4.
 //
-// Solidity: function initialize(address awpToken_, address treasury_, uint256 initialDailyEmission_, uint256 genesisTime_, uint256 epochDuration_) returns()
-func (_AWPEmission *AWPEmissionSession) Initialize(awpToken_ common.Address, treasury_ common.Address, initialDailyEmission_ *big.Int, genesisTime_ *big.Int, epochDuration_ *big.Int) (*types.Transaction, error) {
-	return _AWPEmission.Contract.Initialize(&_AWPEmission.TransactOpts, awpToken_, treasury_, initialDailyEmission_, genesisTime_, epochDuration_)
-}
-
-// Initialize is a paid mutator transaction binding the contract method 0xd13f90b4.
-//
-// Solidity: function initialize(address awpToken_, address treasury_, uint256 initialDailyEmission_, uint256 genesisTime_, uint256 epochDuration_) returns()
-func (_AWPEmission *AWPEmissionTransactorSession) Initialize(awpToken_ common.Address, treasury_ common.Address, initialDailyEmission_ *big.Int, genesisTime_ *big.Int, epochDuration_ *big.Int) (*types.Transaction, error) {
-	return _AWPEmission.Contract.Initialize(&_AWPEmission.TransactOpts, awpToken_, treasury_, initialDailyEmission_, genesisTime_, epochDuration_)
+// Solidity: function initialize(address awpToken_, address guardian_, uint256 initialDailyEmission_, uint256 genesisTime_, uint256 epochDuration_) returns()
+func (_AWPEmission *AWPEmissionTransactorSession) Initialize(awpToken_ common.Address, guardian_ common.Address, initialDailyEmission_ *big.Int, genesisTime_ *big.Int, epochDuration_ *big.Int) (*types.Transaction, error) {
+	return _AWPEmission.Contract.Initialize(&_AWPEmission.TransactOpts, awpToken_, guardian_, initialDailyEmission_, genesisTime_, epochDuration_)
 }
 
 // SetDecayFactor is a paid mutator transaction binding the contract method 0xb8c9059d.
@@ -1181,46 +974,25 @@ func (_AWPEmission *AWPEmissionTransactorSession) SetDecayFactor(newDecayFactor 
 	return _AWPEmission.Contract.SetDecayFactor(&_AWPEmission.TransactOpts, newDecayFactor)
 }
 
-// SetEmissionSplitBps is a paid mutator transaction binding the contract method 0xa6d343d7.
+// SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
 //
-// Solidity: function setEmissionSplitBps(uint256 newSplitBps) returns()
-func (_AWPEmission *AWPEmissionTransactor) SetEmissionSplitBps(opts *bind.TransactOpts, newSplitBps *big.Int) (*types.Transaction, error) {
-	return _AWPEmission.contract.Transact(opts, "setEmissionSplitBps", newSplitBps)
+// Solidity: function setGuardian(address g) returns()
+func (_AWPEmission *AWPEmissionTransactor) SetGuardian(opts *bind.TransactOpts, g common.Address) (*types.Transaction, error) {
+	return _AWPEmission.contract.Transact(opts, "setGuardian", g)
 }
 
-// SetEmissionSplitBps is a paid mutator transaction binding the contract method 0xa6d343d7.
+// SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
 //
-// Solidity: function setEmissionSplitBps(uint256 newSplitBps) returns()
-func (_AWPEmission *AWPEmissionSession) SetEmissionSplitBps(newSplitBps *big.Int) (*types.Transaction, error) {
-	return _AWPEmission.Contract.SetEmissionSplitBps(&_AWPEmission.TransactOpts, newSplitBps)
+// Solidity: function setGuardian(address g) returns()
+func (_AWPEmission *AWPEmissionSession) SetGuardian(g common.Address) (*types.Transaction, error) {
+	return _AWPEmission.Contract.SetGuardian(&_AWPEmission.TransactOpts, g)
 }
 
-// SetEmissionSplitBps is a paid mutator transaction binding the contract method 0xa6d343d7.
+// SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
 //
-// Solidity: function setEmissionSplitBps(uint256 newSplitBps) returns()
-func (_AWPEmission *AWPEmissionTransactorSession) SetEmissionSplitBps(newSplitBps *big.Int) (*types.Transaction, error) {
-	return _AWPEmission.Contract.SetEmissionSplitBps(&_AWPEmission.TransactOpts, newSplitBps)
-}
-
-// SetOracleConfig is a paid mutator transaction binding the contract method 0xa5ca27df.
-//
-// Solidity: function setOracleConfig(address[] oracles_, uint256 threshold_) returns()
-func (_AWPEmission *AWPEmissionTransactor) SetOracleConfig(opts *bind.TransactOpts, oracles_ []common.Address, threshold_ *big.Int) (*types.Transaction, error) {
-	return _AWPEmission.contract.Transact(opts, "setOracleConfig", oracles_, threshold_)
-}
-
-// SetOracleConfig is a paid mutator transaction binding the contract method 0xa5ca27df.
-//
-// Solidity: function setOracleConfig(address[] oracles_, uint256 threshold_) returns()
-func (_AWPEmission *AWPEmissionSession) SetOracleConfig(oracles_ []common.Address, threshold_ *big.Int) (*types.Transaction, error) {
-	return _AWPEmission.Contract.SetOracleConfig(&_AWPEmission.TransactOpts, oracles_, threshold_)
-}
-
-// SetOracleConfig is a paid mutator transaction binding the contract method 0xa5ca27df.
-//
-// Solidity: function setOracleConfig(address[] oracles_, uint256 threshold_) returns()
-func (_AWPEmission *AWPEmissionTransactorSession) SetOracleConfig(oracles_ []common.Address, threshold_ *big.Int) (*types.Transaction, error) {
-	return _AWPEmission.Contract.SetOracleConfig(&_AWPEmission.TransactOpts, oracles_, threshold_)
+// Solidity: function setGuardian(address g) returns()
+func (_AWPEmission *AWPEmissionTransactorSession) SetGuardian(g common.Address) (*types.Transaction, error) {
+	return _AWPEmission.Contract.SetGuardian(&_AWPEmission.TransactOpts, g)
 }
 
 // SettleEpoch is a paid mutator transaction binding the contract method 0x4d35fa7e.
@@ -1244,25 +1016,25 @@ func (_AWPEmission *AWPEmissionTransactorSession) SettleEpoch(limit *big.Int) (*
 	return _AWPEmission.Contract.SettleEpoch(&_AWPEmission.TransactOpts, limit)
 }
 
-// SubmitAllocations is a paid mutator transaction binding the contract method 0xf7c70a46.
+// SubmitAllocations is a paid mutator transaction binding the contract method 0xec6f3585.
 //
-// Solidity: function submitAllocations(address[] recipients_, uint96[] weights_, bytes[] signatures, uint256 effectiveEpoch) returns()
-func (_AWPEmission *AWPEmissionTransactor) SubmitAllocations(opts *bind.TransactOpts, recipients_ []common.Address, weights_ []*big.Int, signatures [][]byte, effectiveEpoch *big.Int) (*types.Transaction, error) {
-	return _AWPEmission.contract.Transact(opts, "submitAllocations", recipients_, weights_, signatures, effectiveEpoch)
+// Solidity: function submitAllocations(address[] recipients_, uint96[] weights_, uint256 effectiveEpoch) returns()
+func (_AWPEmission *AWPEmissionTransactor) SubmitAllocations(opts *bind.TransactOpts, recipients_ []common.Address, weights_ []*big.Int, effectiveEpoch *big.Int) (*types.Transaction, error) {
+	return _AWPEmission.contract.Transact(opts, "submitAllocations", recipients_, weights_, effectiveEpoch)
 }
 
-// SubmitAllocations is a paid mutator transaction binding the contract method 0xf7c70a46.
+// SubmitAllocations is a paid mutator transaction binding the contract method 0xec6f3585.
 //
-// Solidity: function submitAllocations(address[] recipients_, uint96[] weights_, bytes[] signatures, uint256 effectiveEpoch) returns()
-func (_AWPEmission *AWPEmissionSession) SubmitAllocations(recipients_ []common.Address, weights_ []*big.Int, signatures [][]byte, effectiveEpoch *big.Int) (*types.Transaction, error) {
-	return _AWPEmission.Contract.SubmitAllocations(&_AWPEmission.TransactOpts, recipients_, weights_, signatures, effectiveEpoch)
+// Solidity: function submitAllocations(address[] recipients_, uint96[] weights_, uint256 effectiveEpoch) returns()
+func (_AWPEmission *AWPEmissionSession) SubmitAllocations(recipients_ []common.Address, weights_ []*big.Int, effectiveEpoch *big.Int) (*types.Transaction, error) {
+	return _AWPEmission.Contract.SubmitAllocations(&_AWPEmission.TransactOpts, recipients_, weights_, effectiveEpoch)
 }
 
-// SubmitAllocations is a paid mutator transaction binding the contract method 0xf7c70a46.
+// SubmitAllocations is a paid mutator transaction binding the contract method 0xec6f3585.
 //
-// Solidity: function submitAllocations(address[] recipients_, uint96[] weights_, bytes[] signatures, uint256 effectiveEpoch) returns()
-func (_AWPEmission *AWPEmissionTransactorSession) SubmitAllocations(recipients_ []common.Address, weights_ []*big.Int, signatures [][]byte, effectiveEpoch *big.Int) (*types.Transaction, error) {
-	return _AWPEmission.Contract.SubmitAllocations(&_AWPEmission.TransactOpts, recipients_, weights_, signatures, effectiveEpoch)
+// Solidity: function submitAllocations(address[] recipients_, uint96[] weights_, uint256 effectiveEpoch) returns()
+func (_AWPEmission *AWPEmissionTransactorSession) SubmitAllocations(recipients_ []common.Address, weights_ []*big.Int, effectiveEpoch *big.Int) (*types.Transaction, error) {
+	return _AWPEmission.Contract.SubmitAllocations(&_AWPEmission.TransactOpts, recipients_, weights_, effectiveEpoch)
 }
 
 // UpgradeToAndCall is a paid mutator transaction binding the contract method 0x4f1ef286.
@@ -1426,151 +1198,6 @@ func (_AWPEmission *AWPEmissionFilterer) WatchAllocationsSubmitted(opts *bind.Wa
 func (_AWPEmission *AWPEmissionFilterer) ParseAllocationsSubmitted(log types.Log) (*AWPEmissionAllocationsSubmitted, error) {
 	event := new(AWPEmissionAllocationsSubmitted)
 	if err := _AWPEmission.contract.UnpackLog(event, "AllocationsSubmitted", log); err != nil {
-		return nil, err
-	}
-	event.Raw = log
-	return event, nil
-}
-
-// AWPEmissionDAOMatchDistributedIterator is returned from FilterDAOMatchDistributed and is used to iterate over the raw logs and unpacked data for DAOMatchDistributed events raised by the AWPEmission contract.
-type AWPEmissionDAOMatchDistributedIterator struct {
-	Event *AWPEmissionDAOMatchDistributed // Event containing the contract specifics and raw log
-
-	contract *bind.BoundContract // Generic contract to use for unpacking event data
-	event    string              // Event name to use for unpacking event data
-
-	logs chan types.Log        // Log channel receiving the found contract events
-	sub  ethereum.Subscription // Subscription for errors, completion and termination
-	done bool                  // Whether the subscription completed delivering logs
-	fail error                 // Occurred error to stop iteration
-}
-
-// Next advances the iterator to the subsequent event, returning whether there
-// are any more events found. In case of a retrieval or parsing error, false is
-// returned and Error() can be queried for the exact failure.
-func (it *AWPEmissionDAOMatchDistributedIterator) Next() bool {
-	// If the iterator failed, stop iterating
-	if it.fail != nil {
-		return false
-	}
-	// If the iterator completed, deliver directly whatever's available
-	if it.done {
-		select {
-		case log := <-it.logs:
-			it.Event = new(AWPEmissionDAOMatchDistributed)
-			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-				it.fail = err
-				return false
-			}
-			it.Event.Raw = log
-			return true
-
-		default:
-			return false
-		}
-	}
-	// Iterator still in progress, wait for either a data or an error event
-	select {
-	case log := <-it.logs:
-		it.Event = new(AWPEmissionDAOMatchDistributed)
-		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-			it.fail = err
-			return false
-		}
-		it.Event.Raw = log
-		return true
-
-	case err := <-it.sub.Err():
-		it.done = true
-		it.fail = err
-		return it.Next()
-	}
-}
-
-// Error returns any retrieval or parsing error occurred during filtering.
-func (it *AWPEmissionDAOMatchDistributedIterator) Error() error {
-	return it.fail
-}
-
-// Close terminates the iteration process, releasing any pending underlying
-// resources.
-func (it *AWPEmissionDAOMatchDistributedIterator) Close() error {
-	it.sub.Unsubscribe()
-	return nil
-}
-
-// AWPEmissionDAOMatchDistributed represents a DAOMatchDistributed event raised by the AWPEmission contract.
-type AWPEmissionDAOMatchDistributed struct {
-	Epoch  *big.Int
-	Amount *big.Int
-	Raw    types.Log // Blockchain specific contextual infos
-}
-
-// FilterDAOMatchDistributed is a free log retrieval operation binding the contract event 0xcbb7180c1182752945c0986e8ee2b3c59c938ba01628512ec2b4c1509e0853aa.
-//
-// Solidity: event DAOMatchDistributed(uint256 indexed epoch, uint256 amount)
-func (_AWPEmission *AWPEmissionFilterer) FilterDAOMatchDistributed(opts *bind.FilterOpts, epoch []*big.Int) (*AWPEmissionDAOMatchDistributedIterator, error) {
-
-	var epochRule []interface{}
-	for _, epochItem := range epoch {
-		epochRule = append(epochRule, epochItem)
-	}
-
-	logs, sub, err := _AWPEmission.contract.FilterLogs(opts, "DAOMatchDistributed", epochRule)
-	if err != nil {
-		return nil, err
-	}
-	return &AWPEmissionDAOMatchDistributedIterator{contract: _AWPEmission.contract, event: "DAOMatchDistributed", logs: logs, sub: sub}, nil
-}
-
-// WatchDAOMatchDistributed is a free log subscription operation binding the contract event 0xcbb7180c1182752945c0986e8ee2b3c59c938ba01628512ec2b4c1509e0853aa.
-//
-// Solidity: event DAOMatchDistributed(uint256 indexed epoch, uint256 amount)
-func (_AWPEmission *AWPEmissionFilterer) WatchDAOMatchDistributed(opts *bind.WatchOpts, sink chan<- *AWPEmissionDAOMatchDistributed, epoch []*big.Int) (event.Subscription, error) {
-
-	var epochRule []interface{}
-	for _, epochItem := range epoch {
-		epochRule = append(epochRule, epochItem)
-	}
-
-	logs, sub, err := _AWPEmission.contract.WatchLogs(opts, "DAOMatchDistributed", epochRule)
-	if err != nil {
-		return nil, err
-	}
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		defer sub.Unsubscribe()
-		for {
-			select {
-			case log := <-logs:
-				// New log arrived, parse the event and forward to the user
-				event := new(AWPEmissionDAOMatchDistributed)
-				if err := _AWPEmission.contract.UnpackLog(event, "DAOMatchDistributed", log); err != nil {
-					return err
-				}
-				event.Raw = log
-
-				select {
-				case sink <- event:
-				case err := <-sub.Err():
-					return err
-				case <-quit:
-					return nil
-				}
-			case err := <-sub.Err():
-				return err
-			case <-quit:
-				return nil
-			}
-		}
-	}), nil
-}
-
-// ParseDAOMatchDistributed is a log parse operation binding the contract event 0xcbb7180c1182752945c0986e8ee2b3c59c938ba01628512ec2b4c1509e0853aa.
-//
-// Solidity: event DAOMatchDistributed(uint256 indexed epoch, uint256 amount)
-func (_AWPEmission *AWPEmissionFilterer) ParseDAOMatchDistributed(log types.Log) (*AWPEmissionDAOMatchDistributed, error) {
-	event := new(AWPEmissionDAOMatchDistributed)
-	if err := _AWPEmission.contract.UnpackLog(event, "DAOMatchDistributed", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
@@ -1856,151 +1483,6 @@ func (_AWPEmission *AWPEmissionFilterer) ParseEpochSettled(log types.Log) (*AWPE
 	return event, nil
 }
 
-// AWPEmissionGovernanceWeightUpdatedIterator is returned from FilterGovernanceWeightUpdated and is used to iterate over the raw logs and unpacked data for GovernanceWeightUpdated events raised by the AWPEmission contract.
-type AWPEmissionGovernanceWeightUpdatedIterator struct {
-	Event *AWPEmissionGovernanceWeightUpdated // Event containing the contract specifics and raw log
-
-	contract *bind.BoundContract // Generic contract to use for unpacking event data
-	event    string              // Event name to use for unpacking event data
-
-	logs chan types.Log        // Log channel receiving the found contract events
-	sub  ethereum.Subscription // Subscription for errors, completion and termination
-	done bool                  // Whether the subscription completed delivering logs
-	fail error                 // Occurred error to stop iteration
-}
-
-// Next advances the iterator to the subsequent event, returning whether there
-// are any more events found. In case of a retrieval or parsing error, false is
-// returned and Error() can be queried for the exact failure.
-func (it *AWPEmissionGovernanceWeightUpdatedIterator) Next() bool {
-	// If the iterator failed, stop iterating
-	if it.fail != nil {
-		return false
-	}
-	// If the iterator completed, deliver directly whatever's available
-	if it.done {
-		select {
-		case log := <-it.logs:
-			it.Event = new(AWPEmissionGovernanceWeightUpdated)
-			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-				it.fail = err
-				return false
-			}
-			it.Event.Raw = log
-			return true
-
-		default:
-			return false
-		}
-	}
-	// Iterator still in progress, wait for either a data or an error event
-	select {
-	case log := <-it.logs:
-		it.Event = new(AWPEmissionGovernanceWeightUpdated)
-		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-			it.fail = err
-			return false
-		}
-		it.Event.Raw = log
-		return true
-
-	case err := <-it.sub.Err():
-		it.done = true
-		it.fail = err
-		return it.Next()
-	}
-}
-
-// Error returns any retrieval or parsing error occurred during filtering.
-func (it *AWPEmissionGovernanceWeightUpdatedIterator) Error() error {
-	return it.fail
-}
-
-// Close terminates the iteration process, releasing any pending underlying
-// resources.
-func (it *AWPEmissionGovernanceWeightUpdatedIterator) Close() error {
-	it.sub.Unsubscribe()
-	return nil
-}
-
-// AWPEmissionGovernanceWeightUpdated represents a GovernanceWeightUpdated event raised by the AWPEmission contract.
-type AWPEmissionGovernanceWeightUpdated struct {
-	Addr   common.Address
-	Weight *big.Int
-	Raw    types.Log // Blockchain specific contextual infos
-}
-
-// FilterGovernanceWeightUpdated is a free log retrieval operation binding the contract event 0x5e5ab064b47f32e3fe22c86c3b8b8df9d68b1e303fd4c3ef721554ae12466414.
-//
-// Solidity: event GovernanceWeightUpdated(address indexed addr, uint96 weight)
-func (_AWPEmission *AWPEmissionFilterer) FilterGovernanceWeightUpdated(opts *bind.FilterOpts, addr []common.Address) (*AWPEmissionGovernanceWeightUpdatedIterator, error) {
-
-	var addrRule []interface{}
-	for _, addrItem := range addr {
-		addrRule = append(addrRule, addrItem)
-	}
-
-	logs, sub, err := _AWPEmission.contract.FilterLogs(opts, "GovernanceWeightUpdated", addrRule)
-	if err != nil {
-		return nil, err
-	}
-	return &AWPEmissionGovernanceWeightUpdatedIterator{contract: _AWPEmission.contract, event: "GovernanceWeightUpdated", logs: logs, sub: sub}, nil
-}
-
-// WatchGovernanceWeightUpdated is a free log subscription operation binding the contract event 0x5e5ab064b47f32e3fe22c86c3b8b8df9d68b1e303fd4c3ef721554ae12466414.
-//
-// Solidity: event GovernanceWeightUpdated(address indexed addr, uint96 weight)
-func (_AWPEmission *AWPEmissionFilterer) WatchGovernanceWeightUpdated(opts *bind.WatchOpts, sink chan<- *AWPEmissionGovernanceWeightUpdated, addr []common.Address) (event.Subscription, error) {
-
-	var addrRule []interface{}
-	for _, addrItem := range addr {
-		addrRule = append(addrRule, addrItem)
-	}
-
-	logs, sub, err := _AWPEmission.contract.WatchLogs(opts, "GovernanceWeightUpdated", addrRule)
-	if err != nil {
-		return nil, err
-	}
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		defer sub.Unsubscribe()
-		for {
-			select {
-			case log := <-logs:
-				// New log arrived, parse the event and forward to the user
-				event := new(AWPEmissionGovernanceWeightUpdated)
-				if err := _AWPEmission.contract.UnpackLog(event, "GovernanceWeightUpdated", log); err != nil {
-					return err
-				}
-				event.Raw = log
-
-				select {
-				case sink <- event:
-				case err := <-sub.Err():
-					return err
-				case <-quit:
-					return nil
-				}
-			case err := <-sub.Err():
-				return err
-			case <-quit:
-				return nil
-			}
-		}
-	}), nil
-}
-
-// ParseGovernanceWeightUpdated is a log parse operation binding the contract event 0x5e5ab064b47f32e3fe22c86c3b8b8df9d68b1e303fd4c3ef721554ae12466414.
-//
-// Solidity: event GovernanceWeightUpdated(address indexed addr, uint96 weight)
-func (_AWPEmission *AWPEmissionFilterer) ParseGovernanceWeightUpdated(log types.Log) (*AWPEmissionGovernanceWeightUpdated, error) {
-	event := new(AWPEmissionGovernanceWeightUpdated)
-	if err := _AWPEmission.contract.UnpackLog(event, "GovernanceWeightUpdated", log); err != nil {
-		return nil, err
-	}
-	event.Raw = log
-	return event, nil
-}
-
 // AWPEmissionInitializedIterator is returned from FilterInitialized and is used to iterate over the raw logs and unpacked data for Initialized events raised by the AWPEmission contract.
 type AWPEmissionInitializedIterator struct {
 	Event *AWPEmissionInitialized // Event containing the contract specifics and raw log
@@ -2129,141 +1611,6 @@ func (_AWPEmission *AWPEmissionFilterer) WatchInitialized(opts *bind.WatchOpts, 
 func (_AWPEmission *AWPEmissionFilterer) ParseInitialized(log types.Log) (*AWPEmissionInitialized, error) {
 	event := new(AWPEmissionInitialized)
 	if err := _AWPEmission.contract.UnpackLog(event, "Initialized", log); err != nil {
-		return nil, err
-	}
-	event.Raw = log
-	return event, nil
-}
-
-// AWPEmissionOracleConfigUpdatedIterator is returned from FilterOracleConfigUpdated and is used to iterate over the raw logs and unpacked data for OracleConfigUpdated events raised by the AWPEmission contract.
-type AWPEmissionOracleConfigUpdatedIterator struct {
-	Event *AWPEmissionOracleConfigUpdated // Event containing the contract specifics and raw log
-
-	contract *bind.BoundContract // Generic contract to use for unpacking event data
-	event    string              // Event name to use for unpacking event data
-
-	logs chan types.Log        // Log channel receiving the found contract events
-	sub  ethereum.Subscription // Subscription for errors, completion and termination
-	done bool                  // Whether the subscription completed delivering logs
-	fail error                 // Occurred error to stop iteration
-}
-
-// Next advances the iterator to the subsequent event, returning whether there
-// are any more events found. In case of a retrieval or parsing error, false is
-// returned and Error() can be queried for the exact failure.
-func (it *AWPEmissionOracleConfigUpdatedIterator) Next() bool {
-	// If the iterator failed, stop iterating
-	if it.fail != nil {
-		return false
-	}
-	// If the iterator completed, deliver directly whatever's available
-	if it.done {
-		select {
-		case log := <-it.logs:
-			it.Event = new(AWPEmissionOracleConfigUpdated)
-			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-				it.fail = err
-				return false
-			}
-			it.Event.Raw = log
-			return true
-
-		default:
-			return false
-		}
-	}
-	// Iterator still in progress, wait for either a data or an error event
-	select {
-	case log := <-it.logs:
-		it.Event = new(AWPEmissionOracleConfigUpdated)
-		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-			it.fail = err
-			return false
-		}
-		it.Event.Raw = log
-		return true
-
-	case err := <-it.sub.Err():
-		it.done = true
-		it.fail = err
-		return it.Next()
-	}
-}
-
-// Error returns any retrieval or parsing error occurred during filtering.
-func (it *AWPEmissionOracleConfigUpdatedIterator) Error() error {
-	return it.fail
-}
-
-// Close terminates the iteration process, releasing any pending underlying
-// resources.
-func (it *AWPEmissionOracleConfigUpdatedIterator) Close() error {
-	it.sub.Unsubscribe()
-	return nil
-}
-
-// AWPEmissionOracleConfigUpdated represents a OracleConfigUpdated event raised by the AWPEmission contract.
-type AWPEmissionOracleConfigUpdated struct {
-	Oracles   []common.Address
-	Threshold *big.Int
-	Raw       types.Log // Blockchain specific contextual infos
-}
-
-// FilterOracleConfigUpdated is a free log retrieval operation binding the contract event 0x094dfe9b10b430945fee27690a51f22b63e17293d41d0300c094c723f410c90f.
-//
-// Solidity: event OracleConfigUpdated(address[] oracles, uint256 threshold)
-func (_AWPEmission *AWPEmissionFilterer) FilterOracleConfigUpdated(opts *bind.FilterOpts) (*AWPEmissionOracleConfigUpdatedIterator, error) {
-
-	logs, sub, err := _AWPEmission.contract.FilterLogs(opts, "OracleConfigUpdated")
-	if err != nil {
-		return nil, err
-	}
-	return &AWPEmissionOracleConfigUpdatedIterator{contract: _AWPEmission.contract, event: "OracleConfigUpdated", logs: logs, sub: sub}, nil
-}
-
-// WatchOracleConfigUpdated is a free log subscription operation binding the contract event 0x094dfe9b10b430945fee27690a51f22b63e17293d41d0300c094c723f410c90f.
-//
-// Solidity: event OracleConfigUpdated(address[] oracles, uint256 threshold)
-func (_AWPEmission *AWPEmissionFilterer) WatchOracleConfigUpdated(opts *bind.WatchOpts, sink chan<- *AWPEmissionOracleConfigUpdated) (event.Subscription, error) {
-
-	logs, sub, err := _AWPEmission.contract.WatchLogs(opts, "OracleConfigUpdated")
-	if err != nil {
-		return nil, err
-	}
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		defer sub.Unsubscribe()
-		for {
-			select {
-			case log := <-logs:
-				// New log arrived, parse the event and forward to the user
-				event := new(AWPEmissionOracleConfigUpdated)
-				if err := _AWPEmission.contract.UnpackLog(event, "OracleConfigUpdated", log); err != nil {
-					return err
-				}
-				event.Raw = log
-
-				select {
-				case sink <- event:
-				case err := <-sub.Err():
-					return err
-				case <-quit:
-					return nil
-				}
-			case err := <-sub.Err():
-				return err
-			case <-quit:
-				return nil
-			}
-		}
-	}), nil
-}
-
-// ParseOracleConfigUpdated is a log parse operation binding the contract event 0x094dfe9b10b430945fee27690a51f22b63e17293d41d0300c094c723f410c90f.
-//
-// Solidity: event OracleConfigUpdated(address[] oracles, uint256 threshold)
-func (_AWPEmission *AWPEmissionFilterer) ParseOracleConfigUpdated(log types.Log) (*AWPEmissionOracleConfigUpdated, error) {
-	event := new(AWPEmissionOracleConfigUpdated)
-	if err := _AWPEmission.contract.UnpackLog(event, "OracleConfigUpdated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
