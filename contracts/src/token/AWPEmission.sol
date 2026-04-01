@@ -330,6 +330,45 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         emit GovernanceWeightUpdated(addr, weight);
     }
 
+    /// @notice Timelock-only full allocation submission — bypasses oracle signatures.
+    /// @dev Emergency fallback: allows DAO to directly submit weights when oracle is unavailable.
+    ///      Same validation as submitAllocations (sorted, non-zero, bounded) but no signature check.
+    /// @param recipients_ Sorted ascending recipient addresses
+    /// @param weights_ Corresponding weight array (uint96)
+    /// @param effectiveEpoch The future epoch these weights take effect in
+    function timelockSubmitAllocations(
+        address[] calldata recipients_,
+        uint96[] calldata weights_,
+        uint256 effectiveEpoch
+    ) external onlyTimelock {
+        if (settleProgress != 0) revert SettlementInProgress();
+        if (effectiveEpoch <= settledEpoch) revert MustBeFutureEpoch();
+        if (recipients_.length != weights_.length) revert ArrayLengthMismatch();
+        if (recipients_.length > maxRecipients) revert InvalidParameter();
+
+        delete _epochAllocations[effectiveEpoch];
+        _epochTotalWeight[effectiveEpoch] = 0;
+
+        uint256 len = recipients_.length;
+        uint256[] memory packed = new uint256[](len);
+        uint256 tw = 0;
+        for (uint256 i = 0; i < len;) {
+            address addr = recipients_[i];
+            uint96 w = weights_[i];
+            if (addr == address(0)) revert InvalidRecipient();
+            if (w == 0) revert InvalidAmount();
+            if (i > 0 && uint160(addr) <= uint160(recipients_[i - 1])) revert DuplicateRecipient();
+            packed[i] = (uint256(uint160(addr)) << 96) | uint256(w);
+            tw += w;
+            unchecked { ++i; }
+        }
+        _epochAllocations[effectiveEpoch] = packed;
+        _epochTotalWeight[effectiveEpoch] = tw;
+
+        allocationNonce++;
+        emit AllocationsSubmitted(allocationNonce - 1, recipients_, weights_);
+    }
+
     /// @notice Update the per-epoch decay factor (onlyTimelock)
     /// @param newDecayFactor Must be <= DECAY_PRECISION (no growth allowed)
     function setDecayFactor(uint256 newDecayFactor) external onlyTimelock {

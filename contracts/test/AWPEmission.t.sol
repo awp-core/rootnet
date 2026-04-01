@@ -634,6 +634,99 @@ contract AWPEmissionTest is EmissionSigningHelper {
         emission.settleEpoch(200);
     }
 
+    // ── timelockSubmitAllocations tests ──
+
+    /// @dev Helper: sort two addresses ascending for submitAllocations sorted-order requirement
+    function _sorted2(address a, address b) internal pure returns (address lo, address hi) {
+        return uint160(a) < uint160(b) ? (a, b) : (b, a);
+    }
+
+    function test_timelockSubmitAllocations() public {
+        (address lo, address hi) = _sorted2(recipient1, recipient2);
+        address[] memory addrs = new address[](2);
+        addrs[0] = lo;
+        addrs[1] = hi;
+        uint96[] memory ws = new uint96[](2);
+        ws[0] = 300;
+        ws[1] = 700;
+
+        vm.prank(treasury);
+        emission.timelockSubmitAllocations(addrs, ws, 1);
+
+        assertEq(emission.getEpochWeight(1, lo), 300);
+        assertEq(emission.getEpochWeight(1, hi), 700);
+    }
+
+    function test_timelockSubmitAllocations_revertsForNonTimelock() public {
+        address[] memory addrs = new address[](1);
+        addrs[0] = recipient1;
+        uint96[] memory ws = new uint96[](1);
+        ws[0] = 100;
+
+        vm.prank(user);
+        vm.expectRevert(AWPEmission.NotTimelock.selector);
+        emission.timelockSubmitAllocations(addrs, ws, 1);
+    }
+
+    function test_timelockSubmitAllocations_revertsUnsortedRecipients() public {
+        (address lo, address hi) = _sorted2(recipient1, recipient2);
+        address[] memory addrs = new address[](2);
+        addrs[0] = hi; // intentionally reversed
+        addrs[1] = lo;
+        uint96[] memory ws = new uint96[](2);
+        ws[0] = 100;
+        ws[1] = 100;
+
+        vm.prank(treasury);
+        vm.expectRevert(AWPEmission.DuplicateRecipient.selector);
+        emission.timelockSubmitAllocations(addrs, ws, 1);
+    }
+
+    function test_timelockSubmitAllocations_revertsDuringSettlement() public {
+        (address lo, address hi) = _sorted2(recipient1, recipient2);
+        address[] memory addrs = new address[](2);
+        addrs[0] = lo;
+        addrs[1] = hi;
+        uint96[] memory ws = new uint96[](2);
+        ws[0] = 100;
+        ws[1] = 100;
+        _submitWithOraclesForEpoch(addrs, ws, 1);
+
+        _settleEpoch0();
+        vm.warp(block.timestamp + EPOCH_DURATION + 1);
+        emission.settleEpoch(1); // partial settlement
+        assertTrue(emission.settleProgress() > 0);
+
+        vm.prank(treasury);
+        vm.expectRevert(AWPEmission.SettlementInProgress.selector);
+        emission.timelockSubmitAllocations(addrs, ws, 2);
+
+        emission.settleEpoch(200); // complete
+    }
+
+    function test_timelockSubmitAllocations_settleAndDistribute() public {
+        (address lo, address hi) = _sorted2(recipient1, recipient2);
+        address[] memory addrs = new address[](2);
+        addrs[0] = lo;
+        addrs[1] = hi;
+        uint96[] memory ws = new uint96[](2);
+        ws[0] = 600;
+        ws[1] = 400;
+
+        vm.prank(treasury);
+        emission.timelockSubmitAllocations(addrs, ws, 1);
+
+        _settleEpoch0();
+        vm.warp(block.timestamp + EPOCH_DURATION + 1);
+        emission.settleEpoch(200);
+
+        // Both recipients should have received AWP
+        assertTrue(awpToken.balanceOf(lo) > 0, "lo should receive AWP");
+        assertTrue(awpToken.balanceOf(hi) > 0, "hi should receive AWP");
+        // 600 vs 400 weight → lo gets more
+        assertTrue(awpToken.balanceOf(lo) > awpToken.balanceOf(hi), "lo should get more (600 vs 400)");
+    }
+
     // ── Multi-recipient proportional distribution ──
 
     function test_multiRecipientDistribution() public {
