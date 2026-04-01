@@ -15,7 +15,6 @@ import (
 	"github.com/cortexia/rootnet/api/internal/db/gen"
 	"github.com/cortexia/rootnet/api/internal/ratelimit"
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -78,25 +77,41 @@ func (h *Handler) writeError(w http.ResponseWriter, status int, msg string) {
 
 // parsePageParams parses pagination parameters from the request; defaults are limit=20, offset=0
 func (h *Handler) parsePageParams(r *http.Request) (limit, offset int) {
-	limit = 20
-	offset = 0
+	page := 1
+	lim := 20
 
 	if v := r.URL.Query().Get("limit"); v != "" {
 		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
-			limit = parsed
+			lim = parsed
 		}
 	}
-	if limit > 100 {
-		limit = 100
-	}
-
 	if v := r.URL.Query().Get("page"); v != "" {
-		if page, err := strconv.Atoi(v); err == nil && page >= 1 && page <= 10000 {
-			offset = (page - 1) * limit
+		if parsed, err := strconv.Atoi(v); err == nil && parsed >= 1 {
+			page = parsed
 		}
 	}
 
-	return limit, offset
+	l, o := computePageLimits(page, lim)
+	return int(l), int(o)
+}
+
+// writeSvcError 将 svcError 转为 HTTP 错误响应
+func (h *Handler) writeSvcError(w http.ResponseWriter, err error) {
+	var se *svcError
+	if errors.As(err, &se) {
+		switch se.Kind {
+		case errNotFound:
+			h.writeError(w, http.StatusNotFound, se.Message)
+		case errBadInput:
+			h.writeError(w, http.StatusBadRequest, se.Message)
+		case errUnavailable:
+			h.writeError(w, http.StatusServiceUnavailable, se.Message)
+		default:
+			h.writeError(w, http.StatusInternalServerError, se.Message)
+		}
+		return
+	}
+	h.writeError(w, http.StatusInternalServerError, "internal error")
 }
 
 // normalizeAddr converts an address to lowercase for consistency
@@ -229,32 +244,7 @@ type registryResponse struct {
 
 // GetRegistry returns the contract address registry with chain ID
 func (h *Handler) GetRegistry(w http.ResponseWriter, r *http.Request) {
-	resp := registryResponse{
-		ChainID:           h.cfg.ChainID,
-		AWPRegistry:       h.cfg.AWPRegistryAddress,
-		AWPToken:          h.cfg.AWPTokenAddress,
-		AWPEmission:       h.cfg.AWPEmissionAddress,
-		StakingVault:      h.cfg.StakingVaultAddress,
-		StakeNFT:          h.cfg.StakeNFTAddress,
-		SubnetNFT:         h.cfg.SubnetNFTAddress,
-		LPManager:         h.cfg.LPManagerAddress,
-		AlphaTokenFactory: h.cfg.AlphaFactoryAddress,
-		DAO:               h.cfg.DAOAddress,
-		Treasury:          h.cfg.TreasuryAddress,
-		EIP712Domain: eip712DomainResponse{
-			Name:              "AWPRegistry",
-			Version:           "1",
-			ChainID:           h.cfg.ChainID,
-			VerifyingContract: h.cfg.AWPRegistryAddress,
-		},
-		StakingVaultEIP712: eip712DomainResponse{
-			Name:              "StakingVault",
-			Version:           "1",
-			ChainID:           h.cfg.ChainID,
-			VerifyingContract: h.cfg.StakingVaultAddress,
-		},
-	}
-	h.writeJSON(w, http.StatusOK, resp)
+	h.writeJSON(w, http.StatusOK, h.svcGetRegistry())
 }
 
 // checkAddressResponse is the response type for an address lookup check (V2)
@@ -325,14 +315,7 @@ func (h *Handler) GetStakingNonce(w http.ResponseWriter, r *http.Request) {
 
 // GetChains returns the list of supported chains
 func (h *Handler) GetChains(w http.ResponseWriter, r *http.Request) {
-	if h.chains == nil {
-		// 单链模式 — 仅返回当前配置的链
-		h.writeJSON(w, http.StatusOK, []map[string]interface{}{
-			{"chainId": h.cfg.ChainID, "name": "Default"},
-		})
-		return
-	}
-	h.writeJSON(w, http.StatusOK, h.chains) // ChainConfig 有 json 标签
+	h.writeJSON(w, http.StatusOK, h.svcGetChains())
 }
 
 // CheckAddress checks whether an address is registered and returns binding/recipient info (V2)
@@ -342,24 +325,10 @@ func (h *Handler) CheckAddress(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid address parameter")
 		return
 	}
-	address := normalizeAddr(raw)
-
-	ctx := r.Context()
-	resp := checkAddressResponse{}
-
-	// Check whether this address exists in the users table
-	if user, err := h.queries.GetUser(ctx, gen.GetUserParams{
-		Address: address,
-		ChainID: h.cfg.ChainID,
-	}); err == nil {
-		resp.IsRegistered = user.RegisteredAt != 0 || user.BoundTo != "" || user.Recipient != ""
-		resp.BoundTo = user.BoundTo
-		resp.Recipient = user.Recipient
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		h.logger.Error("failed to check address", "error", err, "address", address)
-		h.writeError(w, http.StatusInternalServerError, "failed to check address")
+	resp, err := h.svcCheckAddress(r.Context(), normalizeAddr(raw))
+	if err != nil {
+		h.writeSvcError(w, err)
 		return
 	}
-
 	h.writeJSON(w, http.StatusOK, resp)
 }
