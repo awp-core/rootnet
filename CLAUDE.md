@@ -130,3 +130,4 @@ AWPToken(constructor: name, symbol, deployer, initialMint) → AlphaTokenFactory
 - SubnetNFT stores identity on-chain (name, subnetManager, alphaToken, skillsURI, minStake)
 - Permit2 BSC mainnet: 0x31c2F6fcFf4F8759b3Bd5Bf0e1084A055615c768
 - admin.sh: Hot-update rate limits, manage salt pool, view system status (scripts/admin.sh)
+- Vanity address rules: contracts/.env defines VANITY_PREFIX_*/VANITY_SUFFIX_* for key contracts (AWPToken: 0000/00a1, AWPRegistry: 0000/00b1). deploy.sh MUST mine salts via scripts/vanity/mine.sh before deployment — never deploy with --skip-mine on first deploy. Changing contract constructors/init params invalidates initCodeHash → must re-mine salts

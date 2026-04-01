@@ -81,9 +81,14 @@ print(json.dumps(c))
     echo "RPC: $ETH_RPC_URL"
     echo ""
 
-    # Run standard deploy script with --skip-mine (reuses shared salt.json)
+    # 首条链执行完整挖矿+部署，后续链复用 salt（--skip-mine）
     cd "$PROJECT_DIR"
-    ./scripts/deploy.sh --skip-mine
+    if [[ "${_FIRST_CHAIN_MINED:-}" == "1" ]]; then
+        ./scripts/deploy.sh --skip-mine
+    else
+        ./scripts/deploy.sh
+        export _FIRST_CHAIN_MINED=1
+    fi
 
     cp "$PROJECT_DIR/api/.env" "$PROJECT_DIR/api/.env.${chain_name}" 2>/dev/null || true
 

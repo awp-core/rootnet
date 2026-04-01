@@ -270,6 +270,63 @@ else
 fi
 
 # ═══════════════════════════════════════════════
+#  STEP 2.5: VALIDATE VANITY ADDRESSES
+# ═══════════════════════════════════════════════
+# 验证已挖出的 salt 产生的地址满足 .env 中定义的 VANITY_PREFIX/SUFFIX 规则
+# 在挖矿后和 --skip-mine 两种路径都执行
+
+validate_vanity() {
+    local name="$1" env_prefix="$2"
+    local want_prefix="${!env_prefix:-}"
+    local suffix_var="${env_prefix/PREFIX/SUFFIX}"
+    local want_suffix="${!suffix_var:-}"
+
+    # 无规则则跳过
+    [[ -z "$want_prefix" && -z "$want_suffix" ]] && return 0
+
+    # 从 salt.json 读取地址
+    local addr
+    addr=$(jq -r --arg n "$name" '.contracts[] | select(.name==$n) | .address // empty' "$SALT_JSON")
+    if [[ -z "$addr" ]]; then
+        warn "[$name] No address in salt.json — cannot validate vanity"
+        return 1
+    fi
+
+    # 去掉 0x 前缀，转小写
+    local hex="${addr#0x}"
+    hex=$(echo "$hex" | tr '[:upper:]' '[:lower:]')
+
+    local ok=1
+    if [[ -n "$want_prefix" ]]; then
+        local actual_prefix="${hex:0:${#want_prefix}}"
+        if [[ "$actual_prefix" != "$want_prefix" ]]; then
+            warn "[$name] Vanity prefix mismatch: want=$want_prefix got=$actual_prefix (addr=$addr)"
+            ok=0
+        fi
+    fi
+    if [[ -n "$want_suffix" ]]; then
+        local actual_suffix="${hex: -${#want_suffix}}"
+        if [[ "$actual_suffix" != "$want_suffix" ]]; then
+            warn "[$name] Vanity suffix mismatch: want=$want_suffix got=$actual_suffix (addr=$addr)"
+            ok=0
+        fi
+    fi
+
+    if [[ "$ok" == "1" ]]; then
+        info "[$name] Vanity OK: $addr (prefix=$want_prefix suffix=$want_suffix)"
+    else
+        error "[$name] Vanity validation failed! Re-run without --skip-mine to re-mine salts."
+    fi
+}
+
+if [[ -f "$SALT_JSON" ]]; then
+    step "Step 2.5/7 — Validate vanity addresses"
+    validate_vanity "AWPToken" "VANITY_PREFIX_AWP_TOKEN"
+    validate_vanity "AWPRegistry" "VANITY_PREFIX_AWP_REGISTRY"
+    # 在此添加更多合约的 vanity 规则验证
+fi
+
+# ═══════════════════════════════════════════════
 #  STEP 4: DEPLOY
 # ═══════════════════════════════════════════════
 
