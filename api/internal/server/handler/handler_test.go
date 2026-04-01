@@ -1789,12 +1789,18 @@ func TestJSONRPC_SubnetsGet(t *testing.T) {
 // JSON-RPC 2.0 — Protocol-level tests
 // ════════════════════════════════════════════════════════════
 
-func TestJSONRPC_GETMethodRejected(t *testing.T) {
+func TestJSONRPC_GETReturnsDiscover(t *testing.T) {
 	env := newTestEnv(t)
 	rr := env.request("GET", "/v2", "")
-	// Chi 路由只注册了 POST /v2，GET 请求由 Chi 返回 405
-	if rr.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("expected 405, got %d: %s", rr.Code, rr.Body.String())
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	result := resp["result"].(map[string]any)
+	methods := result["methods"].([]any)
+	if len(methods) == 0 {
+		t.Fatal("GET /v2 should return rpc.discover with methods")
 	}
 }
 

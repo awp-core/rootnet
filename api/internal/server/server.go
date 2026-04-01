@@ -129,7 +129,8 @@ func NewRouter(p RouterParams) chi.Router {
 		})
 	}
 
-	// JSON-RPC 2.0 入口（供 LLM agent 调用，支持 rpc.discover）
+	// JSON-RPC 2.0 入口（GET = rpc.discover 文档，POST = JSON-RPC 请求）
+	r.Get("/v2", h.HandleRPC)
 	r.Post("/v2", h.HandleRPC)
 
 	// Vanity salt management + computation (optional)

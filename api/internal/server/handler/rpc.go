@@ -73,8 +73,20 @@ type methodEntry struct {
 	info methodInfo
 }
 
-// HandleRPC 处理 POST /v2 的 JSON-RPC 2.0 请求（支持单请求和批量请求）
+// HandleRPC 处理 /v2 的 JSON-RPC 2.0 请求
+// GET → 返回 rpc.discover（API 文档）
+// POST → 处理 JSON-RPC 请求（支持单请求和批量请求）
 func (h *Handler) HandleRPC(w http.ResponseWriter, r *http.Request) {
+	// GET /v2 → 返回 rpc.discover 结果（方便浏览器查看可用方法）
+	if r.Method == http.MethodGet {
+		h.initRPCMethods()
+		h.writeJSON(w, http.StatusOK, map[string]any{
+			"jsonrpc": "2.0",
+			"result":  map[string]any{"methods": h.rpcDiscoverResult},
+			"id":      nil,
+		})
+		return
+	}
 	if r.Method != http.MethodPost {
 		h.writeJSON(w, http.StatusMethodNotAllowed, RPCResponse{
 			JSONRPC: "2.0",
