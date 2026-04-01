@@ -8,10 +8,9 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IStakeNFT} from "../interfaces/IStakeNFT.sol";
 
-/// @dev Minimal interface for reading delegate auth + treasury from AWPRegistry
+/// @dev Minimal interface for reading delegate auth from AWPRegistry
 interface IAWPRegistryDelegates {
     function delegates(address staker, address delegate) external view returns (bool);
-    function treasury() external view returns (address);
 }
 
 /// @title StakingVault — Allocation management with EIP-712 gasless support (UUPS proxy)
@@ -24,6 +23,9 @@ contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
 
     /// @notice AWPRegistry contract address (storage, set at initialize for proxy pattern)
     address public awpRegistry;
+
+    /// @notice Treasury/Timelock address (locally stored — upgrade auth does not depend on external calls)
+    address public treasury;
 
     /// @notice StakeNFT contract address (for balance checks, set once via setStakeNFT)
     address public stakeNFT;
@@ -64,6 +66,7 @@ contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
 
     error NotAWPRegistry();
     error NotAuthorized();
+    error NotTimelock();
     error InsufficientUnallocated();
     error InsufficientAllocation();
     error InvalidAmount();
@@ -104,15 +107,17 @@ contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
 
     /// @notice Initialize the vault (called once via proxy)
     /// @param awpRegistry_ AWPRegistry contract address
-    function initialize(address awpRegistry_) external initializer {
+    /// @param treasury_ Treasury/Timelock address (stored locally for upgrade auth)
+    function initialize(address awpRegistry_, address treasury_) external initializer {
         __UUPSUpgradeable_init();
         __EIP712_init("StakingVault", "1");
         awpRegistry = awpRegistry_;
+        treasury = treasury_;
     }
 
-    /// @dev UUPS upgrade authorization — only Treasury (via AWPRegistry) may upgrade
+    /// @dev UUPS upgrade authorization — only Treasury/Timelock may upgrade
     function _authorizeUpgrade(address) internal view override {
-        if (msg.sender != IAWPRegistryDelegates(awpRegistry).treasury()) revert NotAWPRegistry();
+        if (msg.sender != treasury) revert NotTimelock();
     }
 
     /// @notice Set StakeNFT address (one-time, resolves CREATE2 circular dependency)

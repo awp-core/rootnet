@@ -35,11 +35,6 @@ contract StakingVaultTest is Test {
         return false;
     }
 
-    /// @dev Required by StakingVault._authorizeUpgrade → IAWPRegistryDelegates.treasury()
-    function treasury() external pure returns (address) {
-        return address(0);
-    }
-
     function setUp() public {
         genesisTime = block.timestamp;
 
@@ -53,7 +48,7 @@ contract StakingVaultTest is Test {
         address predictedStakeNFT = vm.computeCreateAddress(deployer, nonce + 1);
 
         vault = StakingVault(address(new ERC1967Proxy(
-            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(this)))
+            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(this), address(this)))
         )));
         stakeNFT = new StakeNFT(address(awp), address(vault), address(this));
         vault.setStakeNFT(address(stakeNFT));
@@ -443,7 +438,7 @@ contract StakingVaultTest is Test {
     function test_vaultUpgradeByNonTreasury_reverts() public {
         StakingVault newImpl = new StakingVault();
         vm.prank(user1);
-        vm.expectRevert(StakingVault.NotAWPRegistry.selector);
+        vm.expectRevert(StakingVault.NotTimelock.selector);
         vault.upgradeToAndCall(address(newImpl), "");
     }
 }

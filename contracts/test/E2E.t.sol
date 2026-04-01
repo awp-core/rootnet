@@ -98,7 +98,7 @@ contract E2ETest is EmissionSigningHelper {
 
         // Deploy StakingVault + StakeNFT
         vault = StakingVault(address(new ERC1967Proxy(
-            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(awpRegistry)))
+            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(awpRegistry), address(treasury)))
         )));
         stakeNFT = new StakeNFT(address(awp), address(vault), address(awpRegistry));
 

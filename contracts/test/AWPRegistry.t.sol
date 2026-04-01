@@ -78,7 +78,7 @@ contract AWPRegistryTest is Test {
 
         // Deploy StakeNFT and StakingVault
         vault = StakingVault(address(new ERC1967Proxy(
-            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(awpRegistry)))
+            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(awpRegistry), address(treasury)))
         )));
         stakeNFT = new StakeNFT(address(awp), address(vault), address(awpRegistry));
 

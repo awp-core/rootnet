@@ -39,7 +39,7 @@ contract AWPDAOTest is Test {
         address predictedStakeNFT = vm.computeCreateAddress(deployer, nonce + 1);
 
         vault = StakingVault(address(new ERC1967Proxy(
-            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(this)))
+            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(this), address(this)))
         )));
         stakeNFT = new StakeNFT(address(awpToken), address(vault), address(this));
         vm.stopPrank();

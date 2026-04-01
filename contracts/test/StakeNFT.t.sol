@@ -37,7 +37,7 @@ contract StakeNFTTest is Test {
         address predictedStakeNFT = vm.computeCreateAddress(deployer, deployerNonce + 2);
 
         vault = StakingVault(address(new ERC1967Proxy(
-            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (awpRegistry))
+            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (awpRegistry, treasury))
         )));
         stakeNFT = new StakeNFT(address(awp), address(vault), awpRegistry);
         vm.stopPrank();

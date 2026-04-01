@@ -6,7 +6,7 @@ pragma solidity ^0.8.20;
 ///         Allocations are immediate — no pending/dual-slot mechanism.
 interface IStakingVault {
     // ── Setup ──
-    function initialize(address awpRegistry_) external;
+    function initialize(address awpRegistry_, address treasury_) external;
     function setStakeNFT(address stakeNFT_) external;
 
     // ── Write (public with delegate auth) ──
@@ -34,7 +34,7 @@ interface IStakingVault {
     // ── Events ──
     event Allocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator);
     event Deallocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator);
-    event AgentAllocationsFrozen(address indexed staker, address indexed agent);
+    event AgentAllocationsFrozen(address indexed staker, address indexed agent, uint256 totalFrozen);
     event Reallocated(
         address indexed staker,
         address fromAgent,

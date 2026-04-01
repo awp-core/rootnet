@@ -171,7 +171,7 @@ contract Deploy is Script {
             ));
             console.log("StakingVault impl:", address(vaultImpl));
 
-            bytes memory vaultInitData = abi.encodeCall(StakingVault.initialize, (address(awpRegistry)));
+            bytes memory vaultInitData = abi.encodeCall(StakingVault.initialize, (address(awpRegistry), address(treasury)));
             vault = StakingVault(_create2(
                 saltVault,
                 abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(address(vaultImpl), vaultInitData))

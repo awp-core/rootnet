@@ -101,7 +101,7 @@ contract IntegrationTest is EmissionSigningHelper {
 
         // Step 12: Deploy StakingVault + StakeNFT
         vault = StakingVault(address(new ERC1967Proxy(
-            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(awpRegistry)))
+            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(awpRegistry), address(treasury)))
         )));
         stakeNFT = new StakeNFT(address(awp), address(vault), address(awpRegistry));
 
