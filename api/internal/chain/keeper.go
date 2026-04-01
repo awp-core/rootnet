@@ -498,7 +498,7 @@ func (k *Keeper) compoundAllFees(ctx context.Context) {
 	for _, tokenHex := range alphaTokens {
 		token := common.HexToAddress(tokenHex)
 
-		// Per-tx lock：仅在发送交易期间持锁，不阻塞其他 keeper 操作
+		// Per-tx: lock → auth(自动 nonce) → 发送 → unlock → 等确认
 		k.txMu.Lock()
 		auth, err := k.auth()
 		if err != nil {
@@ -510,13 +510,17 @@ func (k *Keeper) compoundAllFees(ctx context.Context) {
 		auth.Context = timeoutCtx
 		tx, txErr := k.lpManager.CompoundFees(auth, token)
 		k.txMu.Unlock()
-		cancel()
 
 		if txErr != nil {
+			cancel()
 			k.logger.Debug("compoundFees skipped", "alphaToken", tokenHex, "error", txErr)
 			continue
 		}
 		k.logger.Info("compoundFees tx sent", "alphaToken", tokenHex, "txHash", tx.Hash().Hex())
+
+		// 等待 tx 上链后再发下一笔，避免 nonce 冲突
+		_, _ = bind.WaitMined(timeoutCtx, k.client, tx)
+		cancel()
 		compounded++
 	}
 
