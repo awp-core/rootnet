@@ -87,7 +87,7 @@ contract E2ETest is EmissionSigningHelper {
         AWPEmission emissionImpl = new AWPEmission();
         bytes memory emissionInitData = abi.encodeCall(
             AWPEmission.initialize,
-            (address(awp), address(treasury), INITIAL_DAILY, block.timestamp, EPOCH)
+            (address(awp), address(treasury), deployer, INITIAL_DAILY, block.timestamp, EPOCH)
         );
         ERC1967Proxy emissionProxy = new ERC1967Proxy(address(emissionImpl), emissionInitData);
         emission = AWPEmission(address(emissionProxy));
@@ -128,7 +128,7 @@ contract E2ETest is EmissionSigningHelper {
         oracleList[0] = vm.addr(ORACLE_PK1);
         oracleList[1] = vm.addr(ORACLE_PK2);
         oracleList[2] = vm.addr(ORACLE_PK3);
-        vm.prank(address(treasury));
+        vm.prank(deployer); // guardian = deployer in tests
         emission.setOracleConfig(oracleList, 2);
 
         // Distribute tokens from deployer

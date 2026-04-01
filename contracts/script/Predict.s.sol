@@ -97,7 +97,7 @@ contract Predict is Script {
         );
         console.log("AWPEmission impl:  ", emissionImpl);
 
-        bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, treasury, INITIAL_DAILY_EMISSION, uint256(0), EPOCH_DURATION));
+        bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, treasury, deployer, INITIAL_DAILY_EMISSION, uint256(0), EPOCH_DURATION));
         address emissionProxy = _predict(
             _readSalt("SALT_EMISSION_PROXY"),
             abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(emissionImpl, initData))

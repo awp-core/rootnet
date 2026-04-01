@@ -47,7 +47,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         AWPEmission emissionImpl = new AWPEmission();
         bytes memory initData = abi.encodeCall(
             AWPEmission.initialize,
-            (address(awpToken), treasury, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
+            (address(awpToken), treasury, treasury, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
         );
         ERC1967Proxy emissionProxy = new ERC1967Proxy(address(emissionImpl), initData);
         emission = AWPEmission(address(emissionProxy));
@@ -55,7 +55,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         // Grant AWPEmission minting permission (no renounceAdmin; tests need flexibility)
         awpToken.addMinter(address(emission));
 
-        // Configure oracles: 5 oracles, threshold 3
+        // Configure oracles: 5 oracles, threshold 3 (treasury == guardian in tests)
         address[] memory oracleList = new address[](5);
         oracleList[0] = oracle1;
         oracleList[1] = oracle2;
@@ -111,12 +111,12 @@ contract AWPEmissionTest is EmissionSigningHelper {
         assertEq(emission.oracleThreshold(), 3);
     }
 
-    function test_setOracleConfig_revertsForNonTimelock() public {
+    function test_setOracleConfig_revertsForNonGuardian() public {
         address[] memory oList = new address[](1);
         oList[0] = oracle1;
 
         vm.prank(user);
-        vm.expectRevert(AWPEmission.NotTimelock.selector);
+        vm.expectRevert(AWPEmission.NotGuardian.selector);
         emission.setOracleConfig(oList, 1);
     }
 
@@ -215,7 +215,7 @@ contract AWPEmissionTest is EmissionSigningHelper {
         AWPEmission impl2 = new AWPEmission();
         bytes memory initData2 = abi.encodeCall(
             AWPEmission.initialize,
-            (address(awpToken), treasury, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
+            (address(awpToken), treasury, treasury, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
         );
         ERC1967Proxy proxy2 = new ERC1967Proxy(address(impl2), initData2);
         AWPEmission emission2 = AWPEmission(address(proxy2));

@@ -101,8 +101,11 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice Emission split: basis points to subnet recipients (default 5000 = 50%)
     uint256 public emissionSplitBps;                // slot 25
 
+    /// @notice Guardian address — manages oracle config across chains (cross-chain multisig)
+    address public guardian;                         // slot 26
+
     /// @dev Reserved storage gap for upgrades
-    uint256[34] private __gap;                      // slots 26-59
+    uint256[33] private __gap;                      // slots 27-59
 
     // ══════════════════════════════════════════════
     //  Constants
@@ -155,6 +158,8 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     error DuplicateRecipient();
     /// @dev effectiveEpoch must be a future epoch
     error MustBeFutureEpoch();
+    /// @dev Caller is not the Guardian
+    error NotGuardian();
 
     // ══════════════════════════════════════════════
     //  Modifiers
@@ -163,6 +168,12 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @dev Only the Timelock may call
     modifier onlyTimelock() {
         if (msg.sender != treasury) revert NotTimelock();
+        _;
+    }
+
+    /// @dev Only the Guardian (cross-chain multisig) may call
+    modifier onlyGuardian() {
+        if (msg.sender != guardian) revert NotGuardian();
         _;
     }
 
@@ -178,12 +189,14 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice Initialize the emission contract (called on proxy deployment)
     /// @param awpToken_ AWP token contract address
     /// @param treasury_ Treasury address (Timelock) — receives DAO share + holds governance rights
+    /// @param guardian_ Guardian address (cross-chain multisig) — manages oracle config
     /// @param initialDailyEmission_ Daily emission for the first epoch (wei)
     /// @param genesisTime_ Genesis timestamp for epoch calculation
     /// @param epochDuration_ Epoch duration in seconds (default 86400 = 1 day)
     function initialize(
         address awpToken_,
         address treasury_,
+        address guardian_,
         uint256 initialDailyEmission_,
         uint256 genesisTime_,
         uint256 epochDuration_
@@ -194,6 +207,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
         awpToken = IAWPToken(awpToken_);
         treasury = treasury_;
+        guardian = guardian_;
         currentDailyEmission = initialDailyEmission_;
         genesisTime = genesisTime_;
         epochDuration = epochDuration_;
@@ -387,10 +401,18 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     //  Oracle configuration (onlyTimelock)
     // ══════════════════════════════════════════════
 
-    /// @notice Set the oracle address list and multisig threshold
+    /// @notice Update the guardian address (only Timelock may call)
+    /// @dev DAO governance can replace guardian via Timelock proposal
+    function setGuardian(address g) external onlyTimelock {
+        guardian = g;
+    }
+
+    /// @notice Set the oracle address list and multisig threshold (Guardian only)
+    /// @dev Guardian is a cross-chain multisig ensuring oracle consistency across all chains.
+    ///      Single-chain DAO cannot unilaterally change oracle — must go through Guardian.
     /// @param oracles_ New oracle address array
     /// @param threshold_ New multisig threshold
-    function setOracleConfig(address[] calldata oracles_, uint256 threshold_) external onlyTimelock {
+    function setOracleConfig(address[] calldata oracles_, uint256 threshold_) external onlyGuardian {
         if (settleProgress != 0) revert SettlementInProgress();
         if (threshold_ == 0 || threshold_ > oracles_.length) revert InvalidOracleConfig();
 

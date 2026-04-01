@@ -85,7 +85,7 @@ contract IntegrationTest is EmissionSigningHelper {
         AWPEmission emissionImpl = new AWPEmission();
         bytes memory emissionInitData = abi.encodeCall(
             AWPEmission.initialize,
-            (address(awp), address(treasury), INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
+            (address(awp), address(treasury), deployer, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
         );
         ERC1967Proxy emissionProxy = new ERC1967Proxy(address(emissionImpl), emissionInitData);
         emission = AWPEmission(address(emissionProxy));
@@ -146,7 +146,7 @@ contract IntegrationTest is EmissionSigningHelper {
         oracleList[0] = vm.addr(ORACLE_PK1);
         oracleList[1] = vm.addr(ORACLE_PK2);
         oracleList[2] = vm.addr(ORACLE_PK3);
-        vm.prank(address(treasury));
+        vm.prank(deployer); // guardian = deployer in tests
         emission.setOracleConfig(oracleList, 2);
 
         // Verify post-deployment state

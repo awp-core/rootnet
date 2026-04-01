@@ -64,7 +64,7 @@ contract AWPRegistryTest is Test {
         AWPEmission emissionImpl = new AWPEmission();
         bytes memory emissionInitData = abi.encodeCall(
             AWPEmission.initialize,
-            (address(awp), address(treasury), INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
+            (address(awp), address(treasury), deployer, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
         );
         ERC1967Proxy emissionProxy = new ERC1967Proxy(address(emissionImpl), emissionInitData);
         emission = AWPEmission(address(emissionProxy));
