@@ -27,6 +27,9 @@ UPDATE subnets SET skills_uri = $2 WHERE subnet_id = $1;
 -- name: UpdateSubnetMinStake :exec
 UPDATE subnets SET min_stake = $2 WHERE subnet_id = $1;
 
+-- name: UpdateSubnetMetadataURI :exec
+UPDATE subnets SET metadata_uri = $2 WHERE subnet_id = $1;
+
 -- name: GetSubnetSkills :one
 SELECT skills_uri FROM subnets WHERE subnet_id = $1;
 

@@ -368,7 +368,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             settleProgress = 0;
             unchecked { settledEpoch++; }
 
-            emit EpochSettled(epoch, epochEmissionLocked, snapshotLen);
+            emit EpochSettled(epoch, minted, snapshotLen);
         } else {
             settleProgress = end + 1;
         }

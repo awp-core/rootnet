@@ -72,6 +72,7 @@ interface IAWPRegistry {
     // ── Governance parameter events ──
     event GuardianUpdated(address indexed newGuardian);
     event InitialAlphaPriceUpdated(uint256 newPrice);
+    event InitialAlphaMintUpdated(uint256 amount);
     event ImmunityPeriodUpdated(uint256 newPeriod);
     event AlphaTokenFactoryUpdated(address indexed newFactory);
     event DefaultSubnetManagerImplUpdated(address indexed newImpl);

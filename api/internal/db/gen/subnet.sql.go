@@ -330,6 +330,20 @@ func (q *Queries) UpdateSubnetMinStake(ctx context.Context, arg UpdateSubnetMinS
 	return err
 }
 
+const updateSubnetMetadataURI = `-- name: UpdateSubnetMetadataURI :exec
+UPDATE subnets SET metadata_uri = $2 WHERE subnet_id = $1
+`
+
+type UpdateSubnetMetadataURIParams struct {
+	SubnetID    pgtype.Numeric `json:"subnet_id"`
+	MetadataUri string         `json:"metadata_uri"`
+}
+
+func (q *Queries) UpdateSubnetMetadataURI(ctx context.Context, arg UpdateSubnetMetadataURIParams) error {
+	_, err := q.db.Exec(ctx, updateSubnetMetadataURI, arg.SubnetID, arg.MetadataUri)
+	return err
+}
+
 const updateSubnetOwner = `-- name: UpdateSubnetOwner :exec
 UPDATE subnets SET owner = $2 WHERE subnet_id = $1
 `

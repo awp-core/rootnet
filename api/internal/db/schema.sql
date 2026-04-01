@@ -17,6 +17,7 @@ CREATE TABLE subnets (
     symbol           VARCHAR(16) NOT NULL,
     subnet_contract  CHAR(42) NOT NULL,
     skills_uri       TEXT,
+    metadata_uri     TEXT,
     min_stake        NUMERIC(78,0) NOT NULL DEFAULT 0,
     alpha_token      CHAR(42) NOT NULL,
     lp_pool          CHAR(66),

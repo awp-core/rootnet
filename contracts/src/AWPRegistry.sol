@@ -673,8 +673,6 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     }
 
     /// @notice Update the initial Alpha token mint amount per subnet (only Timelock)
-    event InitialAlphaMintUpdated(uint256 amount);
-
     function setInitialAlphaMint(uint256 amount) external onlyTimelock {
         if (amount == 0) revert InvalidSubnetParams();
         initialAlphaMint = amount;

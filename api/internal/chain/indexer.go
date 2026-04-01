@@ -635,6 +635,30 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
+	// AgentAllocationsFrozen (emitted by StakingVault on ban/freeze)
+	if evt, err := stakingVault.ParseAgentAllocationsFrozen(lg); err == nil {
+		user := strings.ToLower(evt.User.Hex())
+		agent := strings.ToLower(evt.Agent.Hex())
+		// Zero out all allocations for this (user, agent) pair
+		if err := q.FreezeAgentAllocations(ctx, gen.FreezeAgentAllocationsParams{
+			ChainID: idx.chainID, UserAddress: user, AgentAddress: agent,
+		}); err != nil {
+			return nil, fmt.Errorf("FreezeAgentAllocations: %w", err)
+		}
+		// Subtract frozen amount from user's total allocated
+		if err := q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{
+			ChainID: idx.chainID, UserAddress: user,
+			TotalAllocated: bigIntToNumeric(evt.TotalFrozen), UpdatedBlock: int64(lg.BlockNumber),
+		}); err != nil {
+			return nil, fmt.Errorf("SubtractUserAllocated(freeze): %w", err)
+		}
+		return []redisEvent{makeEvent("AgentAllocationsFrozen", lg, map[string]interface{}{
+			"user":        evt.User.Hex(),
+			"agent":       evt.Agent.Hex(),
+			"totalFrozen": evt.TotalFrozen.String(),
+		})}, nil
+	}
+
 	// SubnetRegistered
 	if evt, err := awpRegistry.ParseSubnetRegistered(lg); err == nil {
 		// Read skillsURI and minStake from SubnetNFT on-chain (not included in event)
@@ -815,6 +839,32 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		return []redisEvent{makeEvent("MinStakeUpdated", lg, map[string]interface{}{
 			"subnetId": evt.TokenId.String(),
 			"minStake": evt.MinStake.String(),
+		})}, nil
+	}
+
+	// MetadataURIUpdated (emitted from SubnetNFT) — parsed manually (binding not regenerated)
+	// event MetadataURIUpdated(uint256 indexed tokenId, string metadataURI)
+	// topic0 = 0xbf65482a576bba07ddf407b0dd39c63d560c7765323c11cc051d4a9413881a61
+	if lg.Address == idx.chain.SubnetNFTAddr && len(lg.Topics) == 2 &&
+		lg.Topics[0] == common.HexToHash("0xbf65482a576bba07ddf407b0dd39c63d560c7765323c11cc051d4a9413881a61") {
+		tokenId := lg.Topics[1].Big()
+		// ABI decode string from log data: offset (32 bytes) + length (32 bytes) + data
+		metadataURI := ""
+		if len(lg.Data) >= 64 {
+			strLen := new(big.Int).SetBytes(lg.Data[32:64]).Uint64()
+			if uint64(len(lg.Data)) >= 64+strLen {
+				metadataURI = string(lg.Data[64 : 64+strLen])
+			}
+		}
+		if err := q.UpdateSubnetMetadataURI(ctx, gen.UpdateSubnetMetadataURIParams{
+			SubnetID:    bigIntToNumeric(tokenId),
+			MetadataUri: metadataURI,
+		}); err != nil {
+			return nil, fmt.Errorf("UpdateSubnetMetadataURI: %w", err)
+		}
+		return []redisEvent{makeEvent("MetadataURIUpdated", lg, map[string]interface{}{
+			"subnetId":    tokenId.String(),
+			"metadataURI": metadataURI,
 		})}, nil
 	}
 
