@@ -39,9 +39,19 @@ WHERE chain_id = $1 AND agent_address = $2 AND amount > 0 ORDER BY subnet_id;
 SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_allocations
 WHERE chain_id = $1 AND agent_address = $2 AND subnet_id = $3 AND frozen = FALSE;
 
+-- name: GetAgentSubnetStakeGlobal :one
+-- NOTE: No chain_id filter — aggregates agent's stake to a subnet across ALL chains (cross-chain by design).
+SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_allocations
+WHERE agent_address = $1 AND subnet_id = $2 AND frozen = FALSE;
+
 -- name: GetAgentSubnets :many
 SELECT subnet_id, amount FROM stake_allocations
 WHERE chain_id = $1 AND agent_address = $2 AND amount > 0 AND frozen = FALSE ORDER BY subnet_id LIMIT 500;
+
+-- name: GetAgentSubnetsGlobal :many
+-- NOTE: No chain_id filter — aggregates across ALL chains for cross-chain view.
+SELECT subnet_id, COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS amount FROM stake_allocations
+WHERE agent_address = $1 AND amount > 0 AND frozen = FALSE GROUP BY subnet_id ORDER BY subnet_id LIMIT 500;
 
 -- NOTE: No chain_id filter — subnetId is globally unique (chainId<<64|localId),
 -- aggregates stake from ALL chains for a given subnet (cross-chain by design).

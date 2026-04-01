@@ -87,6 +87,23 @@ func (q *Queries) GetAgentSubnetStake(ctx context.Context, arg GetAgentSubnetSta
 	return total, err
 }
 
+const getAgentSubnetStakeGlobal = `-- name: GetAgentSubnetStakeGlobal :one
+SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_allocations
+WHERE agent_address = $1 AND subnet_id = $2 AND frozen = FALSE
+`
+
+type GetAgentSubnetStakeGlobalParams struct {
+	AgentAddress string         `json:"agent_address"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
+}
+
+func (q *Queries) GetAgentSubnetStakeGlobal(ctx context.Context, arg GetAgentSubnetStakeGlobalParams) (pgtype.Numeric, error) {
+	row := q.db.QueryRow(ctx, getAgentSubnetStakeGlobal, arg.AgentAddress, arg.SubnetID)
+	var total pgtype.Numeric
+	err := row.Scan(&total)
+	return total, err
+}
+
 const getAgentSubnets = `-- name: GetAgentSubnets :many
 SELECT subnet_id, amount FROM stake_allocations
 WHERE chain_id = $1 AND agent_address = $2 AND amount > 0 AND frozen = FALSE ORDER BY subnet_id LIMIT 500
@@ -104,6 +121,31 @@ type GetAgentSubnetsRow struct {
 
 func (q *Queries) GetAgentSubnets(ctx context.Context, arg GetAgentSubnetsParams) ([]GetAgentSubnetsRow, error) {
 	rows, err := q.db.Query(ctx, getAgentSubnets, arg.ChainID, arg.AgentAddress)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetAgentSubnetsRow{}
+	for rows.Next() {
+		var i GetAgentSubnetsRow
+		if err := rows.Scan(&i.SubnetID, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAgentSubnetsGlobal = `-- name: GetAgentSubnetsGlobal :many
+SELECT subnet_id, COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS amount FROM stake_allocations
+WHERE agent_address = $1 AND amount > 0 AND frozen = FALSE GROUP BY subnet_id ORDER BY subnet_id LIMIT 500
+`
+
+func (q *Queries) GetAgentSubnetsGlobal(ctx context.Context, agentAddress string) ([]GetAgentSubnetsRow, error) {
+	rows, err := q.db.Query(ctx, getAgentSubnetsGlobal, agentAddress)
 	if err != nil {
 		return nil, err
 	}

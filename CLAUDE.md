@@ -84,7 +84,7 @@ AWPToken(constructor: name, symbol, deployer, initialMint) → AlphaTokenFactory
 ## Multi-Chain
 - Deploy config: chains.yaml (Base, Ethereum, Arbitrum, BSC)
 - Deploy script: scripts/deploy-multichain.sh <chainName|--all|--list>
-- Same CREATE2 salts → identical addresses on all chains
+- Same CREATE2 salts + unified initialMint (200M) → identical AWPToken addresses on all chains. LPManager/SubnetManager bytecode differs by DEX (Uniswap vs PancakeSwap) so BSC addresses differ for these two contracts
 - SubnetId: (block.chainid << 64) | localCounter — globally unique
 - Allocate is local: user allocates on their staking chain to any chain's subnet
 - Emission: per-chain AWPEmission, oracle coordinates quotas

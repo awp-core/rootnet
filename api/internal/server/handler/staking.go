@@ -175,8 +175,8 @@ func (h *Handler) GetAgentSubnetStake(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stake, err := h.queries.GetAgentSubnetStake(r.Context(), gen.GetAgentSubnetStakeParams{
-		ChainID:      h.cfg.ChainID,
+	// 跨链聚合：聚合所有链上该 (agent, subnet) 的质押
+	stake, err := h.queries.GetAgentSubnetStakeGlobal(r.Context(), gen.GetAgentSubnetStakeGlobalParams{
 		AgentAddress: agentAddr,
 		SubnetID:     subnetID,
 	})
@@ -202,10 +202,8 @@ func (h *Handler) GetAgentSubnets(w http.ResponseWriter, r *http.Request) {
 	}
 	agentAddr := normalizeAddr(rawAgent)
 
-	subnets, err := h.queries.GetAgentSubnets(r.Context(), gen.GetAgentSubnetsParams{
-		ChainID:      h.cfg.ChainID,
-		AgentAddress: agentAddr,
-	})
+	// 跨链聚合：聚合所有链上该 agent 参与的子网
+	subnets, err := h.queries.GetAgentSubnetsGlobal(r.Context(), agentAddr)
 	if err != nil {
 		h.logger.Error("failed to get agent subnets", "error", err, "agent", agentAddr)
 		h.writeError(w, http.StatusInternalServerError, "failed to get agent subnets")

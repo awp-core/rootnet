@@ -549,8 +549,8 @@ func (h *Handler) rpcStakingGetAgentSubnetStake(ctx context.Context, raw json.Ra
 		return nil, rpcErr
 	}
 
-	stake, err := h.queries.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{
-		ChainID: h.cfg.ChainID, AgentAddress: agent, SubnetID: subnetNum,
+	stake, err := h.queries.GetAgentSubnetStakeGlobal(ctx, gen.GetAgentSubnetStakeGlobalParams{
+		AgentAddress: agent, SubnetID: subnetNum,
 	})
 	if err != nil {
 		return nil, internalErr("failed to get agent subnet stake")
@@ -574,9 +574,7 @@ func (h *Handler) rpcStakingGetAgentSubnets(ctx context.Context, raw json.RawMes
 		return nil, rpcErr
 	}
 
-	subnets, err := h.queries.GetAgentSubnets(ctx, gen.GetAgentSubnetsParams{
-		ChainID: h.cfg.ChainID, AgentAddress: agent,
-	})
+	subnets, err := h.queries.GetAgentSubnetsGlobal(ctx, agent)
 	if err != nil {
 		return nil, internalErr("failed to get agent subnets")
 	}
@@ -723,8 +721,8 @@ func (h *Handler) rpcSubnetsGetAgentInfo(ctx context.Context, raw json.RawMessag
 		return nil, rpcErr
 	}
 
-	total, err := h.queries.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{
-		ChainID: h.cfg.ChainID, AgentAddress: agent, SubnetID: subnetNum,
+	total, err := h.queries.GetAgentSubnetStakeGlobal(ctx, gen.GetAgentSubnetStakeGlobalParams{
+		AgentAddress: agent, SubnetID: subnetNum,
 	})
 	stakeStr := "0"
 	if err == nil && total.Valid {

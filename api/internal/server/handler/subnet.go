@@ -115,8 +115,7 @@ func (h *Handler) GetSubnetAgentInfo(w http.ResponseWriter, r *http.Request) {
 	agentAddr := normalizeAddr(rawAgent)
 	ctx := r.Context()
 
-	total, err := h.queries.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{
-		ChainID:      h.cfg.ChainID,
+	total, err := h.queries.GetAgentSubnetStakeGlobal(ctx, gen.GetAgentSubnetStakeGlobalParams{
 		AgentAddress: agentAddr,
 		SubnetID:     subnetID,
 	})
