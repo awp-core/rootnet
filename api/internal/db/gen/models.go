@@ -88,6 +88,7 @@ type Subnet struct {
 	Symbol         string         `json:"symbol"`
 	SubnetContract string         `json:"subnet_contract"`
 	SkillsUri      pgtype.Text    `json:"skills_uri"`
+	MetadataUri    pgtype.Text    `json:"metadata_uri"`
 	MinStake       pgtype.Numeric `json:"min_stake"`
 	AlphaToken     string         `json:"alpha_token"`
 	LpPool         pgtype.Text    `json:"lp_pool"`

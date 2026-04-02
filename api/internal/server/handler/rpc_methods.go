@@ -467,13 +467,13 @@ func (h *Handler) rpcStakingGetSubnetTotalStake(ctx context.Context, raw json.Ra
 func (h *Handler) rpcSubnetsList(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
 		Status  string `json:"status"`
-		ChainID int64  `json:"chainId"`
+		ChainID int64  `json:"chainId"` // 0 = all chains (cross-chain)
 		pageParams
 	}
 	_ = json.Unmarshal(raw, &p)
-	chainID := h.resolveRPCChainID(p.ChainID)
 	limit, offset := parsePage(p.pageParams)
-	result, err := h.svcListSubnets(ctx, chainID, p.Status, limit, offset)
+	// chainId=0（默认）返回所有链的子网
+	result, err := h.svcListSubnets(ctx, p.ChainID, p.Status, limit, offset)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}

@@ -352,16 +352,35 @@ func (h *Handler) svcGetSubnetTotalStake(ctx context.Context, subnetID pgtype.Nu
 }
 
 // svcListSubnets 分页获取子网列表（可按状态筛选）
+// svcListSubnets 获取子网列表。chainID=0 时返回所有链的子网（跨链），否则返回指定链的子网
 func (h *Handler) svcListSubnets(ctx context.Context, chainID int64, status string, limit, offset int32) (any, error) {
 	if status != "" {
 		if !validSubnetStatuses[status] {
 			return nil, newSvcErr(errBadInput, "invalid status filter: must be one of Pending, Active, Paused, Banned")
 		}
+		if chainID == 0 {
+			subnets, err := h.queries.ListAllSubnetsByStatus(ctx, gen.ListAllSubnetsByStatusParams{
+				Status: status, Limit: limit, Offset: offset,
+			})
+			if err != nil {
+				return nil, newSvcErr(errInternal, "failed to list subnets")
+			}
+			return subnets, nil
+		}
 		subnets, err := h.queries.ListSubnetsByStatus(ctx, gen.ListSubnetsByStatusParams{
 			ChainID: chainID, Status: status, Limit: limit, Offset: offset,
 		})
 		if err != nil {
-			h.logger.Error("failed to list subnets by status", "error", err, "status", status)
+			return nil, newSvcErr(errInternal, "failed to list subnets")
+		}
+		return subnets, nil
+	}
+
+	if chainID == 0 {
+		subnets, err := h.queries.ListAllSubnets(ctx, gen.ListAllSubnetsParams{
+			Limit: limit, Offset: offset,
+		})
+		if err != nil {
 			return nil, newSvcErr(errInternal, "failed to list subnets")
 		}
 		return subnets, nil
@@ -371,7 +390,6 @@ func (h *Handler) svcListSubnets(ctx context.Context, chainID int64, status stri
 		ChainID: chainID, Limit: limit, Offset: offset,
 	})
 	if err != nil {
-		h.logger.Error("failed to list subnets", "error", err)
 		return nil, newSvcErr(errInternal, "failed to list subnets")
 	}
 	return subnets, nil

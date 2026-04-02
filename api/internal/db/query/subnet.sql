@@ -12,6 +12,14 @@ SELECT * FROM subnets WHERE chain_id = $1 AND burned = FALSE ORDER BY subnet_id 
 -- name: ListSubnetsByStatus :many
 SELECT * FROM subnets WHERE chain_id = $1 AND status = $2 AND burned = FALSE ORDER BY subnet_id DESC LIMIT $3 OFFSET $4;
 
+-- name: ListAllSubnets :many
+-- NOTE: No chain_id filter — returns subnets from ALL chains.
+SELECT * FROM subnets WHERE burned = FALSE ORDER BY subnet_id DESC LIMIT $1 OFFSET $2;
+
+-- name: ListAllSubnetsByStatus :many
+-- NOTE: No chain_id filter — returns subnets from ALL chains with status filter.
+SELECT * FROM subnets WHERE status = $1 AND burned = FALSE ORDER BY subnet_id DESC LIMIT $2 OFFSET $3;
+
 -- name: UpdateSubnetLP :exec
 UPDATE subnets SET lp_pool = $2 WHERE subnet_id = $1;
 
