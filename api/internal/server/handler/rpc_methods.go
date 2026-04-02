@@ -185,10 +185,12 @@ func (h *Handler) rpcNonceGet(ctx context.Context, raw json.RawMessage) (any, *R
 	if rpcErr != nil {
 		return nil, rpcErr
 	}
-	if h.chain == nil {
-		return nil, &RPCErr{Code: rpcInternalError, Message: "chain reader not available"}
+	chainID := h.resolveRPCChainID(p.ChainID)
+	cr := h.getChainReader(chainID)
+	if cr == nil {
+		return nil, &RPCErr{Code: rpcInternalError, Message: "chain reader not available for chainId"}
 	}
-	nonce, err := h.chain.GetNonce(address)
+	nonce, err := cr.GetNonce(address)
 	if err != nil {
 		return nil, internalErr("failed to read nonce")
 	}
@@ -209,10 +211,12 @@ func (h *Handler) rpcNonceGetStaking(ctx context.Context, raw json.RawMessage) (
 	if rpcErr != nil {
 		return nil, rpcErr
 	}
-	if h.chain == nil {
-		return nil, &RPCErr{Code: rpcInternalError, Message: "chain reader not available"}
+	chainID := h.resolveRPCChainID(p.ChainID)
+	cr := h.getChainReader(chainID)
+	if cr == nil {
+		return nil, &RPCErr{Code: rpcInternalError, Message: "chain reader not available for chainId"}
 	}
-	nonce, err := h.chain.GetStakingNonce(address)
+	nonce, err := cr.GetStakingNonce(address)
 	if err != nil {
 		return nil, internalErr("failed to read staking nonce")
 	}

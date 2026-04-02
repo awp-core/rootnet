@@ -20,13 +20,13 @@ import (
 
 // Handler is the main handler holding all dependencies
 type Handler struct {
-	queries *gen.Queries
-	rdb     *redis.Client
-	cfg     *config.Config
-	logger  *slog.Logger
-	limiter *ratelimit.Limiter
-	chain   ChainReader           // optional: for on-chain reads (nonce, etc.)
-	chains  []config.ChainConfig // loaded chains (nil in single-chain mode)
+	queries      *gen.Queries
+	rdb          *redis.Client
+	cfg          *config.Config
+	logger       *slog.Logger
+	limiter      *ratelimit.Limiter
+	chainReaders map[int64]ChainReader // chainId → on-chain reader (nonce, etc.)
+	chains       []config.ChainConfig  // loaded chains (nil in single-chain mode)
 
 	// JSON-RPC 方法表缓存（sync.Once 初始化）
 	rpcMethodsOnce    sync.Once
@@ -56,9 +56,29 @@ func (h *Handler) SetChains(chains []config.ChainConfig) {
 	h.chains = chains
 }
 
-// SetChainReader sets the optional chain reader for on-chain queries
-func (h *Handler) SetChainReader(cr ChainReader) {
-	h.chain = cr
+// SetChainReader adds a chain reader for the given chain ID
+func (h *Handler) SetChainReader(chainID int64, cr ChainReader) {
+	if h.chainReaders == nil {
+		h.chainReaders = make(map[int64]ChainReader)
+	}
+	h.chainReaders[chainID] = cr
+}
+
+// getChainReader returns the chain reader for a given chain ID, with single-chain fallback
+func (h *Handler) getChainReader(chainID int64) ChainReader {
+	if h.chainReaders == nil {
+		return nil
+	}
+	if cr, ok := h.chainReaders[chainID]; ok {
+		return cr
+	}
+	// 单链 fallback：返回唯一的 reader
+	if len(h.chainReaders) == 1 {
+		for _, cr := range h.chainReaders {
+			return cr
+		}
+	}
+	return nil
 }
 
 // writeJSON writes data as JSON to the response
@@ -273,13 +293,15 @@ func (h *Handler) GetNonce(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	address := normalizeAddr(raw)
-	if h.chain == nil {
-		h.writeError(w, http.StatusServiceUnavailable, "chain reader not available")
+	chainID := h.resolveChainID(r)
+	cr := h.getChainReader(chainID)
+	if cr == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "chain reader not available for chainId")
 		return
 	}
-	nonce, err := h.chain.GetNonce(address)
+	nonce, err := cr.GetNonce(address)
 	if err != nil {
-		h.logger.Error("failed to read nonce", "error", err, "address", address)
+		h.logger.Error("failed to read nonce", "error", err, "address", address, "chainId", chainID)
 		h.writeError(w, http.StatusInternalServerError, "failed to read nonce")
 		return
 	}
@@ -302,13 +324,15 @@ func (h *Handler) GetStakingNonce(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	address := normalizeAddr(raw)
-	if h.chain == nil {
-		h.writeError(w, http.StatusServiceUnavailable, "chain reader not available")
+	chainID := h.resolveChainID(r)
+	cr := h.getChainReader(chainID)
+	if cr == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "chain reader not available for chainId")
 		return
 	}
-	nonce, err := h.chain.GetStakingNonce(address)
+	nonce, err := cr.GetStakingNonce(address)
 	if err != nil {
-		h.logger.Error("failed to read staking nonce", "error", err, "address", address)
+		h.logger.Error("failed to read staking nonce", "error", err, "address", address, "chainId", chainID)
 		h.writeError(w, http.StatusInternalServerError, "failed to read staking nonce")
 		return
 	}

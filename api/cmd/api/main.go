@@ -230,42 +230,69 @@ func wireChainReader(lc fx.Lifecycle, h *handler.Handler, hub *ws.Hub, queries *
 		}
 	}
 	hub.SetAllocationQuerier(handler.NewWSAllocQuerier(queries), defaultCID)
-	addrs := map[string]string{
-		"AWPRegistry":  cfg.AWPRegistryAddress,
-		"AWPToken":     cfg.AWPTokenAddress,
-		"AWPEmission":  cfg.AWPEmissionAddress,
-		"StakingVault": cfg.StakingVaultAddress,
-		"SubnetNFT":    cfg.SubnetNFTAddress,
-		"AWPDAO":       cfg.DAOAddress,
-		"StakeNFT":     cfg.StakeNFTAddress,
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	client, err := chain.NewClient(ctx, cfg.RPCURL, addrs)
-	if err != nil {
-		logger.Warn("chain reader unavailable, /api/nonce endpoint disabled", "error", err)
-		return
-	}
-	h.SetChainReader(client)
 
-	// 加载多链配置（如果配置了 chains.yaml）
+	var clients []*chain.Client
+
+	// 多链模式：为每条链创建独立 chain reader
 	if cfg.ChainsFile != "" {
-		chains, err := config.LoadChains(cfg.ChainsFile)
-		if err == nil {
+		chains, loadErr := config.LoadChains(cfg.ChainsFile)
+		if loadErr == nil && len(chains) > 0 {
 			h.SetChains(chains)
-			logger.Info("multi-chain config loaded", "count", len(chains))
-		} else {
-			logger.Warn("failed to load chains config", "error", err)
+			for _, ch := range chains {
+				addrs := map[string]string{
+					"AWPRegistry":  config.ResolveAddress(ch.AWPRegistry, cfg.AWPRegistryAddress),
+					"AWPToken":     config.ResolveAddress(ch.AWPToken, cfg.AWPTokenAddress),
+					"AWPEmission":  config.ResolveAddress(ch.AWPEmission, cfg.AWPEmissionAddress),
+					"StakingVault": config.ResolveAddress(ch.StakingVault, cfg.StakingVaultAddress),
+					"SubnetNFT":    config.ResolveAddress(ch.SubnetNFT, cfg.SubnetNFTAddress),
+					"AWPDAO":       config.ResolveAddress(ch.DAOAddress, cfg.DAOAddress),
+					"StakeNFT":     config.ResolveAddress(ch.StakeNFT, cfg.StakeNFTAddress),
+				}
+				dialCtx, dialCancel := context.WithTimeout(context.Background(), 10*time.Second)
+				client, dialErr := chain.NewClient(dialCtx, ch.RPCURL, addrs)
+				dialCancel()
+				if dialErr != nil {
+					logger.Warn("chain reader unavailable for chain", "chainId", ch.ChainID, "error", dialErr)
+					continue
+				}
+				h.SetChainReader(ch.ChainID, client)
+				clients = append(clients, client)
+				logger.Info("chain reader connected", "chainId", ch.ChainID)
+			}
+		} else if loadErr != nil {
+			logger.Warn("failed to load chains config", "error", loadErr)
 		}
+	} else if cfg.RPCURL != "" {
+		// 单链模式
+		addrs := map[string]string{
+			"AWPRegistry":  cfg.AWPRegistryAddress,
+			"AWPToken":     cfg.AWPTokenAddress,
+			"AWPEmission":  cfg.AWPEmissionAddress,
+			"StakingVault": cfg.StakingVaultAddress,
+			"SubnetNFT":    cfg.SubnetNFTAddress,
+			"AWPDAO":       cfg.DAOAddress,
+			"StakeNFT":     cfg.StakeNFTAddress,
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		client, err := chain.NewClient(ctx, cfg.RPCURL, addrs)
+		if err != nil {
+			logger.Warn("chain reader unavailable, /api/nonce endpoint disabled", "error", err)
+			return
+		}
+		h.SetChainReader(cfg.ChainID, client)
+		clients = append(clients, client)
+		logger.Info("chain reader connected (single-chain)", "chainId", cfg.ChainID)
 	}
 
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
-			client.Close()
+			for _, c := range clients {
+				c.Close()
+			}
 			return nil
 		},
 	})
-	logger.Info("chain reader connected for on-chain queries")
 }
 
 // newRouterParams assembles RouterParams
