@@ -36,8 +36,8 @@ func NewRouter(p RouterParams) chi.Router {
 	r.Use(middleware.Compress(5))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins: []string{"*"},
-		AllowedMethods: []string{"GET", "POST", "OPTIONS"},
-		AllowedHeaders: []string{"Accept", "Content-Type"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"Accept", "Content-Type", "Authorization"},
 		MaxAge:         300,
 	}))
 
@@ -117,6 +117,16 @@ func NewRouter(p RouterParams) chi.Router {
 			r.Get("/proposals/{proposalId}", h.GetProposal)
 			r.Get("/treasury", h.GetTreasury)
 		})
+	})
+
+	// Admin endpoints (Bearer token auth)
+	r.Route("/api/admin", func(r chi.Router) {
+		r.Post("/chains", h.AdminAddChain)
+		r.Delete("/chains/{chainId}", h.AdminDeleteChain)
+		r.Get("/chains", h.AdminListChains)
+		r.Put("/ratelimit", h.AdminUpdateRateLimit)
+		r.Get("/ratelimit", h.AdminGetRateLimit)
+		r.Get("/system", h.AdminSystemInfo)
 	})
 
 	// WebSocket real-time data push

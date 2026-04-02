@@ -129,3 +129,42 @@ func (q *Queries) DeleteChain(ctx context.Context, chainID int64) error {
 	_, err := q.db.Exec(ctx, deleteChain, chainID)
 	return err
 }
+
+const listAllChains = `-- name: ListAllChains :many
+SELECT chain_id, name, rpc_url, dex, explorer, status, awp_registry, awp_token, awp_emission, staking_vault, stake_nft, subnet_nft, dao_address, lp_manager, pool_manager, deploy_block, created_at FROM chains ORDER BY chain_id
+`
+
+func (q *Queries) ListAllChains(ctx context.Context) ([]Chain, error) {
+	rows, err := q.db.Query(ctx, listAllChains)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chain
+	for rows.Next() {
+		var i Chain
+		if err := rows.Scan(
+			&i.ChainID,
+			&i.Name,
+			&i.RpcUrl,
+			&i.Dex,
+			&i.Explorer,
+			&i.Status,
+			&i.AwpRegistry,
+			&i.AwpToken,
+			&i.AwpEmission,
+			&i.StakingVault,
+			&i.StakeNft,
+			&i.SubnetNft,
+			&i.DaoAddress,
+			&i.LpManager,
+			&i.PoolManager,
+			&i.DeployBlock,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, nil
+}

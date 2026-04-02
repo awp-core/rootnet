@@ -52,6 +52,9 @@ type Config struct {
 
 	// Indexer start block (deploy block); used only on first run when sync_states is empty
 	DeployBlock int64 `env:"DEPLOY_BLOCK" envDefault:"0"`
+
+	// Admin API
+	AdminToken string `env:"ADMIN_TOKEN" envDefault:""`
 }
 
 // Load loads configuration from environment variables
