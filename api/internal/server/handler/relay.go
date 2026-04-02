@@ -189,20 +189,35 @@ func decodeRelayError(err error) string {
 	return "relay failed: internal error, please try again"
 }
 
-// RelayHandler handles gasless relay transaction requests
+// RelayHandler handles gasless relay transaction requests (multi-chain)
 type RelayHandler struct {
-	relayer *chain.Relayer
-	limiter *ratelimit.Limiter
-	logger  *slog.Logger
+	relayers map[int64]*chain.Relayer // chainId → relayer
+	limiter  *ratelimit.Limiter
+	logger   *slog.Logger
 }
 
-// NewRelayHandler creates a RelayHandler
-func NewRelayHandler(relayer *chain.Relayer, limiter *ratelimit.Limiter, logger *slog.Logger) *RelayHandler {
+// NewRelayHandler creates a multi-chain RelayHandler
+func NewRelayHandler(relayers map[int64]*chain.Relayer, limiter *ratelimit.Limiter, logger *slog.Logger) *RelayHandler {
 	return &RelayHandler{
-		relayer: relayer,
-		limiter: limiter,
-		logger:  logger,
+		relayers: relayers,
+		limiter:  limiter,
+		logger:   logger,
 	}
+}
+
+// resolveRelayer returns the relayer for the given chainId, or the single relayer if only one exists
+func (rh *RelayHandler) resolveRelayer(chainID int64) (*chain.Relayer, error) {
+	// 单链模式：直接返回唯一 relayer
+	if len(rh.relayers) == 1 && chainID == 0 {
+		for _, r := range rh.relayers {
+			return r, nil
+		}
+	}
+	r, ok := rh.relayers[chainID]
+	if !ok {
+		return nil, fmt.Errorf("unsupported chainId: %d", chainID)
+	}
+	return r, nil
 }
 
 // checkRateLimit atomically checks and increments the relay IP rate limit.
@@ -244,12 +259,14 @@ func parseSignature(sigHex string) (v uint8, r [32]byte, s [32]byte, err error) 
 // ── Request types ──
 
 type relayRegisterRequest struct {
+	ChainID   int64  `json:"chainId"`
 	User      string `json:"user"`
 	Deadline  uint64 `json:"deadline"`
 	Signature string `json:"signature"`
 }
 
 type relaySetRecipientRequest struct {
+	ChainID   int64  `json:"chainId"`
 	User      string `json:"user"`
 	Recipient string `json:"recipient"`
 	Deadline  uint64 `json:"deadline"`
@@ -257,6 +274,7 @@ type relaySetRecipientRequest struct {
 }
 
 type relayBindRequest struct {
+	ChainID   int64  `json:"chainId"`
 	Agent     string `json:"agent"`
 	Target    string `json:"target"`
 	Deadline  uint64 `json:"deadline"`
@@ -264,6 +282,7 @@ type relayBindRequest struct {
 }
 
 type relayAllocateRequest struct {
+	ChainID   int64  `json:"chainId"`
 	Staker    string `json:"staker"`
 	Agent     string `json:"agent"`
 	SubnetID  string `json:"subnetId"`
@@ -273,6 +292,7 @@ type relayAllocateRequest struct {
 }
 
 type relayDeallocateRequest struct {
+	ChainID   int64  `json:"chainId"`
 	Staker    string `json:"staker"`
 	Agent     string `json:"agent"`
 	SubnetID  string `json:"subnetId"`
@@ -282,6 +302,7 @@ type relayDeallocateRequest struct {
 }
 
 type relayActivateSubnetRequest struct {
+	ChainID   int64  `json:"chainId"`
 	User      string `json:"user"`
 	SubnetID  string `json:"subnetId"`
 	Deadline  uint64 `json:"deadline"`
@@ -289,6 +310,7 @@ type relayActivateSubnetRequest struct {
 }
 
 type relayRegisterSubnetRequest struct {
+	ChainID   int64  `json:"chainId"`
 	User              string `json:"user"`
 	Name              string `json:"name"`
 	Symbol            string `json:"symbol"`
@@ -343,11 +365,17 @@ func (rh *RelayHandler) RelayRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
 	user := common.HexToAddress(req.User)
 	deadline := new(big.Int).SetUint64(req.Deadline)
 
 	// register = setRecipientFor(user, user, ...) — sets recipient to self
-	txHash, err := rh.relayer.RelaySetRecipient(r.Context(), user, user, deadline, v, rs, ss)
+	txHash, err := relayer.RelaySetRecipient(r.Context(), user, user, deadline, v, rs, ss)
 	if err != nil {
 		rh.logger.Error("relay register failed", "error", err, "user", req.User)
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
@@ -401,11 +429,17 @@ func (rh *RelayHandler) RelayBind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
 	agent := common.HexToAddress(req.Agent)
 	target := common.HexToAddress(req.Target)
 	deadline := new(big.Int).SetUint64(req.Deadline)
 
-	txHash, err := rh.relayer.RelayBind(r.Context(), agent, target, deadline, v, rs, ss)
+	txHash, err := relayer.RelayBind(r.Context(), agent, target, deadline, v, rs, ss)
 	if err != nil {
 		rh.logger.Error("relay bindFor failed", "error", err, "agent", req.Agent, "target", req.Target)
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
@@ -459,11 +493,17 @@ func (rh *RelayHandler) RelaySetRecipient(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
 	user := common.HexToAddress(req.User)
 	recipient := common.HexToAddress(req.Recipient)
 	deadline := new(big.Int).SetUint64(req.Deadline)
 
-	txHash, err := rh.relayer.RelaySetRecipient(r.Context(), user, recipient, deadline, v, rs, ss)
+	txHash, err := relayer.RelaySetRecipient(r.Context(), user, recipient, deadline, v, rs, ss)
 	if err != nil {
 		rh.logger.Error("relay setRecipientFor failed", "error", err, "user", req.User, "recipient", req.Recipient)
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
@@ -501,7 +541,13 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 	amount, amtOk := new(big.Int).SetString(req.Amount, 10)
 	if !amtOk || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
 
-	txHash, err := rh.relayer.RelayAllocate(r.Context(),
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
+	txHash, err := relayer.RelayAllocate(r.Context(),
 		common.HexToAddress(req.Staker), common.HexToAddress(req.Agent),
 		subnetId, amount,
 		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
@@ -541,7 +587,13 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 	amount, amtOk := new(big.Int).SetString(req.Amount, 10)
 	if !amtOk || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
 
-	txHash, err := rh.relayer.RelayDeallocate(r.Context(),
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
+	txHash, err := relayer.RelayDeallocate(r.Context(),
 		common.HexToAddress(req.Staker), common.HexToAddress(req.Agent),
 		subnetId, amount,
 		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
@@ -579,7 +631,13 @@ func (rh *RelayHandler) RelayActivateSubnet(w http.ResponseWriter, r *http.Reque
 	if rateLimitErr != nil { rh.writeError(w, http.StatusInternalServerError, "rate limit check failed"); return }
 	if exceeded { rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay")); return }
 
-	txHash, err := rh.relayer.RelayActivateSubnet(r.Context(),
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
+	txHash, err := relayer.RelayActivateSubnet(r.Context(),
 		common.HexToAddress(req.User), subnetId,
 		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
 	if err != nil {
@@ -679,10 +737,16 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 		SkillsURI:     req.SkillsURI,
 	}
 
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
 	user := common.HexToAddress(req.User)
 	deadline := new(big.Int).SetUint64(req.Deadline)
 
-	txHash, err := rh.relayer.RelayRegisterSubnet(
+	txHash, err := relayer.RelayRegisterSubnet(
 		r.Context(), user, params, deadline,
 		permitV, permitR, permitS,
 		registerV, registerR, registerS,
@@ -704,7 +768,13 @@ func (rh *RelayHandler) GetRelayStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status, err := rh.relayer.GetTxStatus(r.Context(), txHash)
+	// Tx status is in Redis (shared) — use any relayer
+	var anyRelayer *chain.Relayer
+	for _, rl := range rh.relayers {
+		anyRelayer = rl
+		break
+	}
+	status, err := anyRelayer.GetTxStatus(r.Context(), txHash)
 	if err != nil {
 		rh.writeJSON(w, http.StatusOK, map[string]string{"status": "unknown", "txHash": txHash})
 		return

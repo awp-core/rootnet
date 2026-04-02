@@ -92,8 +92,7 @@ func newLimiter(rdb *redis.Client, logger *slog.Logger) *ratelimit.Limiter {
 	return ratelimit.NewLimiter(rdb, logger)
 }
 
-// newRelayHandler creates RelayHandler (optional: returns nil if RELAYER_PRIVATE_KEY not set)
-// If key is configured but invalid, returns error to fail fast
+// newRelayHandler creates a multi-chain RelayHandler (optional: returns nil if RELAYER_PRIVATE_KEY not set)
 func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, rdb *redis.Client, limiter *ratelimit.Limiter, logger *slog.Logger) (*handler.RelayHandler, error) {
 	if cfg.RelayerPrivateKey == "" {
 		logger.Info("RELAYER_PRIVATE_KEY not set, relay endpoints disabled")
@@ -105,37 +104,84 @@ func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, rdb *redis.Client, lim
 		return nil, fmt.Errorf("invalid RELAYER_PRIVATE_KEY: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	relayers := make(map[int64]*chain.Relayer)
+	var clients []*ethclient.Client
 
-	client, err := ethclient.DialContext(ctx, cfg.RPCURL)
-	if err != nil {
-		return nil, fmt.Errorf("relay ethclient dial: %w", err)
+	// 收集要连接的 RPC URL 列表（单链 or 多链）
+	type chainRPC struct {
+		rpcURL       string
+		awpRegistry  string
+		stakingVault string
+	}
+	var rpcs []chainRPC
+
+	if cfg.ChainsFile != "" {
+		chains, err := config.LoadChains(cfg.ChainsFile)
+		if err != nil {
+			return nil, fmt.Errorf("load chains for relay: %w", err)
+		}
+		for _, ch := range chains {
+			rpcs = append(rpcs, chainRPC{
+				rpcURL:       ch.RPCURL,
+				awpRegistry:  config.ResolveAddress(ch.AWPRegistry, cfg.AWPRegistryAddress),
+				stakingVault: config.ResolveAddress(ch.StakingVault, cfg.StakingVaultAddress),
+			})
+		}
+	} else if cfg.RPCURL != "" {
+		rpcs = append(rpcs, chainRPC{
+			rpcURL:       cfg.RPCURL,
+			awpRegistry:  cfg.AWPRegistryAddress,
+			stakingVault: cfg.StakingVaultAddress,
+		})
 	}
 
-	chainID, err := client.ChainID(ctx)
-	if err != nil {
-		client.Close()
-		return nil, fmt.Errorf("relay get chainID: %w", err)
+	for _, rpc := range rpcs {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		client, dialErr := ethclient.DialContext(ctx, rpc.rpcURL)
+		cancel()
+		if dialErr != nil {
+			logger.Warn("relay: failed to dial RPC, skipping", "rpc", rpc.rpcURL, "error", dialErr)
+			continue
+		}
+
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
+		chainID, cidErr := client.ChainID(ctx2)
+		cancel2()
+		if cidErr != nil {
+			client.Close()
+			logger.Warn("relay: failed to get chainID, skipping", "error", cidErr)
+			continue
+		}
+
+		awpRegistryAddr := common.HexToAddress(rpc.awpRegistry)
+		stakingVaultAddr := common.HexToAddress(rpc.stakingVault)
+		rl, rlErr := chain.NewRelayer(client, awpRegistryAddr, stakingVaultAddr, key, chainID, rdb, logger)
+		if rlErr != nil {
+			client.Close()
+			logger.Warn("relay: failed to create relayer, skipping", "chainId", chainID, "error", rlErr)
+			continue
+		}
+
+		relayers[chainID.Int64()] = rl
+		clients = append(clients, client)
+		logger.Info("relay enabled for chain", "chainId", chainID.Int64())
 	}
 
-	awpRegistryAddr := common.HexToAddress(cfg.AWPRegistryAddress)
-	stakingVaultAddr := common.HexToAddress(cfg.StakingVaultAddress)
-	relayer, err := chain.NewRelayer(client, awpRegistryAddr, stakingVaultAddr, key, chainID, rdb, logger)
-	if err != nil {
-		client.Close()
-		return nil, fmt.Errorf("create relayer: %w", err)
+	if len(relayers) == 0 {
+		logger.Warn("no relay chains configured")
+		return nil, nil
 	}
 
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
-			client.Close()
+			for _, c := range clients {
+				c.Close()
+			}
 			return nil
 		},
 	})
 
-	logger.Info("relay endpoints enabled", "chainID", chainID.String())
-	return handler.NewRelayHandler(relayer, limiter, logger), nil
+	return handler.NewRelayHandler(relayers, limiter, logger), nil
 }
 
 // newVanityHandler creates VanityHandler (optional: returns nil if not configured)
