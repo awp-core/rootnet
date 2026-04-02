@@ -91,6 +91,21 @@ func (h *Handler) defaultChainID() int64 {
 	return h.cfg.ChainID
 }
 
+// getActiveChainIDs 返回已配置的所有链 ID（多链模式从 chains yaml，单链模式回退到 cfg.ChainID）
+func (h *Handler) getActiveChainIDs() []int64 {
+	if h.chains != nil && len(h.chains) > 0 {
+		ids := make([]int64, len(h.chains))
+		for i, c := range h.chains {
+			ids[i] = c.ChainID
+		}
+		return ids
+	}
+	if h.cfg.ChainID > 0 {
+		return []int64{h.cfg.ChainID}
+	}
+	return nil
+}
+
 // ── 服务方法 ──
 
 // svcGetRegistry 返回合约地址注册信息（按 chainID 查询 DB，回退到 cfg）
@@ -648,12 +663,25 @@ func (h *Handler) svcGetGlobalStats(ctx context.Context) (map[string]any, error)
 		chainCount = len(h.chains)
 	}
 
+	// Per-chain sync freshness — 各链 indexer 同步状态
+	chainIDs := h.getActiveChainIDs()
+	syncStates := []map[string]any{}
+	for _, cid := range chainIDs {
+		state, err := h.queries.GetSyncState(ctx, gen.GetSyncStateParams{ChainID: cid, ContractName: "indexer"})
+		entry := map[string]any{"chainId": cid}
+		if err == nil {
+			entry["lastBlock"] = state.LastBlock
+		}
+		syncStates = append(syncStates, entry)
+	}
+
 	return map[string]any{
 		"totalSubnets":   totalSubnets,
 		"totalUsers":     totalUsers,
 		"totalStaked":    stakedStr,
 		"totalAllocated": allocatedStr,
 		"chains":         chainCount,
+		"chainSyncStates": syncStates,
 	}, nil
 }
 
@@ -842,6 +870,26 @@ func (h *Handler) svcGetAWPInfo(ctx context.Context, chainID int64) (any, error)
 		return map[string]any{}, nil
 	}
 	return data, nil
+}
+
+// svcGetAWPInfoGlobal 跨链聚合 AWP 代币信息（各链独立，无桥接）
+func (h *Handler) svcGetAWPInfoGlobal(ctx context.Context) (map[string]any, error) {
+	chainIDs := h.getActiveChainIDs()
+	perChain := []map[string]any{}
+	for _, cid := range chainIDs {
+		data, err := h.svcReadRedisJSON(ctx, fmt.Sprintf("awp_info:%d", cid))
+		if err != nil {
+			perChain = append(perChain, map[string]any{"chainId": cid, "error": "unavailable"})
+			continue
+		}
+		entry := map[string]any{"chainId": cid, "data": data}
+		perChain = append(perChain, entry)
+	}
+	return map[string]any{
+		"chains":      perChain,
+		"independent": true,
+		"note":        "AWP tokens on each chain are independent (no bridge). Total supply = sum of per-chain supplies.",
+	}, nil
 }
 
 // svcGetCurrentEmission 获取当前排放数据

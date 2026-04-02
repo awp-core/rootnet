@@ -160,7 +160,11 @@ func (h *Handler) AdminAddChain(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusConflict, "failed to insert chain (duplicate chainId?)")
 		return
 	}
-	h.writeJSON(w, http.StatusCreated, map[string]string{"status": "created"})
+	h.writeJSON(w, http.StatusCreated, map[string]any{
+		"chainId": req.ChainID,
+		"status":  "added",
+		"note":    "Chain metadata added to DB. Indexer and keeper require process restart with updated chains.yaml to begin syncing this chain.",
+	})
 }
 
 // AdminDeleteChain 删除一条链
@@ -179,7 +183,11 @@ func (h *Handler) AdminDeleteChain(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusInternalServerError, "failed to delete chain")
 		return
 	}
-	h.writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+	h.writeJSON(w, http.StatusOK, map[string]any{
+		"chainId": chainID,
+		"status":  "deactivated",
+		"note":    "Chain marked inactive in DB. Indexer and keeper require process restart to stop syncing this chain.",
+	})
 }
 
 // ════════════════════════════════════════════════════════════

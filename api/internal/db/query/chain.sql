@@ -9,7 +9,7 @@ INSERT INTO chains (chain_id, name, rpc_url, dex, explorer, awp_registry, awp_to
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15);
 
 -- name: DeleteChain :exec
-DELETE FROM chains WHERE chain_id = $1;
+UPDATE chains SET status = 'inactive' WHERE chain_id = $1;
 
 -- name: ListAllChains :many
 SELECT * FROM chains ORDER BY chain_id;

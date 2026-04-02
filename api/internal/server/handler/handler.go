@@ -212,6 +212,12 @@ func (h *Handler) buildDetailedHealth(ctx context.Context) map[string]interface{
 			ch["keeperCacheAlive"] = false
 		}
 
+		// Relayer 原生代币余额（keeper 每 25s 更新）
+		balanceKey := fmt.Sprintf("relayer_balance:%d", cid)
+		if bal, err := h.rdb.Get(ctx, balanceKey).Result(); err == nil {
+			ch["relayerBalance"] = bal
+		}
+
 		chainsHealth = append(chainsHealth, ch)
 	}
 	health["chains"] = chainsHealth

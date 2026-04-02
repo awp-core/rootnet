@@ -17,6 +17,16 @@ func (h *Handler) GetAWPInfo(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, data)
 }
 
+// GetAWPInfoGlobal returns AWP token info aggregated across all chains
+func (h *Handler) GetAWPInfoGlobal(w http.ResponseWriter, r *http.Request) {
+	data, err := h.svcGetAWPInfoGlobal(r.Context())
+	if err != nil {
+		h.writeSvcError(w, err)
+		return
+	}
+	h.writeJSON(w, http.StatusOK, data)
+}
+
 // GetAlphaInfo retrieves subnet Alpha token info from the database
 func (h *Handler) GetAlphaInfo(w http.ResponseWriter, r *http.Request) {
 	subnetID, err := parseSubnetID(r)

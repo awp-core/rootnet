@@ -674,6 +674,14 @@ func (h *Handler) rpcTokensGetAWP(ctx context.Context, raw json.RawMessage) (any
 	return data, nil
 }
 
+func (h *Handler) rpcTokensGetAWPGlobal(ctx context.Context, _ json.RawMessage) (any, *RPCErr) {
+	data, err := h.svcGetAWPInfoGlobal(ctx)
+	if err != nil {
+		return nil, svcToRPC(err)
+	}
+	return data, nil
+}
+
 func (h *Handler) rpcTokensGetAlphaInfo(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p subnetParams
 	if err := json.Unmarshal(raw, &p); err != nil {

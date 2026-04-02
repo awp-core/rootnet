@@ -106,6 +106,7 @@ func NewRouter(p RouterParams) chi.Router {
 		// Tokens
 		r.Route("/tokens", func(r chi.Router) {
 			r.Get("/awp", h.GetAWPInfo)
+			r.Get("/awp/global", h.GetAWPInfoGlobal)
 			r.Get("/alpha/{subnetId}", h.GetAlphaInfo)
 			r.Get("/alpha/{subnetId}/price", h.GetAlphaPrice)
 		})

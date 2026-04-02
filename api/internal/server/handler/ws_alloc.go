@@ -19,15 +19,15 @@ func NewWSAllocQuerier(queries *gen.Queries) *WSAllocQuerier {
 }
 
 // GetAgentSubnetStakeWS 查询 (agent, subnetId) 当前分配量
-func (q *WSAllocQuerier) GetAgentSubnetStakeWS(ctx context.Context, chainID int64, agent string, subnetID string) (string, error) {
+// 使用全局查询（无 chain_id 过滤）— subnetId 全局唯一，跨链聚合是正确的
+func (q *WSAllocQuerier) GetAgentSubnetStakeWS(ctx context.Context, _ int64, agent string, subnetID string) (string, error) {
 	id, ok := new(big.Int).SetString(subnetID, 10)
 	if !ok || id.Sign() <= 0 {
 		return "0", nil
 	}
 	subnetNum := pgtype.Numeric{Int: id, Exp: 0, Valid: true}
 
-	stake, err := q.queries.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{
-		ChainID:      chainID,
+	stake, err := q.queries.GetAgentSubnetStakeGlobal(ctx, gen.GetAgentSubnetStakeGlobalParams{
 		AgentAddress: agent,
 		SubnetID:     subnetNum,
 	})

@@ -122,7 +122,7 @@ func (q *Queries) InsertChain(ctx context.Context, arg InsertChainParams) error 
 }
 
 const deleteChain = `-- name: DeleteChain :exec
-DELETE FROM chains WHERE chain_id = $1
+UPDATE chains SET status = 'inactive' WHERE chain_id = $1
 `
 
 func (q *Queries) DeleteChain(ctx context.Context, chainID int64) error {

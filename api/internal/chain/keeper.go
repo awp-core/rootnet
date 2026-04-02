@@ -13,6 +13,7 @@ import (
 	"github.com/cortexia/rootnet/api/internal/chain/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/redis/go-redis/v9"
 	"github.com/robfig/cron/v3"
@@ -156,6 +157,13 @@ func (k *Keeper) Start(_ context.Context) {
 		k.updateTokenPrices(ctx)
 	}); err != nil {
 		k.logger.Error("failed to add cron", "error", err)
+	}
+
+	// Update relayer native balance every 25s (aligned with token price updates)
+	if _, err := k.cron.AddFunc("@every 25s", func() {
+		k.updateRelayerBalance(ctx)
+	}); err != nil {
+		k.logger.Error("failed to add relayer balance cron", "error", err)
 	}
 
 	// Compound LP fees every 24 hours (if LPManager is configured)
@@ -526,5 +534,27 @@ func (k *Keeper) compoundAllFees(ctx context.Context) {
 
 	if compounded > 0 {
 		k.logger.Info("LP fee compounding complete", "compounded", compounded, "total", len(alphaTokens))
+	}
+}
+
+// updateRelayerBalance 读取 relayer 原生代币余额，写入 Redis 并在余额过低时告警
+func (k *Keeper) updateRelayerBalance(ctx context.Context) {
+	addr := crypto.PubkeyToAddress(k.key.PublicKey)
+	balance, err := k.client.BalanceAt(ctx, addr, nil)
+	if err != nil {
+		k.logger.Debug("failed to read relayer balance", "error", err)
+		return
+	}
+	key := fmt.Sprintf("relayer_balance:%d", k.chainIDInt)
+	k.redis.Set(ctx, key, balance.String(), 1*time.Minute)
+
+	// 余额低于 0.01 ETH/BNB 时告警
+	threshold := big.NewInt(1e16)
+	if balance.Cmp(threshold) < 0 {
+		k.logger.Error("ALERT: relayer balance critically low",
+			"chainId", k.chainIDInt,
+			"balance", balance.String(),
+			"address", addr.Hex(),
+		)
 	}
 }

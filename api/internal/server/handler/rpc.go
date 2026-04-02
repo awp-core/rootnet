@@ -441,6 +441,9 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 		"tokens.getAWP": {fn: h.rpcTokensGetAWP, info: methodInfo{
 			Name: "tokens.getAWP", Description: "Get AWP token info", Params: []paramInfo{},
 		}},
+		"tokens.getAWPGlobal": {fn: h.rpcTokensGetAWPGlobal, info: methodInfo{
+			Name: "tokens.getAWPGlobal", Description: "Get AWP token info aggregated across all chains", Params: []paramInfo{},
+		}},
 		"tokens.getAlphaInfo": {fn: h.rpcTokensGetAlphaInfo, info: methodInfo{
 			Name: "tokens.getAlphaInfo", Description: "Get subnet Alpha token info",
 			Params: []paramInfo{
