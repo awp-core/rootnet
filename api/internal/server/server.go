@@ -48,11 +48,13 @@ func NewRouter(p RouterParams) chi.Router {
 		r.Get("/health", h.Health)
 		r.Get("/health/detailed", h.HealthDetailed)
 		r.Get("/chains", h.GetChains)
+		r.Get("/stats", h.GetGlobalStats)
 
 		// Users
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/", h.ListUsers)
 			r.Get("/count", h.GetUserCount)
+			r.Get("/global", h.ListUsersGlobal)
 			r.Get("/{address}", h.GetUser)
 		})
 
@@ -72,6 +74,7 @@ func NewRouter(p RouterParams) chi.Router {
 		// Staking
 		r.Route("/staking", func(r chi.Router) {
 			r.Get("/user/{address}/balance", h.GetBalance)
+			r.Get("/user/{address}/balance/global", h.GetUserBalanceGlobal)
 			r.Get("/user/{address}/positions", h.GetStakePositions)
 			r.Get("/user/{address}/allocations", h.GetAllocations)
 			r.Get("/user/{address}/pending", h.GetPending)
@@ -94,6 +97,7 @@ func NewRouter(p RouterParams) chi.Router {
 		r.Route("/emission", func(r chi.Router) {
 			r.Get("/current", h.GetCurrentEmission)
 			r.Get("/schedule", h.GetEmissionSchedule)
+			r.Get("/global-schedule", h.GetGlobalEmissionSchedule)
 			r.Get("/epochs", h.ListEpochs)
 		})
 
@@ -107,6 +111,7 @@ func NewRouter(p RouterParams) chi.Router {
 		// Governance
 		r.Route("/governance", func(r chi.Router) {
 			r.Get("/proposals", h.ListProposals)
+			r.Get("/proposals/global", h.ListAllProposals)
 			r.Get("/proposals/{proposalId}", h.GetProposal)
 			r.Get("/treasury", h.GetTreasury)
 		})

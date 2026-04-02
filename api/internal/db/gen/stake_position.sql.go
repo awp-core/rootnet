@@ -102,6 +102,28 @@ func (q *Queries) GetUserTotalStaked(ctx context.Context, arg GetUserTotalStaked
 	return total, err
 }
 
+const getUserTotalStakedGlobal = `-- name: GetUserTotalStakedGlobal :one
+SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_positions WHERE owner = $1 AND burned = FALSE
+`
+
+func (q *Queries) GetUserTotalStakedGlobal(ctx context.Context, owner string) (pgtype.Numeric, error) {
+	row := q.db.QueryRow(ctx, getUserTotalStakedGlobal, owner)
+	var total pgtype.Numeric
+	err := row.Scan(&total)
+	return total, err
+}
+
+const sumAllStaked = `-- name: SumAllStaked :one
+SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) FROM stake_positions WHERE burned = FALSE
+`
+
+func (q *Queries) SumAllStaked(ctx context.Context) (pgtype.Numeric, error) {
+	row := q.db.QueryRow(ctx, sumAllStaked)
+	var total pgtype.Numeric
+	err := row.Scan(&total)
+	return total, err
+}
+
 const insertStakePosition = `-- name: InsertStakePosition :exec
 INSERT INTO stake_positions (chain_id, token_id, owner, amount, lock_end_time, created_at)
 VALUES ($1, $2, $3, $4, $5, $6)

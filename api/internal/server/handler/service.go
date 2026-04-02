@@ -606,6 +606,204 @@ func (h *Handler) svcBatchAgentInfo(ctx context.Context, chainID int64, agents [
 	return results, nil
 }
 
+// ── 跨链聚合服务方法 ──
+
+// svcGetGlobalStats 获取全局协议统计（跨链聚合）
+func (h *Handler) svcGetGlobalStats(ctx context.Context) (map[string]any, error) {
+	totalSubnets, err := h.queries.CountAllSubnets(ctx)
+	if err != nil {
+		h.logger.Error("failed to count all subnets", "error", err)
+		return nil, newSvcErr(errInternal, "failed to get global stats")
+	}
+
+	totalUsers, err := h.queries.CountAllDistinctUsers(ctx)
+	if err != nil {
+		h.logger.Error("failed to count all users", "error", err)
+		return nil, newSvcErr(errInternal, "failed to get global stats")
+	}
+
+	totalStaked, err := h.queries.SumAllStaked(ctx)
+	if err != nil {
+		h.logger.Error("failed to sum all staked", "error", err)
+		return nil, newSvcErr(errInternal, "failed to get global stats")
+	}
+
+	totalAllocated, err := h.queries.SumAllAllocated(ctx)
+	if err != nil {
+		h.logger.Error("failed to sum all allocated", "error", err)
+		return nil, newSvcErr(errInternal, "failed to get global stats")
+	}
+
+	stakedStr := "0"
+	if totalStaked.Valid {
+		stakedStr = totalStaked.Int.String()
+	}
+	allocatedStr := "0"
+	if totalAllocated.Valid {
+		allocatedStr = totalAllocated.Int.String()
+	}
+
+	chainCount := 1
+	if h.chains != nil && len(h.chains) > 0 {
+		chainCount = len(h.chains)
+	}
+
+	return map[string]any{
+		"totalSubnets":   totalSubnets,
+		"totalUsers":     totalUsers,
+		"totalStaked":    stakedStr,
+		"totalAllocated": allocatedStr,
+		"chains":         chainCount,
+	}, nil
+}
+
+// svcGetUserBalanceGlobal 获取用户跨链聚合质押余额
+func (h *Handler) svcGetUserBalanceGlobal(ctx context.Context, address string) (balanceResponse, error) {
+	totalStakedNum, err := h.queries.GetUserTotalStakedGlobal(ctx, address)
+	if err != nil {
+		h.logger.Error("failed to get user total staked global", "error", err, "address", address)
+		return balanceResponse{}, newSvcErr(errInternal, "failed to get user balance")
+	}
+
+	totalStaked := "0"
+	if totalStakedNum.Valid {
+		totalStaked = totalStakedNum.Int.String()
+	}
+
+	totalAllocatedNum, err := h.queries.GetUserBalanceGlobal(ctx, address)
+	if err != nil {
+		h.logger.Error("failed to get user balance global", "error", err, "address", address)
+		return balanceResponse{}, newSvcErr(errInternal, "failed to get user balance")
+	}
+
+	totalAllocated := "0"
+	if totalAllocatedNum.Valid {
+		totalAllocated = totalAllocatedNum.Int.String()
+	}
+
+	unallocated := "0"
+	if totalStakedNum.Valid {
+		stakedBig := totalStakedNum.Int
+		allocBig := new(big.Int)
+		if totalAllocatedNum.Valid {
+			allocBig.Set(totalAllocatedNum.Int)
+		}
+		diff := new(big.Int).Sub(stakedBig, allocBig)
+		if diff.Sign() < 0 {
+			diff.SetInt64(0)
+		}
+		unallocated = diff.String()
+	}
+
+	return balanceResponse{
+		TotalStaked: totalStaked, TotalAllocated: totalAllocated, Unallocated: unallocated,
+	}, nil
+}
+
+// svcGetGlobalEmissionSchedule 获取全链排放汇总
+func (h *Handler) svcGetGlobalEmissionSchedule(ctx context.Context) (map[string]any, error) {
+	chainIDs := []int64{h.defaultChainID()}
+	if h.chains != nil && len(h.chains) > 0 {
+		chainIDs = make([]int64, len(h.chains))
+		for i, c := range h.chains {
+			chainIDs[i] = c.ChainID
+		}
+	}
+
+	globalDaily := new(big.Int)
+	perChain := make([]map[string]any, 0, len(chainIDs))
+
+	for _, cid := range chainIDs {
+		key := fmt.Sprintf("emission_current:%d", cid)
+		data, err := h.svcReadRedisJSON(ctx, key)
+		if err != nil || data == nil {
+			perChain = append(perChain, map[string]any{"chainId": cid, "dailyEmission": "0", "available": false})
+			continue
+		}
+		// 从 Redis JSON 中提取 dailyEmission
+		dataMap, ok := data.(map[string]any)
+		if !ok {
+			perChain = append(perChain, map[string]any{"chainId": cid, "dailyEmission": "0", "available": false})
+			continue
+		}
+		dailyStr := "0"
+		if v, ok := dataMap["dailyEmission"]; ok {
+			dailyStr = fmt.Sprintf("%v", v)
+		}
+		daily, ok := new(big.Int).SetString(dailyStr, 10)
+		if !ok {
+			daily = new(big.Int)
+		}
+		globalDaily.Add(globalDaily, daily)
+		perChain = append(perChain, map[string]any{"chainId": cid, "dailyEmission": dailyStr, "available": true})
+	}
+
+	// 计算全局预测
+	periods := []int{30, 90, 365}
+	projections := make([]emissionProjection, 0, len(periods))
+	for _, days := range periods {
+		total := new(big.Int)
+		daily := new(big.Int).Set(globalDaily)
+		for d := 0; d < days; d++ {
+			total.Add(total, daily)
+			daily.Mul(daily, decayFactor)
+			daily.Div(daily, decayPrecision)
+		}
+		projections = append(projections, emissionProjection{
+			Days: days, TotalEmission: total.String(), FinalDailyRate: daily.String(),
+		})
+	}
+
+	return map[string]any{
+		"globalDailyEmission": globalDaily.String(),
+		"chains":              perChain,
+		"projections":         projections,
+	}, nil
+}
+
+// svcListUsersGlobal 跨链去重用户列表
+func (h *Handler) svcListUsersGlobal(ctx context.Context, limit, offset int32) (map[string]any, error) {
+	users, err := h.queries.ListAllUsers(ctx, gen.ListAllUsersParams{
+		Limit: limit, Offset: offset,
+	})
+	if err != nil {
+		h.logger.Error("failed to list all users", "error", err)
+		return nil, newSvcErr(errInternal, "failed to list users")
+	}
+	total, err := h.queries.CountAllDistinctUsers(ctx)
+	if err != nil {
+		h.logger.Error("failed to count all distinct users", "error", err)
+		return nil, newSvcErr(errInternal, "failed to count users")
+	}
+	return map[string]any{"users": users, "total": total}, nil
+}
+
+// svcListAllProposals 跨链提案列表
+func (h *Handler) svcListAllProposals(ctx context.Context, status string, limit, offset int32) (any, error) {
+	if status != "" {
+		if !validProposalStatuses[status] {
+			return nil, newSvcErr(errBadInput, "invalid status filter: must be one of Active, Canceled, Defeated, Succeeded, Queued, Expired, Executed")
+		}
+		proposals, err := h.queries.ListAllProposalsByStatus(ctx, gen.ListAllProposalsByStatusParams{
+			Status: status, Limit: limit, Offset: offset,
+		})
+		if err != nil {
+			h.logger.Error("failed to list all proposals by status", "error", err, "status", status)
+			return nil, newSvcErr(errInternal, "failed to list proposals")
+		}
+		return proposals, nil
+	}
+
+	proposals, err := h.queries.ListAllProposals(ctx, gen.ListAllProposalsParams{
+		Limit: limit, Offset: offset,
+	})
+	if err != nil {
+		h.logger.Error("failed to list all proposals", "error", err)
+		return nil, newSvcErr(errInternal, "failed to list proposals")
+	}
+	return proposals, nil
+}
+
 // svcGetAlphaInfo 获取子网 Alpha 代币信息
 func (h *Handler) svcGetAlphaInfo(ctx context.Context, subnetID pgtype.Numeric) (map[string]any, error) {
 	subnet, err := h.queries.GetSubnet(ctx, subnetID)

@@ -20,3 +20,10 @@ SELECT * FROM stake_positions WHERE chain_id = $1 AND owner = $2 AND burned = FA
 
 -- name: GetUserTotalStaked :one
 SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_positions WHERE chain_id = $1 AND owner = $2 AND burned = FALSE;
+
+-- name: GetUserTotalStakedGlobal :one
+-- NOTE: No chain_id filter — aggregates user's total staked across ALL chains.
+SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_positions WHERE owner = $1 AND burned = FALSE;
+
+-- name: SumAllStaked :one
+SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) FROM stake_positions WHERE burned = FALSE;

@@ -278,6 +278,83 @@ func (q *Queries) UpsertUserBinding(ctx context.Context, arg UpsertUserBindingPa
 	return err
 }
 
+const countAllDistinctUsers = `-- name: CountAllDistinctUsers :one
+SELECT COUNT(DISTINCT address) FROM users
+`
+
+func (q *Queries) CountAllDistinctUsers(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countAllDistinctUsers)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const listAllUsers = `-- name: ListAllUsers :many
+SELECT DISTINCT ON (address) address, chain_id, bound_to, recipient, registered_at
+FROM users ORDER BY address, registered_at DESC LIMIT $1 OFFSET $2
+`
+
+type ListAllUsersParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type ListAllUsersRow struct {
+	Address      string `json:"address"`
+	ChainID      int64  `json:"chain_id"`
+	BoundTo      string `json:"bound_to"`
+	Recipient    string `json:"recipient"`
+	RegisteredAt int64  `json:"registered_at"`
+}
+
+func (q *Queries) ListAllUsers(ctx context.Context, arg ListAllUsersParams) ([]ListAllUsersRow, error) {
+	rows, err := q.db.Query(ctx, listAllUsers, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAllUsersRow{}
+	for rows.Next() {
+		var i ListAllUsersRow
+		if err := rows.Scan(
+			&i.Address,
+			&i.ChainID,
+			&i.BoundTo,
+			&i.Recipient,
+			&i.RegisteredAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const sumAllAllocated = `-- name: SumAllAllocated :one
+SELECT COALESCE(SUM(total_allocated), 0)::NUMERIC(78,0) FROM user_balances
+`
+
+func (q *Queries) SumAllAllocated(ctx context.Context) (pgtype.Numeric, error) {
+	row := q.db.QueryRow(ctx, sumAllAllocated)
+	var total pgtype.Numeric
+	err := row.Scan(&total)
+	return total, err
+}
+
+const getUserBalanceGlobal = `-- name: GetUserBalanceGlobal :one
+SELECT COALESCE(SUM(total_allocated), 0)::NUMERIC(78,0) AS total_allocated FROM user_balances WHERE user_address = $1
+`
+
+func (q *Queries) GetUserBalanceGlobal(ctx context.Context, userAddress string) (pgtype.Numeric, error) {
+	row := q.db.QueryRow(ctx, getUserBalanceGlobal, userAddress)
+	var totalAllocated pgtype.Numeric
+	err := row.Scan(&totalAllocated)
+	return totalAllocated, err
+}
+
 const getUsersBatch = `-- name: GetUsersBatch :many
 SELECT address, chain_id, bound_to, recipient, registered_at FROM users
 WHERE chain_id = $1 AND address = ANY($2::CHAR(42)[])

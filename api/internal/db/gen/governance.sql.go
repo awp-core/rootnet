@@ -124,6 +124,81 @@ func (q *Queries) GetSyncState(ctx context.Context, arg GetSyncStateParams) (Get
 	return i, err
 }
 
+const listAllProposals = `-- name: ListAllProposals :many
+SELECT chain_id, proposal_id, proposer, description, status, votes_for, votes_against FROM proposals ORDER BY chain_id, proposal_id DESC LIMIT $1 OFFSET $2
+`
+
+type ListAllProposalsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListAllProposals(ctx context.Context, arg ListAllProposalsParams) ([]Proposal, error) {
+	rows, err := q.db.Query(ctx, listAllProposals, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Proposal{}
+	for rows.Next() {
+		var i Proposal
+		if err := rows.Scan(
+			&i.ChainID,
+			&i.ProposalID,
+			&i.Proposer,
+			&i.Description,
+			&i.Status,
+			&i.VotesFor,
+			&i.VotesAgainst,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllProposalsByStatus = `-- name: ListAllProposalsByStatus :many
+SELECT chain_id, proposal_id, proposer, description, status, votes_for, votes_against FROM proposals WHERE status = $1 ORDER BY chain_id, proposal_id DESC LIMIT $2 OFFSET $3
+`
+
+type ListAllProposalsByStatusParams struct {
+	Status string `json:"status"`
+	Limit  int32  `json:"limit"`
+	Offset int32  `json:"offset"`
+}
+
+func (q *Queries) ListAllProposalsByStatus(ctx context.Context, arg ListAllProposalsByStatusParams) ([]Proposal, error) {
+	rows, err := q.db.Query(ctx, listAllProposalsByStatus, arg.Status, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Proposal{}
+	for rows.Next() {
+		var i Proposal
+		if err := rows.Scan(
+			&i.ChainID,
+			&i.ProposalID,
+			&i.Proposer,
+			&i.Description,
+			&i.Status,
+			&i.VotesFor,
+			&i.VotesAgainst,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertProposal = `-- name: InsertProposal :exec
 INSERT INTO proposals (chain_id, proposal_id, proposer, description, status, votes_for, votes_against)
 VALUES ($1, $2, $3, $4, $5, 0, 0)

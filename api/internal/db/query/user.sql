@@ -47,6 +47,20 @@ WHERE users.registered_at = 0;
 SELECT address, bound_to, recipient, registered_at FROM users
 WHERE bound_to = $1 AND chain_id = $2 ORDER BY address LIMIT 500;
 
+-- name: CountAllDistinctUsers :one
+SELECT COUNT(DISTINCT address) FROM users;
+
+-- name: ListAllUsers :many
+SELECT DISTINCT ON (address) address, chain_id, bound_to, recipient, registered_at
+FROM users ORDER BY address, registered_at DESC LIMIT $1 OFFSET $2;
+
+-- name: SumAllAllocated :one
+SELECT COALESCE(SUM(total_allocated), 0)::NUMERIC(78,0) FROM user_balances;
+
+-- name: GetUserBalanceGlobal :one
+-- NOTE: No chain_id filter — aggregates user's total allocation across ALL chains.
+SELECT COALESCE(SUM(total_allocated), 0)::NUMERIC(78,0) AS total_allocated FROM user_balances WHERE user_address = $1;
+
 -- name: GetUsersBatch :many
 SELECT address, chain_id, bound_to, recipient, registered_at FROM users
 WHERE chain_id = $1 AND address = ANY($2::CHAR(42)[]);

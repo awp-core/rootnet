@@ -687,3 +687,64 @@ func (h *Handler) rpcGovernanceGetProposal(ctx context.Context, raw json.RawMess
 func (h *Handler) rpcGovernanceTreasury(_ context.Context, _ json.RawMessage) (any, *RPCErr) {
 	return map[string]string{"treasuryAddress": h.cfg.TreasuryAddress}, nil
 }
+
+// ═══════════════════════════════════════════════
+// ── cross-chain global ──
+// ═══════════════════════════════════════════════
+
+func (h *Handler) rpcStatsGlobal(ctx context.Context, _ json.RawMessage) (any, *RPCErr) {
+	result, err := h.svcGetGlobalStats(ctx)
+	if err != nil {
+		return nil, svcToRPC(err)
+	}
+	return result, nil
+}
+
+func (h *Handler) rpcStakingGetUserBalanceGlobal(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
+	var p addressParams
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return nil, &RPCErr{Code: rpcInvalidParams, Message: "invalid params"}
+	}
+	address, rpcErr := requireAddress(p.Address)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+	resp, err := h.svcGetUserBalanceGlobal(ctx, address)
+	if err != nil {
+		return nil, svcToRPC(err)
+	}
+	return resp, nil
+}
+
+func (h *Handler) rpcEmissionGetGlobalSchedule(ctx context.Context, _ json.RawMessage) (any, *RPCErr) {
+	result, err := h.svcGetGlobalEmissionSchedule(ctx)
+	if err != nil {
+		return nil, svcToRPC(err)
+	}
+	return result, nil
+}
+
+func (h *Handler) rpcUsersListGlobal(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
+	var p pageParams
+	_ = json.Unmarshal(raw, &p)
+	limit, offset := parsePage(p)
+	result, err := h.svcListUsersGlobal(ctx, limit, offset)
+	if err != nil {
+		return nil, svcToRPC(err)
+	}
+	return result, nil
+}
+
+func (h *Handler) rpcGovernanceListAllProposals(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
+	var p struct {
+		Status string `json:"status"`
+		pageParams
+	}
+	_ = json.Unmarshal(raw, &p)
+	limit, offset := parsePage(p.pageParams)
+	result, err := h.svcListAllProposals(ctx, p.Status, limit, offset)
+	if err != nil {
+		return nil, svcToRPC(err)
+	}
+	return result, nil
+}

@@ -11,6 +11,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countAllSubnets = `-- name: CountAllSubnets :one
+SELECT COUNT(*) FROM subnets WHERE burned = FALSE
+`
+
+func (q *Queries) CountAllSubnets(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countAllSubnets)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getActiveSubnets = `-- name: GetActiveSubnets :many
 SELECT subnet_id, chain_id, owner, name, symbol, subnet_contract, skills_uri, metadata_uri, min_stake, alpha_token, lp_pool, status, created_at, activated_at, immunity_ends_at, burned FROM subnets WHERE chain_id = $1 AND status = 'Active' AND burned = FALSE ORDER BY subnet_id
 `

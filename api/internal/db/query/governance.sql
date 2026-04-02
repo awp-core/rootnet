@@ -14,6 +14,12 @@ WHERE chain_id = $1 ORDER BY proposal_id DESC LIMIT $2 OFFSET $3;
 SELECT proposal_id, proposer, description, status, votes_for, votes_against FROM proposals
 WHERE chain_id = $1 AND status = $2 ORDER BY proposal_id DESC LIMIT $3 OFFSET $4;
 
+-- name: ListAllProposals :many
+SELECT * FROM proposals ORDER BY chain_id, proposal_id DESC LIMIT $1 OFFSET $2;
+
+-- name: ListAllProposalsByStatus :many
+SELECT * FROM proposals WHERE status = $1 ORDER BY chain_id, proposal_id DESC LIMIT $2 OFFSET $3;
+
 -- name: UpdateProposalStatus :exec
 UPDATE proposals SET status = $3 WHERE chain_id = $1 AND proposal_id = $2;
 

@@ -213,6 +213,11 @@ func (h *Handler) dispatchRPC(ctx context.Context, req RPCRequest) RPCResponse {
 // rpcMethods 返回方法注册表
 func (h *Handler) rpcMethods() map[string]methodEntry {
 	return map[string]methodEntry{
+		// ── stats ──
+		"stats.global": {fn: h.rpcStatsGlobal, info: methodInfo{
+			Name: "stats.global", Description: "Get global protocol statistics across all chains", Params: []paramInfo{},
+		}},
+
 		// ── registry ──
 		"registry.get": {fn: h.rpcRegistryGet, info: methodInfo{
 			Name: "registry.get", Description: "Get all contract addresses and EIP-712 domain info", Params: []paramInfo{},
@@ -234,6 +239,13 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 		// ── users ──
 		"users.list": {fn: h.rpcUsersList, info: methodInfo{
 			Name: "users.list", Description: "List users (paginated)",
+			Params: []paramInfo{
+				{Name: "page", Type: "integer", Required: false, Description: "Page number (default 1)"},
+				{Name: "limit", Type: "integer", Required: false, Description: "Items per page (default 20, max 100)"},
+			},
+		}},
+		"users.listGlobal": {fn: h.rpcUsersListGlobal, info: methodInfo{
+			Name: "users.listGlobal", Description: "List users across all chains (deduplicated, paginated)",
 			Params: []paramInfo{
 				{Name: "page", Type: "integer", Required: false, Description: "Page number (default 1)"},
 				{Name: "limit", Type: "integer", Required: false, Description: "Items per page (default 20, max 100)"},
@@ -301,6 +313,12 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 		// ── staking ──
 		"staking.getBalance": {fn: h.rpcStakingGetBalance, info: methodInfo{
 			Name: "staking.getBalance", Description: "Get user AWP staking balance (staked/allocated/available)",
+			Params: []paramInfo{
+				{Name: "address", Type: "string", Required: true, Description: "User address (0x...)"},
+			},
+		}},
+		"staking.getUserBalanceGlobal": {fn: h.rpcStakingGetUserBalanceGlobal, info: methodInfo{
+			Name: "staking.getUserBalanceGlobal", Description: "Get user AWP staking balance aggregated across all chains",
 			Params: []paramInfo{
 				{Name: "address", Type: "string", Required: true, Description: "User address (0x...)"},
 			},
@@ -393,6 +411,9 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 		"emission.getSchedule": {fn: h.rpcEmissionGetSchedule, info: methodInfo{
 			Name: "emission.getSchedule", Description: "Get emission projections (30/90/365 days)", Params: []paramInfo{},
 		}},
+		"emission.getGlobalSchedule": {fn: h.rpcEmissionGetGlobalSchedule, info: methodInfo{
+			Name: "emission.getGlobalSchedule", Description: "Get emission schedule aggregated across all chains", Params: []paramInfo{},
+		}},
 		"emission.listEpochs": {fn: h.rpcEmissionListEpochs, info: methodInfo{
 			Name: "emission.listEpochs", Description: "List epochs (paginated)",
 			Params: []paramInfo{
@@ -421,6 +442,14 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 		// ── governance ──
 		"governance.listProposals": {fn: h.rpcGovernanceListProposals, info: methodInfo{
 			Name: "governance.listProposals", Description: "List governance proposals (paginated, optional status filter)",
+			Params: []paramInfo{
+				{Name: "status", Type: "string", Required: false, Description: "Status filter: Active/Canceled/Defeated/Succeeded/Queued/Expired/Executed"},
+				{Name: "page", Type: "integer", Required: false, Description: "Page number (default 1)"},
+				{Name: "limit", Type: "integer", Required: false, Description: "Items per page (default 20, max 100)"},
+			},
+		}},
+		"governance.listAllProposals": {fn: h.rpcGovernanceListAllProposals, info: methodInfo{
+			Name: "governance.listAllProposals", Description: "List governance proposals across all chains (paginated, optional status filter)",
 			Params: []paramInfo{
 				{Name: "status", Type: "string", Required: false, Description: "Status filter: Active/Canceled/Defeated/Succeeded/Queued/Expired/Executed"},
 				{Name: "page", Type: "integer", Required: false, Description: "Page number (default 1)"},
