@@ -269,6 +269,14 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 			},
 		}},
 
+		"address.resolveRecipient": {fn: h.rpcResolveRecipient, info: methodInfo{
+			Name: "address.resolveRecipient", Description: "Resolve the effective recipient for an address (walks bind chain to root)",
+			Params: []paramInfo{
+				{Name: "address", Type: "string", Required: true, Description: "Address (0x...)"},
+				{Name: "chainId", Type: "integer", Required: false, Description: "Chain ID (required for on-chain read)"},
+			},
+		}},
+
 		// ── nonce ──
 		"nonce.get": {fn: h.rpcNonceGet, info: methodInfo{
 			Name: "nonce.get", Description: "Get AWPRegistry EIP-712 nonce",

@@ -38,6 +38,7 @@ type Handler struct {
 type ChainReader interface {
 	GetNonce(addr string) (uint64, error)
 	GetStakingNonce(addr string) (uint64, error)
+	ResolveRecipient(addr string) (string, error)
 }
 
 // NewHandler creates a new Handler instance
@@ -342,6 +343,28 @@ func (h *Handler) GetStakingNonce(w http.ResponseWriter, r *http.Request) {
 // GetChains returns the list of supported chains
 func (h *Handler) GetChains(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, h.svcGetChains(r.Context()))
+}
+
+// ResolveRecipient returns the resolved recipient for an address (walks the on-chain bind chain to root)
+func (h *Handler) ResolveRecipient(w http.ResponseWriter, r *http.Request) {
+	raw := chi.URLParam(r, "address")
+	if !isValidAddress(raw) {
+		h.writeError(w, http.StatusBadRequest, "invalid address")
+		return
+	}
+	chainID := h.resolveChainID(r)
+	cr := h.getChainReader(chainID)
+	if cr == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "chain reader not available")
+		return
+	}
+	resolved, err := cr.ResolveRecipient(normalizeAddr(raw))
+	if err != nil {
+		h.logger.Error("failed to resolve recipient", "error", err, "address", raw)
+		h.writeError(w, http.StatusInternalServerError, "failed to resolve recipient")
+		return
+	}
+	h.writeJSON(w, http.StatusOK, map[string]string{"address": normalizeAddr(raw), "resolvedRecipient": strings.ToLower(resolved)})
 }
 
 // CheckAddress checks whether an address is registered and returns binding/recipient info (V2)

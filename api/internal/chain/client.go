@@ -161,6 +161,15 @@ func (c *Client) GetStakingNonce(addr string) (uint64, error) {
 	return nonce.Uint64(), nil
 }
 
+// ResolveRecipient reads the resolved recipient for an address (walks the bind chain to root)
+func (c *Client) ResolveRecipient(addr string) (string, error) {
+	resolved, err := c.AWPRegistry.ResolveRecipient(nil, common.HexToAddress(addr))
+	if err != nil {
+		return "", err
+	}
+	return resolved.Hex(), nil
+}
+
 // Close closes the underlying RPC connection
 func (c *Client) Close() {
 	c.Eth.Close()

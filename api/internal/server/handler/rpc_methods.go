@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -165,6 +166,27 @@ func (h *Handler) rpcAddressCheck(ctx context.Context, raw json.RawMessage) (any
 		return nil, svcToRPC(err)
 	}
 	return resp, nil
+}
+
+func (h *Handler) rpcResolveRecipient(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
+	var p addressParams
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return nil, &RPCErr{Code: rpcInvalidParams, Message: "invalid params"}
+	}
+	address, rpcErr := requireAddress(p.Address)
+	if rpcErr != nil {
+		return nil, rpcErr
+	}
+	chainID := h.resolveRPCChainID(p.ChainID)
+	cr := h.getChainReader(chainID)
+	if cr == nil {
+		return nil, &RPCErr{Code: rpcInternalError, Message: "chain reader not available"}
+	}
+	resolved, err := cr.ResolveRecipient(address)
+	if err != nil {
+		return nil, internalErr("failed to resolve recipient")
+	}
+	return map[string]string{"address": address, "resolvedRecipient": strings.ToLower(resolved)}, nil
 }
 
 // ═══════════════════════════════════════════════
