@@ -20,7 +20,7 @@ interface IAWPEmission {
     function getEpochWeight(uint256 epoch, address addr) external view returns (uint96);
     function getEpochTotalWeight(uint256 epoch) external view returns (uint256);
 
-    event AllocationsSubmitted(uint256 indexed nonce, address[] recipients, uint96[] weights);
+    event AllocationsSubmitted(uint256 indexed effectiveEpoch, address[] recipients, uint96[] weights);
     event RecipientAWPDistributed(uint256 indexed epoch, address indexed recipient, uint256 awpAmount);
     event EpochSettled(uint256 indexed epoch, uint256 totalEmission, uint256 recipientCount);
 }

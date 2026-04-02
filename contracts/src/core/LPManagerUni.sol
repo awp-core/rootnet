@@ -134,10 +134,10 @@ contract LPManagerUni is LPManagerBase {
         );
         if (liquidity == 0) return;
 
-        UniPoolKey memory poolKey = _buildPoolKey(c0, c1);
+        // INCREASE_LIQUIDITY (0x00): params = (tokenId, liquidity, amount0Max, amount1Max, hookData)
         bytes memory actions = abi.encodePacked(uint8(0x00), uint8(0x0d));
         bytes[] memory params = new bytes[](2);
-        params[0] = abi.encode(poolKey, MIN_TICK, MAX_TICK, liquidity, uint128(bal0), uint128(bal1), address(this), bytes(""));
+        params[0] = abi.encode(tokenId, liquidity, uint128(bal0), uint128(bal1), bytes(""));
         params[1] = abi.encode(c0, c1);
         IUniPositionManager(positionManager).modifyLiquidities(abi.encode(actions, params), block.timestamp);
     }

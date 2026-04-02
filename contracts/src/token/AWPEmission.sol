@@ -263,10 +263,14 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     //  Guardian self-management
     // ══════════════════════════════════════════════
 
+    event GuardianUpdated(address indexed newGuardian);
+
     /// @notice Update the guardian address (only Guardian may call — self-sovereign)
     /// @dev Guardian manages itself. If Guardian keys are lost, Timelock can recover via UUPS upgrade.
     function setGuardian(address g) external onlyGuardian {
+        if (g == address(0)) revert InvalidParameter();
         guardian = g;
+        emit GuardianUpdated(g);
     }
 
     // ══════════════════════════════════════════════

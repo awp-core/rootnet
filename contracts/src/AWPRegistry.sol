@@ -515,6 +515,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         if (autoDeploySubnet && defaultSubnetManagerImpl == address(0)) revert SubnetManagerRequired();
 
         uint256 lpAWPAmount = initialAlphaMint * initialAlphaPrice / 1e18;
+        if (lpAWPAmount == 0) revert InvalidSubnetParams();
         IERC20(awpToken).safeTransferFrom(user, lpManager, lpAWPAmount);
 
         uint256 subnetId = (block.chainid << 64) | _nextLocalId++;

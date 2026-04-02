@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IStakeNFT} from "../interfaces/IStakeNFT.sol";
@@ -18,7 +19,7 @@ interface IAWPRegistryDelegates {
 ///         Deposit/withdraw have been moved to StakeNFT. All allocations are immediate.
 ///         Tracks which subnets each (user, agent) pair has allocations on, enabling
 ///         automatic complete freeze without requiring the caller to supply subnet IDs.
-contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
+contract StakingVault is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable {
     using EnumerableSet for EnumerableSet.UintSet;
 
     /// @notice AWPRegistry contract address (storage, set at initialize for proxy pattern)
@@ -110,6 +111,7 @@ contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
     /// @param guardian_ Guardian address (cross-chain multisig — controls upgrades)
     function initialize(address awpRegistry_, address guardian_) external initializer {
         __UUPSUpgradeable_init();
+        __ReentrancyGuard_init();
         __EIP712_init("StakingVault", "1");
         awpRegistry = awpRegistry_;
         guardian = guardian_;
@@ -120,9 +122,16 @@ contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
         if (msg.sender != guardian) revert NotGuardian();
     }
 
+    /// @notice Update guardian address (only current Guardian may call)
+    function setGuardian(address g) external nonReentrant {
+        if (msg.sender != guardian) revert NotGuardian();
+        if (g == address(0)) revert ZeroAddress();
+        guardian = g;
+    }
+
     /// @notice Set StakeNFT address (one-time, resolves CREATE2 circular dependency)
     /// @param stakeNFT_ StakeNFT contract address
-    function setStakeNFT(address stakeNFT_) external {
+    function setStakeNFT(address stakeNFT_) external nonReentrant {
         if (msg.sender != awpRegistry) revert NotAWPRegistry();
         if (stakeNFT != address(0)) revert AlreadySet();
         if (stakeNFT_ == address(0)) revert ZeroAddress();
@@ -154,7 +163,7 @@ contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
     /// @param agent Agent address
     /// @param subnetId Target subnet ID
     /// @param amount Allocation amount
-    function allocate(address staker, address agent, uint256 subnetId, uint256 amount) external {
+    function allocate(address staker, address agent, uint256 subnetId, uint256 amount) external nonReentrant {
         if (!_isAuthorized(staker, msg.sender)) revert NotAuthorized();
         _allocate(staker, agent, subnetId, amount);
         emit Allocated(staker, agent, subnetId, amount, msg.sender);
@@ -164,7 +173,7 @@ contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
     function allocateFor(
         address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
-    ) external {
+    ) external nonReentrant {
         _verifyDigest(staker, keccak256(abi.encode(ALLOCATE_TYPEHASH, staker, agent, subnetId, amount, nonces[staker]++, deadline)), deadline, v, r, s);
         _allocate(staker, agent, subnetId, amount);
         emit Allocated(staker, agent, subnetId, amount, msg.sender);
@@ -175,7 +184,7 @@ contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
     /// @param agent Agent address
     /// @param subnetId Target subnet ID
     /// @param amount Amount to deallocate
-    function deallocate(address staker, address agent, uint256 subnetId, uint256 amount) external {
+    function deallocate(address staker, address agent, uint256 subnetId, uint256 amount) external nonReentrant {
         if (!_isAuthorized(staker, msg.sender)) revert NotAuthorized();
         _deallocate(staker, agent, subnetId, amount);
         emit Deallocated(staker, agent, subnetId, amount, msg.sender);
@@ -185,7 +194,7 @@ contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
     function deallocateFor(
         address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
-    ) external {
+    ) external nonReentrant {
         _verifyDigest(staker, keccak256(abi.encode(DEALLOCATE_TYPEHASH, staker, agent, subnetId, amount, nonces[staker]++, deadline)), deadline, v, r, s);
         _deallocate(staker, agent, subnetId, amount);
         emit Deallocated(staker, agent, subnetId, amount, msg.sender);
@@ -205,7 +214,7 @@ contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
         address toAgent,
         uint256 toSubnetId,
         uint256 amount
-    ) external {
+    ) external nonReentrant {
         if (!_isAuthorized(staker, msg.sender)) revert NotAuthorized();
         if (amount == 0 || amount > type(uint128).max || fromSubnetId == 0 || toSubnetId == 0) revert InvalidAmount();
 
