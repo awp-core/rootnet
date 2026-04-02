@@ -77,4 +77,8 @@ interface IAWPRegistry {
     event AlphaTokenFactoryUpdated(address indexed newFactory);
     event DefaultSubnetManagerImplUpdated(address indexed newImpl);
     event DexConfigUpdated();
+
+    // ── View functions ──
+    function resolveRecipient(address addr) external view returns (address);
+    function batchResolveRecipients(address[] calldata addrs) external view returns (address[] memory);
 }

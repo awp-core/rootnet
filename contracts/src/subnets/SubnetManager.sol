@@ -9,6 +9,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 import {IERC1363Receiver} from "../interfaces/IERC1363Receiver.sol";
+import {IAWPRegistry} from "../interfaces/IAWPRegistry.sol";
 import {LiquidityAmounts} from "infinity-periphery/src/pool-cl/libraries/LiquidityAmounts.sol";
 import {TickMath} from "infinity-core/src/pool-cl/libraries/TickMath.sol";
 import {FullMath} from "infinity-core/src/pool-cl/libraries/FullMath.sol";
@@ -77,6 +78,7 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
     uint8 internal constant ACT_TAKE_ALL = 0x0f;
 
     // ── Storage (set via initialize) ──
+    IAWPRegistry public awpRegistry;
     IAlphaToken public alphaToken;
     IERC20 public awpToken;
     bytes32 public poolId;
@@ -119,7 +121,7 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
     /// @param dexConfig_ ABI-encoded DEX configuration:
     ///        (address clPoolManager, address clPositionManager, address clSwapRouter, address permit2, uint24 poolFee, int24 tickSpacing)
     function initialize(
-        address alphaToken_, address awpToken_, bytes32 poolId_, address admin_,
+        address awpRegistry_, address alphaToken_, address awpToken_, bytes32 poolId_, address admin_,
         bytes calldata dexConfig_
     ) external virtual initializer {
         // Decode DEX addresses and pool parameters (chain-agnostic)
@@ -133,7 +135,7 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
         ) = abi.decode(dexConfig_, (address, address, address, address, uint24, int24));
 
         _initializeBase(
-            alphaToken_, awpToken_, poolId_, admin_,
+            awpRegistry_, alphaToken_, awpToken_, poolId_, admin_,
             clPoolManager_, clPositionManager_, clSwapRouter_, permit2_, poolFee_, tickSpacing_
         );
 
@@ -153,7 +155,7 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
 
     /// @dev 共享初始化逻辑：AccessControl、ReentrancyGuard、存储、角色授予
     function _initializeBase(
-        address alphaToken_, address awpToken_, bytes32 poolId_, address admin_,
+        address awpRegistry_, address alphaToken_, address awpToken_, bytes32 poolId_, address admin_,
         address clPoolManager_, address clPositionManager_, address clSwapRouter_,
         address permit2_, uint24 poolFee_, int24 tickSpacing_
     ) internal {
@@ -161,6 +163,7 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
         __AccessControl_init();
         __ReentrancyGuard_init();
 
+        awpRegistry = IAWPRegistry(awpRegistry_);
         alphaToken = IAlphaToken(alphaToken_);
         awpToken = IERC20(awpToken_);
         poolId = poolId_;
@@ -196,7 +199,10 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
         if (!MerkleProof.verify(proof, merkleRoots[epoch], leaf)) revert InvalidProof();
 
         claimed[epoch][msg.sender] = true;
-        alphaToken.mint(msg.sender, amount);
+
+        // Resolve recipient: walk bind chain to root, mint Alpha to the resolved address
+        address to = awpRegistry.resolveRecipient(msg.sender);
+        alphaToken.mint(to, amount);
         emit Claimed(epoch, msg.sender, amount);
     }
 

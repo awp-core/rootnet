@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -50,6 +51,64 @@ func (h *Handler) ListUsersGlobal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.writeJSON(w, http.StatusOK, result)
+}
+
+// BatchResolveRecipients resolves recipients for multiple addresses in one on-chain call
+func (h *Handler) BatchResolveRecipients(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 65536)
+	var req struct {
+		Addresses []string `json:"addresses"`
+		ChainID   int64    `json:"chainId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if len(req.Addresses) == 0 {
+		h.writeJSON(w, http.StatusOK, []any{})
+		return
+	}
+	if len(req.Addresses) > 500 {
+		h.writeError(w, http.StatusBadRequest, "batch size exceeds limit (500)")
+		return
+	}
+	for _, a := range req.Addresses {
+		if !isValidAddress(a) {
+			h.writeError(w, http.StatusBadRequest, "invalid address in batch: "+a)
+			return
+		}
+	}
+
+	chainID := req.ChainID
+	if chainID == 0 {
+		chainID = h.defaultChainID()
+	}
+	cr := h.getChainReader(chainID)
+	if cr == nil {
+		h.writeError(w, http.StatusServiceUnavailable, "chain reader not available")
+		return
+	}
+
+	normalized := make([]string, len(req.Addresses))
+	for i, a := range req.Addresses {
+		normalized[i] = normalizeAddr(a)
+	}
+
+	resolved, err := cr.BatchResolveRecipients(normalized)
+	if err != nil {
+		h.logger.Error("batch resolve failed", "error", err)
+		h.writeError(w, http.StatusInternalServerError, "failed to resolve recipients")
+		return
+	}
+
+	results := make([]map[string]string, len(normalized))
+	for i := range normalized {
+		results[i] = map[string]string{
+			"address":           normalized[i],
+			"resolvedRecipient": resolved[i],
+		}
+	}
+	h.writeJSON(w, http.StatusOK, results)
 }
 
 // ListAllProposals returns governance proposals across all chains

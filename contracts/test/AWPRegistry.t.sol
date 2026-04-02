@@ -477,7 +477,7 @@ contract AWPRegistryTest is Test {
         // Deploy SubnetManager impl + proxy directly (no AWPRegistry auto-deploy, no DEX needed)
         SubnetManager smImpl = new SubnetManager();
         bytes memory dexCfg = abi.encode(address(1), address(2), address(3), address(4), uint24(10000), int24(200));
-        bytes memory initData = abi.encodeCall(SubnetManager.initialize, (address(awp), address(awp), bytes32(0), user1, dexCfg));
+        bytes memory initData = abi.encodeCall(SubnetManager.initialize, (address(awpRegistry), address(awp), address(awp), bytes32(0), user1, dexCfg));
         address subnetProxy = address(new ERC1967Proxy(address(smImpl), initData));
 
         // user1 is DEFAULT_ADMIN_ROLE — can upgrade
@@ -489,7 +489,7 @@ contract AWPRegistryTest is Test {
     function test_subnetManagerUpgradeRevertsForNonAdmin() public {
         SubnetManager smImpl = new SubnetManager();
         bytes memory dexCfg = abi.encode(address(1), address(2), address(3), address(4), uint24(10000), int24(200));
-        bytes memory initData = abi.encodeCall(SubnetManager.initialize, (address(awp), address(awp), bytes32(0), user1, dexCfg));
+        bytes memory initData = abi.encodeCall(SubnetManager.initialize, (address(awpRegistry), address(awp), address(awp), bytes32(0), user1, dexCfg));
         address subnetProxy = address(new ERC1967Proxy(address(smImpl), initData));
 
         // user2 has no role — upgrade should revert

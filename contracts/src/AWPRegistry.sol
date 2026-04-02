@@ -413,6 +413,23 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         return recipient[cur] != address(0) ? recipient[cur] : cur;
     }
 
+    /// @notice Batch resolve recipients for multiple addresses (view, no gas cost for callers)
+    /// @param addrs Array of addresses to resolve
+    /// @return resolved Array of resolved recipient addresses (same order as input)
+    function batchResolveRecipients(address[] calldata addrs) external view returns (address[] memory resolved) {
+        resolved = new address[](addrs.length);
+        for (uint256 i = 0; i < addrs.length;) {
+            address cur = addrs[i];
+            uint256 depth = 0;
+            while (boundTo[cur] != address(0) && boundTo[cur] != cur) {
+                cur = boundTo[cur];
+                if (++depth >= 100) break;
+            }
+            resolved[i] = recipient[cur] != address(0) ? recipient[cur] : cur;
+            unchecked { ++i; }
+        }
+    }
+
     /// @notice Check if an address is registered (has a non-zero recipient)
     /// @param addr Address to check
     /// @return true if registered
@@ -509,8 +526,8 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         address sc;
         if (autoDeploySubnet) {
             bytes memory initData = abi.encodeWithSignature(
-                "initialize(address,address,bytes32,address,bytes)",
-                alphaToken, awpToken, poolId, user, dexConfig
+                "initialize(address,address,address,bytes32,address,bytes)",
+                address(this), alphaToken, awpToken, poolId, user, dexConfig
             );
             sc = address(new ERC1967Proxy(defaultSubnetManagerImpl, initData));
         } else {

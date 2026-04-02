@@ -3,6 +3,7 @@ package chain
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/cortexia/rootnet/api/internal/chain/bindings"
 	"github.com/ethereum/go-ethereum/common"
@@ -168,6 +169,23 @@ func (c *Client) ResolveRecipient(addr string) (string, error) {
 		return "", err
 	}
 	return resolved.Hex(), nil
+}
+
+// BatchResolveRecipients resolves recipients for multiple addresses in one call
+func (c *Client) BatchResolveRecipients(addrs []string) ([]string, error) {
+	ethAddrs := make([]common.Address, len(addrs))
+	for i, a := range addrs {
+		ethAddrs[i] = common.HexToAddress(a)
+	}
+	resolved, err := c.AWPRegistry.BatchResolveRecipients(nil, ethAddrs)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]string, len(resolved))
+	for i, r := range resolved {
+		result[i] = strings.ToLower(r.Hex())
+	}
+	return result, nil
 }
 
 // Close closes the underlying RPC connection

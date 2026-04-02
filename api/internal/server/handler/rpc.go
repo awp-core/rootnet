@@ -269,6 +269,13 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 			},
 		}},
 
+		"address.batchResolveRecipients": {fn: h.rpcBatchResolveRecipients, info: methodInfo{
+			Name: "address.batchResolveRecipients", Description: "Batch resolve effective recipients for multiple addresses (on-chain)",
+			Params: []paramInfo{
+				{Name: "addresses", Type: "array<string>", Required: true, Description: "Address list (max 500)"},
+				{Name: "chainId", Type: "integer", Required: false, Description: "Chain ID for on-chain read"},
+			},
+		}},
 		"address.resolveRecipient": {fn: h.rpcResolveRecipient, info: methodInfo{
 			Name: "address.resolveRecipient", Description: "Resolve the effective recipient for an address (walks bind chain to root)",
 			Params: []paramInfo{

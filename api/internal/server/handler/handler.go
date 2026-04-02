@@ -39,6 +39,7 @@ type ChainReader interface {
 	GetNonce(addr string) (uint64, error)
 	GetStakingNonce(addr string) (uint64, error)
 	ResolveRecipient(addr string) (string, error)
+	BatchResolveRecipients(addrs []string) ([]string, error)
 }
 
 // NewHandler creates a new Handler instance

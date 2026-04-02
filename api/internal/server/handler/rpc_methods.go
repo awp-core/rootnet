@@ -189,6 +189,44 @@ func (h *Handler) rpcResolveRecipient(ctx context.Context, raw json.RawMessage) 
 	return map[string]string{"address": address, "resolvedRecipient": strings.ToLower(resolved)}, nil
 }
 
+func (h *Handler) rpcBatchResolveRecipients(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
+	var p struct {
+		Addresses []string `json:"addresses"`
+		ChainID   int64    `json:"chainId"`
+	}
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return nil, &RPCErr{Code: rpcInvalidParams, Message: "invalid params"}
+	}
+	if len(p.Addresses) == 0 {
+		return []any{}, nil
+	}
+	if len(p.Addresses) > 500 {
+		return nil, &RPCErr{Code: rpcInvalidParams, Message: "batch size exceeds limit (500)"}
+	}
+	chainID := h.resolveRPCChainID(p.ChainID)
+	cr := h.getChainReader(chainID)
+	if cr == nil {
+		return nil, &RPCErr{Code: rpcInternalError, Message: "chain reader not available"}
+	}
+	normalized := make([]string, len(p.Addresses))
+	for i, a := range p.Addresses {
+		addr, rpcErr := requireAddress(a)
+		if rpcErr != nil {
+			return nil, rpcErr
+		}
+		normalized[i] = addr
+	}
+	resolved, err := cr.BatchResolveRecipients(normalized)
+	if err != nil {
+		return nil, internalErr("failed to resolve recipients")
+	}
+	results := make([]map[string]string, len(normalized))
+	for i := range normalized {
+		results[i] = map[string]string{"address": normalized[i], "resolvedRecipient": resolved[i]}
+	}
+	return results, nil
+}
+
 // ═══════════════════════════════════════════════
 // ── nonce ──
 // ═══════════════════════════════════════════════

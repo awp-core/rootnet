@@ -59,7 +59,7 @@ contract SubnetManagerUni is SubnetManager {
     /// @notice Override initialize to construct Uniswap V4 PoolKey and decode stateView
     /// @dev dexConfig_ must be abi.encode(poolManager, positionManager, swapRouter, permit2, poolFee, tickSpacing, stateView)
     function initialize(
-        address alphaToken_, address awpToken_, bytes32 poolId_, address admin_,
+        address awpRegistry_, address alphaToken_, address awpToken_, bytes32 poolId_, address admin_,
         bytes calldata dexConfig_
     ) external override initializer {
         // Decode DEX addresses — 7 fields for Uniswap V4 (extra: stateView)
@@ -75,7 +75,7 @@ contract SubnetManagerUni is SubnetManager {
 
         // 共享初始化：AccessControl、ReentrancyGuard、存储、角色授予
         _initializeBase(
-            alphaToken_, awpToken_, poolId_, admin_,
+            awpRegistry_, alphaToken_, awpToken_, poolId_, admin_,
             clPoolManager_, clPositionManager_, clSwapRouter_, permit2_, poolFee_, tickSpacing_
         );
 
