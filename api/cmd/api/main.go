@@ -210,13 +210,26 @@ func newVanityHandler(cfg *config.Config, queries *gen.Queries, limiter *ratelim
 	}
 
 	logger.Info("vanity compute-salt endpoint enabled", "factory", cfg.AlphaFactoryAddress, "vanityRule", cfg.VanityRule)
-	return handler.NewVanityHandler(cfg.AlphaFactoryAddress, cfg.AlphaInitCodeHash, rule, cfg.ChainID, queries, limiter, logger)
+	// 默认 chainID：多链时用第一条链，单链时用 cfg.ChainID
+	vanityChainID := cfg.ChainID
+	if cfg.ChainsFile != "" {
+		if chains, err := config.LoadChains(cfg.ChainsFile); err == nil && len(chains) > 0 {
+			vanityChainID = chains[0].ChainID
+		}
+	}
+	return handler.NewVanityHandler(cfg.AlphaFactoryAddress, cfg.AlphaInitCodeHash, rule, vanityChainID, queries, limiter, logger)
 }
 
 // wireChainReader creates a lightweight chain client for on-chain reads (nonce, etc.)
 func wireChainReader(lc fx.Lifecycle, h *handler.Handler, hub *ws.Hub, queries *gen.Queries, cfg *config.Config, logger *slog.Logger) {
-	// 注入 WebSocket 分配查询接口
-	hub.SetAllocationQuerier(handler.NewWSAllocQuerier(queries), cfg.ChainID)
+	// 注入 WebSocket 分配查询接口（chainID 从事件中获取，fallback 用第一条配置链）
+	defaultCID := cfg.ChainID
+	if cfg.ChainsFile != "" {
+		if chains, err := config.LoadChains(cfg.ChainsFile); err == nil && len(chains) > 0 {
+			defaultCID = chains[0].ChainID
+		}
+	}
+	hub.SetAllocationQuerier(handler.NewWSAllocQuerier(queries), defaultCID)
 	addrs := map[string]string{
 		"AWPRegistry":  cfg.AWPRegistryAddress,
 		"AWPToken":     cfg.AWPTokenAddress,

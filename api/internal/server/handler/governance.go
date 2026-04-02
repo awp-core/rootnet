@@ -36,7 +36,7 @@ func (h *Handler) GetProposal(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, result)
 }
 
-// GetTreasury returns the treasury contract address
+// GetTreasury returns the treasury contract address (same on all chains via CREATE2)
 func (h *Handler) GetTreasury(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]string{
 		"treasuryAddress": h.cfg.TreasuryAddress,
