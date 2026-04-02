@@ -21,7 +21,8 @@ var (
 
 // GetCurrentEmission retrieves the current emission data from the Redis cache
 func (h *Handler) GetCurrentEmission(w http.ResponseWriter, r *http.Request) {
-	data, err := h.svcGetCurrentEmission(r.Context())
+	chainID := h.resolveChainID(r)
+	data, err := h.svcGetCurrentEmission(r.Context(), chainID)
 	if err != nil {
 		h.writeSvcError(w, err)
 		return
@@ -32,7 +33,8 @@ func (h *Handler) GetCurrentEmission(w http.ResponseWriter, r *http.Request) {
 // GetEmissionSchedule computes emission projections for the next 30/90/365 days
 // using big.Int integer arithmetic that exactly mirrors the contract logic
 func (h *Handler) GetEmissionSchedule(w http.ResponseWriter, r *http.Request) {
-	result, err := h.svcGetEmissionSchedule(r.Context())
+	chainID := h.resolveChainID(r)
+	result, err := h.svcGetEmissionSchedule(r.Context(), chainID)
 	if err != nil {
 		h.writeSvcError(w, err)
 		return
@@ -42,8 +44,9 @@ func (h *Handler) GetEmissionSchedule(w http.ResponseWriter, r *http.Request) {
 
 // ListEpochs returns a paginated list of epochs
 func (h *Handler) ListEpochs(w http.ResponseWriter, r *http.Request) {
+	chainID := h.resolveChainID(r)
 	limit, offset := h.parsePageParams(r)
-	result, err := h.svcListEpochs(r.Context(), int32(limit), int32(offset))
+	result, err := h.svcListEpochs(r.Context(), chainID, int32(limit), int32(offset))
 	if err != nil {
 		h.writeSvcError(w, err)
 		return

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"errors"
@@ -55,6 +56,16 @@ func (vh *VanityHandler) writeError(w http.ResponseWriter, status int, msg strin
 	vh.writeJSON(w, status, map[string]string{"error": msg})
 }
 
+// resolveChainID 从 HTTP 请求中提取 chainId 查询参数，回退到默认 chainID
+func (vh *VanityHandler) resolveChainID(r *http.Request) int64 {
+	if v := r.URL.Query().Get("chainId"); v != "" {
+		if id, err := strconv.ParseInt(v, 10, 64); err == nil && id > 0 {
+			return id
+		}
+	}
+	return vh.chainID
+}
+
 type computeSaltResponse struct {
 	Salt    string `json:"salt"`
 	Address string `json:"address"`
@@ -78,8 +89,9 @@ func (vh *VanityHandler) ComputeSalt(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// 1. Claim a salt from DB pool (atomic UPDATE+RETURNING with FOR UPDATE SKIP LOCKED)
+	chainID := vh.resolveChainID(r)
 	if vh.queries != nil {
-		row, err := vh.queries.ClaimRandomSalt(ctx, vh.chainID)
+		row, err := vh.queries.ClaimRandomSalt(ctx, chainID)
 		if err == nil {
 			vh.writeJSON(w, http.StatusOK, computeSaltResponse{
 				Salt:    row.Salt,

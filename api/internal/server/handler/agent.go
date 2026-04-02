@@ -30,7 +30,8 @@ func (h *Handler) GetAgentsByOwner(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid owner address")
 		return
 	}
-	result, err := h.svcGetAgentsByOwner(r.Context(), normalizeAddr(raw))
+	chainID := h.resolveChainID(r)
+	result, err := h.svcGetAgentsByOwner(r.Context(), chainID, normalizeAddr(raw))
 	if err != nil {
 		h.writeSvcError(w, err)
 		return
@@ -45,7 +46,8 @@ func (h *Handler) GetAgentDetail(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid agent address")
 		return
 	}
-	result, err := h.svcGetAgentDetail(r.Context(), normalizeAddr(raw))
+	chainID := h.resolveChainID(r)
+	result, err := h.svcGetAgentDetail(r.Context(), chainID, normalizeAddr(raw))
 	if err != nil {
 		h.writeSvcError(w, err)
 		return
@@ -60,7 +62,8 @@ func (h *Handler) LookupAgent(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid agent address")
 		return
 	}
-	owner, err := h.svcLookupAgent(r.Context(), normalizeAddr(raw))
+	chainID := h.resolveChainID(r)
+	owner, err := h.svcLookupAgent(r.Context(), chainID, normalizeAddr(raw))
 	if err != nil {
 		h.writeSvcError(w, err)
 		return
@@ -100,7 +103,8 @@ func (h *Handler) BatchAgentInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	results, svcErr := h.svcBatchAgentInfo(r.Context(), req.Agents, subnetNum)
+	chainID := h.resolveChainID(r)
+	results, svcErr := h.svcBatchAgentInfo(r.Context(), chainID, req.Agents, subnetNum)
 	if svcErr != nil {
 		h.writeSvcError(w, svcErr)
 		return

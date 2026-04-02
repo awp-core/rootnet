@@ -8,10 +8,11 @@ import (
 
 // ListSubnets returns a paginated list of subnets with optional status filter
 func (h *Handler) ListSubnets(w http.ResponseWriter, r *http.Request) {
+	chainID := h.resolveChainID(r)
 	limit, offset := h.parsePageParams(r)
 	status := r.URL.Query().Get("status")
 
-	result, err := h.svcListSubnets(r.Context(), status, int32(limit), int32(offset))
+	result, err := h.svcListSubnets(r.Context(), chainID, status, int32(limit), int32(offset))
 	if err != nil {
 		h.writeSvcError(w, err)
 		return

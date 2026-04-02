@@ -11,15 +11,18 @@ import (
 
 type addressParams struct {
 	Address string `json:"address"`
+	ChainID int64  `json:"chainId"`
 }
 
 type subnetParams struct {
 	SubnetID string `json:"subnetId"`
+	ChainID  int64  `json:"chainId"`
 }
 
 type pageParams struct {
-	Page  int `json:"page"`
-	Limit int `json:"limit"`
+	Page    int   `json:"page"`
+	Limit   int   `json:"limit"`
+	ChainID int64 `json:"chainId"`
 }
 
 // parsePage 解析分页参数，返回 (limit, offset)；委托给 computePageLimits
@@ -68,8 +71,13 @@ func svcToRPC(err error) *RPCErr {
 // ── registry ──
 // ═══════════════════════════════════════════════
 
-func (h *Handler) rpcRegistryGet(_ context.Context, _ json.RawMessage) (any, *RPCErr) {
-	return h.svcGetRegistry(), nil
+func (h *Handler) rpcRegistryGet(_ context.Context, raw json.RawMessage) (any, *RPCErr) {
+	var p struct {
+		ChainID int64 `json:"chainId"`
+	}
+	_ = json.Unmarshal(raw, &p)
+	chainID := h.resolveRPCChainID(p.ChainID)
+	return h.svcGetRegistry(chainID), nil
 }
 
 // ═══════════════════════════════════════════════
@@ -88,8 +96,8 @@ func (h *Handler) rpcHealthDetailed(ctx context.Context, _ json.RawMessage) (any
 // ── chains ──
 // ═══════════════════════════════════════════════
 
-func (h *Handler) rpcChainsList(_ context.Context, _ json.RawMessage) (any, *RPCErr) {
-	return h.svcGetChains(), nil
+func (h *Handler) rpcChainsList(ctx context.Context, _ json.RawMessage) (any, *RPCErr) {
+	return h.svcGetChains(ctx), nil
 }
 
 // ═══════════════════════════════════════════════
@@ -99,16 +107,22 @@ func (h *Handler) rpcChainsList(_ context.Context, _ json.RawMessage) (any, *RPC
 func (h *Handler) rpcUsersList(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p pageParams
 	_ = json.Unmarshal(raw, &p)
+	chainID := h.resolveRPCChainID(p.ChainID)
 	limit, offset := parsePage(p)
-	result, err := h.svcListUsers(ctx, limit, offset)
+	result, err := h.svcListUsers(ctx, chainID, limit, offset)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
 	return result, nil
 }
 
-func (h *Handler) rpcUsersCount(ctx context.Context, _ json.RawMessage) (any, *RPCErr) {
-	count, err := h.svcGetUserCount(ctx)
+func (h *Handler) rpcUsersCount(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
+	var p struct {
+		ChainID int64 `json:"chainId"`
+	}
+	_ = json.Unmarshal(raw, &p)
+	chainID := h.resolveRPCChainID(p.ChainID)
+	count, err := h.svcGetUserCount(ctx, chainID)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -124,7 +138,8 @@ func (h *Handler) rpcUsersGet(ctx context.Context, raw json.RawMessage) (any, *R
 	if rpcErr != nil {
 		return nil, rpcErr
 	}
-	resp, err := h.svcGetUser(ctx, address)
+	chainID := h.resolveRPCChainID(p.ChainID)
+	resp, err := h.svcGetUser(ctx, chainID, address)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -144,7 +159,8 @@ func (h *Handler) rpcAddressCheck(ctx context.Context, raw json.RawMessage) (any
 	if rpcErr != nil {
 		return nil, rpcErr
 	}
-	resp, err := h.svcCheckAddress(ctx, address)
+	chainID := h.resolveRPCChainID(p.ChainID)
+	resp, err := h.svcCheckAddress(ctx, chainID, address)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -209,7 +225,8 @@ func (h *Handler) rpcNonceGetStaking(ctx context.Context, raw json.RawMessage) (
 
 func (h *Handler) rpcAgentsGetByOwner(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
-		Owner string `json:"owner"`
+		Owner   string `json:"owner"`
+		ChainID int64  `json:"chainId"`
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, &RPCErr{Code: rpcInvalidParams, Message: "invalid params"}
@@ -218,7 +235,8 @@ func (h *Handler) rpcAgentsGetByOwner(ctx context.Context, raw json.RawMessage) 
 	if rpcErr != nil {
 		return nil, rpcErr
 	}
-	result, err := h.svcGetAgentsByOwner(ctx, owner)
+	chainID := h.resolveRPCChainID(p.ChainID)
+	result, err := h.svcGetAgentsByOwner(ctx, chainID, owner)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -227,7 +245,8 @@ func (h *Handler) rpcAgentsGetByOwner(ctx context.Context, raw json.RawMessage) 
 
 func (h *Handler) rpcAgentsGetDetail(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
-		Agent string `json:"agent"`
+		Agent   string `json:"agent"`
+		ChainID int64  `json:"chainId"`
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, &RPCErr{Code: rpcInvalidParams, Message: "invalid params"}
@@ -236,7 +255,8 @@ func (h *Handler) rpcAgentsGetDetail(ctx context.Context, raw json.RawMessage) (
 	if rpcErr != nil {
 		return nil, rpcErr
 	}
-	result, err := h.svcGetAgentDetail(ctx, agent)
+	chainID := h.resolveRPCChainID(p.ChainID)
+	result, err := h.svcGetAgentDetail(ctx, chainID, agent)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -245,7 +265,8 @@ func (h *Handler) rpcAgentsGetDetail(ctx context.Context, raw json.RawMessage) (
 
 func (h *Handler) rpcAgentsLookup(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
-		Agent string `json:"agent"`
+		Agent   string `json:"agent"`
+		ChainID int64  `json:"chainId"`
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, &RPCErr{Code: rpcInvalidParams, Message: "invalid params"}
@@ -254,7 +275,8 @@ func (h *Handler) rpcAgentsLookup(ctx context.Context, raw json.RawMessage) (any
 	if rpcErr != nil {
 		return nil, rpcErr
 	}
-	owner, err := h.svcLookupAgent(ctx, agent)
+	chainID := h.resolveRPCChainID(p.ChainID)
+	owner, err := h.svcLookupAgent(ctx, chainID, agent)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -270,6 +292,7 @@ func (h *Handler) rpcAgentsBatchInfo(ctx context.Context, raw json.RawMessage) (
 	var p struct {
 		Agents   []string `json:"agents"`
 		SubnetID string   `json:"subnetId"`
+		ChainID  int64    `json:"chainId"`
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, &RPCErr{Code: rpcInvalidParams, Message: "invalid params"}
@@ -284,7 +307,8 @@ func (h *Handler) rpcAgentsBatchInfo(ctx context.Context, raw json.RawMessage) (
 	if rpcErr != nil {
 		return nil, rpcErr
 	}
-	results, err := h.svcBatchAgentInfo(ctx, p.Agents, subnetNum)
+	chainID := h.resolveRPCChainID(p.ChainID)
+	results, err := h.svcBatchAgentInfo(ctx, chainID, p.Agents, subnetNum)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -304,7 +328,8 @@ func (h *Handler) rpcStakingGetBalance(ctx context.Context, raw json.RawMessage)
 	if rpcErr != nil {
 		return nil, rpcErr
 	}
-	resp, err := h.svcGetBalance(ctx, address)
+	chainID := h.resolveRPCChainID(p.ChainID)
+	resp, err := h.svcGetBalance(ctx, chainID, address)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -320,7 +345,8 @@ func (h *Handler) rpcStakingGetPositions(ctx context.Context, raw json.RawMessag
 	if rpcErr != nil {
 		return nil, rpcErr
 	}
-	result, err := h.svcGetStakePositions(ctx, address)
+	chainID := h.resolveRPCChainID(p.ChainID)
+	result, err := h.svcGetStakePositions(ctx, chainID, address)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -330,6 +356,7 @@ func (h *Handler) rpcStakingGetPositions(ctx context.Context, raw json.RawMessag
 func (h *Handler) rpcStakingGetAllocations(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
 		Address string `json:"address"`
+		ChainID int64  `json:"chainId"`
 		pageParams
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
@@ -339,8 +366,9 @@ func (h *Handler) rpcStakingGetAllocations(ctx context.Context, raw json.RawMess
 	if rpcErr != nil {
 		return nil, rpcErr
 	}
+	chainID := h.resolveRPCChainID(p.ChainID)
 	limit, offset := parsePage(p.pageParams)
-	result, err := h.svcGetAllocations(ctx, address, limit, offset)
+	result, err := h.svcGetAllocations(ctx, chainID, address, limit, offset)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -356,7 +384,8 @@ func (h *Handler) rpcStakingGetFrozen(ctx context.Context, raw json.RawMessage) 
 	if rpcErr != nil {
 		return nil, rpcErr
 	}
-	result, err := h.svcGetFrozen(ctx, address)
+	chainID := h.resolveRPCChainID(p.ChainID)
+	result, err := h.svcGetFrozen(ctx, chainID, address)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -367,6 +396,7 @@ func (h *Handler) rpcStakingGetPending(_ context.Context, _ json.RawMessage) (an
 	return []struct{}{}, nil
 }
 
+// 跨链查询：不需要 chainId
 func (h *Handler) rpcStakingGetAgentSubnetStake(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
 		Agent    string `json:"agent"`
@@ -390,6 +420,7 @@ func (h *Handler) rpcStakingGetAgentSubnetStake(ctx context.Context, raw json.Ra
 	return map[string]string{"amount": amount}, nil
 }
 
+// 跨链查询：不需要 chainId
 func (h *Handler) rpcStakingGetAgentSubnets(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
 		Agent string `json:"agent"`
@@ -408,6 +439,7 @@ func (h *Handler) rpcStakingGetAgentSubnets(ctx context.Context, raw json.RawMes
 	return result, nil
 }
 
+// 跨链查询：不需要 chainId
 func (h *Handler) rpcStakingGetSubnetTotalStake(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p subnetParams
 	if err := json.Unmarshal(raw, &p); err != nil {
@@ -430,12 +462,14 @@ func (h *Handler) rpcStakingGetSubnetTotalStake(ctx context.Context, raw json.Ra
 
 func (h *Handler) rpcSubnetsList(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
-		Status string `json:"status"`
+		Status  string `json:"status"`
+		ChainID int64  `json:"chainId"`
 		pageParams
 	}
 	_ = json.Unmarshal(raw, &p)
+	chainID := h.resolveRPCChainID(p.ChainID)
 	limit, offset := parsePage(p.pageParams)
-	result, err := h.svcListSubnets(ctx, p.Status, limit, offset)
+	result, err := h.svcListSubnets(ctx, chainID, p.Status, limit, offset)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -521,16 +555,26 @@ func (h *Handler) rpcSubnetsGetAgentInfo(ctx context.Context, raw json.RawMessag
 // ── emission ──
 // ═══════════════════════════════════════════════
 
-func (h *Handler) rpcEmissionGetCurrent(ctx context.Context, _ json.RawMessage) (any, *RPCErr) {
-	data, err := h.svcGetCurrentEmission(ctx)
+func (h *Handler) rpcEmissionGetCurrent(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
+	var p struct {
+		ChainID int64 `json:"chainId"`
+	}
+	_ = json.Unmarshal(raw, &p)
+	chainID := h.resolveRPCChainID(p.ChainID)
+	data, err := h.svcGetCurrentEmission(ctx, chainID)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
 	return data, nil
 }
 
-func (h *Handler) rpcEmissionGetSchedule(ctx context.Context, _ json.RawMessage) (any, *RPCErr) {
-	result, err := h.svcGetEmissionSchedule(ctx)
+func (h *Handler) rpcEmissionGetSchedule(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
+	var p struct {
+		ChainID int64 `json:"chainId"`
+	}
+	_ = json.Unmarshal(raw, &p)
+	chainID := h.resolveRPCChainID(p.ChainID)
+	result, err := h.svcGetEmissionSchedule(ctx, chainID)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -540,8 +584,9 @@ func (h *Handler) rpcEmissionGetSchedule(ctx context.Context, _ json.RawMessage)
 func (h *Handler) rpcEmissionListEpochs(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p pageParams
 	_ = json.Unmarshal(raw, &p)
+	chainID := h.resolveRPCChainID(p.ChainID)
 	limit, offset := parsePage(p)
-	result, err := h.svcListEpochs(ctx, limit, offset)
+	result, err := h.svcListEpochs(ctx, chainID, limit, offset)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -552,8 +597,13 @@ func (h *Handler) rpcEmissionListEpochs(ctx context.Context, raw json.RawMessage
 // ── tokens ──
 // ═══════════════════════════════════════════════
 
-func (h *Handler) rpcTokensGetAWP(ctx context.Context, _ json.RawMessage) (any, *RPCErr) {
-	data, err := h.svcGetAWPInfo(ctx)
+func (h *Handler) rpcTokensGetAWP(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
+	var p struct {
+		ChainID int64 `json:"chainId"`
+	}
+	_ = json.Unmarshal(raw, &p)
+	chainID := h.resolveRPCChainID(p.ChainID)
+	data, err := h.svcGetAWPInfo(ctx, chainID)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -597,12 +647,14 @@ func (h *Handler) rpcTokensGetAlphaPrice(ctx context.Context, raw json.RawMessag
 
 func (h *Handler) rpcGovernanceListProposals(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
-		Status string `json:"status"`
+		Status  string `json:"status"`
+		ChainID int64  `json:"chainId"`
 		pageParams
 	}
 	_ = json.Unmarshal(raw, &p)
+	chainID := h.resolveRPCChainID(p.ChainID)
 	limit, offset := parsePage(p.pageParams)
-	result, err := h.svcListProposals(ctx, p.Status, limit, offset)
+	result, err := h.svcListProposals(ctx, chainID, p.Status, limit, offset)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -612,6 +664,7 @@ func (h *Handler) rpcGovernanceListProposals(ctx context.Context, raw json.RawMe
 func (h *Handler) rpcGovernanceGetProposal(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
 		ProposalID string `json:"proposalId"`
+		ChainID    int64  `json:"chainId"`
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, &RPCErr{Code: rpcInvalidParams, Message: "invalid params"}
@@ -619,7 +672,8 @@ func (h *Handler) rpcGovernanceGetProposal(ctx context.Context, raw json.RawMess
 	if p.ProposalID == "" {
 		return nil, &RPCErr{Code: rpcInvalidParams, Message: "proposalId is required"}
 	}
-	result, err := h.svcGetProposal(ctx, p.ProposalID)
+	chainID := h.resolveRPCChainID(p.ChainID)
+	result, err := h.svcGetProposal(ctx, chainID, p.ProposalID)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}

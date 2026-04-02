@@ -8,7 +8,8 @@ import (
 
 // GetAWPInfo retrieves AWP token info from the Redis cache
 func (h *Handler) GetAWPInfo(w http.ResponseWriter, r *http.Request) {
-	data, err := h.svcGetAWPInfo(r.Context())
+	chainID := h.resolveChainID(r)
+	data, err := h.svcGetAWPInfo(r.Context(), chainID)
 	if err != nil {
 		h.writeSvcError(w, err)
 		return

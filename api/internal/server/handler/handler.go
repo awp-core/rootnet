@@ -137,7 +137,8 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	status := "ok"
 
-	if _, err := h.queries.GetUserCount(ctx, h.cfg.ChainID); err != nil {
+	chainID := h.defaultChainID()
+	if _, err := h.queries.GetUserCount(ctx, chainID); err != nil {
 		status = "degraded"
 	}
 	if err := h.rdb.Ping(ctx).Err(); err != nil {
@@ -159,7 +160,7 @@ func (h *Handler) buildDetailedHealth(ctx context.Context) map[string]interface{
 	}
 
 	// Determine which chain IDs to check
-	chainIDs := []int64{h.cfg.ChainID}
+	chainIDs := []int64{h.defaultChainID()}
 	if h.chains != nil {
 		chainIDs = make([]int64, len(h.chains))
 		for i, c := range h.chains {
@@ -202,7 +203,7 @@ func (h *Handler) buildDetailedHealth(ctx context.Context) map[string]interface{
 	}
 
 	// 数据库连通性
-	if _, err := h.queries.GetUserCount(ctx, h.cfg.ChainID); err != nil {
+	if _, err := h.queries.GetUserCount(ctx, h.defaultChainID()); err != nil {
 		health["database"] = "error"
 		health["status"] = "degraded"
 	} else {
@@ -244,7 +245,8 @@ type registryResponse struct {
 
 // GetRegistry returns the contract address registry with chain ID
 func (h *Handler) GetRegistry(w http.ResponseWriter, r *http.Request) {
-	h.writeJSON(w, http.StatusOK, h.svcGetRegistry())
+	chainID := h.resolveChainID(r)
+	h.writeJSON(w, http.StatusOK, h.svcGetRegistry(chainID))
 }
 
 // checkAddressResponse is the response type for an address lookup check (V2)
@@ -315,7 +317,7 @@ func (h *Handler) GetStakingNonce(w http.ResponseWriter, r *http.Request) {
 
 // GetChains returns the list of supported chains
 func (h *Handler) GetChains(w http.ResponseWriter, r *http.Request) {
-	h.writeJSON(w, http.StatusOK, h.svcGetChains())
+	h.writeJSON(w, http.StatusOK, h.svcGetChains(r.Context()))
 }
 
 // CheckAddress checks whether an address is registered and returns binding/recipient info (V2)
@@ -325,7 +327,8 @@ func (h *Handler) CheckAddress(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid address parameter")
 		return
 	}
-	resp, err := h.svcCheckAddress(r.Context(), normalizeAddr(raw))
+	chainID := h.resolveChainID(r)
+	resp, err := h.svcCheckAddress(r.Context(), chainID, normalizeAddr(raw))
 	if err != nil {
 		h.writeSvcError(w, err)
 		return

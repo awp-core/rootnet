@@ -8,6 +8,26 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Chain struct {
+	ChainID      int64            `json:"chain_id"`
+	Name         string           `json:"name"`
+	RpcUrl       string           `json:"-"`
+	Dex          string           `json:"dex"`
+	Explorer     string           `json:"explorer"`
+	Status       string           `json:"status"`
+	AwpRegistry  string           `json:"awp_registry"`
+	AwpToken     string           `json:"awp_token"`
+	AwpEmission  string           `json:"awp_emission"`
+	StakingVault string           `json:"staking_vault"`
+	StakeNft     string           `json:"stake_nft"`
+	SubnetNft    string           `json:"subnet_nft"`
+	DaoAddress   string           `json:"dao_address"`
+	LpManager    string           `json:"lp_manager"`
+	PoolManager  string           `json:"pool_manager"`
+	DeployBlock  int64            `json:"deploy_block"`
+	CreatedAt    pgtype.Timestamp `json:"created_at"`
+}
+
 type Epoch struct {
 	ChainID       int64          `json:"chain_id"`
 	EpochID       int64          `json:"epoch_id"`

@@ -82,6 +82,7 @@ func (h *Handler) UploadSalts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	chainID := h.resolveChainID(r)
 	inserted := 0
 	rejected := 0
 	for _, s := range req.Salts {
@@ -107,7 +108,7 @@ func (h *Handler) UploadSalts(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := h.queries.InsertVanitySalt(ctx, gen.InsertVanitySaltParams{
-			ChainID: h.cfg.ChainID,
+			ChainID: chainID,
 			Salt:    s.Salt,
 			Address: strings.ToLower(s.Address),
 		}); err != nil {
@@ -123,9 +124,10 @@ func (h *Handler) UploadSalts(w http.ResponseWriter, r *http.Request) {
 // ListAvailableSalts GET /api/vanity/salts — list available salts
 func (h *Handler) ListAvailableSalts(w http.ResponseWriter, r *http.Request) {
 	limit, _ := h.parsePageParams(r)
+	chainID := h.resolveChainID(r)
 
 	salts, err := h.queries.ListAvailableSalts(r.Context(), gen.ListAvailableSaltsParams{
-		ChainID: h.cfg.ChainID,
+		ChainID: chainID,
 		Limit:   int32(limit),
 	})
 	if err != nil {
@@ -143,7 +145,8 @@ func (h *Handler) ListAvailableSalts(w http.ResponseWriter, r *http.Request) {
 
 // CountAvailableSalts GET /api/vanity/salts/count — count available salts
 func (h *Handler) CountAvailableSalts(w http.ResponseWriter, r *http.Request) {
-	count, err := h.queries.CountAvailableSalts(r.Context(), h.cfg.ChainID)
+	chainID := h.resolveChainID(r)
+	count, err := h.queries.CountAvailableSalts(r.Context(), chainID)
 	if err != nil {
 		h.logger.Error("count available salts failed", "error", err)
 		h.writeError(w, http.StatusInternalServerError, "failed to count salts")

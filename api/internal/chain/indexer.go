@@ -69,6 +69,7 @@ func NewIndexer(chain *Client, pool *pgxpool.Pool, rds *redis.Client, chainID in
 // redisEvent is the event format published to Redis
 type redisEvent struct {
 	Type        string      `json:"type"`
+	ChainID     int64       `json:"chainId"`
 	BlockNumber uint64      `json:"blockNumber"`
 	TxHash      string      `json:"txHash"`
 	Data        interface{} `json:"data"`
@@ -444,7 +445,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("SetUserRegisteredAt: %w", err)
 		}
-		return []redisEvent{makeEvent("UserRegistered", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("UserRegistered", idx.chainID, lg, map[string]interface{}{
 			"user": evt.User.Hex(),
 		})}, nil
 	}
@@ -464,7 +465,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("InitUserBalance (Bound): %w", err)
 		}
-		return []redisEvent{makeEvent("Bound", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("Bound", idx.chainID, lg, map[string]interface{}{
 			"addr":   evt.Addr.Hex(),
 			"target": evt.Target.Hex(),
 		})}, nil
@@ -478,7 +479,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("ClearUserBinding: %w", err)
 		}
-		return []redisEvent{makeEvent("Unbound", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("Unbound", idx.chainID, lg, map[string]interface{}{
 			"addr": evt.Addr.Hex(),
 		})}, nil
 	}
@@ -492,7 +493,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("UpsertUserRecipient: %w", err)
 		}
-		return []redisEvent{makeEvent("RecipientSet", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("RecipientSet", idx.chainID, lg, map[string]interface{}{
 			"addr":      evt.Addr.Hex(),
 			"recipient": evt.Recipient.Hex(),
 		})}, nil
@@ -500,7 +501,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// DelegateGranted(address indexed staker, address indexed delegate)
 	if evt, err := awpRegistry.ParseDelegateGranted(lg); err == nil {
-		return []redisEvent{makeEvent("DelegateGranted", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("DelegateGranted", idx.chainID, lg, map[string]interface{}{
 			"staker":   evt.Staker.Hex(),
 			"delegate": evt.Delegate.Hex(),
 		})}, nil
@@ -508,7 +509,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// DelegateRevoked(address indexed staker, address indexed delegate)
 	if evt, err := awpRegistry.ParseDelegateRevoked(lg); err == nil {
-		return []redisEvent{makeEvent("DelegateRevoked", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("DelegateRevoked", idx.chainID, lg, map[string]interface{}{
 			"staker":   evt.Staker.Hex(),
 			"delegate": evt.Delegate.Hex(),
 		})}, nil
@@ -531,7 +532,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("InsertStakePosition: %w", err)
 		}
-		return []redisEvent{makeEvent("Deposited", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("Deposited", idx.chainID, lg, map[string]interface{}{
 			"user":        evt.User.Hex(),
 			"tokenId":     evt.TokenId.String(),
 			"amount":      evt.Amount.String(),
@@ -554,7 +555,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateStakePosition: %w", err)
 		}
-		return []redisEvent{makeEvent("PositionIncreased", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("PositionIncreased", idx.chainID, lg, map[string]interface{}{
 			"tokenId":        evt.TokenId.String(),
 			"addedAmount":    evt.AddedAmount.String(),
 			"newLockEndTime": evt.NewLockEndTime,
@@ -569,7 +570,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("BurnStakePosition: %w", err)
 		}
-		return []redisEvent{makeEvent("Withdrawn", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("Withdrawn", idx.chainID, lg, map[string]interface{}{
 			"user":    evt.User.Hex(),
 			"tokenId": evt.TokenId.String(),
 			"amount":  evt.Amount.String(),
@@ -590,7 +591,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 				}); err != nil {
 					return nil, fmt.Errorf("UpdateStakePositionOwner: %w", err)
 				}
-				return []redisEvent{makeEvent("StakeNFTTransfer", lg, map[string]interface{}{
+				return []redisEvent{makeEvent("StakeNFTTransfer", idx.chainID, lg, map[string]interface{}{
 					"from":    evt.From.Hex(),
 					"to":      evt.To.Hex(),
 					"tokenId": evt.TokenId.String(),
@@ -620,7 +621,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("AddUserAllocated: %w", err)
 		}
-		return []redisEvent{makeEvent("Allocated", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("Allocated", idx.chainID, lg, map[string]interface{}{
 			"staker":   evt.Staker.Hex(),
 			"agent":    evt.Agent.Hex(),
 			"subnetId": evt.SubnetId.String(),
@@ -649,7 +650,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("SubtractUserAllocated: %w", err)
 		}
-		return []redisEvent{makeEvent("Deallocated", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("Deallocated", idx.chainID, lg, map[string]interface{}{
 			"staker":   evt.Staker.Hex(),
 			"agent":    evt.Agent.Hex(),
 			"subnetId": evt.SubnetId.String(),
@@ -682,7 +683,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("UpsertStakeAllocation(Reallocated): %w", err)
 		}
-		return []redisEvent{makeEvent("Reallocated", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("Reallocated", idx.chainID, lg, map[string]interface{}{
 			"staker":     evt.Staker.Hex(),
 			"fromAgent":  evt.FromAgent.Hex(),
 			"fromSubnet": evt.FromSubnetId.String(),
@@ -710,7 +711,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("SubtractUserAllocated(freeze): %w", err)
 		}
-		return []redisEvent{makeEvent("AgentAllocationsFrozen", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("AgentAllocationsFrozen", idx.chainID, lg, map[string]interface{}{
 			"user":        evt.User.Hex(),
 			"agent":       evt.Agent.Hex(),
 			"totalFrozen": evt.TotalFrozen.String(),
@@ -759,7 +760,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); markErr != nil {
 			slog.Warn("mark salt used failed (non-critical)", "error", markErr, "alphaToken", evt.AlphaToken.Hex())
 		}
-		return []redisEvent{makeEvent("SubnetRegistered", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("SubnetRegistered", idx.chainID, lg, map[string]interface{}{
 			"subnetId":      evt.SubnetId.String(),
 			"owner":         evt.Owner.Hex(),
 			"name":          evt.Name,
@@ -778,7 +779,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetLP: %w", err)
 		}
-		return []redisEvent{makeEvent("LPCreated", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("LPCreated", idx.chainID, lg, map[string]interface{}{
 			"subnetId":    evt.SubnetId.String(),
 			"poolId":      poolIdHex,
 			"awpAmount":   evt.AwpAmount.String(),
@@ -801,7 +802,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetActivated: %w", err)
 		}
-		return []redisEvent{makeEvent("SubnetActivated", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("SubnetActivated", idx.chainID, lg, map[string]interface{}{
 			"subnetId": evt.SubnetId.String(),
 		})}, nil
 	}
@@ -814,7 +815,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Paused): %w", err)
 		}
-		return []redisEvent{makeEvent("SubnetPaused", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("SubnetPaused", idx.chainID, lg, map[string]interface{}{
 			"subnetId": evt.SubnetId.String(),
 		})}, nil
 	}
@@ -827,7 +828,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Active): %w", err)
 		}
-		return []redisEvent{makeEvent("SubnetResumed", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("SubnetResumed", idx.chainID, lg, map[string]interface{}{
 			"subnetId": evt.SubnetId.String(),
 		})}, nil
 	}
@@ -840,7 +841,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Banned): %w", err)
 		}
-		return []redisEvent{makeEvent("SubnetBanned", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("SubnetBanned", idx.chainID, lg, map[string]interface{}{
 			"subnetId": evt.SubnetId.String(),
 		})}, nil
 	}
@@ -853,7 +854,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Active): %w", err)
 		}
-		return []redisEvent{makeEvent("SubnetUnbanned", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("SubnetUnbanned", idx.chainID, lg, map[string]interface{}{
 			"subnetId": evt.SubnetId.String(),
 		})}, nil
 	}
@@ -863,7 +864,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		if err := q.UpdateSubnetBurned(ctx, bigIntToNumeric(evt.SubnetId)); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetBurned: %w", err)
 		}
-		return []redisEvent{makeEvent("SubnetDeregistered", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("SubnetDeregistered", idx.chainID, lg, map[string]interface{}{
 			"subnetId": evt.SubnetId.String(),
 		})}, nil
 	}
@@ -880,7 +881,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetSkillsURI: %w", err)
 		}
-		return []redisEvent{makeEvent("SkillsURIUpdated", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("SkillsURIUpdated", idx.chainID, lg, map[string]interface{}{
 			"subnetId":  evt.TokenId.String(),
 			"skillsURI": evt.SkillsURI,
 		})}, nil
@@ -894,7 +895,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetMinStake: %w", err)
 		}
-		return []redisEvent{makeEvent("MinStakeUpdated", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("MinStakeUpdated", idx.chainID, lg, map[string]interface{}{
 			"subnetId": evt.TokenId.String(),
 			"minStake": evt.MinStake.String(),
 		})}, nil
@@ -920,7 +921,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetMetadataURI: %w", err)
 		}
-		return []redisEvent{makeEvent("MetadataURIUpdated", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("MetadataURIUpdated", idx.chainID, lg, map[string]interface{}{
 			"subnetId":    tokenId.String(),
 			"metadataURI": metadataURI,
 		})}, nil
@@ -939,7 +940,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 				}); err != nil {
 					return nil, fmt.Errorf("UpdateSubnetOwner: %w", err)
 				}
-				return []redisEvent{makeEvent("SubnetNFTTransfer", lg, map[string]interface{}{
+				return []redisEvent{makeEvent("SubnetNFTTransfer", idx.chainID, lg, map[string]interface{}{
 					"from":     evt.From.Hex(),
 					"to":       evt.To.Hex(),
 					"subnetId": evt.TokenId.String(),
@@ -961,7 +962,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("InsertRecipientAWPDistribution: %w", err)
 		}
-		return []redisEvent{makeEvent("RecipientAWPDistributed", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("RecipientAWPDistributed", idx.chainID, lg, map[string]interface{}{
 			"epoch":     evt.Epoch.String(),
 			"recipient": evt.Recipient.Hex(),
 			"awpAmount": evt.AwpAmount.String(),
@@ -981,7 +982,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("UpsertEpoch: %w", err)
 		}
-		return []redisEvent{makeEvent("EpochSettled", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("EpochSettled", idx.chainID, lg, map[string]interface{}{
 			"epoch":          evt.Epoch.String(),
 			"totalEmission":  evt.TotalEmission.String(),
 			"recipientCount": evt.RecipientCount.String(),
@@ -998,7 +999,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		for i, w := range evt.Weights {
 			ws[i] = w.String()
 		}
-		return []redisEvent{makeEvent("AllocationsSubmitted", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("AllocationsSubmitted", idx.chainID, lg, map[string]interface{}{
 			"nonce":      evt.Nonce.String(),
 			"recipients": addrs,
 			"weights":    ws,
@@ -1012,36 +1013,36 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		// GuardianUpdated(address indexed newGuardian)
 		case common.HexToHash("0x6bb7ff33e730289800c62ad882105a144a74010d2bdbb9a942544a3005ad55bf"):
 			newGuardian := common.BytesToAddress(lg.Topics[1].Bytes())
-			return []redisEvent{makeEvent("GuardianUpdated", lg, map[string]interface{}{
+			return []redisEvent{makeEvent("GuardianUpdated", idx.chainID, lg, map[string]interface{}{
 				"newGuardian": newGuardian.Hex(),
 			})}, nil
 		// InitialAlphaPriceUpdated(uint256 newPrice)
 		case common.HexToHash("0xab7ee876750d22d253d0b38988caea5f6285a832697e4889d9beb36515dde34e"):
 			newPrice := new(big.Int).SetBytes(lg.Data)
-			return []redisEvent{makeEvent("InitialAlphaPriceUpdated", lg, map[string]interface{}{
+			return []redisEvent{makeEvent("InitialAlphaPriceUpdated", idx.chainID, lg, map[string]interface{}{
 				"newPrice": newPrice.String(),
 			})}, nil
 		// ImmunityPeriodUpdated(uint256 newPeriod)
 		case common.HexToHash("0x49b186851943e5bbcefec9411c3238262c6e102e4000142f8f060143d1b8724c"):
 			newPeriod := new(big.Int).SetBytes(lg.Data)
-			return []redisEvent{makeEvent("ImmunityPeriodUpdated", lg, map[string]interface{}{
+			return []redisEvent{makeEvent("ImmunityPeriodUpdated", idx.chainID, lg, map[string]interface{}{
 				"newPeriod": newPeriod.String(),
 			})}, nil
 		// AlphaTokenFactoryUpdated(address indexed newFactory)
 		case common.HexToHash("0xca3b5054bdfbf81973dd36029b7ef8c5479d0739433700df6b2e6d690ead4a3e"):
 			newFactory := common.BytesToAddress(lg.Topics[1].Bytes())
-			return []redisEvent{makeEvent("AlphaTokenFactoryUpdated", lg, map[string]interface{}{
+			return []redisEvent{makeEvent("AlphaTokenFactoryUpdated", idx.chainID, lg, map[string]interface{}{
 				"newFactory": newFactory.Hex(),
 			})}, nil
 		// DefaultSubnetManagerImplUpdated(address indexed newImpl)
 		case common.HexToHash("0xa37cb79f631c6bb2a11d965d06cce40e3c936eba1649879b8ffa233c0219f949"):
 			newImpl := common.BytesToAddress(lg.Topics[1].Bytes())
-			return []redisEvent{makeEvent("DefaultSubnetManagerImplUpdated", lg, map[string]interface{}{
+			return []redisEvent{makeEvent("DefaultSubnetManagerImplUpdated", idx.chainID, lg, map[string]interface{}{
 				"newImpl": newImpl.Hex(),
 			})}, nil
 		// DexConfigUpdated()
 		case common.HexToHash("0xaf06d41ee280e7c0649c5447e17c66f71908440d4a6a8ab4f5210b89c640925b"):
-			return []redisEvent{makeEvent("DexConfigUpdated", lg, map[string]interface{}{})}, nil
+			return []redisEvent{makeEvent("DexConfigUpdated", idx.chainID, lg, map[string]interface{}{})}, nil
 		}
 	}
 
@@ -1051,7 +1052,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// ProposalCreated
 	if evt, err := awpDAO.ParseProposalCreated(lg); err == nil {
-		return []redisEvent{makeEvent("ProposalCreated", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("ProposalCreated", idx.chainID, lg, map[string]interface{}{
 			"proposalId":  evt.ProposalId.String(),
 			"proposer":    evt.Proposer.Hex(),
 			"voteStart":   evt.VoteStart.String(),
@@ -1062,7 +1063,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// VoteCast
 	if evt, err := awpDAO.ParseVoteCast(lg); err == nil {
-		return []redisEvent{makeEvent("VoteCast", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("VoteCast", idx.chainID, lg, map[string]interface{}{
 			"voter":      evt.Voter.Hex(),
 			"proposalId": evt.ProposalId.String(),
 			"support":    evt.Support,
@@ -1073,21 +1074,21 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// ProposalExecuted
 	if evt, err := awpDAO.ParseProposalExecuted(lg); err == nil {
-		return []redisEvent{makeEvent("ProposalExecuted", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("ProposalExecuted", idx.chainID, lg, map[string]interface{}{
 			"proposalId": evt.ProposalId.String(),
 		})}, nil
 	}
 
 	// ProposalCanceled
 	if evt, err := awpDAO.ParseProposalCanceled(lg); err == nil {
-		return []redisEvent{makeEvent("ProposalCanceled", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("ProposalCanceled", idx.chainID, lg, map[string]interface{}{
 			"proposalId": evt.ProposalId.String(),
 		})}, nil
 	}
 
 	// ProposalQueued
 	if evt, err := awpDAO.ParseProposalQueued(lg); err == nil {
-		return []redisEvent{makeEvent("ProposalQueued", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("ProposalQueued", idx.chainID, lg, map[string]interface{}{
 			"proposalId": evt.ProposalId.String(),
 			"etaSeconds": evt.EtaSeconds.String(),
 		})}, nil
@@ -1107,9 +1108,10 @@ func bigIntToNumeric(v *big.Int) pgtype.Numeric {
 }
 
 // makeEvent constructs an event structure to be published to Redis
-func makeEvent(eventType string, lg types.Log, data map[string]interface{}) redisEvent {
+func makeEvent(eventType string, chainID int64, lg types.Log, data map[string]interface{}) redisEvent {
 	return redisEvent{
 		Type:        eventType,
+		ChainID:     chainID,
 		BlockNumber: lg.BlockNumber,
 		TxHash:      lg.TxHash.Hex(),
 		Data:        data,

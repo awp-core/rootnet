@@ -58,15 +58,17 @@ type filterMessage struct {
 	WatchAllocations []allocationWatch `json:"watchAllocations,omitempty"`
 }
 
-// broadcastEvent is used to parse the event type and data from a broadcast message
+// broadcastEvent is used to parse the event type, chainId, and data from a broadcast message
 type broadcastEvent struct {
-	Type string                 `json:"type"`
-	Data map[string]interface{} `json:"data,omitempty"`
+	Type    string                 `json:"type"`
+	ChainID int64                  `json:"chainId"`
+	Data    map[string]interface{} `json:"data,omitempty"`
 }
 
 // broadcastEventType 仅解析 type 字段（用于不关心 data 的场景）
 type broadcastEventType struct {
-	Type string `json:"type"`
+	Type    string `json:"type"`
+	ChainID int64  `json:"chainId"`
 }
 
 // NewHub creates a new WebSocket Hub instance
@@ -355,6 +357,7 @@ func extractAllocKeys(eventType string, data map[string]interface{}) []string {
 func (h *Hub) enrichAllocEvent(evt broadcastEvent, watchKey string) map[string]interface{} {
 	result := map[string]interface{}{
 		"type":        "AllocationChanged",
+		"chainId":     evt.ChainID,
 		"sourceEvent": evt.Type,
 		"data":        evt.Data,
 	}
@@ -365,10 +368,13 @@ func (h *Hub) enrichAllocEvent(evt broadcastEvent, watchKey string) map[string]i
 		result["agent"] = agent
 		result["subnetId"] = subnetID
 
-		// 读取 allocQuery/chainID 需要加锁（SetAllocationQuerier 也持锁写入）
+		// 使用事件中的 chainID；如果为 0 则回退到 Hub 的默认 chainID
+		cid := evt.ChainID
 		h.mu.RLock()
 		q := h.allocQuery
-		cid := h.chainID
+		if cid == 0 {
+			cid = h.chainID
+		}
 		h.mu.RUnlock()
 
 		if q != nil {

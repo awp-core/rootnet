@@ -16,8 +16,9 @@ type userDetailResponse struct {
 
 // ListUsers returns a paginated list of users
 func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
+	chainID := h.resolveChainID(r)
 	limit, offset := h.parsePageParams(r)
-	result, err := h.svcListUsers(r.Context(), int32(limit), int32(offset))
+	result, err := h.svcListUsers(r.Context(), chainID, int32(limit), int32(offset))
 	if err != nil {
 		h.writeSvcError(w, err)
 		return
@@ -27,7 +28,8 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 // GetUserCount returns the total number of users
 func (h *Handler) GetUserCount(w http.ResponseWriter, r *http.Request) {
-	count, err := h.svcGetUserCount(r.Context())
+	chainID := h.resolveChainID(r)
+	count, err := h.svcGetUserCount(r.Context(), chainID)
 	if err != nil {
 		h.writeSvcError(w, err)
 		return
@@ -42,7 +44,8 @@ func (h *Handler) GetUser(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid address")
 		return
 	}
-	resp, err := h.svcGetUser(r.Context(), normalizeAddr(raw))
+	chainID := h.resolveChainID(r)
+	resp, err := h.svcGetUser(r.Context(), chainID, normalizeAddr(raw))
 	if err != nil {
 		h.writeSvcError(w, err)
 		return

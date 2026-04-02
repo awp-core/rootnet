@@ -115,6 +115,26 @@ CREATE TABLE sync_states (
     PRIMARY KEY (chain_id, contract_name)
 );
 
+CREATE TABLE chains (
+    chain_id      BIGINT PRIMARY KEY,
+    name          VARCHAR(64) NOT NULL,
+    rpc_url       TEXT NOT NULL,
+    dex           VARCHAR(32) NOT NULL DEFAULT '',
+    explorer      TEXT NOT NULL DEFAULT '',
+    status        VARCHAR(16) NOT NULL DEFAULT 'active',
+    awp_registry  CHAR(42) NOT NULL DEFAULT '',
+    awp_token     CHAR(42) NOT NULL DEFAULT '',
+    awp_emission  CHAR(42) NOT NULL DEFAULT '',
+    staking_vault CHAR(42) NOT NULL DEFAULT '',
+    stake_nft     CHAR(42) NOT NULL DEFAULT '',
+    subnet_nft    CHAR(42) NOT NULL DEFAULT '',
+    dao_address   CHAR(42) NOT NULL DEFAULT '',
+    lp_manager    CHAR(42) NOT NULL DEFAULT '',
+    pool_manager  CHAR(42) NOT NULL DEFAULT '',
+    deploy_block  BIGINT NOT NULL DEFAULT 0,
+    created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- Block hash chain for reorg detection (optimistic indexing with parent hash verification)
 CREATE TABLE indexed_blocks (
     chain_id     BIGINT NOT NULL DEFAULT 0,

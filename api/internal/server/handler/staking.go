@@ -20,7 +20,8 @@ func (h *Handler) GetBalance(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid address")
 		return
 	}
-	resp, err := h.svcGetBalance(r.Context(), normalizeAddr(raw))
+	chainID := h.resolveChainID(r)
+	resp, err := h.svcGetBalance(r.Context(), chainID, normalizeAddr(raw))
 	if err != nil {
 		h.writeSvcError(w, err)
 		return
@@ -35,7 +36,8 @@ func (h *Handler) GetStakePositions(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid address")
 		return
 	}
-	result, err := h.svcGetStakePositions(r.Context(), normalizeAddr(rawAddr))
+	chainID := h.resolveChainID(r)
+	result, err := h.svcGetStakePositions(r.Context(), chainID, normalizeAddr(rawAddr))
 	if err != nil {
 		h.writeSvcError(w, err)
 		return
@@ -50,8 +52,9 @@ func (h *Handler) GetAllocations(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid address")
 		return
 	}
+	chainID := h.resolveChainID(r)
 	limit, offset := h.parsePageParams(r)
-	result, err := h.svcGetAllocations(r.Context(), normalizeAddr(rawAddr), int32(limit), int32(offset))
+	result, err := h.svcGetAllocations(r.Context(), chainID, normalizeAddr(rawAddr), int32(limit), int32(offset))
 	if err != nil {
 		h.writeSvcError(w, err)
 		return
@@ -71,7 +74,8 @@ func (h *Handler) GetFrozen(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid address")
 		return
 	}
-	result, err := h.svcGetFrozen(r.Context(), normalizeAddr(rawAddr))
+	chainID := h.resolveChainID(r)
+	result, err := h.svcGetFrozen(r.Context(), chainID, normalizeAddr(rawAddr))
 	if err != nil {
 		h.writeSvcError(w, err)
 		return
@@ -79,7 +83,7 @@ func (h *Handler) GetFrozen(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, result)
 }
 
-// GetAgentSubnetStake returns the stake amount for an agent in a given subnet
+// GetAgentSubnetStake returns the stake amount for an agent in a given subnet (cross-chain)
 func (h *Handler) GetAgentSubnetStake(w http.ResponseWriter, r *http.Request) {
 	rawAgent := chi.URLParam(r, "agent")
 	if !isValidAddress(rawAgent) {
@@ -99,7 +103,7 @@ func (h *Handler) GetAgentSubnetStake(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]string{"amount": amount})
 }
 
-// GetAgentSubnets returns all subnets an agent participates in along with their stake amounts
+// GetAgentSubnets returns all subnets an agent participates in along with their stake amounts (cross-chain)
 func (h *Handler) GetAgentSubnets(w http.ResponseWriter, r *http.Request) {
 	rawAgent := chi.URLParam(r, "agent")
 	if !isValidAddress(rawAgent) {
@@ -114,7 +118,7 @@ func (h *Handler) GetAgentSubnets(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, result)
 }
 
-// GetSubnetTotalStake returns the total stake amount for a subnet
+// GetSubnetTotalStake returns the total stake amount for a subnet (cross-chain)
 func (h *Handler) GetSubnetTotalStake(w http.ResponseWriter, r *http.Request) {
 	subnetID, err := parseSubnetID(r)
 	if err != nil {

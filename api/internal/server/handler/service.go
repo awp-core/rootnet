@@ -6,6 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net/http"
+	"strconv"
+	"strings"
 
 	"github.com/cortexia/rootnet/api/internal/db/gen"
 	"github.com/jackc/pgx/v5"
@@ -60,12 +63,47 @@ func computePageLimits(page, limit int) (int32, int32) {
 	return int32(limit), int32(offset)
 }
 
+// ── Chain ID 解析 ──
+
+// resolveChainID 从 HTTP 请求中提取 chainId 查询参数，回退到默认链
+func (h *Handler) resolveChainID(r *http.Request) int64 {
+	if v := r.URL.Query().Get("chainId"); v != "" {
+		if id, err := strconv.ParseInt(v, 10, 64); err == nil && id > 0 {
+			return id
+		}
+	}
+	return h.defaultChainID()
+}
+
+// resolveRPCChainID 从 RPC 参数中提取 chainId，回退到默认链
+func (h *Handler) resolveRPCChainID(chainID int64) int64 {
+	if chainID > 0 {
+		return chainID
+	}
+	return h.defaultChainID()
+}
+
+// defaultChainID 返回默认链 ID：优先从已加载的 chains 列表取第一个，否则用 cfg.ChainID
+func (h *Handler) defaultChainID() int64 {
+	if h.chains != nil && len(h.chains) > 0 {
+		return h.chains[0].ChainID
+	}
+	return h.cfg.ChainID
+}
+
 // ── 服务方法 ──
 
-// svcGetRegistry 返回合约地址注册信息（纯配置，无 IO）
-func (h *Handler) svcGetRegistry() registryResponse {
+// svcGetRegistry 返回合约地址注册信息（按 chainID 查询 DB，回退到 cfg）
+func (h *Handler) svcGetRegistry(chainID int64) registryResponse {
+	// 尝试从 DB chains 表读取 per-chain 合约地址
+	if chainID > 0 {
+		if chain, err := h.queries.GetChain(context.Background(), chainID); err == nil {
+			return h.registryFromChainRow(chain)
+		}
+	}
+	// 回退到 cfg 配置
 	return registryResponse{
-		ChainID:           h.cfg.ChainID,
+		ChainID:           chainID,
 		AWPRegistry:       h.cfg.AWPRegistryAddress,
 		AWPToken:          h.cfg.AWPTokenAddress,
 		AWPEmission:       h.cfg.AWPEmissionAddress,
@@ -78,27 +116,65 @@ func (h *Handler) svcGetRegistry() registryResponse {
 		Treasury:          h.cfg.TreasuryAddress,
 		EIP712Domain: eip712DomainResponse{
 			Name: "AWPRegistry", Version: "1",
-			ChainID: h.cfg.ChainID, VerifyingContract: h.cfg.AWPRegistryAddress,
+			ChainID: chainID, VerifyingContract: h.cfg.AWPRegistryAddress,
 		},
 		StakingVaultEIP712: eip712DomainResponse{
 			Name: "StakingVault", Version: "1",
-			ChainID: h.cfg.ChainID, VerifyingContract: h.cfg.StakingVaultAddress,
+			ChainID: chainID, VerifyingContract: h.cfg.StakingVaultAddress,
 		},
 	}
 }
 
-// svcGetChains 返回支持的链列表
-func (h *Handler) svcGetChains() any {
-	if h.chains == nil {
-		return []map[string]interface{}{{"chainId": h.cfg.ChainID, "name": "Default"}}
+// registryFromChainRow 从 DB Chain 记录构建 registryResponse
+func (h *Handler) registryFromChainRow(c gen.Chain) registryResponse {
+	resolve := func(dbVal, cfgVal string) string {
+		v := strings.TrimSpace(dbVal)
+		if v != "" {
+			return v
+		}
+		return cfgVal
 	}
-	return h.chains
+	registry := resolve(c.AwpRegistry, h.cfg.AWPRegistryAddress)
+	vault := resolve(c.StakingVault, h.cfg.StakingVaultAddress)
+	return registryResponse{
+		ChainID:           c.ChainID,
+		AWPRegistry:       registry,
+		AWPToken:          resolve(c.AwpToken, h.cfg.AWPTokenAddress),
+		AWPEmission:       resolve(c.AwpEmission, h.cfg.AWPEmissionAddress),
+		StakingVault:      vault,
+		StakeNFT:          resolve(c.StakeNft, h.cfg.StakeNFTAddress),
+		SubnetNFT:         resolve(c.SubnetNft, h.cfg.SubnetNFTAddress),
+		LPManager:         resolve(c.LpManager, h.cfg.LPManagerAddress),
+		AlphaTokenFactory: h.cfg.AlphaFactoryAddress,
+		DAO:               resolve(c.DaoAddress, h.cfg.DAOAddress),
+		Treasury:          h.cfg.TreasuryAddress,
+		EIP712Domain: eip712DomainResponse{
+			Name: "AWPRegistry", Version: "1",
+			ChainID: c.ChainID, VerifyingContract: registry,
+		},
+		StakingVaultEIP712: eip712DomainResponse{
+			Name: "StakingVault", Version: "1",
+			ChainID: c.ChainID, VerifyingContract: vault,
+		},
+	}
+}
+
+// svcGetChains 返回支持的链列表（优先从 DB 读取，回退到 yaml 配置）
+func (h *Handler) svcGetChains(ctx context.Context) any {
+	// 尝试从 DB 读取
+	if dbChains, err := h.queries.ListChains(ctx); err == nil && len(dbChains) > 0 {
+		return dbChains
+	}
+	if h.chains != nil {
+		return h.chains
+	}
+	return []map[string]interface{}{{"chainId": h.cfg.ChainID, "name": "Default"}}
 }
 
 // svcListUsers 分页获取用户列表
-func (h *Handler) svcListUsers(ctx context.Context, limit, offset int32) (any, error) {
+func (h *Handler) svcListUsers(ctx context.Context, chainID int64, limit, offset int32) (any, error) {
 	users, err := h.queries.ListUsers(ctx, gen.ListUsersParams{
-		ChainID: h.cfg.ChainID, Limit: limit, Offset: offset,
+		ChainID: chainID, Limit: limit, Offset: offset,
 	})
 	if err != nil {
 		h.logger.Error("failed to list users", "error", err)
@@ -108,8 +184,8 @@ func (h *Handler) svcListUsers(ctx context.Context, limit, offset int32) (any, e
 }
 
 // svcGetUserCount 获取用户总数
-func (h *Handler) svcGetUserCount(ctx context.Context) (int64, error) {
-	count, err := h.queries.GetUserCount(ctx, h.cfg.ChainID)
+func (h *Handler) svcGetUserCount(ctx context.Context, chainID int64) (int64, error) {
+	count, err := h.queries.GetUserCount(ctx, chainID)
 	if err != nil {
 		h.logger.Error("failed to get user count", "error", err)
 		return 0, newSvcErr(errInternal, "failed to get user count")
@@ -118,8 +194,8 @@ func (h *Handler) svcGetUserCount(ctx context.Context) (int64, error) {
 }
 
 // svcGetUser 获取用户详情（含余额和绑定的 agent）
-func (h *Handler) svcGetUser(ctx context.Context, address string) (*userDetailResponse, error) {
-	user, err := h.queries.GetUser(ctx, gen.GetUserParams{Address: address, ChainID: h.cfg.ChainID})
+func (h *Handler) svcGetUser(ctx context.Context, chainID int64, address string) (*userDetailResponse, error) {
+	user, err := h.queries.GetUser(ctx, gen.GetUserParams{Address: address, ChainID: chainID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, newSvcErr(errNotFound, "user not found")
@@ -130,12 +206,12 @@ func (h *Handler) svcGetUser(ctx context.Context, address string) (*userDetailRe
 
 	resp := &userDetailResponse{User: user, Agents: []gen.GetUsersByBoundToRow{}}
 	if balance, err := h.queries.GetUserBalance(ctx, gen.GetUserBalanceParams{
-		UserAddress: address, ChainID: h.cfg.ChainID,
+		UserAddress: address, ChainID: chainID,
 	}); err == nil {
 		resp.Balance = &balance
 	}
 	if agents, err := h.queries.GetUsersByBoundTo(ctx, gen.GetUsersByBoundToParams{
-		BoundTo: address, ChainID: h.cfg.ChainID,
+		BoundTo: address, ChainID: chainID,
 	}); err == nil {
 		resp.Agents = agents
 	}
@@ -143,10 +219,10 @@ func (h *Handler) svcGetUser(ctx context.Context, address string) (*userDetailRe
 }
 
 // svcCheckAddress 检查地址注册状态、绑定和收款地址
-func (h *Handler) svcCheckAddress(ctx context.Context, address string) (checkAddressResponse, error) {
+func (h *Handler) svcCheckAddress(ctx context.Context, chainID int64, address string) (checkAddressResponse, error) {
 	resp := checkAddressResponse{}
 	if user, err := h.queries.GetUser(ctx, gen.GetUserParams{
-		Address: address, ChainID: h.cfg.ChainID,
+		Address: address, ChainID: chainID,
 	}); err == nil {
 		resp.IsRegistered = user.RegisteredAt != 0 || user.BoundTo != "" || user.Recipient != ""
 		resp.BoundTo = user.BoundTo
@@ -159,9 +235,9 @@ func (h *Handler) svcCheckAddress(ctx context.Context, address string) (checkAdd
 }
 
 // svcGetBalance 获取用户 AWP 质押余额（总质押/已分配/可用）
-func (h *Handler) svcGetBalance(ctx context.Context, address string) (balanceResponse, error) {
+func (h *Handler) svcGetBalance(ctx context.Context, chainID int64, address string) (balanceResponse, error) {
 	totalStakedNum, err := h.queries.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{
-		ChainID: h.cfg.ChainID, Owner: address,
+		ChainID: chainID, Owner: address,
 	})
 	if err != nil {
 		h.logger.Error("failed to get user total staked", "error", err, "address", address)
@@ -175,7 +251,7 @@ func (h *Handler) svcGetBalance(ctx context.Context, address string) (balanceRes
 
 	totalAllocated := "0"
 	balance, err := h.queries.GetUserBalance(ctx, gen.GetUserBalanceParams{
-		UserAddress: address, ChainID: h.cfg.ChainID,
+		UserAddress: address, ChainID: chainID,
 	})
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
@@ -202,9 +278,9 @@ func (h *Handler) svcGetBalance(ctx context.Context, address string) (balanceRes
 }
 
 // svcGetAllocations 分页获取用户的质押分配列表
-func (h *Handler) svcGetAllocations(ctx context.Context, address string, limit, offset int32) (any, error) {
+func (h *Handler) svcGetAllocations(ctx context.Context, chainID int64, address string, limit, offset int32) (any, error) {
 	allocations, err := h.queries.GetAllocationsByUser(ctx, gen.GetAllocationsByUserParams{
-		ChainID: h.cfg.ChainID, UserAddress: address, Limit: limit, Offset: offset,
+		ChainID: chainID, UserAddress: address, Limit: limit, Offset: offset,
 	})
 	if err != nil {
 		h.logger.Error("failed to get stake allocations", "error", err, "address", address)
@@ -214,9 +290,9 @@ func (h *Handler) svcGetAllocations(ctx context.Context, address string, limit, 
 }
 
 // svcGetFrozen 获取用户冻结的质押分配
-func (h *Handler) svcGetFrozen(ctx context.Context, address string) (any, error) {
+func (h *Handler) svcGetFrozen(ctx context.Context, chainID int64, address string) (any, error) {
 	frozen, err := h.queries.GetFrozenByUser(ctx, gen.GetFrozenByUserParams{
-		ChainID: h.cfg.ChainID, UserAddress: address,
+		ChainID: chainID, UserAddress: address,
 	})
 	if err != nil {
 		h.logger.Error("failed to get frozen allocations", "error", err, "address", address)
@@ -226,9 +302,9 @@ func (h *Handler) svcGetFrozen(ctx context.Context, address string) (any, error)
 }
 
 // svcGetStakePositions 获取用户的 StakeNFT 持仓列表
-func (h *Handler) svcGetStakePositions(ctx context.Context, address string) (any, error) {
+func (h *Handler) svcGetStakePositions(ctx context.Context, chainID int64, address string) (any, error) {
 	positions, err := h.queries.GetUserStakePositions(ctx, gen.GetUserStakePositionsParams{
-		ChainID: h.cfg.ChainID, Owner: address,
+		ChainID: chainID, Owner: address,
 	})
 	if err != nil {
 		h.logger.Error("failed to get stake positions", "error", err, "address", address)
@@ -237,7 +313,7 @@ func (h *Handler) svcGetStakePositions(ctx context.Context, address string) (any
 	return positions, nil
 }
 
-// svcGetAgentSubnetStake 获取 agent 在某子网的质押量
+// svcGetAgentSubnetStake 获取 agent 在某子网的质押量（跨链聚合，不需要 chainID）
 func (h *Handler) svcGetAgentSubnetStake(ctx context.Context, agent string, subnetID pgtype.Numeric) (string, error) {
 	stake, err := h.queries.GetAgentSubnetStakeGlobal(ctx, gen.GetAgentSubnetStakeGlobalParams{
 		AgentAddress: agent, SubnetID: subnetID,
@@ -252,7 +328,7 @@ func (h *Handler) svcGetAgentSubnetStake(ctx context.Context, agent string, subn
 	return "0", nil
 }
 
-// svcGetAgentSubnets 获取 agent 参与的所有子网及质押量
+// svcGetAgentSubnets 获取 agent 参与的所有子网及质押量（跨链聚合）
 func (h *Handler) svcGetAgentSubnets(ctx context.Context, agent string) (any, error) {
 	subnets, err := h.queries.GetAgentSubnetsGlobal(ctx, agent)
 	if err != nil {
@@ -262,7 +338,7 @@ func (h *Handler) svcGetAgentSubnets(ctx context.Context, agent string) (any, er
 	return subnets, nil
 }
 
-// svcGetSubnetTotalStake 获取子网总质押量
+// svcGetSubnetTotalStake 获取子网总质押量（跨链聚合）
 func (h *Handler) svcGetSubnetTotalStake(ctx context.Context, subnetID pgtype.Numeric) (string, error) {
 	total, err := h.queries.GetSubnetTotalStake(ctx, subnetID)
 	if err != nil {
@@ -276,13 +352,13 @@ func (h *Handler) svcGetSubnetTotalStake(ctx context.Context, subnetID pgtype.Nu
 }
 
 // svcListSubnets 分页获取子网列表（可按状态筛选）
-func (h *Handler) svcListSubnets(ctx context.Context, status string, limit, offset int32) (any, error) {
+func (h *Handler) svcListSubnets(ctx context.Context, chainID int64, status string, limit, offset int32) (any, error) {
 	if status != "" {
 		if !validSubnetStatuses[status] {
 			return nil, newSvcErr(errBadInput, "invalid status filter: must be one of Pending, Active, Paused, Banned")
 		}
 		subnets, err := h.queries.ListSubnetsByStatus(ctx, gen.ListSubnetsByStatusParams{
-			ChainID: h.cfg.ChainID, Status: status, Limit: limit, Offset: offset,
+			ChainID: chainID, Status: status, Limit: limit, Offset: offset,
 		})
 		if err != nil {
 			h.logger.Error("failed to list subnets by status", "error", err, "status", status)
@@ -292,7 +368,7 @@ func (h *Handler) svcListSubnets(ctx context.Context, status string, limit, offs
 	}
 
 	subnets, err := h.queries.ListSubnets(ctx, gen.ListSubnetsParams{
-		ChainID: h.cfg.ChainID, Limit: limit, Offset: offset,
+		ChainID: chainID, Limit: limit, Offset: offset,
 	})
 	if err != nil {
 		h.logger.Error("failed to list subnets", "error", err)
@@ -301,7 +377,7 @@ func (h *Handler) svcListSubnets(ctx context.Context, status string, limit, offs
 	return subnets, nil
 }
 
-// svcGetSubnet 获取子网详情
+// svcGetSubnet 获取子网详情（按 subnetID 查询，不需要 chainID）
 func (h *Handler) svcGetSubnet(ctx context.Context, subnetID pgtype.Numeric) (any, error) {
 	subnet, err := h.queries.GetSubnet(ctx, subnetID)
 	if err != nil {
@@ -353,9 +429,9 @@ func (h *Handler) svcGetSubnetAgentInfo(ctx context.Context, agent string, subne
 }
 
 // svcGetEmissionSchedule 获取排放预测（30/90/365 天）
-func (h *Handler) svcGetEmissionSchedule(ctx context.Context) (map[string]any, error) {
+func (h *Handler) svcGetEmissionSchedule(ctx context.Context, chainID int64) (map[string]any, error) {
 	currentDaily := new(big.Int).Set(initialDailyEmission)
-	latestEpoch, err := h.queries.GetLatestEpoch(ctx, h.cfg.ChainID)
+	latestEpoch, err := h.queries.GetLatestEpoch(ctx, chainID)
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			h.logger.Error("failed to get latest epoch", "error", err)
@@ -387,9 +463,9 @@ func (h *Handler) svcGetEmissionSchedule(ctx context.Context) (map[string]any, e
 }
 
 // svcListEpochs 分页获取 epoch 列表
-func (h *Handler) svcListEpochs(ctx context.Context, limit, offset int32) (any, error) {
+func (h *Handler) svcListEpochs(ctx context.Context, chainID int64, limit, offset int32) (any, error) {
 	epochs, err := h.queries.ListEpochs(ctx, gen.ListEpochsParams{
-		ChainID: h.cfg.ChainID, Limit: limit, Offset: offset,
+		ChainID: chainID, Limit: limit, Offset: offset,
 	})
 	if err != nil {
 		h.logger.Error("failed to list epochs", "error", err)
@@ -417,9 +493,9 @@ func (h *Handler) svcReadRedisJSON(ctx context.Context, key string) (any, error)
 }
 
 // svcGetAgentsByOwner 获取绑定到指定 owner 的所有 agent
-func (h *Handler) svcGetAgentsByOwner(ctx context.Context, owner string) (any, error) {
+func (h *Handler) svcGetAgentsByOwner(ctx context.Context, chainID int64, owner string) (any, error) {
 	agents, err := h.queries.GetUsersByBoundTo(ctx, gen.GetUsersByBoundToParams{
-		BoundTo: owner, ChainID: h.cfg.ChainID,
+		BoundTo: owner, ChainID: chainID,
 	})
 	if err != nil {
 		h.logger.Error("failed to get agents by owner", "error", err, "owner", owner)
@@ -429,8 +505,8 @@ func (h *Handler) svcGetAgentsByOwner(ctx context.Context, owner string) (any, e
 }
 
 // svcGetAgentDetail 获取 agent 详情（user 记录）
-func (h *Handler) svcGetAgentDetail(ctx context.Context, agent string) (any, error) {
-	user, err := h.queries.GetUser(ctx, gen.GetUserParams{Address: agent, ChainID: h.cfg.ChainID})
+func (h *Handler) svcGetAgentDetail(ctx context.Context, chainID int64, agent string) (any, error) {
+	user, err := h.queries.GetUser(ctx, gen.GetUserParams{Address: agent, ChainID: chainID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, newSvcErr(errNotFound, "agent not found")
@@ -442,8 +518,8 @@ func (h *Handler) svcGetAgentDetail(ctx context.Context, agent string) (any, err
 }
 
 // svcLookupAgent 查找 agent 的 owner（boundTo）
-func (h *Handler) svcLookupAgent(ctx context.Context, agent string) (string, error) {
-	user, err := h.queries.GetUser(ctx, gen.GetUserParams{Address: agent, ChainID: h.cfg.ChainID})
+func (h *Handler) svcLookupAgent(ctx context.Context, chainID int64, agent string) (string, error) {
+	user, err := h.queries.GetUser(ctx, gen.GetUserParams{Address: agent, ChainID: chainID})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", newSvcErr(errNotFound, "agent not found")
@@ -458,7 +534,7 @@ func (h *Handler) svcLookupAgent(ctx context.Context, agent string) (string, err
 }
 
 // svcBatchAgentInfo 批量查询 agent 信息及质押
-func (h *Handler) svcBatchAgentInfo(ctx context.Context, agents []string, subnetID pgtype.Numeric) ([]agentInfoItem, error) {
+func (h *Handler) svcBatchAgentInfo(ctx context.Context, chainID int64, agents []string, subnetID pgtype.Numeric) ([]agentInfoItem, error) {
 	// Validate and normalize
 	validAddrs := make([]string, 0, len(agents))
 	for _, addr := range agents {
@@ -472,7 +548,7 @@ func (h *Handler) svcBatchAgentInfo(ctx context.Context, agents []string, subnet
 	}
 
 	users, err := h.queries.GetUsersBatch(ctx, gen.GetUsersBatchParams{
-		ChainID: h.cfg.ChainID, Addresses: validAddrs,
+		ChainID: chainID, Addresses: validAddrs,
 	})
 	if err != nil {
 		h.logger.Error("failed to batch get users", "error", err)
@@ -484,7 +560,7 @@ func (h *Handler) svcBatchAgentInfo(ctx context.Context, agents []string, subnet
 	}
 
 	stakes, err := h.queries.GetAgentSubnetStakesBatch(ctx, gen.GetAgentSubnetStakesBatchParams{
-		ChainID: h.cfg.ChainID, Agents: validAddrs, SubnetID: subnetID,
+		ChainID: chainID, Agents: validAddrs, SubnetID: subnetID,
 	})
 	if err != nil {
 		h.logger.Error("failed to batch get stakes", "error", err)
@@ -541,8 +617,8 @@ func (h *Handler) svcGetAlphaPrice(ctx context.Context, subnetIDRaw string) (any
 }
 
 // svcGetAWPInfo 获取 AWP 代币信息
-func (h *Handler) svcGetAWPInfo(ctx context.Context) (any, error) {
-	data, err := h.svcReadRedisJSON(ctx, fmt.Sprintf("awp_info:%d", h.cfg.ChainID))
+func (h *Handler) svcGetAWPInfo(ctx context.Context, chainID int64) (any, error) {
+	data, err := h.svcReadRedisJSON(ctx, fmt.Sprintf("awp_info:%d", chainID))
 	if err != nil {
 		return nil, err
 	}
@@ -553,8 +629,8 @@ func (h *Handler) svcGetAWPInfo(ctx context.Context) (any, error) {
 }
 
 // svcGetCurrentEmission 获取当前排放数据
-func (h *Handler) svcGetCurrentEmission(ctx context.Context) (any, error) {
-	data, err := h.svcReadRedisJSON(ctx, fmt.Sprintf("emission_current:%d", h.cfg.ChainID))
+func (h *Handler) svcGetCurrentEmission(ctx context.Context, chainID int64) (any, error) {
+	data, err := h.svcReadRedisJSON(ctx, fmt.Sprintf("emission_current:%d", chainID))
 	if err != nil {
 		return nil, err
 	}
@@ -565,13 +641,13 @@ func (h *Handler) svcGetCurrentEmission(ctx context.Context) (any, error) {
 }
 
 // svcListProposals 分页获取治理提案（可按状态筛选）
-func (h *Handler) svcListProposals(ctx context.Context, status string, limit, offset int32) (any, error) {
+func (h *Handler) svcListProposals(ctx context.Context, chainID int64, status string, limit, offset int32) (any, error) {
 	if status != "" {
 		if !validProposalStatuses[status] {
 			return nil, newSvcErr(errBadInput, "invalid status filter: must be one of Active, Canceled, Defeated, Succeeded, Queued, Expired, Executed")
 		}
 		proposals, err := h.queries.ListProposalsByStatus(ctx, gen.ListProposalsByStatusParams{
-			ChainID: h.cfg.ChainID, Status: status, Limit: limit, Offset: offset,
+			ChainID: chainID, Status: status, Limit: limit, Offset: offset,
 		})
 		if err != nil {
 			h.logger.Error("failed to list proposals by status", "error", err, "status", status)
@@ -581,7 +657,7 @@ func (h *Handler) svcListProposals(ctx context.Context, status string, limit, of
 	}
 
 	proposals, err := h.queries.ListProposals(ctx, gen.ListProposalsParams{
-		ChainID: h.cfg.ChainID, Limit: limit, Offset: offset,
+		ChainID: chainID, Limit: limit, Offset: offset,
 	})
 	if err != nil {
 		h.logger.Error("failed to list proposals", "error", err)
@@ -591,9 +667,9 @@ func (h *Handler) svcListProposals(ctx context.Context, status string, limit, of
 }
 
 // svcGetProposal 获取单个治理提案详情
-func (h *Handler) svcGetProposal(ctx context.Context, proposalID string) (any, error) {
+func (h *Handler) svcGetProposal(ctx context.Context, chainID int64, proposalID string) (any, error) {
 	proposal, err := h.queries.GetProposal(ctx, gen.GetProposalParams{
-		ChainID: h.cfg.ChainID, ProposalID: proposalID,
+		ChainID: chainID, ProposalID: proposalID,
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
