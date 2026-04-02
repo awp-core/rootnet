@@ -260,7 +260,7 @@ ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
   switch (msg.type) {
     case 'Allocated':
-      console.log(`User ${msg.data.user} allocated ${msg.data.amount} to agent ${msg.data.agent} subnet ${msg.data.subnetId}`);
+      console.log(`User ${msg.data.user} allocated ${msg.data.amount} to agent ${msg.data.agent} worknet ${msg.data.subnetId}`);
       break;
     case 'RecipientAWPDistributed':
       console.log(`Epoch ${msg.data.epoch}: ${msg.data.recipient} received ${msg.data.awpAmount} AWP`);

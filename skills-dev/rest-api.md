@@ -397,7 +397,7 @@ Both are standard 65-byte signatures (r[32] + s[32] + v[1]), hex-encoded with `0
 | 400 | `{"error": "cycle detected"}` | Binding would create a cycle in the tree |
 | 400 | `{"error": "invalid subnet params (name 1-64 bytes, symbol 1-16 bytes)"}` | Name/symbol length violation |
 | 400 | `{"error": "subnet manager address required (auto-deploy not available)"}` | No default SubnetManager impl set |
-| 400 | `{"error": "insufficient AWP balance"}` | User lacks AWP for subnet registration |
+| 400 | `{"error": "insufficient AWP balance"}` | User lacks AWP for worknet registration |
 | 400 | `{"error": "insufficient AWP allowance"}` | Permit signature did not authorize enough AWP |
 | 400 | `{"error": "contract is paused"}` | AWPRegistry is in emergency pause state |
 | 400 | `{"error": "relay transaction failed"}` | Unrecognized on-chain revert |

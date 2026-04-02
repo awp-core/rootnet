@@ -73,7 +73,7 @@
 | `resumeSubnet(uint256 subnetId)` | NFT Owner | Paused → Active |
 | `banSubnet(uint256 subnetId)` | Timelock | Active/Paused → Banned |
 | `unbanSubnet(uint256 subnetId)` | Timelock | Banned → Active |
-| `deregisterSubnet(uint256 subnetId)` | Timelock | Delete subnet (after immunity period) |
+| `deregisterSubnet(uint256 subnetId)` | Timelock | Delete worknet (after immunity period) |
 
 #### Governance Parameters
 
@@ -89,11 +89,11 @@
 | Function | Returns | Description |
 |----------|---------|-------------|
 | ~~`currentEpoch()`~~ | — | Removed from AWPRegistry. Epoch logic now lives in AWPEmission. |
-| `getSubnet(uint256 subnetId)` | `SubnetInfo` | Full subnet on-chain data |
-| `getActiveSubnetCount()` | `uint256` | Number of active subnets |
-| `getActiveSubnetIdAt(uint256 index)` | `uint256` | Active subnet ID by index |
-| `isSubnetActive(uint256 subnetId)` | `bool` | Whether subnet is Active |
-| `nextSubnetId()` | `uint256` | Next subnet ID to be assigned |
+| `getSubnet(uint256 subnetId)` | `SubnetInfo` | Full worknet on-chain data |
+| `getActiveSubnetCount()` | `uint256` | Number of active worknets |
+| `getActiveSubnetIdAt(uint256 index)` | `uint256` | Active worknet ID by index |
+| `isSubnetActive(uint256 subnetId)` | `bool` | Whether worknet is Active |
+| `nextSubnetId()` | `uint256` | Next worknet ID to be assigned |
 | `getAgentInfo(address agent, uint256 subnetId)` | `AgentInfo` | Agent stake + boundTo + recipient |
 | `getAgentsInfo(address[] agents, uint256 subnetId)` | `AgentInfo[]` | Batch agent info query |
 | `getRegistry()` | 9 addresses | All module contract addresses (awpToken, subnetNFT, alphaTokenFactory, awpEmission, lpManager, stakingVault, stakeNFT, treasury, guardian) |
@@ -330,7 +330,7 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/health` | Health check → `{"status": "ok"}` |
-| GET | `/registry` | All protocol contract addresses (awpRegistry, awpToken, awpEmission, stakingVault, stakeNFT, subnetNFT, lpManager, alphaTokenFactory, dao, treasury) plus `chainId` and `eip712Domain`. Per-subnet addresses (subnet_contract, alpha_token) are in `/subnets/{id}`. |
+| GET | `/registry` | All protocol contract addresses (awpRegistry, awpToken, awpEmission, stakingVault, stakeNFT, subnetNFT, lpManager, alphaTokenFactory, dao, treasury) plus `chainId` and `eip712Domain`. Per-worknet addresses (subnet_contract, alpha_token) are in `/subnets/{id}`. |
 
 ### 2.2 Users
 
@@ -364,10 +364,10 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 | GET | `/staking/user/{address}/positions` | User's StakeNFT positions (tokenId, amount, lockEndTime, createdAt) |
 | GET | `/staking/user/{address}/allocations?page=1&limit=20` | User's allocations |
 | GET | `/staking/user/{address}/frozen` | Frozen allocations |
-| GET | `/staking/agent/{agent}/subnet/{subnetId}` | Agent's total stake on subnet |
+| GET | `/staking/agent/{agent}/subnet/{subnetId}` | Agent's total stake on worknet |
 | GET | `/staking/agent/{agent}/subnets` | Agent's stakes across all worknets |
 | GET | `/staking/user/{address}/pending` | Pending operations (returns `[]`) |
-| GET | `/staking/subnet/{subnetId}/total` | Subnet total staked |
+| GET | `/staking/subnet/{subnetId}/total` | Worknet total staked |
 
 ### 2.5 Worknets
 
@@ -413,11 +413,11 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 |--------|----------|-------------|
 | POST | `/relay/bind` | Gasless tree-based bind via EIP-712 signature |
 | POST | `/relay/set-recipient` | Gasless set recipient via EIP-712 signature |
-| POST | `/relay/register-subnet` | Fully gasless subnet registration via ERC-2612 permit + EIP-712 |
+| POST | `/relay/register-subnet` | Fully gasless worknet registration via ERC-2612 permit + EIP-712 |
 | POST | `/relay/register` | Gasless user registration via EIP-712 signature |
 | POST | `/relay/allocate` | Gasless stake allocation via EIP-712 signature |
 | POST | `/relay/deallocate` | Gasless stake deallocation via EIP-712 signature |
-| POST | `/relay/activate-subnet` | Gasless subnet activation via EIP-712 signature |
+| POST | `/relay/activate-subnet` | Gasless worknet activation via EIP-712 signature |
 
 **POST /relay/bind request:**
 ```json

@@ -30,14 +30,14 @@ AWPEmission (UUPS Proxy — Independent Emission Engine)
   └── emergencySetWeight(epoch, index, addr, weight) → DAO override via Timelock
         │
         ▼
-Subnet Contract (What you develop)
+Worknet Contract (What you develop)
   │
   ├── Receive AWP emission (minted to your contract address each epoch)
   ├── Mint Alpha tokens (you are the sole minter)
   └── Distribute rewards to miners (based on contribution)
 ```
 
-**Key design:** AWPEmission is a generic address→weight distribution engine. It does not know about subnets — it simply mints AWP to addresses proportional to their oracle-assigned weights. Your subnet contract receives AWP because the oracle network includes your contract address in the allocation list.
+**Key design:** AWPEmission is a generic address→weight distribution engine. It does not know about worknets — it simply mints AWP to addresses proportional to their oracle-assigned weights. Your worknet contract receives AWP because the oracle network includes your contract address in the allocation list.
 
 ---
 
@@ -253,7 +253,7 @@ await subnetManager.transferToken(AWP_TOKEN, multisig, parseEther("10000"));
 ### 3.4 View Functions
 
 ```
-alphaToken() → address                        // Alpha token for this subnet
+alphaToken() → address                        // Alpha token for this worknet
 awpToken() → address                          // AWP token
 poolId() → bytes32                            // PancakeSwap V4 pool ID
 currentStrategy() → AWPStrategy               // Current AWP handling strategy (0/1/2)
@@ -336,7 +336,7 @@ contract MySubnetContract {
 | Alpha minting | **Your worknet contract** | `setSubnetMinter` permanently locked — only you can mint Alpha |
 | Alpha minting pause | AWPRegistry (admin) | `setMinterPaused(true)` pauses your minting when banned |
 | AWP emission receipt | Oracle-assigned | Your address must be in the oracle's `submitAllocations` list to receive AWP |
-| Alpha MAX_SUPPLY | 10B | Independent cap per subnet |
+| Alpha MAX_SUPPLY | 10B | Independent cap per worknet |
 
 ### 4.4 Ban and Unban
 
@@ -344,7 +344,7 @@ contract MySubnetContract {
 - **Unban**: Treasury calls `unbanSubnet(subnetId)` → status restores to **Active**, re-added to active list
 - During a ban, your existing AWP and Alpha holdings are **unaffected** — only new Alpha minting is blocked
 - Note: The direct caller is the Treasury contract (Timelock), not the DAO contract
-- Oracle operators typically exclude banned subnets from their allocation submissions
+- Oracle operators typically exclude banned worknets from their allocation submissions
 
 ---
 
@@ -433,7 +433,7 @@ Paginated user list.
 ```
 
 #### `GET /api/staking/agent/{agent}/subnet/{subnetId}`
-**Commonly used by Coordinators** — query total stake of an agent on a specific subnet:
+**Commonly used by Coordinators** — query total stake of an agent on a specific worknet:
 ```json
 {"amount": "5000000000000000000000"}
 ```
@@ -448,7 +448,7 @@ Paginated user list.
 {"total": "50000000000000000000000"}
 ```
 
-### 5.4 Subnets
+### 5.4 Worknets
 
 #### `GET /api/subnets/?status=Active&page=1&limit=20`
 ```json
@@ -456,7 +456,7 @@ Paginated user list.
   {
     "subnet_id": 1,
     "owner": "0x...",
-    "name": "My Subnet",
+    "name": "My Worknet",
     "symbol": "MSUB",
     "subnet_contract": "0x...",
     "alpha_token": "0x...",
@@ -469,10 +469,10 @@ Paginated user list.
 ```
 
 #### `GET /api/subnets/{subnetId}`
-Single subnet detail.
+Single worknet detail.
 
 #### `GET /api/subnets/{subnetId}/earnings?page=1&limit=20`
-Subnet AWP emission history (queried by subnet contract address from `recipient_awp_distributions`):
+Worknet AWP emission history (queried by worknet contract address from `recipient_awp_distributions`):
 ```json
 [
   {"epoch_id": 5, "recipient": "0x1234...", "awp_amount": "7900000000000000000000000"}
@@ -480,7 +480,7 @@ Subnet AWP emission history (queried by subnet contract address from `recipient_
 ```
 
 #### `GET /api/subnets/{subnetId}/agents/{agent}`
-**Used by Coordinators** — query agent stake info on a subnet:
+**Used by Coordinators** — query agent stake info on a worknet:
 ```json
 {"agent": "0x...", "subnetId": 1, "stake": "5000000000000000000000"}
 ```
@@ -562,7 +562,7 @@ Relayer submits `setRecipientFor()` on-chain for the user:
 ```
 
 #### `POST /api/relay/register-subnet`
-Fully gasless subnet registration — user signs two messages (ERC-2612 permit + EIP-712), relayer pays all gas:
+Fully gasless worknet registration — user signs two messages (ERC-2612 permit + EIP-712), relayer pays all gas:
 ```json
 // Request
 {"user": "0x...", "name": "EVO Alpha", "symbol": "EVO",
@@ -646,7 +646,7 @@ AWPRegistry.AgentInfo[] memory infos = awpRegistry.getAgentsInfo(agents, subnetI
 // Query current epoch
 uint256 epoch = awpEmission.currentEpoch();
 
-// Check if subnet is active
+// Check if worknet is active
 bool active = awpRegistry.isSubnetActive(subnetId);
 
 // Query emission weight
@@ -689,13 +689,13 @@ Each Epoch (1 day / daily):
   4. SubnetManager auto-executes the configured AWP strategy (Reserve/AddLiquidity/BuybackBurn)
   5. Final call mints DAO share and advances epoch counter
 
-Your subnet receives: epochEmission × 50% × (yourWeight / totalWeight)
+Your worknet receives: epochEmission × 50% × (yourWeight / totalWeight)
 
 Decay: each epoch emission × 0.996844 (~99% released in 4 years)
 Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 ```
 
-**How your subnet gets weight:**
+**How your worknet gets weight:**
 - Oracle network assigns weights to recipient addresses via `submitAllocations(recipients[], weights[], signatures[], effectiveEpoch)`
 - Multiple oracles must sign the same allocation (EIP-712 multi-sig threshold)
 - DAO can override a single recipient's entry via `emergencySetWeight(epoch, index, addr, weight)` through Timelock governance
@@ -731,7 +731,7 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 | `PositionExpired()` | StakeNFT | Cannot add tokens to an expired lock position |
 | `NotOwner()` | AWPRegistry | Non-NFT holder calling lifecycle function |
 | `InvalidSubnetStatus()` | AWPRegistry | Status does not meet precondition |
-| `MaxActiveSubnetsReached()` | AWPRegistry | Active subnet count exceeds 10000 |
+| `MaxActiveSubnetsReached()` | AWPRegistry | Active worknet count exceeds 10000 |
 | `ImmunityNotExpired()` | AWPRegistry | Attempt to deregister during immunity period |
 | `InvalidAgent()` | AWPRegistry | Agent does not belong to the user |
 | `NotRegistered()` | AWPRegistry | Caller is not a registered user |
@@ -739,7 +739,7 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 | `InvalidSignature()` | AWPRegistry | Gasless signature verification failed |
 | `InsufficientUnallocated()` | StakingVault | Insufficient unallocated balance |
 | `InsufficientAllocation()` | StakingVault | Allocation insufficient for the reduction |
-| `MinterPaused()` | AlphaToken | Alpha minting paused (subnet is banned) |
+| `MinterPaused()` | AlphaToken | Alpha minting paused (worknet is banned) |
 | `ExceedsMaxSupply()` | AlphaToken | Alpha minting exceeds 10B cap |
 | `NotMinter()` | AlphaToken | Caller is not an authorized minter |
 | `SettlementInProgress()` | AWPEmission | Cannot modify allocations during epoch settlement |
@@ -760,9 +760,9 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 
 ## 9. Development Checklist
 
-### Subnet Contract Development
+### Worknet Contract Development
 
-- [ ] Deploy subnet contract
+- [ ] Deploy worknet contract
 - [ ] Implement AWP reward distribution logic
 - [ ] Implement Alpha minting logic (proof of contribution)
 - [ ] Call `awpRegistry.registerSubnet(params)` to register
