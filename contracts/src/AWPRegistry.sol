@@ -696,8 +696,9 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         emit InitialAlphaMintUpdated(amount);
     }
 
-    /// @notice Update the guardian address (only Timelock may call)
-    function setGuardian(address g) external onlyTimelock {
+    /// @notice Update the guardian address (only Guardian may call — self-sovereign)
+    /// @dev Single-chain DAO cannot change guardian. If Guardian keys lost, recover via UUPS upgrade.
+    function setGuardian(address g) external onlyGuardian {
         if (g == address(0)) revert InvalidAddress();
         guardian = g;
         emit GuardianUpdated(g);

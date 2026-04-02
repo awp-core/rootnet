@@ -79,7 +79,7 @@ contract AWPRegistryTest is Test {
 
         // Deploy StakeNFT and StakingVault
         vault = StakingVault(address(new ERC1967Proxy(
-            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(awpRegistry), address(treasury)))
+            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(awpRegistry), deployer))
         )));
         stakeNFT = new StakeNFT(address(awp), address(vault), address(awpRegistry));
 
@@ -539,7 +539,7 @@ contract AWPRegistryTest is Test {
         vm.expectRevert(AWPRegistry.NotTimelock.selector);
         awpRegistry.setInitialAlphaPrice(1e15);
 
-        vm.expectRevert(AWPRegistry.NotTimelock.selector);
+        vm.expectRevert(AWPRegistry.NotGuardian.selector);
         awpRegistry.setGuardian(address(0));
 
         vm.expectRevert(AWPRegistry.NotTimelock.selector);

@@ -24,8 +24,8 @@ contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
     /// @notice AWPRegistry contract address (storage, set at initialize for proxy pattern)
     address public awpRegistry;
 
-    /// @notice Treasury/Timelock address (locally stored — upgrade auth does not depend on external calls)
-    address public treasury;
+    /// @notice Guardian address (cross-chain multisig — upgrade auth, locally stored)
+    address public guardian;
 
     /// @notice StakeNFT contract address (for balance checks, set once via setStakeNFT)
     address public stakeNFT;
@@ -66,7 +66,7 @@ contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
 
     error NotAWPRegistry();
     error NotAuthorized();
-    error NotTimelock();
+    error NotGuardian();
     error InsufficientUnallocated();
     error InsufficientAllocation();
     error InvalidAmount();
@@ -107,17 +107,17 @@ contract StakingVault is Initializable, UUPSUpgradeable, EIP712Upgradeable {
 
     /// @notice Initialize the vault (called once via proxy)
     /// @param awpRegistry_ AWPRegistry contract address
-    /// @param treasury_ Treasury/Timelock address (stored locally for upgrade auth)
-    function initialize(address awpRegistry_, address treasury_) external initializer {
+    /// @param guardian_ Guardian address (cross-chain multisig — controls upgrades)
+    function initialize(address awpRegistry_, address guardian_) external initializer {
         __UUPSUpgradeable_init();
         __EIP712_init("StakingVault", "1");
         awpRegistry = awpRegistry_;
-        treasury = treasury_;
+        guardian = guardian_;
     }
 
-    /// @dev UUPS upgrade authorization — only Treasury/Timelock may upgrade
+    /// @dev UUPS upgrade authorization — only Guardian may upgrade
     function _authorizeUpgrade(address) internal view override {
-        if (msg.sender != treasury) revert NotTimelock();
+        if (msg.sender != guardian) revert NotGuardian();
     }
 
     /// @notice Set StakeNFT address (one-time, resolves CREATE2 circular dependency)

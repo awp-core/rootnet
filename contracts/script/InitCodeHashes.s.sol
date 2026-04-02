@@ -92,7 +92,7 @@ contract InitCodeHashes is Script {
 
         // Tier 4b: StakingVault proxy (depends on AWPRegistry + StakingVault impl)
         address vaultImpl = _addr("ADDR_STAKING_VAULT_IMPL");
-        bytes memory vaultInitData = abi.encodeCall(StakingVault.initialize, (awpRegistry, treasury));
+        bytes memory vaultInitData = abi.encodeCall(StakingVault.initialize, (awpRegistry, guardian));
         _logHash("StakingVault_proxy", abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(vaultImpl, vaultInitData)));
 
         // Tier 5: StakeNFT (depends on StakingVault + AWPRegistry + AWP)

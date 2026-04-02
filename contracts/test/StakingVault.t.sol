@@ -439,7 +439,7 @@ contract StakingVaultTest is Test {
     function test_vaultUpgradeByNonTreasury_reverts() public {
         StakingVault newImpl = new StakingVault();
         vm.prank(user1);
-        vm.expectRevert(StakingVault.NotTimelock.selector);
+        vm.expectRevert(StakingVault.NotGuardian.selector);
         vault.upgradeToAndCall(address(newImpl), "");
     }
 
@@ -466,7 +466,7 @@ contract StakingVaultTest is Test {
 
         // Verify state is preserved after upgrade
         assertEq(vault.awpRegistry(), address(this));
-        assertEq(vault.treasury(), address(this));
+        assertEq(vault.guardian(), address(this));
         assertEq(vault.getAgentStake(user1, agent1, SUBNET_1), 0);
     }
 }

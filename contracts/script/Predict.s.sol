@@ -140,7 +140,7 @@ contract Predict is Script {
         // StakingVault proxy (with awpRegistry and treasury — matches Deploy.s.sol)
         address vault;
         {
-            bytes memory vaultInitData = abi.encodeCall(StakingVault.initialize, (awpRegistry, treasury));
+            bytes memory vaultInitData = abi.encodeCall(StakingVault.initialize, (awpRegistry, guardian));
             vault = _predict(
                 _readSalt("SALT_STAKING_VAULT"),
                 abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(vaultImpl, vaultInitData))

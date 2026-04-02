@@ -6,7 +6,7 @@ pragma solidity ^0.8.20;
 ///         Allocations are immediate — no pending/dual-slot mechanism.
 interface IStakingVault {
     // ── Setup ──
-    function initialize(address awpRegistry_, address treasury_) external;
+    function initialize(address awpRegistry_, address guardian_) external;
     function setStakeNFT(address stakeNFT_) external;
 
     // ── Write (public with delegate auth) ──

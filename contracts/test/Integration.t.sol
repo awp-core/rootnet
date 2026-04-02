@@ -96,7 +96,7 @@ contract IntegrationTest is Test {
 
         // Step 12: Deploy StakingVault + StakeNFT
         vault = StakingVault(address(new ERC1967Proxy(
-            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(awpRegistry), address(treasury)))
+            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(awpRegistry), deployer))
         )));
         stakeNFT = new StakeNFT(address(awp), address(vault), address(awpRegistry));
 
