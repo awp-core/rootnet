@@ -116,7 +116,7 @@ Returns pending operations (currently always empty):
 
 ---
 
-## Subnets
+## Worknets
 
 ### `GET /subnets?status=Active&page=1&limit=20`
 ```json
@@ -124,7 +124,7 @@ Returns pending operations (currently always empty):
   {
     "subnet_id": 1,
     "owner": "0x...",
-    "name": "My Subnet",
+    "name": "My Worknet",
     "symbol": "MSUB",
     "subnet_contract": "0x...",
     "skills_uri": "ipfs://QmSkills...",
@@ -142,7 +142,7 @@ Returns pending operations (currently always empty):
 > `status` filter is optional. Values: `Pending`, `Active`, `Paused`, `Banned`.
 
 ### `GET /subnets/{subnetId}`
-Single subnet detail (same fields as above).
+Single worknet detail (same fields as above).
 
 ### `GET /subnets/{subnetId}/earnings?page=1&limit=20`
 ```json
@@ -348,7 +348,7 @@ Gasless stake deallocation — relayer submits `deallocateFor()`.
 ```
 
 ### `POST /relay/activate-subnet`
-Gasless subnet activation — relayer submits `activateSubnetFor()`.
+Gasless worknet activation — relayer submits `activateSubnetFor()`.
 
 **Request:**
 ```json
@@ -361,7 +361,7 @@ Gasless subnet activation — relayer submits `activateSubnetFor()`.
 ```
 
 ### `POST /relay/register-subnet`
-Fully gasless subnet registration via `registerSubnetForWithPermit()`. User signs two off-chain messages (ERC-2612 permit for AWP + EIP-712 registerSubnet), relayer pays all gas. SubnetNFT + SubnetManager admin go to user.
+Fully gasless worknet registration via `registerSubnetForWithPermit()`. User signs two off-chain messages (ERC-2612 permit for AWP + EIP-712 registerSubnet), relayer pays all gas. SubnetNFT + SubnetManager admin go to user.
 
 **Request:**
 ```json
@@ -382,7 +382,7 @@ Fully gasless subnet registration via `registerSubnetForWithPermit()`. User sign
 
 **Two signatures required:**
 - `permitSignature`: ERC-2612 permit — authorizes AWPRegistry to spend user's AWP (no prior approve tx needed)
-- `registerSignature`: EIP-712 — authorizes subnet registration parameters
+- `registerSignature`: EIP-712 — authorizes worknet registration parameters
 
 Both are standard 65-byte signatures (r[32] + s[32] + v[1]), hex-encoded with `0x` prefix.
 

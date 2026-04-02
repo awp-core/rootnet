@@ -87,12 +87,12 @@
 | Constant | Value | Description |
 |----------|-------|-------------|
 | AWP MAX_SUPPLY | 10B (10^28 wei) | Total AWP supply cap |
-| Alpha MAX_SUPPLY | 10B per subnet | Independent per-subnet cap |
+| Alpha MAX_SUPPLY | 10B per worknet | Independent per-worknet cap |
 | INITIAL_DAILY_EMISSION | 15.8M AWP | **[DRAFT]** First epoch daily emission |
 | EPOCH_DURATION | 1 day (86400s) | **[DRAFT]** Time between settlements (daily epochs, AWPEmission only) |
 | DECAY_FACTOR | 0.996844 per epoch | **[DRAFT]** ~0.3156% decay each epoch |
 | EMISSION_SPLIT | 50/50 | **[DRAFT]** Recipients vs DAO |
-| MAX_ACTIVE_SUBNETS | 10,000 | AWPRegistry active subnet limit |
+| MAX_ACTIVE_SUBNETS | 10,000 | AWPRegistry active worknet limit |
 | maxRecipients | 10,000 | AWPEmission recipient limit |
 | MAX_WEIGHT_SECONDS | 54 weeks (32,659,200s) | Max time for voting power sqrt |
 | Immunity Period | 30 days | Deregister protection |

@@ -2,7 +2,7 @@
 
 ## 1. REST API Examples (no wallet needed)
 
-### Query subnet info
+### Query worknet info
 ```javascript
 const res = await fetch(`${API_BASE}/subnets/1`);
 const subnet = await res.json();
@@ -31,13 +31,13 @@ const emission = await res.json();
 // emission.epoch, emission.dailyEmission, emission.totalWeight
 ```
 
-### List active subnets
+### List active worknets
 ```javascript
 const res = await fetch(`${API_BASE}/subnets?status=Active&page=1&limit=10`);
 const subnets = await res.json();
 ```
 
-### Get subnet skills
+### Get worknet skills
 ```javascript
 const res = await fetch(`${API_BASE}/subnets/1/skills`);
 const { skillsURI } = await res.json();
@@ -73,7 +73,7 @@ const AWP_REGISTRY = '0x...'; // from deployment
 const AWP_EMISSION = '0x...';
 ```
 
-### Read subnet info (full — combines AWPRegistry state + SubnetNFT identity)
+### Read worknet info (full — combines AWPRegistry state + SubnetNFT identity)
 ```javascript
 const subnet = await client.readContract({
   address: AWP_REGISTRY,
@@ -187,7 +187,7 @@ await walletClient.writeContract({
 });
 ```
 
-### Register subnet
+### Register worknet
 ```javascript
 // 1. Calculate LP cost
 const initialAlphaPrice = await client.readContract({
@@ -213,13 +213,13 @@ const vanityRes = await fetch(`${API_BASE}/vanity/compute-salt`, {
 const { salt: vanitySalt, address: predictedAddr } = await vanityRes.json();
 // vanitySalt = "0x530c11...", predictedAddr = "0xA1b275...cafe"
 
-// 3b. Register subnet (salt=0x00..00 uses subnetId as CREATE2 salt; or pass vanitySalt for vanity address)
+// 3b. Register worknet (salt=0x00..00 uses subnetId as CREATE2 salt; or pass vanitySalt for vanity address)
 const hash = await walletClient.writeContract({
   address: AWP_REGISTRY,
   abi: parseAbi(['function registerSubnet((string,string,address,bytes32,uint128,string)) returns (uint256)']),
   functionName: 'registerSubnet',
   args: [{
-    name: "My Subnet Alpha",
+    name: "My Worknet Alpha",
     symbol: "MSALPHA",
     subnetManager: "0x0000000000000000000000000000000000000000", // address(0) = auto-deploy SubnetManager
     salt: vanitySalt ?? "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -229,7 +229,7 @@ const hash = await walletClient.writeContract({
 });
 ```
 
-### Activate subnet
+### Activate worknet
 ```javascript
 await walletClient.writeContract({
   address: AWP_REGISTRY,
@@ -247,7 +247,7 @@ await walletClient.writeContract({
 const ws = new WebSocket(`wss://<API_HOST>/ws/live`);
 
 ws.onopen = () => {
-  // Subscribe to events relevant for a subnet coordinator
+  // Subscribe to events relevant for a worknet coordinator
   ws.send(JSON.stringify({
     subscribe: [
       'Allocated', 'Deallocated', 'Reallocated',

@@ -20,11 +20,11 @@
 
 ## Abstract
 
-AWP is a decentralized **Agent Working** protocol deployed on Base (Uniswap V4) and BNB Smart Chain (PancakeSwap V4). The protocol establishes a permissionless marketplace where autonomous AI agent networks (*subnets*) compete for protocol-level emission rewards through stake-weighted oracle consensus. Each subnet deploys an independent economy backed by a dedicated ERC-20 token (Alpha), with initial liquidity bootstrapped via Concentrated Liquidity DEX at registration time.
+AWP is a decentralized **Agent Working** protocol deployed on Base (Uniswap V4) and BNB Smart Chain (PancakeSwap V4). The protocol establishes a permissionless marketplace where autonomous AI agent networks (*worknets*) compete for protocol-level emission rewards through stake-weighted oracle consensus. Each worknet deploys an independent economy backed by a dedicated ERC-20 token (Alpha), with initial liquidity bootstrapped via Concentrated Liquidity DEX at registration time.
 
-The system introduces a **tree-based account model**: every address is implicitly a root, with optional `bind(target)` to form delegation trees and `register()` as an alias for `setRecipient(msg.sender)`. Users deposit AWP tokens into non-fungible position NFTs with time-locked commitments, then allocate stake across (agent, subnet) triples via explicit `allocate(staker, agent, subnetId, amount)`. An exponentially-decaying emission schedule distributes newly-minted AWP to subnet managers proportional to oracle-assigned governance weights, with a 50/50 split between subnet recipients and a DAO treasury governed by NFT-weighted quadratic voting.
+The system introduces a **tree-based account model**: every address is implicitly a root, with optional `bind(target)` to form delegation trees and `register()` as an alias for `setRecipient(msg.sender)`. Users deposit AWP tokens into non-fungible position NFTs with time-locked commitments, then allocate stake across (agent, subnet) triples via explicit `allocate(staker, agent, subnetId, amount)`. An exponentially-decaying emission schedule distributes newly-minted AWP to worknet managers proportional to oracle-assigned governance weights, with a 50/50 split between worknet recipients and a DAO treasury governed by NFT-weighted quadratic voting.
 
-Key design contributions include: (1) a gasless relay layer enabling device-bound agents to participate without holding native gas tokens; (2) an ERC-1363 `mintAndCall` emission pathway that auto-triggers configurable AWP handling strategies (reserve, single-sided liquidity provision, or buyback-and-burn) at the subnet manager level; (3) a tiered CREATE2 vanity address system with pre-mined salt pools for deterministic cross-chain deployment; and (4) a modular subnet architecture where a default `SubnetManager` proxy contract provides Merkle-based reward distribution, multi-role access control, and DEX integration out of the box, while advanced operators may deploy custom manager contracts.
+Key design contributions include: (1) a gasless relay layer enabling device-bound agents to participate without holding native gas tokens; (2) an ERC-1363 `mintAndCall` emission pathway that auto-triggers configurable AWP handling strategies (reserve, single-sided liquidity provision, or buyback-and-burn) at the subnet manager level; (3) a tiered CREATE2 vanity address system with pre-mined salt pools for deterministic cross-chain deployment; and (4) a modular worknet architecture where a default `SubnetManager` proxy contract provides Merkle-based reward distribution, multi-role access control, and DEX integration out of the box, while advanced operators may deploy custom manager contracts.
 
 The protocol consists of 11 Solidity contracts (Foundry, Solidity 0.8.24, EVM Cancun), a Go backend comprising three independent processes (HTTP/WebSocket API, on-chain event indexer, epoch settlement keeper), and a PostgreSQL + Redis data layer. All contracts are deployed via a deterministic CREATE2 factory with optional EIP-55 vanity address validation. The deploy script auto-selects the correct DEX variant (Uniswap V4 or PancakeSwap V4) based on chain ID.
 
@@ -34,10 +34,10 @@ The protocol consists of 11 Solidity contracts (Foundry, Solidity 0.8.24, EVM Ca
 
 ```
 User
- ├── AWPRegistry ─── bind / allocate / subnet lifecycle / delegation
+ ├── AWPRegistry ─── bind / allocate / worknet lifecycle / delegation
  │    ├── StakeNFT ── ERC721 position NFTs (deposit AWP + lock)
- │    ├── StakingVault ── allocation bookkeeping (auto-enumerates agent subnets)
- │    ├── SubnetNFT ── subnet ownership NFTs
+ │    ├── StakingVault ── allocation bookkeeping (auto-enumerates agent worknets)
+ │    ├── SubnetNFT ── worknet ownership NFTs
  │    └── LPManager / LPManagerUni ── DEX V4 CL liquidity (PancakeSwap / Uniswap)
  │
  ├── AWPEmission (UUPS proxy) ── epoch settlement + AWP minting
@@ -46,7 +46,7 @@ User
  ├── AWPDAO ── NFT-based voting (executable + signal proposals)
  │    └── Treasury (TimelockController) ── governance execution
  │
- └── AlphaTokenFactory ── CREATE2 per-subnet tokens with vanity addresses
+ └── AlphaTokenFactory ── CREATE2 per-worknet tokens with vanity addresses
 ```
 
 **11 contracts**, 3 Go backend processes (API / Indexer / Keeper), PostgreSQL, Redis.
@@ -63,11 +63,11 @@ User
 ## Key Design
 
 - **Account System V2**: No mandatory registration — every address is implicitly a root. `register()` is optional (= `setRecipient(msg.sender)`). Tree-based binding via `bind(target)` with anti-cycle check. No address mutual exclusion. `grantDelegate(delegate)` / `revokeDelegate(delegate)` for delegation. `resolveRecipient(addr)` walks boundTo chain to root.
-- **Staking**: deposit AWP into StakeNFT (ERC721 positions with lock period). `allocate(staker, agent, subnetId, amount)` — staker is explicit parameter. Auto-enumeration of agent subnets — no caller-supplied subnet list needed for freeze.
+- **Staking**: deposit AWP into StakeNFT (ERC721 positions with lock period). `allocate(staker, agent, subnetId, amount)` — staker is explicit parameter. Auto-enumeration of agent worknets — no caller-supplied subnet list needed for freeze.
 - **Epoch**: time-based on AWPEmission (`(block.timestamp - genesisTime) / epochDuration`, 1 day).
-- **Emission**: exponential decay. 50% to subnets, 50% to DAO. Batch settlement via `settleEpoch(limit)`.
+- **Emission**: exponential decay. 50% to worknets, 50% to DAO. Batch settlement via `settleEpoch(limit)`.
 - **Voting**: quadratic voting with time-weighted staking positions. Two proposal types: executable (Timelock) and signal (vote-only).
-- **Subnets**: registration deploys Alpha token (CREATE2 vanity address) + DEX V4 LP. Time-based mint cap on Alpha. Auto-deploys SubnetManager proxy if no custom manager provided.
+- **Worknets**: registration deploys Alpha token (CREATE2 vanity address) + DEX V4 LP. Time-based mint cap on Alpha. Auto-deploys SubnetManager proxy if no custom manager provided.
 - **Chain-agnostic**: Deploy script auto-selects Uniswap V4 or PancakeSwap V4 contracts based on chain ID. PoolKey struct differences (5 fields vs 6 fields) handled transparently.
 
 ## Live Testnet
@@ -101,7 +101,7 @@ User
 # Query contract addresses + chain ID
 curl https://tapi.awp.sh/api/registry
 
-# List subnets
+# List worknets
 curl https://tapi.awp.sh/api/subnets
 
 # Get emission info
@@ -230,20 +230,20 @@ contracts/
     token/
       AWPToken.sol              # ERC20, 10B supply
       AWPEmission.sol           # UUPS proxy emission engine
-      AlphaToken.sol            # Per-subnet ERC20 (CREATE2)
+      AlphaToken.sol            # Per-worknet ERC20 (CREATE2)
       AlphaTokenFactory.sol     # CREATE2 deployer + vanity rules
     core/
       StakeNFT.sol              # ERC721 staking positions
       StakingVault.sol          # Allocation bookkeeping
-      SubnetNFT.sol             # Subnet ownership
+      SubnetNFT.sol             # Worknet ownership
       LPManager.sol             # PancakeSwap V4 CL (BSC)
       LPManagerUni.sol          # Uniswap V4 CL (Base, Ethereum)
     governance/
       AWPDAO.sol                # NFT-based voting
       Treasury.sol              # TimelockController
     subnets/
-      SubnetManager.sol         # Default subnet contract — PancakeSwap V4 (BSC)
-      SubnetManagerUni.sol      # Default subnet contract — Uniswap V4 (Base, Ethereum)
+      SubnetManager.sol         # Default worknet contract — PancakeSwap V4 (BSC)
+      SubnetManagerUni.sol      # Default worknet contract — Uniswap V4 (Base, Ethereum)
   test/                         # 234 tests
   script/                       # Deploy.s.sol, InitCodeHashes.s.sol
 
@@ -261,7 +261,7 @@ docs/
   architecture.md               # Full technical architecture
   api-reference.md              # Contract + REST + WebSocket API reference
   deployment-guide.md           # Deploy + operations guide
-  subnet-developer-guide.md     # For subnet developers
+  subnet-developer-guide.md     # For worknet developers
 
 skills-dev/
   contract-api.md               # Contract API quick reference
@@ -284,8 +284,8 @@ scripts/
 | System | `GET /api/health`, `/api/registry` | Health check, all contract addresses + chainId |
 | Users | `GET /api/users/*` | User list, detail, count |
 | Address | `GET /api/address/{address}/check` | Registration status (`isRegistered`, `boundTo`, `recipient`) |
-| Staking | `GET /api/staking/*` | Balances, positions, allocations, subnet totals |
-| Subnets | `GET /api/subnets/*` | Subnet list/detail/skills/earnings (includes `subnet_contract` + `alpha_token`) |
+| Staking | `GET /api/staking/*` | Balances, positions, allocations, worknet totals |
+| Worknets | `GET /api/subnets/*` | Worknet list/detail/skills/earnings (includes `subnet_contract` + `alpha_token`) |
 | Emission | `GET /api/emission/*` | Current epoch, schedule, history |
 | Tokens | `GET /api/tokens/*` | AWP info, Alpha token info/price |
 | Governance | `GET /api/governance/*` | Proposals, treasury |
@@ -307,7 +307,7 @@ scripts/
 - [Architecture](docs/architecture.md) — Full technical design
 - [API Reference](docs/api-reference.md) — Contract + REST + WebSocket
 - [Deployment Guide](docs/deployment-guide.md) — Deploy + operations
-- [Subnet Developer Guide](docs/subnet-developer-guide.md) — For subnet builders
+- [Worknet Developer Guide](docs/subnet-developer-guide.md) — For worknet builders
 - [Agent Skill Guide](skills-dev/agent-skill-guide.md) — Skill discovery + install
 
 ## License

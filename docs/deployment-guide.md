@@ -172,8 +172,8 @@ psql awp < api/internal/db/schema.sql
 | Table | Purpose |
 |-------|---------|
 | `users` | User addresses with `bound_to` and `recipient` columns |
-| `subnets` | Subnet metadata and status |
-| `stake_allocations` | (user, agent, subnet) stake allocations |
+| `subnets` | Worknet metadata and status |
+| `stake_allocations` | (user, agent, worknet) stake allocations |
 | `user_balances` | User allocation totals (total_allocated only) |
 | `stake_positions` | StakeNFT positions (tokenId, owner, amount, lockEndTime, createdAt) |
 | `epochs` | Epoch settlement records |
@@ -461,7 +461,7 @@ redis-cli GET emission_current
 redis-cli GET awp_info
 ```
 
-### 6.4 First Subnet Registration
+### 6.4 First Worknet Registration
 
 ```bash
 # 1. Approve AWP for LP (no mandatory registration needed)
@@ -470,7 +470,7 @@ cast send <AWPToken> "approve(address,uint256)" <AWPRegistry> 100000000000000000
 
 # 2. Register subnet (salt=0x00..00 uses subnetId as CREATE2 salt)
 cast send <AWPRegistry> "registerSubnet((string,string,address,bytes32,uint128,string))" \
-  "(\"My Subnet\",\"MSUB\",0x0000000000000000000000000000000000000000,0x0000000000000000000000000000000000000000000000000000000000000000,0,\"ipfs://QmSkills...\")" \
+  "(\"My Worknet\",\"MSUB\",0x0000000000000000000000000000000000000000,0x0000000000000000000000000000000000000000000000000000000000000000,0,\"ipfs://QmSkills...\")" \
   --private-key $USER_KEY --rpc-url $RPC_URL
 
 # 3. Activate

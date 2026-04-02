@@ -20,18 +20,18 @@ docs/architecture.md — Read the relevant section before starting any task.
 - Indexer uses 15-block confirmation depth to avoid chain reorgs
 
 ## Core Architecture (11 contracts)
-- AWPRegistry.sol = Unified entry: subnet management + staking allocation + account system. No deposit/withdraw — staking via StakeNFT. No epoch logic (epoch moved to AWPEmission). EIP-712 domain name "AWPRegistry". No mandatory registration — every address is implicitly a root. `register()` is optional (= `setRecipient(msg.sender)`). `isRegistered(addr)` = `boundTo[addr] != 0 || recipient[addr] != 0`. Tree-based binding with anti-cycle check via `bind(target)`. No address mutual exclusion. `grantDelegate(delegate)` / `revokeDelegate(delegate)` for delegation. `resolveRecipient(addr)` walks boundTo chain to root. `allocate(staker, agent, subnetId, amount)` — staker is explicit parameter. Gasless: bindFor, registerSubnetFor, registerSubnetForWithPermit (fully gasless with ERC-2612 permit), setRecipientFor. Errors: NotTimelock, NotGuardian (distinct).
+- AWPRegistry.sol = Unified entry: worknet management + staking allocation + account system. No deposit/withdraw — staking via StakeNFT. No epoch logic (epoch moved to AWPEmission). EIP-712 domain name "AWPRegistry". No mandatory registration — every address is implicitly a root. `register()` is optional (= `setRecipient(msg.sender)`). `isRegistered(addr)` = `boundTo[addr] != 0 || recipient[addr] != 0`. Tree-based binding with anti-cycle check via `bind(target)`. No address mutual exclusion. `grantDelegate(delegate)` / `revokeDelegate(delegate)` for delegation. `resolveRecipient(addr)` walks boundTo chain to root. `allocate(staker, agent, subnetId, amount)` — staker is explicit parameter. Gasless: bindFor, registerSubnetFor, registerSubnetForWithPermit (fully gasless with ERC-2612 permit), setRecipientFor. Errors: NotTimelock, NotGuardian (distinct).
 - StakeNFT.sol = ERC721 position NFT (not Enumerable). Users deposit AWP with lock period (timestamp-based, lockDuration in seconds). Each position = NFT with (amount, lockEndTime, createdAt). NFTs are transferable. O(1) balance tracking via _userTotalStaked accumulator. getUserVotingPower requires caller to pass tokenIds. addToPosition blocked on expired locks (PositionExpired error).
 - StakingVault.sol = Pure allocation logic. Allocations are plain uint128. (staker, agent, subnetId) triple; allocate/deallocate/reallocate all immediate. Auto-enumerates agent subnets via EnumerableSet — freezeAgentAllocations(staker, agent) needs no caller-supplied list. allocate/reallocate reject subnetId=0.
 - AWPEmission.sol = UUPS upgradeable proxy: generic address→weight distribution engine. Epoch authority: genesisTime + epochDuration (1 day). currentEpoch() = (block.timestamp - genesisTime) / epochDuration. Oracle multi-sig submits epoch-versioned packed allocations (submitAllocations(address[] recipients, uint96[] weights, bytes[] signatures, uint256 effectiveEpoch)). settleEpoch(limit) batch-mints AWP via mintAndCall (triggers SubnetManager.onTransferReceived). settledEpoch tracks settlement progress. emergencySetWeight(epoch, index, addr, weight) for Timelock override. onlyTimelock manages oracle config.
 - AWPDAO.sol = Inherits OZ Governor, GovernorSettings, GovernorTimelockControl. Overrides _getVotes and _countVote for StakeNFT-based voting (no delegate/checkpoint). No awpRegistry dependency. Voters submit tokenId[] arrays. Voting power = amount * sqrt(min(remainingTime, 54 weeks) / 7 days). Anti-manipulation: only NFTs with createdAt < proposalCreatedAt (strict: >= blocks same-block mint+vote). Per-tokenId double-vote prevention. totalVotingPower > 0 required for proposal creation. Two proposal types: proposeWithTokens (executable via Timelock) and signalPropose (vote-only). propose() is blocked.
 - SubnetNFT.sol = ERC721 with on-chain identity storage. tokenId = subnetId. Stores immutable fields: name, subnetManager, alphaToken. Stores owner-updatable fields: skillsURI (via setSkillsURI), minStake (via setMinStake). Events: SkillsURIUpdated, MinStakeUpdated. Lifecycle status managed by AWPRegistry, not SubnetNFT.
-- SubnetManager.sol = Default subnet contract (deployed behind ERC1967Proxy via AWPRegistry when subnetManager=address(0)). Initializable + AccessControlUpgradeable + ReentrancyGuardUpgradeable + IERC1363Receiver. Three roles: MERKLE_ROLE (submit Merkle roots), STRATEGY_ROLE (AWP handling), TRANSFER_ROLE (token transfers). Merkle claim mints Alpha to users. AWP strategy: Reserve / AddLiquidity / BuybackBurn. onTransferReceived auto-executes strategy on AWP receipt via mintAndCall. PancakeSwap V4 BSC mainnet addresses hardcoded.
+- SubnetManager.sol = Default worknet contract (deployed behind ERC1967Proxy via AWPRegistry when subnetManager=address(0)). Initializable + AccessControlUpgradeable + ReentrancyGuardUpgradeable + IERC1363Receiver. Three roles: MERKLE_ROLE (submit Merkle roots), STRATEGY_ROLE (AWP handling), TRANSFER_ROLE (token transfers). Merkle claim mints Alpha to users. AWP strategy: Reserve / AddLiquidity / BuybackBurn. onTransferReceived auto-executes strategy on AWP receipt via mintAndCall. PancakeSwap V4 BSC mainnet addresses hardcoded.
 - LPManager = onlyAWPRegistry; StakeNFT = independent; AWPEmission = onlyTimelock (governance)
 
 ## Tokens
 - AWP: 10B MAX_SUPPLY; 200M (2%) minted in constructor; 98% AWPEmission mint on demand. mintAndCall(to, amount, data) triggers ERC1363 callback on recipient.
-- Alpha: 10B max per subnet, dual minter; standalone CREATE2 deployment (not proxy). `supplyAtLock` snapshot + `createdAt` reset at `setSubnetMinter` — subnet minters can mint immediately after activation.
+- Alpha: 10B max per worknet, dual minter; standalone CREATE2 deployment (not proxy). `supplyAtLock` snapshot + `createdAt` reset at `setSubnetMinter` — worknet minters can mint immediately after activation.
 
 ## Gas Optimization Design
 - settleEpoch(limit) (AWPEmission) iterates recipients[] in bounded batches via mintAndCall
@@ -45,7 +45,7 @@ docs/architecture.md — Read the relevant section before starting any task.
 ## Emission
 - Epoch 0 is a warmup epoch: no recipient allocations (all emission goes to DAO). Oracle must submit for effectiveEpoch >= 1 before epoch 0 is settled; weights take effect starting epoch 1.
 - Exponential decay: currentEmission *= 996844 / 1000000
-- Per epoch: 50% mintAndCall to subnets (by governanceWeight), daoShare = total - subnet minted
+- Per epoch: 50% mintAndCall to worknets (by governanceWeight), daoShare = total - worknet minted
 - Recipients omitted from submitAllocations have their share go to DAO. weight=0 entries are rejected to save gas. addr==address(0) entries are rejected by emergencySetWeight.
 
 ## AlphaTokenFactory
@@ -55,12 +55,12 @@ docs/architecture.md — Read the relevant section before starting any task.
 - Example `"A1????cafe"`: 0x1001FFFF0C0A0F0E
 - `deploy(subnetId, name, symbol, admin, salt)` — salt=bytes32(0) uses subnetId as salt; salt!=0 is user-provided
 
-## Subnet Registration
+## Worknet Registration
 - If subnetManager == address(0) and defaultSubnetManagerImpl is set, auto-deploys SubnetManager proxy via ERC1967Proxy
 - AWP transferFrom(user → LPManager); Alpha mint(LPManager)
 - setSubnetMinter(sc) permanently locks minter to subnet manager
 - SubnetParams: name, symbol, subnetManager, salt, minStake, skillsURI
-- registerSubnetFor: gasless EIP-712 subnet registration (requires prior AWP approve)
+- registerSubnetFor: gasless EIP-712 worknet registration (requires prior AWP approve)
 - registerSubnetForWithPermit: fully gasless — ERC-2612 permit + EIP-712 in one tx (user signs two messages, zero gas)
 - SubnetNFT.mint stores identity (name, subnetManager, alphaToken) + initial minStake
 
@@ -109,7 +109,7 @@ AWPToken(constructor mint 200M) → AlphaTokenFactory(deployer, vanityRule)
 - StakingVault: allocate/reallocate reject subnetId=0
 - SubnetNFT.minStake is stored on-chain but NOT enforced by AWPRegistry.allocate (used as off-chain/coordinator reference only)
 - AWPDAO: totalVotingPower > 0 required for proposals
-- deregisterSubnet: users must manually deallocate from deregistered subnets (deallocate has no status check); frontend should alert on SubnetDeregistered
+- deregisterSubnet: users must manually deallocate from deregistered worknets (deallocate has no status check); frontend should alert on SubnetDeregistered
 - subnetManager == address(0) auto-deploys SubnetManager proxy if defaultSubnetManagerImpl is set
 - setSubnetMinter permanently locked; ban uses minterPaused
 - AWPEmission weights submitted by oracle multi-sig; epoch-versioned packed allocations

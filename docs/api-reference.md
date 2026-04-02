@@ -18,7 +18,7 @@
    - [Users](#22-users)
    - [Agents](#24-agents)
    - [Staking](#25-staking)
-   - [Subnets](#25-subnets-1)
+   - [Worknets](#25-worknets-1)
    - [Emission](#26-emission-draft)
    - [Tokens](#27-tokens)
    - [Governance](#28-governance)
@@ -35,7 +35,7 @@
 
 ### 1.1 AWPRegistry
 
-> Unified entry point for subnet management and staking. All user-facing write operations go through AWPRegistry.
+> Unified entry point for worknet management and staking. All user-facing write operations go through AWPRegistry.
 
 #### Account System (V2)
 
@@ -57,17 +57,17 @@
 
 | Function | Access | Description |
 |----------|--------|-------------|
-| `allocate(address staker, address agent, uint256 subnetId, uint256 amount)` | Staker / Delegate | Allocate stake to (agent, subnet) triple; staker is explicit parameter |
+| `allocate(address staker, address agent, uint256 subnetId, uint256 amount)` | Staker / Delegate | Allocate stake to (agent, worknet) triple; staker is explicit parameter |
 | `deallocate(address staker, address agent, uint256 subnetId, uint256 amount)` | Staker / Delegate | Release stake allocation |
 | `reallocate(address staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount)` | Staker / Delegate | Move stake between triples (immediate) |
 
 > **Note:** Deposit/withdraw is handled by StakeNFT directly. AWPRegistry only manages allocations.
 
-#### Subnet Lifecycle
+#### Worknet Lifecycle
 
 | Function | Access | Description |
 |----------|--------|-------------|
-| `registerSubnet(SubnetParams params)` → `uint256` | Anyone | Register new subnet (CREATE2-deploys Alpha + LP). `params.salt=0` uses subnetId; non-zero enables vanity address. |
+| `registerSubnet(SubnetParams params)` → `uint256` | Anyone | Register new worknet (CREATE2-deploys Alpha + LP). `params.salt=0` uses subnetId; non-zero enables vanity address. |
 | `activateSubnet(uint256 subnetId)` | NFT Owner | Pending → Active |
 | `pauseSubnet(uint256 subnetId)` | NFT Owner | Active → Paused |
 | `resumeSubnet(uint256 subnetId)` | NFT Owner | Paused → Active |
@@ -170,7 +170,7 @@
 | `allocate(staker, agent, subnetId, amount)` | Allocate stake (onlyAWPRegistry) |
 | `deallocate(staker, agent, subnetId, amount)` | Release allocation (onlyAWPRegistry) |
 | `reallocate(staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)` | Move allocation (onlyAWPRegistry) |
-| `freezeAgentAllocations(staker, agent)` | Freeze agent allocations — auto-enumerates subnets (onlyAWPRegistry) |
+| `freezeAgentAllocations(staker, agent)` | Freeze agent allocations — auto-enumerates worknets (onlyAWPRegistry) |
 
 **View functions:** `userTotalAllocated`, `getAgentStake`, `subnetTotalStake`, `getSubnetTotalStake`, `getAgentSubnets(user, agent) → uint256[]`
 
@@ -234,16 +234,16 @@
 
 ### 1.6 AlphaToken
 
-> Standalone ERC20 deployed via CREATE2. 10B MAX_SUPPLY per subnet. Dual minter: admin (AWPRegistry) + subnetMinter. No proxy pattern — no `_disableInitializers()` needed.
+> Standalone ERC20 deployed via CREATE2. 10B MAX_SUPPLY per worknet. Dual minter: admin (AWPRegistry) + subnetMinter. No proxy pattern — no `_disableInitializers()` needed.
 
 | Function | Access | Description |
 |----------|--------|-------------|
 | `mint(address to, uint256 amount)` | Minters | Mint Alpha (up to 10B, with time-based cap after lock) |
-| `setSubnetMinter(address sc)` | Admin | Set subnet as sole minter (one-time, permanent); snapshots `supplyAtLock` and resets `createdAt` |
+| `setSubnetMinter(address sc)` | Admin | Set worknet as sole minter (one-time, permanent); snapshots `supplyAtLock` and resets `createdAt` |
 | `setMinterPaused(address minter, bool paused)` | Admin | Pause/unpause minting (used for ban) |
 | `currentMintableLimit()` | View | Current max mintable (since lock) based on elapsed time |
 
-> **Time-cap design:** After `setSubnetMinter`, `supplyAtLock` snapshots the pre-activation supply (excluding admin LP mint) and `createdAt` is reset to `block.timestamp`. Subnet minters can therefore mint immediately after activation — there is no 4-day lockout. The annual cap is `MAX_SUPPLY * elapsed / 365 days` measured from lock time.
+> **Time-cap design:** After `setSubnetMinter`, `supplyAtLock` snapshots the pre-activation supply (excluding admin LP mint) and `createdAt` is reset to `block.timestamp`. Worknet minters can therefore mint immediately after activation — there is no 4-day lockout. The annual cap is `MAX_SUPPLY * elapsed / 365 days` measured from lock time.
 
 ### 1.6b AlphaTokenFactory
 
@@ -281,11 +281,11 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 
 ### 1.8 SubnetNFT
 
-> ERC721. tokenId = subnetId. Ownership determines subnet control.
+> ERC721. tokenId = subnetId. Ownership determines worknet control.
 
 | Function | Access | Description |
 |----------|--------|-------------|
-| `mint(address to, uint256 tokenId, string name_, address subnetManager_, address alphaToken_, uint128 minStake_, string skillsURI_)` | AWPRegistry | Mint on subnet registration |
+| `mint(address to, uint256 tokenId, string name_, address subnetManager_, address alphaToken_, uint128 minStake_, string skillsURI_)` | AWPRegistry | Mint on worknet registration |
 | `burn(uint256 tokenId)` | AWPRegistry | Burn on deregister |
 | Standard ERC721 | Anyone | `transferFrom`, `approve`, `ownerOf`, etc. |
 
@@ -365,21 +365,21 @@ Example: `"A1????cafe"` → `vanityRule = 0x1001FFFF0C0A0F0E`
 | GET | `/staking/user/{address}/allocations?page=1&limit=20` | User's allocations |
 | GET | `/staking/user/{address}/frozen` | Frozen allocations |
 | GET | `/staking/agent/{agent}/subnet/{subnetId}` | Agent's total stake on subnet |
-| GET | `/staking/agent/{agent}/subnets` | Agent's stakes across all subnets |
+| GET | `/staking/agent/{agent}/subnets` | Agent's stakes across all worknets |
 | GET | `/staking/user/{address}/pending` | Pending operations (returns `[]`) |
 | GET | `/staking/subnet/{subnetId}/total` | Subnet total staked |
 
-### 2.5 Subnets
+### 2.5 Worknets
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/subnets?status=Active&page=1&limit=20` | List subnets (filterable by status) |
-| GET | `/subnets/{subnetId}` | Subnet detail |
+| GET | `/subnets?status=Active&page=1&limit=20` | List worknets (filterable by status) |
+| GET | `/subnets/{subnetId}` | Worknet detail |
 | GET | `/subnets/{subnetId}/earnings?page=1&limit=20` | AWP emission history |
-| GET | `/subnets/{subnetId}/skills` | Subnet skills file URI |
-| GET | `/subnets/{subnetId}/agents/{agent}` | Agent info on subnet |
+| GET | `/subnets/{subnetId}/skills` | Worknet skills file URI |
+| GET | `/subnets/{subnetId}/agents/{agent}` | Agent info on worknet |
 
-> Subnet response includes: `subnet_id`, `owner`, `name`, `symbol`, `subnet_contract`, `skills_uri`, `alpha_token`, `lp_pool`, `status`, `created_at`, `activated_at`, `min_stake`, `immunity_ends_at` (nullable), `burned` (boolean).
+> Worknet response includes: `subnet_id`, `owner`, `name`, `symbol`, `subnet_contract`, `skills_uri`, `alpha_token`, `lp_pool`, `status`, `created_at`, `activated_at`, `min_stake`, `immunity_ends_at` (nullable), `burned` (boolean).
 
 ### 2.6 Emission [DRAFT]
 
@@ -664,7 +664,7 @@ struct AgentInfo {
 | Constant | Value | Location |
 |----------|-------|----------|
 | AWP MAX_SUPPLY | 10,000,000,000 × 10^18 | AWPToken |
-| Alpha MAX_SUPPLY | 10,000,000,000 × 10^18 | AlphaToken (per subnet) |
+| Alpha MAX_SUPPLY | 10,000,000,000 × 10^18 | AlphaToken (per worknet) |
 | INITIAL_ALPHA_MINT | 100,000,000 × 10^18 | AWPRegistry |
 | INITIAL_DAILY_EMISSION | 15,800,000 × 10^18 | Deploy.s.sol |
 | EPOCH_DURATION | 86,400 (1 day) | AWPEmission (initialized via Deploy.s.sol) |

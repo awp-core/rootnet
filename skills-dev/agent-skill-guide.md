@@ -1,16 +1,16 @@
 # Agent Skill Discovery & Installation Guide
 
-> How an OpenClaw agent discovers AWP subnets, browses their skills, and installs them.
+> How an OpenClaw agent discovers AWP worknets, browses their skills, and installs them.
 
 ---
 
 ## 1. Overview
 
-Each AWP subnet can publish a **skillsURI** — an HTTPS URL pointing to a `SKILL.md` file. This file follows the [OpenClaw Skills format](https://docs.openclaw.ai/tools/skills) and teaches the agent how to interact with the subnet's services (task submission, result retrieval, reward claiming, etc.).
+Each AWP worknet can publish a **skillsURI** — an HTTPS URL pointing to a `SKILL.md` file. This file follows the [OpenClaw Skills format](https://docs.openclaw.ai/tools/skills) and teaches the agent how to interact with the worknet's services (task submission, result retrieval, reward claiming, etc.).
 
 **Flow:**
 ```
-Agent                          AWP API                      Subnet
+Agent                          AWP API                      Worknet
   │                               │                           │
   ├─ GET /api/subnets?status=Active ─►│                       │
   │◄─ [{subnet_id, skills_uri, ...}]──┤                       │
@@ -27,12 +27,12 @@ Agent                          AWP API                      Subnet
 
 ---
 
-## 2. Discover Subnets
+## 2. Discover Worknets
 
-### 2.1 List Active Subnets
+### 2.1 List Active Worknets
 
 ```javascript
-// REST API — list all active subnets with their skills URIs
+// REST API — list all active worknets with their skills URIs
 const res = await fetch(`${API_BASE}/subnets?status=Active&page=1&limit=50`);
 const subnets = await res.json();
 
@@ -43,10 +43,10 @@ for (const subnet of subnets) {
 }
 ```
 
-### 2.2 Get a Single Subnet's Skills URI
+### 2.2 Get a Single Worknet's Skills URI
 
 ```javascript
-// REST API — get skills URI for a specific subnet
+// REST API — get skills URI for a specific worknet
 const res = await fetch(`${API_BASE}/subnets/1/skills`);
 const { skillsURI } = await res.json();
 // skillsURI = "https://subnet.example.com/SKILL.md"
@@ -73,14 +73,14 @@ Each `SKILL.md` follows the OpenClaw skill format — YAML frontmatter + markdow
 ```markdown
 ---
 name: my-subnet-tasks
-description: Submit and retrieve AI tasks from My Subnet on AWP
+description: Submit and retrieve AI tasks from My Worknet on AWP
 user-invocable: true
 metadata: {"openclaw":{"requires":{"env":["AWP_SUBNET_API_KEY"]}}}
 ---
 
 ## Instructions
 
-You are connected to My Subnet (AWP Subnet #1).
+You are connected to My Worknet (AWP Worknet #1).
 
 ### Available Actions
 - **Submit task**: POST to the coordinator endpoint with task parameters
@@ -110,7 +110,7 @@ POST /api/tasks
 
 ### 4.1 Via ClawHub (if published)
 
-If the subnet developer has published their skill to [ClawHub](https://github.com/openclaw/clawhub), agents can install with one command:
+If the worknet developer has published their skill to [ClawHub](https://github.com/openclaw/clawhub), agents can install with one command:
 
 ```bash
 clawhub install my-subnet-tasks
@@ -120,13 +120,13 @@ Skills are installed to `./skills/` in the current workspace (or `~/.openclaw/sk
 
 ### 4.2 Manual Install from URL
 
-Download the `SKILL.md` directly from the subnet's `skillsURI` and place it in the skills directory:
+Download the `SKILL.md` directly from the worknet's `skillsURI` and place it in the skills directory:
 
 ```bash
 # Create skill directory
 mkdir -p ~/.openclaw/skills/my-subnet-tasks
 
-# Download SKILL.md from the subnet's skillsURI
+# Download SKILL.md from the worknet's skillsURI
 curl -o ~/.openclaw/skills/my-subnet-tasks/SKILL.md \
   "https://subnet.example.com/SKILL.md"
 ```
@@ -145,16 +145,16 @@ curl -o ./skills/my-subnet-tasks/SKILL.md \
 
 ### 4.4 Automated Discovery Script
 
-A script that discovers all active subnets and installs their skills:
+A script that discovers all active worknets and installs their skills:
 
 ```bash
 #!/usr/bin/env bash
-# Install all AWP subnet skills into the local workspace
+# Install all AWP worknet skills into the local workspace
 
 API_BASE="${API_BASE_URL:-https://<api-host>/api}"
 SKILLS_DIR="./skills"
 
-# Fetch active subnets
+# Fetch active worknets
 subnets=$(curl -s "$API_BASE/subnets?status=Active&limit=100")
 
 echo "$subnets" | jq -c '.[]' | while read -r subnet; do
@@ -167,7 +167,7 @@ echo "$subnets" | jq -c '.[]' | while read -r subnet; do
     continue
   fi
 
-  # Derive skill slug from subnet name (lowercase, hyphens)
+  # Derive skill slug from worknet name (lowercase, hyphens)
   slug=$(echo "awp-subnet-$id" | tr '[:upper:]' '[:lower:]')
   skill_dir="$SKILLS_DIR/$slug"
 
@@ -217,26 +217,26 @@ If `user-invocable: true` in the frontmatter:
 OpenClaw injects eligible skill descriptions into the system prompt. The agent can autonomously decide to use a skill when it matches the user's intent:
 
 ```
-User: "I need to run an image classification task on subnet 3"
+User: "I need to run an image classification task on worknet 3"
 Agent: [detects installed awp-subnet-3 skill, follows its instructions to POST to the coordinator]
 ```
 
 ---
 
-## 7. For Subnet Developers: Publishing Skills
+## 7. For Worknet Developers: Publishing Skills
 
 ### 7.1 Create SKILL.md
 
-Your `SKILL.md` should document how agents interact with your subnet's coordinator API:
+Your `SKILL.md` should document how agents interact with your worknet's coordinator API:
 
 ```markdown
 ---
 name: awp-subnet-myproject
-description: Interact with MyProject subnet — submit AI tasks and collect results
+description: Interact with MyProject worknet — submit AI tasks and collect results
 user-invocable: true
 ---
 
-## You are connected to MyProject Subnet (AWP #42)
+## You are connected to MyProject Worknet (AWP #42)
 
 ### Coordinator API: https://coord.myproject.io
 
@@ -267,7 +267,7 @@ Host the file at a stable HTTPS URL. Common options:
 
 ### 7.3 Set skillsURI on-chain
 
-When registering or updating your subnet, include the URL:
+When registering or updating your worknet, include the URL:
 
 ```javascript
 // At registration
@@ -298,7 +298,7 @@ clawhub publish
 ## 8. Example: End-to-End
 
 ```bash
-# 1. Discover subnets with skills
+# 1. Discover worknets with skills
 curl -s "${API_BASE}/subnets?status=Active" | \
   jq '.[] | select(.skills_uri != null) | {id: .subnet_id, name: .name, skills: .skills_uri}'
 

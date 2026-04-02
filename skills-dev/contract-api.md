@@ -33,7 +33,7 @@ deallocate(address staker, address agent, uint256 subnetId, uint256 amount)    /
 reallocate(address staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) // Staker or delegate, immediate
 ```
 
-### Subnet Lifecycle
+### Worknet Lifecycle
 ```
 registerSubnet(SubnetParams params) → uint256 subnetId         // Anyone (costs AWP). subnetManager=0 auto-deploys SubnetManager proxy.
 registerSubnetFor(address user, SubnetParams params, uint256 deadline, uint8 v, bytes32 r, bytes32 s) // Gasless (requires prior AWP approve)
@@ -51,7 +51,7 @@ deregisterSubnet(uint256 subnetId)                             // Delete (after 
 setInitialAlphaPrice(uint256 price)
 setGuardian(address g)
 setImmunityPeriod(uint256 p)                                   // Minimum 7 days
-setAlphaTokenFactory(address factory)                          // Replace factory for new subnets
+setAlphaTokenFactory(address factory)                          // Replace factory for new worknets
 setSubnetManagerImpl(address impl)                              // Set/update auto-deploy impl
 ```
 
@@ -213,7 +213,7 @@ setStakeNFT(address stakeNFT_)                                            // onl
 allocate(address staker, address agent, uint256 subnetId, uint256 amount)    // onlyAWPRegistry
 deallocate(address staker, address agent, uint256 subnetId, uint256 amount)  // onlyAWPRegistry
 reallocate(address staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) // onlyAWPRegistry
-freezeAgentAllocations(address staker, address agent)                        // onlyAWPRegistry; auto-enumerates subnets
+freezeAgentAllocations(address staker, address agent)                        // onlyAWPRegistry; auto-enumerates worknets
 ```
 
 ### View Functions
@@ -270,13 +270,13 @@ burn(uint256 amount)
 
 ---
 
-## SubnetManager — Default Subnet Contract (Proxy)
+## SubnetManager — Default Worknet Contract (Proxy)
 
 > Auto-deployed by AWPRegistry when `subnetManager = address(0)`. Uses AccessControl (OZ).
 
 ### Roles
 ```
-DEFAULT_ADMIN_ROLE = 0x00                       // Grant/revoke roles; assigned to subnet registrant
+DEFAULT_ADMIN_ROLE = 0x00                       // Grant/revoke roles; assigned to worknet registrant
 MERKLE_ROLE = keccak256("MERKLE_ROLE")          // Submit Merkle roots
 STRATEGY_ROLE = keccak256("STRATEGY_ROLE")      // Set/execute AWP strategy
 TRANSFER_ROLE = keccak256("TRANSFER_ROLE")      // Transfer tokens out
@@ -349,7 +349,7 @@ proposalThreshold() → uint256                                   // 1,000,000 A
 | Constant | Value |
 |----------|-------|
 | AWP MAX_SUPPLY | 10,000,000,000 × 10^18 |
-| Alpha MAX_SUPPLY | 10,000,000,000 × 10^18 (per subnet) |
+| Alpha MAX_SUPPLY | 10,000,000,000 × 10^18 (per worknet) |
 | INITIAL_DAILY_EMISSION | 15,800,000 × 10^18 |
 | EPOCH_DURATION | 86,400 (1 day), immutable on AWPEmission |
 | DECAY_FACTOR | 996844 / 1000000 per epoch |

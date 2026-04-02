@@ -1,6 +1,6 @@
-# Subnet Developer Guide — AWP
+# Worknet Developer Guide — AWP
 
-> This document is intended for subnet developers (Coordinator / Subnet Contract), providing all the information needed to interact with AWPRegistry contracts and APIs.
+> This document is intended for worknet developers (Coordinator / Worknet Contract), providing all the information needed to interact with AWPRegistry contracts and APIs.
 
 ---
 
@@ -12,10 +12,10 @@ User
   ├── bind(target) → Tree-based binding (optional, every address is implicitly a root)
   ├── stakeNFT.deposit(AWP, lockDuration) → Deposit AWP, receive position NFT
   ├── allocate(staker, agent, subnetId, amount) → Allocate stake to a subnet (via AWPRegistry)
-  └── registerSubnet(params) → Register new subnet (deploy Alpha + create LP)
+  └── registerSubnet(params) → Register new worknet
         │
         ▼
-AWPRegistry (Unified Entry Point — account system + allocation + subnet management)
+AWPRegistry (Unified Entry Point — account system + allocation + worknet management)
   │
   ├── StakingVault — Pure allocation logic (no deposit/withdraw)
   ├── StakeNFT — ERC721 position NFT (deposit/withdraw AWP)
@@ -41,22 +41,22 @@ Subnet Contract (What you develop)
 
 ---
 
-## 2. Subnet Registration Flow
+## 2. Worknet Registration Flow
 
 ### 2.1 Prerequisites
 
-1. **Option A**: Deploy your own subnet manager contract, OR use `address(0)` to auto-deploy the default `SubnetManager` proxy
+1. **Option A**: Deploy your own worknet manager contract, OR use `address(0)` to auto-deploy the default `SubnetManager` proxy
 2. Prepare AWP — LP creation cost = `INITIAL_ALPHA_MINT × initialAlphaPrice / 1e18` (default: 100M × 0.01 = 1M AWP)
 3. Query current price: `awpRegistry.initialAlphaPrice()` → calculate the actual AWP amount needed
 4. Call `AWPToken.approve(awpRegistry, awpAmount)` to authorize AWPRegistry for the transfer
-5. No mandatory registration needed — every address can register subnets directly
+5. No mandatory registration needed — every address can register worknets directly
 
 ### 2.2 Registration
 
 ```solidity
 // Solidity — auto-deploy SubnetManager (subnetManager = address(0))
 IAWPRegistry.SubnetParams memory params = IAWPRegistry.SubnetParams({
-    name: "My Subnet Alpha",     // Alpha Token name (1-64 bytes)
+    name: "My Worknet Alpha",     // Alpha Token name (1-64 bytes)
     symbol: "MSALPHA",           // Alpha Token symbol (1-16 bytes)
     subnetManager: address(0),   // address(0) = auto-deploy SubnetManager proxy
     salt: bytes32(0),            // 0 = use subnetId as CREATE2 salt (default)
@@ -135,9 +135,9 @@ The factory will deploy the Alpha token at the vanity address and then validate 
 | 7 | Mint SubnetNFT with identity data | name, subnetManager, alphaToken, minStake stored on-chain |
 | 8 | Store lifecycle state | lpPool, status=Pending, createdAt |
 
-### 2.4 Activate Subnet
+### 2.4 Activate Worknet
 
-After registration, the subnet status is `Pending`. The NFT Owner must manually activate it:
+After registration, the worknet status is `Pending`. The NFT Owner must manually activate it:
 
 ```solidity
 awpRegistry.activateSubnet(subnetId);
@@ -145,11 +145,11 @@ awpRegistry.activateSubnet(subnetId);
 // Added to AWPRegistry's activeSubnetIds set
 ```
 
-**Note:** Activation makes the subnet visible as "Active" in the protocol, but it does NOT automatically include it in AWP emission. To receive emissions, the oracle network must include your subnet contract address in their `submitAllocations` submission. Contact the oracle operators or DAO to request inclusion.
+**Note:** Activation makes the worknet visible as "Active" in the protocol, but it does NOT automatically include it in AWP emission. To receive emissions, the oracle network must include your worknet contract address in their `submitAllocations` submission. Contact the oracle operators or DAO to request inclusion.
 
 ---
 
-## 3. SubnetManager — Default Subnet Contract API
+## 3. SubnetManager — Default Worknet Contract API
 
 > When `subnetManager = address(0)` is passed to `registerSubnet`, AWPRegistry auto-deploys a `SubnetManager` proxy. The registrant (`msg.sender` or the EIP-712 signer for gasless) becomes `DEFAULT_ADMIN_ROLE`.
 
@@ -157,7 +157,7 @@ awpRegistry.activateSubnet(subnetId);
 
 | Role | Bytes32 | Purpose |
 |------|---------|---------|
-| `DEFAULT_ADMIN_ROLE` | `0x00` | Grant/revoke all roles. Assigned to subnet registrant at deployment. |
+| `DEFAULT_ADMIN_ROLE` | `0x00` | Grant/revoke all roles. Assigned to worknet registrant at deployment. |
 | `MERKLE_ROLE` | `keccak256("MERKLE_ROLE")` | Submit Merkle roots for Alpha distribution |
 | `STRATEGY_ROLE` | `keccak256("STRATEGY_ROLE")` | Choose AWP handling strategy + manually execute |
 | `TRANSFER_ROLE` | `keccak256("TRANSFER_ROLE")` | Transfer any ERC20 held by the contract |
@@ -264,7 +264,7 @@ claimed(uint32 epoch, address account) → bool  // Alias for isClaimed
 ### 3.5 Complete Operator Workflow
 
 ```
-1. Register subnet → auto-deploy SubnetManager → you are admin
+1. Register worknet → auto-deploy SubnetManager → you are admin
 2. Grant roles:
    - MERKLE_ROLE to your backend that computes reward distributions
    - STRATEGY_ROLE to your governance multisig
@@ -278,14 +278,14 @@ claimed(uint32 epoch, address account) → bool  // Alias for isClaimed
    - subnetManager.claim(epoch, amount, proof)
 7. Monitor via WebSocket:
    - Subscribe to: SkillsURIUpdated, MinStakeUpdated, Allocated, Deallocated
-8. Update subnet settings:
+8. Update worknet settings:
    - subnetNFT.setSkillsURI(subnetId, "ipfs://...")
    - subnetNFT.setMinStake(subnetId, 100e18)
 ```
 
 ---
 
-## 4. Subnet Contract Development
+## 4. Worknet Contract Development
 
 ### 4.1 Default SubnetManager (auto-deployed)
 
@@ -306,7 +306,7 @@ IAccessControl(subnetManager).grantRole(MERKLE_ROLE, operatorAddress);
 IAccessControl(subnetManager).grantRole(STRATEGY_ROLE, operatorAddress);
 ```
 
-### 4.2 Custom Subnet Contract (advanced)
+### 4.2 Custom Worknet Contract (advanced)
 
 If you need custom logic, deploy your own contract and pass its address as `subnetManager`:
 
@@ -333,7 +333,7 @@ contract MySubnetContract {
 
 | Permission | Who Holds It | Description |
 |------------|-------------|-------------|
-| Alpha minting | **Your subnet contract** | `setSubnetMinter` permanently locked — only you can mint Alpha |
+| Alpha minting | **Your worknet contract** | `setSubnetMinter` permanently locked — only you can mint Alpha |
 | Alpha minting pause | AWPRegistry (admin) | `setMinterPaused(true)` pauses your minting when banned |
 | AWP emission receipt | Oracle-assigned | Your address must be in the oracle's `submitAllocations` list to receive AWP |
 | Alpha MAX_SUPPLY | 10B | Independent cap per subnet |
@@ -699,7 +699,7 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 - Oracle network assigns weights to recipient addresses via `submitAllocations(recipients[], weights[], signatures[], effectiveEpoch)`
 - Multiple oracles must sign the same allocation (EIP-712 multi-sig threshold)
 - DAO can override a single recipient's entry via `emergencySetWeight(epoch, index, addr, weight)` through Timelock governance
-- Your subnet contract address must be included in the oracle's recipient list to receive AWP
+- Your worknet contract address must be included in the oracle's recipient list to receive AWP
 
 ---
 
@@ -708,13 +708,13 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 | Contract | Address | Description |
 |----------|---------|-------------|
 | AWPToken | `0x0000d0e38e9c6ba147b0098bb42007b942ef00a1` | Main token (ERC20Votes) |
-| AWPRegistry | `0x00003a7fa04c3af3adba2dc3c6622277501400b1` | Unified entry point (allocation + subnet management) |
+| AWPRegistry | `0x00003a7fa04c3af3adba2dc3c6622277501400b1` | Unified entry point (allocation + worknet management) |
 | SubnetNFT | `0x0f86ec2f2fbf234b00b18e66e7c5e00518091cda` | Subnet NFT (ERC721) |
 | AlphaTokenFactory | `0x3ebe3168c898f4b05ebf0c0d17f4739e111e5164` | Alpha token deployer (CREATE2) |
 | StakeNFT | `0x4f7e8d4487c0c514b72ed0e35ed707cb8acdce39` | Position NFT (ERC721, deposit/withdraw AWP) |
 | AWPDAO | `0x7171211da849a2c569643fb1e8f5399ddd71939a` | Governor |
 | Treasury | `0x9ee82684e4214edb405d930001e9058d1913d994` | Treasury (TimelockController) |
-| SubnetManager (impl) | `0xE5771dC2a5a577CDFa6b939Af4F32Ad13CFc6D92` | Default subnet contract implementation |
+| SubnetManager (impl) | `0xE5771dC2a5a577CDFa6b939Af4F32Ad13CFc6D92` | Default worknet contract implementation |
 
 ---
 
@@ -767,7 +767,7 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 - [ ] Implement Alpha minting logic (proof of contribution)
 - [ ] Call `awpRegistry.registerSubnet(params)` to register
 - [ ] Call `awpRegistry.activateSubnet(subnetId)` to activate
-- [ ] Contact oracle operators to include your subnet contract address in `submitAllocations` weight submissions
+- [ ] Contact oracle operators to include your worknet contract address in `submitAllocations` weight submissions
 - [ ] Verify your contract receives AWP after the first epoch settlement
 
 ### Coordinator Development
