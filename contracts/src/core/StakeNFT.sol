@@ -95,7 +95,7 @@ contract StakeNFT is ERC721, ReentrancyGuard, IStakeNFT {
     // ══════════════════════════════════════════════
 
     /// @inheritdoc IStakeNFT
-    function deposit(uint256 amount, uint64 lockDuration) external returns (uint256 tokenId) {
+    function deposit(uint256 amount, uint64 lockDuration) external nonReentrant returns (uint256 tokenId) {
         return _deposit(msg.sender, msg.sender, amount, lockDuration);
     }
 
@@ -109,14 +109,15 @@ contract StakeNFT is ERC721, ReentrancyGuard, IStakeNFT {
     function depositWithPermit(
         uint256 amount, uint64 lockDuration,
         uint256 deadline, uint8 v, bytes32 r, bytes32 s
-    ) external returns (uint256 tokenId) {
-        IERC20Permit(address(awpToken)).permit(msg.sender, address(this), amount, deadline, v, r, s);
+    ) external nonReentrant returns (uint256 tokenId) {
+        try IERC20Permit(address(awpToken)).permit(msg.sender, address(this), amount, deadline, v, r, s) {} catch {}
         return _deposit(msg.sender, msg.sender, amount, lockDuration);
     }
 
     /// @inheritdoc IStakeNFT
     function depositFor(address user, uint256 amount, uint64 lockDuration)
         external
+        nonReentrant
         onlyAWPRegistry
         returns (uint256 tokenId)
     {
@@ -135,6 +136,7 @@ contract StakeNFT is ERC721, ReentrancyGuard, IStakeNFT {
         if (lockDuration < MIN_LOCK_DURATION) revert LockTooShort();
 
         uint64 lockEndTime = uint64(block.timestamp) + lockDuration;
+        if (lockEndTime <= uint64(block.timestamp)) revert InvalidAmount(); // overflow guard
 
         // Transfer AWP from user to this contract
         awpToken.safeTransferFrom(from, address(this), amount);
@@ -154,7 +156,7 @@ contract StakeNFT is ERC721, ReentrancyGuard, IStakeNFT {
     }
 
     /// @inheritdoc IStakeNFT
-    function addToPosition(uint256 tokenId, uint256 amount, uint64 newLockEndTime) external {
+    function addToPosition(uint256 tokenId, uint256 amount, uint64 newLockEndTime) external nonReentrant {
         if (ownerOf(tokenId) != msg.sender) revert NotTokenOwner();
 
         Position storage pos = positions[tokenId];
@@ -167,6 +169,7 @@ contract StakeNFT is ERC721, ReentrancyGuard, IStakeNFT {
             awpToken.safeTransferFrom(msg.sender, address(this), amount);
             pos.amount += uint128(amount);
             _userTotalStaked[msg.sender] += amount;
+            pos.createdAt = uint64(block.timestamp); // Reset to prevent voting power manipulation
             updated = true;
         }
 
@@ -310,5 +313,17 @@ contract StakeNFT is ERC721, ReentrancyGuard, IStakeNFT {
     function _remainingTime(uint256 tokenId) internal view returns (uint64) {
         uint64 lockEnd = positions[tokenId].lockEndTime;
         return lockEnd > uint64(block.timestamp) ? lockEnd - uint64(block.timestamp) : 0;
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Token rescue
+    // ═══════════════════════════════════════════════
+
+    error CannotRescueStakedToken();
+
+    /// @notice Rescue accidentally sent ERC20 tokens (AWPRegistry only). Cannot rescue staked AWP.
+    function rescueToken(address token, address to, uint256 amount) external onlyAWPRegistry {
+        if (token == address(awpToken)) revert CannotRescueStakedToken();
+        IERC20(token).safeTransfer(to, amount);
     }
 }

@@ -46,14 +46,14 @@ interface IPermit2 {
     function approve(address token, address spender, uint160 amount, uint48 expiration) external;
 }
 
-/// @title SubnetManager — Reference subnet contract (proxy-compatible)
-/// @notice Deployed behind ERC1967Proxy by AWPRegistry when subnetManager is not provided.
+/// @title WorknetManager — Reference worknet contract (proxy-compatible)
+/// @notice Deployed behind ERC1967Proxy by AWPRegistry when worknetManager is not provided.
 ///         Implementation is shared; each proxy gets its own storage via initialize().
 /// @dev Three roles via OZ AccessControl:
 ///   - MERKLE_ROLE:   Submit Merkle roots → claim mints Alpha to users
 ///   - STRATEGY_ROLE: Choose AWP handling strategy + execute
 ///   - TRANSFER_ROLE: Transfer any token held by this contract
-contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeable, ReentrancyGuardUpgradeable, IERC1363Receiver {
+contract WorknetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeable, ReentrancyGuardUpgradeable, IERC1363Receiver {
     using SafeERC20 for IERC20;
 
     bytes32 public constant MERKLE_ROLE = keccak256("MERKLE_ROLE");
@@ -88,8 +88,17 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
     mapping(uint32 => bytes32) public merkleRoots;
     mapping(uint32 => mapping(address => bool)) public claimed;
 
+    /// @notice Slippage tolerance in basis points (default 500 = 5%)
+    uint256 public slippageBps;
+
+    /// @notice Emergency pause flag for strategy execution
+    bool public strategyPaused;
+
+    /// @notice Minimum amount for strategy execution (below this, AWP stays in Reserve)
+    uint256 public minStrategyAmount;
+
     /// @dev Reserved storage gap for future upgrades
-    uint256[38] private __gap;
+    uint256[35] private __gap;
 
     event MerkleRootSet(uint32 indexed epoch, bytes32 merkleRoot);
     event Claimed(uint32 indexed epoch, address indexed account, uint256 amount);
@@ -99,13 +108,20 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
     event BuybackBurned(uint256 awpSpent, uint256 alphaBurned);
     event TokenTransferred(address indexed token, address indexed to, uint256 amount);
 
+    event SlippageUpdated(uint256 bps);
+    event StrategyPausedChanged(bool paused);
+
+    error StrategyIsPaused();
+    error InvalidSlippage();
+    error ArrayLengthMismatch();
     error AlreadyClaimed();
     error InvalidProof();
     error RootAlreadySet();
     error NoRootForEpoch();
     error ZeroAmount();
+    error ZeroRoot();
 
-    /// @dev UUPS upgrade authorization — only DEFAULT_ADMIN_ROLE (subnet owner) may upgrade
+    /// @dev UUPS upgrade authorization — only DEFAULT_ADMIN_ROLE (worknet owner) may upgrade
     function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
     /// @dev Prevent direct construction; must use proxy
@@ -153,7 +169,7 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
         });
     }
 
-    /// @dev 共享初始化逻辑：AccessControl、ReentrancyGuard、存储、角色授予
+    /// @dev Shared initialization logic: AccessControl, ReentrancyGuard, storage, role grants
     function _initializeBase(
         address awpRegistry_, address alphaToken_, address awpToken_, bytes32 poolId_, address admin_,
         address clPoolManager_, address clPositionManager_, address clSwapRouter_,
@@ -178,6 +194,8 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
         _grantRole(MERKLE_ROLE, admin_);
         _grantRole(STRATEGY_ROLE, admin_);
         _grantRole(TRANSFER_ROLE, admin_);
+
+        slippageBps = 500; // default 5%
     }
 
     // ═══════════════════════════════════════════════
@@ -186,7 +204,7 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
 
     function setMerkleRoot(uint32 epoch, bytes32 root) external onlyRole(MERKLE_ROLE) {
         if (merkleRoots[epoch] != bytes32(0)) revert RootAlreadySet();
-        if (root == bytes32(0)) revert ZeroAmount();
+        if (root == bytes32(0)) revert ZeroRoot();
         merkleRoots[epoch] = root;
         emit MerkleRootSet(epoch, root);
     }
@@ -220,6 +238,7 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
     }
 
     function executeStrategy(uint256 amount) external nonReentrant onlyRole(STRATEGY_ROLE) {
+        if (strategyPaused) revert StrategyIsPaused();
         if (amount == 0) revert ZeroAmount();
         AWPStrategy strategy = currentStrategy;
         if (strategy == AWPStrategy.AddLiquidity) {
@@ -246,7 +265,7 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
         nonReentrant
         returns (bytes4)
     {
-        if (msg.sender == address(awpToken) && amount > 0) {
+        if (msg.sender == address(awpToken) && amount > 0 && !strategyPaused && amount >= minStrategyAmount) {
             AWPStrategy strategy = currentStrategy;
             if (strategy == AWPStrategy.AddLiquidity) {
                 _addSingleSidedLiquidity(amount);
@@ -269,11 +288,49 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
         emit TokenTransferred(token, to, amount);
     }
 
+    /// @notice Batch transfer tokens to multiple recipients (TRANSFER_ROLE)
+    function batchTransferToken(
+        address token,
+        address[] calldata recipients,
+        uint256[] calldata amounts
+    ) external onlyRole(TRANSFER_ROLE) {
+        if (recipients.length != amounts.length) revert ArrayLengthMismatch();
+        for (uint256 i = 0; i < recipients.length;) {
+            IERC20(token).safeTransfer(recipients[i], amounts[i]);
+            emit TokenTransferred(token, recipients[i], amounts[i]);
+            unchecked { ++i; }
+        }
+    }
+
     // ═══════════════════════════════════════════════
-    //  Internal: Pool Slot0 Read (virtual — overridden by SubnetManagerUni)
+    //  Configuration (STRATEGY_ROLE / DEFAULT_ADMIN_ROLE)
     // ═══════════════════════════════════════════════
 
-    /// @dev 读取池子当前 sqrtPriceX96 和 tick；子合约可覆写以使用不同的数据源
+    /// @notice Set slippage tolerance for buyback swaps (STRATEGY_ROLE)
+    /// @param bps Basis points (e.g. 500 = 5%, max 5000 = 50%)
+    function setSlippageTolerance(uint256 bps) external onlyRole(STRATEGY_ROLE) {
+        if (bps == 0 || bps > 5000) revert InvalidSlippage();
+        slippageBps = bps;
+        emit SlippageUpdated(bps);
+    }
+
+    /// @notice Emergency pause/unpause strategy execution (DEFAULT_ADMIN_ROLE)
+    function setStrategyPaused(bool paused) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        strategyPaused = paused;
+        emit StrategyPausedChanged(paused);
+    }
+
+    /// @notice Set minimum amount for strategy execution (STRATEGY_ROLE)
+    /// @param amount Minimum AWP amount (below this, onTransferReceived defaults to Reserve)
+    function setMinStrategyAmount(uint256 amount) external onlyRole(STRATEGY_ROLE) {
+        minStrategyAmount = amount;
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Internal: Pool Slot0 Read (virtual — overridden by WorknetManagerUni)
+    // ═══════════════════════════════════════════════
+
+    /// @dev Read current pool sqrtPriceX96 and tick; subclass can override to use a different data source
     function _getSlot0() internal view virtual returns (uint160 sqrtPriceX96, int24 tick) {
         (sqrtPriceX96, tick,,) = ICLPoolManager(clPoolManager).getSlot0(poolId);
     }
@@ -283,7 +340,7 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
     // ═══════════════════════════════════════════════
 
     function _addSingleSidedLiquidity(uint256 amount) internal virtual {
-        PoolKey memory pk = poolKey; // 缓存到 memory，避免多次 SLOAD
+        PoolKey memory pk = poolKey; // Cache to memory, avoid repeated SLOAD
         (, int24 currentTick) = _getSlot0();
 
         // Floor-align currentTick to tickSpacing
@@ -339,7 +396,7 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
     // ═══════════════════════════════════════════════
 
     function _buybackAndBurn(uint256 amount) internal virtual {
-        PoolKey memory pk = poolKey; // 缓存到 memory
+        PoolKey memory pk = poolKey; // Cache to memory
         IERC20(address(awpToken)).forceApprove(permit2, amount);
         IPermit2(permit2).approve(address(awpToken), clSwapRouter, uint160(amount), uint48(block.timestamp + 600));
 
@@ -357,7 +414,7 @@ contract SubnetManager is Initializable, UUPSUpgradeable, AccessControlUpgradeab
             // Split: (amount * 2^96 / sqrtPrice) * 2^96 / sqrtPrice
             expectedOut = FullMath.mulDiv(FullMath.mulDiv(amount, 1 << 96, sqrtPriceX96), 1 << 96, sqrtPriceX96);
         }
-        uint128 minOut = uint128(expectedOut * 95 / 100); // 5% slippage tolerance
+        uint128 minOut = uint128(expectedOut * (10000 - slippageBps) / 10000);
 
         bytes memory actions = abi.encodePacked(ACT_CL_SWAP_EXACT_IN_SINGLE, ACT_SETTLE_ALL, ACT_TAKE_ALL);
         bytes[] memory params = new bytes[](3);

@@ -19,7 +19,7 @@ type Client struct {
 	AWPTokenAddr     common.Address
 	AWPEmissionAddr  common.Address
 	StakingVaultAddr common.Address
-	SubnetNFTAddr    common.Address
+	WorknetNFTAddr    common.Address
 	AlphaTokenAddr   common.Address
 	AWPDAOAddr       common.Address
 	StakeNFTAddr     common.Address
@@ -29,7 +29,7 @@ type Client struct {
 	AWPToken     *bindings.AWPToken
 	AWPEmission  *bindings.AWPEmission
 	StakingVault *bindings.StakingVault
-	SubnetNFT    *bindings.SubnetNFT
+	WorknetNFT    *bindings.WorknetNFT
 	AlphaToken   *bindings.AlphaToken
 	AWPDAO       *bindings.AWPDAO
 	StakeNFT     *bindings.StakeNFT
@@ -97,14 +97,14 @@ func NewClient(ctx context.Context, rpcURL string, addresses map[string]string) 
 		return nil, fmt.Errorf("failed to bind StakingVault: %w", err)
 	}
 
-	// SubnetNFT
-	c.SubnetNFTAddr, err = parseAddr("SubnetNFT")
+	// WorknetNFT
+	c.WorknetNFTAddr, err = parseAddr("WorknetNFT")
 	if err != nil {
 		return nil, err
 	}
-	c.SubnetNFT, err = bindings.NewSubnetNFT(c.SubnetNFTAddr, eth)
+	c.WorknetNFT, err = bindings.NewWorknetNFT(c.WorknetNFTAddr, eth)
 	if err != nil {
-		return nil, fmt.Errorf("failed to bind SubnetNFT: %w", err)
+		return nil, fmt.Errorf("failed to bind WorknetNFT: %w", err)
 	}
 
 	// AlphaToken (optional)

@@ -19,7 +19,7 @@ contract AWPEmissionTest is Test {
     address public recipient3 = makeAddr("recipient3");
     address public recipient4 = makeAddr("recipient4");
 
-    uint256 constant INITIAL_DAILY_EMISSION = 15_800_000 * 1e18;
+    uint256 constant INITIAL_DAILY_EMISSION = 31_600_000 * 1e18;
     uint256 constant EPOCH_DURATION = 1 days;
 
     function setUp() public {
@@ -34,7 +34,7 @@ contract AWPEmissionTest is Test {
         AWPEmission emissionImpl = new AWPEmission();
         bytes memory initData = abi.encodeCall(
             AWPEmission.initialize,
-            (address(awpToken), treasury, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
+            (address(awpToken), treasury, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION, treasury)
         );
         ERC1967Proxy emissionProxy = new ERC1967Proxy(address(emissionImpl), initData);
         emission = AWPEmission(address(emissionProxy));
@@ -47,31 +47,32 @@ contract AWPEmissionTest is Test {
 
     // ── Helper: submit allocations as guardian ──
 
-    /// @dev Sort addresses ascending (bubble sort) and reorder weights to match
-    function _sortByAddress(address[] memory addrs, uint96[] memory ws) internal pure {
-        uint256 n = addrs.length;
-        for (uint256 i = 0; i < n; i++) {
-            for (uint256 j = i + 1; j < n; j++) {
-                if (uint160(addrs[i]) > uint160(addrs[j])) {
-                    (addrs[i], addrs[j]) = (addrs[j], addrs[i]);
-                    (ws[i], ws[j]) = (ws[j], ws[i]);
-                }
-            }
+    /// @dev Pack address + weight into uint256: [64-bit weight | 160-bit address]
+    function _pack(address addr, uint96 w) internal pure returns (uint256) {
+        return (uint256(w) << 160) | uint256(uint160(addr));
+    }
+
+    function _packArray(address[] memory addrs, uint96[] memory ws) internal pure returns (uint256[] memory) {
+        uint256[] memory packed = new uint256[](addrs.length);
+        for (uint256 i = 0; i < addrs.length; i++) {
+            packed[i] = _pack(addrs[i], ws[i]);
         }
+        return packed;
     }
 
     function _submitAsGuardian(address[] memory addrs, uint96[] memory ws) internal {
-        _submitAsGuardianForEpoch(addrs, ws, emission.settledEpoch() + 1);
+        _submitAsGuardianForEpoch(addrs, ws, emission.settledEpoch());
     }
 
     function _submitAsGuardianForEpoch(address[] memory addrs, uint96[] memory ws, uint256 effectiveEpoch) internal {
-        _sortByAddress(addrs, ws);
+        uint256 tw = 0;
+        for (uint256 i = 0; i < ws.length; i++) tw += ws[i];
         vm.prank(treasury); // treasury == guardian in tests
-        emission.submitAllocations(addrs, ws, effectiveEpoch);
+        emission.submitAllocations(_packArray(addrs, ws), tw, effectiveEpoch);
     }
 
-    /// @dev Settle epoch 0 (no weights, 0 AWP minted, emission budget unused this epoch) to advance to epoch 1
-    function _settleEpoch0() internal {
+    /// @dev Advance time past current epoch and settle it
+    function _settleCurrentEpoch() internal {
         vm.warp(block.timestamp + EPOCH_DURATION + 1);
         emission.settleEpoch(200);
     }
@@ -97,11 +98,11 @@ contract AWPEmissionTest is Test {
         ws[0] = 100;
         vm.prank(treasury);
         vm.expectRevert(AWPEmission.NotGuardian.selector);
-        emission.submitAllocations(addrs, ws, 1);
+        emission.submitAllocations(_packArray(addrs, ws), 100, 1);
 
         // New guardian can submit
         vm.prank(newGuardian);
-        emission.submitAllocations(addrs, ws, 1);
+        emission.submitAllocations(_packArray(addrs, ws), 100, 1);
     }
 
     function test_submitAllocations_onlyGuardian() public {
@@ -112,7 +113,7 @@ contract AWPEmissionTest is Test {
 
         vm.prank(user);
         vm.expectRevert(AWPEmission.NotGuardian.selector);
-        emission.submitAllocations(addrs, ws, 1);
+        emission.submitAllocations(_packArray(addrs, ws), 100, 1);
     }
 
     // ── submitAllocations tests ──
@@ -128,10 +129,10 @@ contract AWPEmissionTest is Test {
 
         _submitAsGuardian(addrs, ws);
 
-        // Verify weight updates in epoch 1
-        assertEq(emission.getEpochWeight(1, recipient1), 300);
-        assertEq(emission.getEpochWeight(1, recipient2), 100);
-        assertEq(emission.getEpochTotalWeight(1), 400);
+        // Verify weight updates in epoch 0 (settledEpoch)
+        assertEq(emission.getEpochWeight(0, recipient1), 300);
+        assertEq(emission.getEpochWeight(0, recipient2), 100);
+        assertEq(emission.getEpochTotalWeight(0), 400);
     }
 
     function test_submitAllocations_fullReplacement() public {
@@ -144,24 +145,24 @@ contract AWPEmissionTest is Test {
         ws1[1] = 100;
         _submitAsGuardian(addrs1, ws1);
 
-        assertEq(emission.getEpochTotalWeight(1), 400);
+        assertEq(emission.getEpochTotalWeight(0), 400);
 
-        // Second submission for epoch 1 with completely different recipients: recipient3, recipient4
+        // Second submission for epoch 0 with completely different recipients: recipient3, recipient4
         address[] memory addrs2 = new address[](2);
         addrs2[0] = recipient3;
         addrs2[1] = recipient4;
         uint96[] memory ws2 = new uint96[](2);
         ws2[0] = 500;
         ws2[1] = 200;
-        _submitAsGuardianForEpoch(addrs2, ws2, 1);
+        _submitAsGuardianForEpoch(addrs2, ws2, 0);
 
-        // Old recipient weights zeroed out (for epoch 1)
-        assertEq(emission.getEpochWeight(1, recipient1), 0);
-        assertEq(emission.getEpochWeight(1, recipient2), 0);
+        // Old recipient weights zeroed out (for epoch 0)
+        assertEq(emission.getEpochWeight(0, recipient1), 0);
+        assertEq(emission.getEpochWeight(0, recipient2), 0);
         // New recipient weights are correct
-        assertEq(emission.getEpochWeight(1, recipient3), 500);
-        assertEq(emission.getEpochWeight(1, recipient4), 200);
-        assertEq(emission.getEpochTotalWeight(1), 700);
+        assertEq(emission.getEpochWeight(0, recipient3), 500);
+        assertEq(emission.getEpochWeight(0, recipient4), 200);
+        assertEq(emission.getEpochTotalWeight(0), 700);
     }
 
     function test_submitAllocations_revertsExceedsMaxRecipients() public {
@@ -173,34 +174,24 @@ contract AWPEmissionTest is Test {
         uint96[] memory ws = new uint96[](1);
         ws[0] = 100;
         _submitAsGuardian(addrs, ws);
-        assertEq(emission.getEpochTotalWeight(1), 100);
+        assertEq(emission.getEpochTotalWeight(0), 100);
     }
 
-    function test_submitAllocations_revertsDuplicateRecipient() public {
-        // Same address appears twice in recipients (not sorted ascending)
-        address[] memory addrs = new address[](2);
-        addrs[0] = recipient1;
-        addrs[1] = recipient1; // duplicate
-        uint96[] memory ws = new uint96[](2);
-        ws[0] = 100;
-        ws[1] = 200;
 
-        vm.prank(treasury);
-        vm.expectRevert(AWPEmission.DuplicateRecipient.selector);
-        emission.submitAllocations(addrs, ws, 1);
-    }
 
     function test_submitAllocations_revertsMustBeFutureEpoch() public {
-        // Cannot submit for currentEpoch (epoch 0)
+        // Submit for epoch 0, settle it, then try to submit for epoch 0 again → revert
         address[] memory addrs = new address[](1);
         addrs[0] = recipient1;
         uint96[] memory ws = new uint96[](1);
         ws[0] = 100;
-        uint256 currentEp = emission.settledEpoch();
+        _submitAsGuardian(addrs, ws); // submit for epoch 0
+        _settleCurrentEpoch(); // settle epoch 0 → settledEpoch=1
 
+        // Cannot submit for epoch 0 (already settled)
         vm.prank(treasury);
         vm.expectRevert(AWPEmission.MustBeFutureEpoch.selector);
-        emission.submitAllocations(addrs, ws, currentEp);
+        emission.submitAllocations(_packArray(addrs, ws), 100, 0);
     }
 
     function test_submitAllocations_blockedDuringSettlement() public {
@@ -214,7 +205,7 @@ contract AWPEmissionTest is Test {
         _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0 then start settling epoch 1 with limit=1
-        _settleEpoch0();
+        _settleCurrentEpoch();
         vm.warp(block.timestamp + EPOCH_DURATION + 1);
         emission.settleEpoch(1);
         assertTrue(emission.settleProgress() > 0);
@@ -227,7 +218,7 @@ contract AWPEmissionTest is Test {
 
         vm.prank(treasury);
         vm.expectRevert(abi.encodeWithSignature("SettlementInProgress()"));
-        emission.submitAllocations(addrs2, ws2, 3);
+        emission.submitAllocations(_packArray(addrs2, ws2), 200, 3);
 
         // Complete settlement — then submission succeeds
         emission.settleEpoch(200);
@@ -247,7 +238,7 @@ contract AWPEmissionTest is Test {
         _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0 (no weights -> all to DAO)
-        _settleEpoch0();
+        _settleCurrentEpoch();
         assertEq(emission.settledEpoch(), 1);
 
         // Now settle epoch 1 (weights submitted for epoch 1)
@@ -256,8 +247,8 @@ contract AWPEmissionTest is Test {
 
         assertEq(emission.settledEpoch(), 2);
         // Recipient receives 100% of the emission (no DAO split)
-        uint256 subnetBal = awpToken.balanceOf(recipient1);
-        assertTrue(subnetBal > 0);
+        uint256 worknetBal = awpToken.balanceOf(recipient1);
+        assertTrue(worknetBal > 0);
     }
 
     function test_settleEpochBatched_oneByOne() public {
@@ -273,7 +264,7 @@ contract AWPEmissionTest is Test {
         _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0 first
-        _settleEpoch0();
+        _settleCurrentEpoch();
         assertEq(emission.settledEpoch(), 1);
 
         // Now settle epoch 1 batched
@@ -301,7 +292,7 @@ contract AWPEmissionTest is Test {
     }
 
     function test_settleEpochBatched_twoBatch() public {
-        // Submit for epoch 1
+        // Submit for epoch 0
         address[] memory addrs = new address[](4);
         addrs[0] = recipient1;
         addrs[1] = recipient2;
@@ -312,26 +303,18 @@ contract AWPEmissionTest is Test {
         ws[1] = 100;
         ws[2] = 100;
         ws[3] = 100;
-        _submitAsGuardianForEpoch(addrs, ws, 1);
+        _submitAsGuardianForEpoch(addrs, ws, 0);
 
-        // Settle epoch 0
-        _settleEpoch0();
-
-        // Settle epoch 1 in 2 batches
-        vm.warp(block.timestamp + EPOCH_DURATION + 1);
-
+        // Settle epoch 0 in 2 batches
         emission.settleEpoch(2);
         assertTrue(emission.settleProgress() > 0);
 
         emission.settleEpoch(2);
         assertEq(emission.settleProgress(), 0);
-        assertEq(emission.settledEpoch(), 2);
+        assertEq(emission.settledEpoch(), 1);
 
-        // 4 equal-weight recipients, each receives 1/4 of the full emission pool (100%)
-        uint256 epoch0Pool = INITIAL_DAILY_EMISSION;
-        uint256 decayedEmission = INITIAL_DAILY_EMISSION * 996844 / 1000000;
-        uint256 epoch1Pool = decayedEmission;
-        uint256 expected = (epoch0Pool + epoch1Pool) / 4;
+        // 4 equal-weight recipients, each receives 1/4 of epoch 0 emission
+        uint256 expected = INITIAL_DAILY_EMISSION / 4;
         assertEq(awpToken.balanceOf(recipient1), expected);
         assertEq(awpToken.balanceOf(recipient2), expected);
         assertEq(awpToken.balanceOf(recipient3), expected);
@@ -372,13 +355,16 @@ contract AWPEmissionTest is Test {
     }
 
     function test_settleEpochTooEarly() public {
+        // Settle epoch 0 (allowed at currentEpoch=0)
+        emission.settleEpoch(200);
+        // Now settledEpoch=1, but currentEpoch still 0 → cannot settle epoch 1
         vm.expectRevert(AWPEmission.EpochNotReady.selector);
         emission.settleEpoch(200);
     }
 
     function test_settleEpoch_revertsLimitZero() public {
         vm.warp(block.timestamp + EPOCH_DURATION + 1);
-        vm.expectRevert(AWPEmission.InvalidParameter.selector);
+        vm.expectRevert(AWPEmission.ZeroLimit.selector);
         emission.settleEpoch(0);
     }
 
@@ -395,7 +381,7 @@ contract AWPEmissionTest is Test {
         _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0
-        _settleEpoch0();
+        _settleCurrentEpoch();
 
         // Settle epoch 1
         vm.warp(block.timestamp + EPOCH_DURATION + 1);
@@ -421,7 +407,7 @@ contract AWPEmissionTest is Test {
         _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0
-        _settleEpoch0();
+        _settleCurrentEpoch();
 
         // Start settling epoch 1 with limit=1
         vm.warp(block.timestamp + EPOCH_DURATION + 1);
@@ -435,7 +421,7 @@ contract AWPEmissionTest is Test {
         ws2[0] = 200;
         vm.prank(treasury);
         vm.expectRevert(AWPEmission.SettlementInProgress.selector);
-        emission.submitAllocations(addrs2, ws2, 3);
+        emission.submitAllocations(_packArray(addrs2, ws2), 200, 3);
 
         // Complete remaining settlement batches
         emission.settleEpoch(200);
@@ -453,7 +439,7 @@ contract AWPEmissionTest is Test {
         _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0
-        _settleEpoch0();
+        _settleCurrentEpoch();
         // Settle epoch 1 to promote activeEpoch=1
         vm.warp(block.timestamp + EPOCH_DURATION + 1);
         emission.settleEpoch(200);
@@ -501,20 +487,19 @@ contract AWPEmissionTest is Test {
     }
 
     function test_activeEpochPromotionOnSettle() public {
-        // Submit for epoch 1
+        // Submit for epoch 0
         address[] memory addrs = new address[](1);
         addrs[0] = recipient1;
         uint96[] memory ws = new uint96[](1);
         ws[0] = 100;
-        _submitAsGuardianForEpoch(addrs, ws, 1);
+        _submitAsGuardianForEpoch(addrs, ws, 0);
 
         // activeEpoch is 0 initially
         assertEq(emission.activeEpoch(), 0);
 
-        // Settle epoch 0 — oracle submitted for epoch 1, so activeEpoch promoted to 1
-        // (settleEpoch checks _epochTotalWeight[settledEpoch + 1])
-        _settleEpoch0();
-        assertEq(emission.activeEpoch(), 1);
+        // Settle epoch 0 — weights exist for epoch 0, activeEpoch promoted to 0
+        _settleCurrentEpoch();
+        assertEq(emission.activeEpoch(), 0);
     }
 
     function test_activeEpochPersists_whenNoNewWeights() public {
@@ -526,7 +511,7 @@ contract AWPEmissionTest is Test {
         _submitAsGuardianForEpoch(addrs, ws, 1);
 
         // Settle epoch 0
-        _settleEpoch0();
+        _settleCurrentEpoch();
         // Settle epoch 1 — promotes activeEpoch to 1
         vm.warp(block.timestamp + EPOCH_DURATION + 1);
         emission.settleEpoch(200);
@@ -558,13 +543,13 @@ contract AWPEmissionTest is Test {
 
     function test_setDecayFactor_tooHigh_reverts() public {
         vm.prank(treasury);
-        vm.expectRevert(AWPEmission.InvalidParameter.selector);
+        vm.expectRevert(AWPEmission.InvalidDecayFactor.selector);
         emission.setDecayFactor(1000000); // >= DECAY_PRECISION
     }
 
     function test_setDecayFactor_zero_reverts() public {
         vm.prank(treasury);
-        vm.expectRevert(AWPEmission.InvalidParameter.selector);
+        vm.expectRevert(AWPEmission.InvalidDecayFactor.selector);
         emission.setDecayFactor(0);
     }
 
@@ -596,20 +581,13 @@ contract AWPEmissionTest is Test {
         addrs[0] = recipient1;
         uint96[] memory ws = new uint96[](1);
         ws[0] = 100;
-        _submitAsGuardianForEpoch(addrs, ws, 1);
+        _submitAsGuardianForEpoch(addrs, ws, 0);
 
-        // Settle epoch 0 (promotes weights from epoch 1 as activeEpoch)
-        _settleEpoch0();
-
-        // Settle epoch 1
-        vm.warp(block.timestamp + EPOCH_DURATION + 1);
+        // Settle epoch 0 (current epoch, allowed by new rules)
         emission.settleEpoch(200);
 
-        // recipient1 should receive epoch 0 full emission + epoch 1 decayed emission
-        uint256 epoch0Pool = INITIAL_DAILY_EMISSION;
-        uint256 epoch1Pool = INITIAL_DAILY_EMISSION * 996844 / 1000000;
-        uint256 totalExpected = epoch0Pool + epoch1Pool;
-        assertEq(awpToken.balanceOf(recipient1), totalExpected);
+        // recipient1 should receive full epoch 0 emission (no decay on first epoch)
+        assertEq(awpToken.balanceOf(recipient1), INITIAL_DAILY_EMISSION);
 
         // No other address received anything (no DAO split)
         assertEq(awpToken.balanceOf(treasury), 0);
@@ -625,7 +603,7 @@ contract AWPEmissionTest is Test {
         ws[1] = 100;
         _submitAsGuardianForEpoch(addrs, ws, 1);
 
-        _settleEpoch0();
+        _settleCurrentEpoch();
         vm.warp(block.timestamp + EPOCH_DURATION + 1);
         emission.settleEpoch(200);
 
@@ -649,7 +627,7 @@ contract AWPEmissionTest is Test {
         ws[0] = 100;
         _submitAsGuardianForEpoch(addrs, ws, 1);
 
-        _settleEpoch0();
+        _settleCurrentEpoch();
 
         // Settle epoch 1 with new decay factor
         vm.warp(block.timestamp + EPOCH_DURATION + 1);
@@ -660,34 +638,39 @@ contract AWPEmissionTest is Test {
     }
 
     function test_submitAllocations_catchUp() public {
-        // Submit for epoch 3 (skipping epoch 1 and 2)
+        // Submit for epoch 3 (skipping epochs 0-2)
         address[] memory addrs = new address[](1);
         addrs[0] = recipient1;
         uint96[] memory ws = new uint96[](1);
         ws[0] = 100;
         _submitAsGuardianForEpoch(addrs, ws, 3);
 
-        uint256 genesis = emission.genesisTime();
+        uint256 genesis = emission.baseTime();
 
-        // Settle epoch 0 — no weights for epoch 1, activeEpoch stays 0
-        vm.warp(genesis + EPOCH_DURATION * 2);
+        // Warp to epoch 3 so we can settle epochs 0-3
+        vm.warp(genesis + EPOCH_DURATION * 3 + 1);
+
+        // Settle epoch 0 — no weights for epoch 0, activeEpoch stays 0
         emission.settleEpoch(200);
         assertEq(emission.settledEpoch(), 1);
         assertEq(emission.activeEpoch(), 0);
 
-        // Settle epoch 1 — no weights for epoch 2, activeEpoch stays 0
-        vm.warp(genesis + EPOCH_DURATION * 3);
+        // Settle epoch 1 — no weights for epoch 1, activeEpoch stays 0
         emission.settleEpoch(200);
         assertEq(emission.settledEpoch(), 2);
         assertEq(emission.activeEpoch(), 0);
 
-        // Settle epoch 2 — weights exist for epoch 3, activeEpoch promoted to 3
-        vm.warp(genesis + EPOCH_DURATION * 4);
+        // Settle epoch 2 — no weights for epoch 2, activeEpoch stays 0
         emission.settleEpoch(200);
         assertEq(emission.settledEpoch(), 3);
+        assertEq(emission.activeEpoch(), 0);
+
+        // Settle epoch 3 — weights exist, activeEpoch promoted to 3
+        emission.settleEpoch(200);
+        assertEq(emission.settledEpoch(), 4);
         assertEq(emission.activeEpoch(), 3);
 
-        // recipient1 should receive epoch 2's emission (the first epoch using epoch 3 weights)
+        // recipient1 receives epoch 3's emission
         uint256 bal = awpToken.balanceOf(recipient1);
         assertTrue(bal > 0);
     }

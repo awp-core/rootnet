@@ -19,6 +19,7 @@ contract AWPDAOTest is Test {
     StakingVault public vault;
 
     address public deployer = makeAddr("deployer");
+    address public guardian = makeAddr("guardian");
     address public voter = makeAddr("voter");
 
     uint256 public constant MIN_DELAY = 1 days;
@@ -67,7 +68,8 @@ contract AWPDAOTest is Test {
         treasury.grantRole(treasury.PROPOSER_ROLE(), address(dao));
         treasury.grantRole(treasury.CANCELLER_ROLE(), address(dao));
 
-        // Deployer renounces Treasury admin
+        // Transfer Treasury admin to guardian, then deployer renounces
+        treasury.grantRole(treasury.DEFAULT_ADMIN_ROLE(), guardian);
         treasury.renounceRole(treasury.DEFAULT_ADMIN_ROLE(), deployer);
 
         // Transfer tokens to voter and have them stake via StakeNFT
@@ -267,12 +269,12 @@ contract AWPDAOTest is Test {
     // ══════════════════════════════════════════════
 
     function test_castVoteBySig_reverts() public {
-        vm.expectRevert(AWPDAO.UsecastVoteWithParams.selector);
+        vm.expectRevert(AWPDAO.UseCastVoteWithParams.selector);
         dao.castVoteBySig(0, 1, address(0), "");
     }
 
     function test_castVoteWithReasonAndParamsBySig_reverts() public {
-        vm.expectRevert(AWPDAO.UsecastVoteWithParams.selector);
+        vm.expectRevert(AWPDAO.UseCastVoteWithParams.selector);
         dao.castVoteWithReasonAndParamsBySig(0, 1, address(0), "", "", "");
     }
 }

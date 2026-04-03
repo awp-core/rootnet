@@ -7,22 +7,22 @@ import {ERC20BurnableUpgradeable} from
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {IERC1363Receiver, IERC1363Spender} from "../interfaces/IERC1363Receiver.sol";
 
-/// @title AlphaToken — Subnet token (CREATE2 deterministic deployment)
+/// @title AlphaToken — Worknet token (CREATE2 deterministic deployment)
 /// @notice Dual-minter + ERC1363 callbacks + burnable
 /// @dev Deployed via AlphaTokenFactory using CREATE2 (full standalone contract, no proxy).
 ///      Does **not** inherit OwnableUpgradeable (admin is managed by this contract directly).
-///      MAX_SUPPLY = 10 billion tokens per subnet.
+///      MAX_SUPPLY = 10 billion tokens per worknet.
 ///      Minter lifecycle:
 ///        1. During initialize(), admin is set as the initial minter (dual-minter phase)
-///        2. setSubnetMinter(subnetManager) sets the subnet contract as the sole minter,
+///        2. setWorknetMinter(worknetManager) sets the worknet contract as the sole minter,
 ///           revokes admin's minting rights, and permanently sets mintersLocked = true
-///        3. setMinterPaused() can pause/resume a specific minter (used for banning/unbanning subnets)
+///        3. setMinterPaused() can pause/resume a specific minter (used for banning/unbanning worknets)
 contract AlphaToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable {
-    /// @notice Maximum supply per subnet token: 10 billion tokens (18 decimals)
+    /// @notice Maximum supply per worknet token: 10 billion tokens (18 decimals)
     uint256 public constant MAX_SUPPLY = 10_000_000_000 * 1e18;
 
-    /// @notice Subnet ID this token belongs to
-    uint256 public subnetId;
+    /// @notice Worknet ID this token belongs to
+    uint256 public worknetId;
 
     /// @notice Admin address (AWPRegistry), responsible for minter management and pause control
     /// @dev Packed with mintersLocked (1 byte) + createdAt (8 bytes) into one 32-byte slot
@@ -33,20 +33,21 @@ contract AlphaToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable
     /// @notice Minter whitelist
     mapping(address => bool) public minters;
 
-    /// @notice Minter pause status (used to pause minting rights when banning a subnet)
+    /// @notice Minter pause status (used to pause minting rights when banning a worknet)
     mapping(address => bool) public minterPaused;
 
-    /// @notice Total supply snapshot at the moment setSubnetMinter locks the minter list
+    /// @notice Total supply snapshot at the moment setWorknetMinter locks the minter list
     /// @dev Pre-minted tokens (admin LP mint) are excluded from the time-based cap calculation
     uint256 public supplyAtLock;
 
-    /// @notice Cumulative gross tokens minted since setSubnetMinter was called (not affected by burns)
+    /// @notice Cumulative gross tokens minted since setWorknetMinter was called (not affected by burns)
     uint256 public grossMintedSinceLock;
 
-    /// @notice Emitted when the subnet minter is permanently set
-    event SubnetMinterSet(address indexed subnetManager);
+    /// @notice Emitted when the worknet minter is permanently set
+    event WorknetMinterSet(address indexed worknetManager);
 
     /// @dev Caller is not the admin
+    error ZeroAddress();
     error NotAdmin();
     /// @dev Minter is invalid or unauthorized
     error NotMinter();
@@ -68,34 +69,34 @@ contract AlphaToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable
     /// @notice Initialize an AlphaToken clone instance (called by AlphaTokenFactory.deploy())
     /// @param name_     Token name
     /// @param symbol_   Token symbol
-    /// @param subnetId_ Subnet ID
+    /// @param worknetId_ Worknet ID
     /// @param admin_    Admin address (typically AWPRegistry); also acts as minter in the initial phase
     /// @dev Can only be called once (enforced by the initializer modifier); admin_ is automatically added to the minter list
-    function initialize(string memory name_, string memory symbol_, uint256 subnetId_, address admin_)
+    function initialize(string memory name_, string memory symbol_, uint256 worknetId_, address admin_)
         external
         initializer
     {
         __ERC20_init(name_, symbol_);
         __ERC20Burnable_init();
-        subnetId = subnetId_;
+        worknetId = worknetId_;
         admin = admin_;
         createdAt = uint64(block.timestamp);
         // Admin holds minting rights in the initial phase (first minter in the dual-minter setup)
         minters[admin_] = true;
     }
 
-    /// @notice Set the subnet contract as the sole minter, revoke admin minting rights, and permanently lock
-    /// @param subnetManager Subnet contract address (must not be the zero address)
-    /// @dev Can only be called once; after the call mintersLocked = true and setSubnetMinter cannot be called again.
-    ///      This ensures the subnet contract is the only minting source, preventing admin from minting arbitrarily.
-    function setSubnetMinter(address subnetManager) external {
+    /// @notice Set the worknet contract as the sole minter, revoke admin minting rights, and permanently lock
+    /// @param worknetManager Worknet contract address (must not be the zero address)
+    /// @dev Can only be called once; after the call mintersLocked = true and setWorknetMinter cannot be called again.
+    ///      This ensures the worknet contract is the only minting source, preventing admin from minting arbitrarily.
+    function setWorknetMinter(address worknetManager) external {
         if (msg.sender != admin) revert NotAdmin();
         // Ensure not yet locked
         if (mintersLocked) revert MintersLocked();
-        // Subnet contract address must not be zero
-        if (subnetManager == address(0)) revert NotMinter();
-        // Authorize subnet contract as minter
-        minters[subnetManager] = true;
+        // Worknet contract address must not be zero
+        if (worknetManager == address(0)) revert ZeroAddress();
+        // Authorize worknet contract as minter
+        minters[worknetManager] = true;
         // Revoke admin's minting rights
         minters[admin] = false;
         // Snapshot supply and reset clock before locking
@@ -104,10 +105,10 @@ contract AlphaToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable
         grossMintedSinceLock = 0;
         // Permanently lock the minter list
         mintersLocked = true;
-        emit SubnetMinterSet(subnetManager);
+        emit WorknetMinterSet(worknetManager);
     }
 
-    /// @notice Pause or resume a specific minter's minting rights (used for banning/unbanning subnets)
+    /// @notice Pause or resume a specific minter's minting rights (used for banning/unbanning worknets)
     /// @param minter  Target minter address
     /// @param paused  true = pause, false = resume
     /// @dev Only admin may call; does not modify the minters mapping, only controls the extra check in mint()
@@ -128,11 +129,11 @@ contract AlphaToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable
         // Ensure minting does not exceed the supply cap
         uint256 supply = totalSupply();
         if (supply + amount > MAX_SUPPLY) revert ExceedsMaxSupply();
-        // Time-based minting cap (only applies after minters are locked, i.e. subnet minter phase)
+        // Time-based minting cap (only applies after minters are locked, i.e. worknet minter phase)
         // Admin minting (initial LP liquidity) is exempt from the time cap
         if (mintersLocked) {
             uint256 elapsed = block.timestamp - uint256(createdAt);
-            if (elapsed == 0) elapsed = 1; // Allow same-block mint after setSubnetMinter
+            if (elapsed == 0) elapsed = 1; // Allow same-block mint after setWorknetMinter
             uint256 maxMintable = (MAX_SUPPLY - supplyAtLock) * elapsed / 365 days;
             if (maxMintable > MAX_SUPPLY - supplyAtLock) maxMintable = MAX_SUPPLY - supplyAtLock;
             if (grossMintedSinceLock + amount > maxMintable) revert ExceedsMintableLimit();
@@ -141,12 +142,12 @@ contract AlphaToken is Initializable, ERC20Upgradeable, ERC20BurnableUpgradeable
         _mint(to, amount);
     }
 
-    /// @notice Get the remaining mintable headroom for subnet minters at the current timestamp
+    /// @notice Get the remaining mintable headroom for worknet minters at the current timestamp
     /// @return Remaining amount that can be minted before hitting the time-based cap
     function currentMintableLimit() external view returns (uint256) {
         if (!mintersLocked) return 0;
         uint256 elapsed = block.timestamp - uint256(createdAt);
-        if (elapsed == 0) elapsed = 1; // Allow same-block query after setSubnetMinter
+        if (elapsed == 0) elapsed = 1; // Allow same-block query after setWorknetMinter
         uint256 maxMintable = (MAX_SUPPLY - supplyAtLock) * elapsed / 365 days;
         if (maxMintable > MAX_SUPPLY - supplyAtLock) maxMintable = MAX_SUPPLY - supplyAtLock;
         return grossMintedSinceLock >= maxMintable ? 0 : maxMintable - grossMintedSinceLock;

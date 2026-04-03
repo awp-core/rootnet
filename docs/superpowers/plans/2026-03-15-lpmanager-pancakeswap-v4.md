@@ -23,7 +23,7 @@
 
 In the `SubnetInfo` struct, change:
 ```solidity
-address lpPool;           // PancakeSwap V4 LP 池地址
+address lpPool;           // PancakeSwap V4 LP pool address
 ```
 to:
 ```solidity

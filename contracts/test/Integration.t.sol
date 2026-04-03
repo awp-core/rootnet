@@ -9,7 +9,7 @@ import {AWPEmission} from "../src/token/AWPEmission.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
-import {SubnetNFT} from "../src/core/SubnetNFT.sol";
+import {WorknetNFT} from "../src/core/WorknetNFT.sol";
 import {MockLPManager} from "./helpers/MockLPManager.sol";
 import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {IAWPRegistry} from "../src/interfaces/IAWPRegistry.sol";
@@ -25,7 +25,7 @@ contract IntegrationTest is Test {
     AWPEmission emission;
     StakingVault vault;
     StakeNFT stakeNFT;
-    SubnetNFT nft;
+    WorknetNFT nft;
     MockLPManager lp;
     AWPRegistry awpRegistry;
     Treasury treasury;
@@ -38,10 +38,10 @@ contract IntegrationTest is Test {
     address owner1 = address(0x101);
     address agent1 = address(0x201);
     address agent2 = address(0x202);
-    address subnetManager1 = address(0x301);
-    address subnetManager2 = address(0x302);
+    address worknetManager1 = address(0x301);
+    address worknetManager2 = address(0x302);
 
-    uint256 constant INITIAL_DAILY_EMISSION = 15_800_000 * 1e18;
+    uint256 constant INITIAL_DAILY_EMISSION = 31_600_000 * 1e18;
     uint256 constant EPOCH_DURATION = 1 days;
 
     function setUp() public {
@@ -73,14 +73,14 @@ contract IntegrationTest is Test {
         )));
 
         // Step 6-7: Sub-contracts
-        nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(awpRegistry));
+        nft = new WorknetNFT("AWP Worknet", "AWPSUB", address(awpRegistry));
         lp = new MockLPManager(address(awpRegistry), address(awp));
 
         // Step 8: AWPEmission (UUPS proxy) — deployer == guardian in tests
         AWPEmission emissionImpl = new AWPEmission();
         bytes memory emissionInitData = abi.encodeCall(
             AWPEmission.initialize,
-            (address(awp), deployer, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
+            (address(awp), deployer, INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION, address(treasury))
         );
         ERC1967Proxy emissionProxy = new ERC1967Proxy(address(emissionImpl), emissionInitData);
         emission = AWPEmission(address(emissionProxy));
@@ -114,7 +114,8 @@ contract IntegrationTest is Test {
         treasury.grantRole(treasury.PROPOSER_ROLE(), address(dao));
         treasury.grantRole(treasury.CANCELLER_ROLE(), address(dao));
 
-        // Step 15: Renounce Treasury admin role
+        // Step 15: Transfer Treasury admin to guardian, deployer renounces
+        treasury.grantRole(treasury.DEFAULT_ADMIN_ROLE(), guardian);
         treasury.renounceRole(treasury.DEFAULT_ADMIN_ROLE(), deployer);
 
         // Step 16: Initialize registry (no accessManager)
@@ -151,23 +152,20 @@ contract IntegrationTest is Test {
 
     // ── Guardian submission helpers ──
 
-    function _sortByAddress(address[] memory addrs, uint96[] memory ws) internal pure {
-        uint256 n = addrs.length;
-        for (uint256 i = 0; i < n; i++) {
-            for (uint256 j = i + 1; j < n; j++) {
-                if (uint160(addrs[i]) > uint160(addrs[j])) {
-                    (addrs[i], addrs[j]) = (addrs[j], addrs[i]);
-                    (ws[i], ws[j]) = (ws[j], ws[i]);
-                }
-            }
+    function _packArray(address[] memory addrs, uint96[] memory ws) internal pure returns (uint256[] memory) {
+        uint256[] memory packed = new uint256[](addrs.length);
+        for (uint256 i = 0; i < addrs.length; i++) {
+            packed[i] = (uint256(ws[i]) << 160) | uint256(uint160(addrs[i]));
         }
+        return packed;
     }
 
     function _submitWeights(address[] memory recipients, uint96[] memory weights) internal {
-        _sortByAddress(recipients, weights);
-        uint256 effectiveEpoch = emission.settledEpoch() + 1;
+        uint256 tw = 0;
+        for (uint256 i = 0; i < weights.length; i++) tw += weights[i];
+        uint256 effectiveEpoch = emission.settledEpoch();
         vm.prank(deployer); // deployer == guardian in tests
-        emission.submitAllocations(recipients, weights, effectiveEpoch);
+        emission.submitAllocations(_packArray(recipients, weights), tw, effectiveEpoch);
     }
 
     function _submitWeight(address _recipient, uint96 weight) internal {
@@ -178,7 +176,7 @@ contract IntegrationTest is Test {
         _submitWeights(addrs, ws);
     }
 
-    /// @notice Full flow: register -> bind -> register subnet -> stake -> allocate -> emission
+    /// @notice Full flow: register -> bind -> register worknet -> stake -> allocate -> emission
     function test_fullFlow() public {
         // Give owner1 some AWP
         vm.prank(airdrop);
@@ -186,7 +184,7 @@ contract IntegrationTest is Test {
 
         // 1. Register user
         vm.prank(owner1);
-        awpRegistry.register();
+        awpRegistry.setRecipient(owner1);
         assertTrue(awpRegistry.isRegistered(owner1));
 
         // 2. Bind Agent
@@ -194,50 +192,50 @@ contract IntegrationTest is Test {
         awpRegistry.bind(owner1);
         assertEq(awpRegistry.boundTo(agent1), owner1);
 
-        // 3. Register subnet
+        // 3. Register worknet
         vm.startPrank(owner1);
         awp.approve(address(awpRegistry), 1_000_000 * 1e18);
-        uint256 subnetId = awpRegistry.registerSubnet(
-            IAWPRegistry.SubnetParams({
-                name: "TestSubnet",
+        uint256 worknetId = awpRegistry.registerWorknet(
+            IAWPRegistry.WorknetParams({
+                name: "TestWorknet",
                 symbol: "TSUB",
-                subnetManager: subnetManager1,
+                worknetManager: worknetManager1,
                 salt: bytes32(0),
                 minStake: 0,
                 skillsURI: ""
             })
         );
         vm.stopPrank();
-        assertEq(subnetId & ((1 << 64) - 1), 1);
-        assertEq(subnetId >> 64, block.chainid);
+        assertEq(worknetId & ((1 << 64) - 1), 1);
+        assertEq(worknetId >> 64, block.chainid);
 
         // Verify Alpha Token
-        AlphaToken alpha = AlphaToken(awpRegistry.getSubnetFull(subnetId).alphaToken);
+        AlphaToken alpha = AlphaToken(awpRegistry.getWorknetFull(worknetId).alphaToken);
         assertTrue(alpha.mintersLocked());
-        assertTrue(alpha.minters(subnetManager1));
+        assertTrue(alpha.minters(worknetManager1));
 
-        // 4. Activate subnet
+        // 4. Activate worknet
         vm.prank(owner1);
-        awpRegistry.activateSubnet(subnetId);
-        assertTrue(awpRegistry.isSubnetActive(subnetId));
+        awpRegistry.activateWorknet(worknetId);
+        assertTrue(awpRegistry.isWorknetActive(worknetId));
 
         // 5. Set governance weight for epoch 1
-        _submitWeight(subnetManager1, uint96(1000));
+        _submitWeight(worknetManager1, uint96(1000));
 
         // 6. Stake via StakeNFT
         vm.startPrank(owner1);
         awp.approve(address(stakeNFT), 500_000 * 1e18);
         stakeNFT.deposit(500_000 * 1e18, 52 weeks);
 
-        // 7. Allocate to agent1/subnet1 (explicit staker)
-        vault.allocate(owner1, agent1, subnetId, 300_000 * 1e18);
+        // 7. Allocate to agent1/worknet1 (explicit staker)
+        vault.allocate(owner1, agent1, worknetId, 300_000 * 1e18);
         vm.stopPrank();
 
-        assertEq(vault.getAgentStake(owner1, agent1, subnetId), 300_000 * 1e18);
-        assertEq(vault.getSubnetTotalStake(subnetId), 300_000 * 1e18);
+        assertEq(vault.getAgentStake(owner1, agent1, worknetId), 300_000 * 1e18);
+        assertEq(vault.getWorknetTotalStake(worknetId), 300_000 * 1e18);
 
         // 8. Query Agent info
-        AWPRegistry.AgentInfo memory agentInfo = awpRegistry.getAgentInfo(agent1, subnetId);
+        AWPRegistry.AgentInfo memory agentInfo = awpRegistry.getAgentInfo(agent1, worknetId);
         assertEq(agentInfo.root, owner1);
         assertTrue(agentInfo.isValid);
         assertEq(agentInfo.stake, 300_000 * 1e18);
@@ -248,44 +246,44 @@ contract IntegrationTest is Test {
         // 10. Settle epoch 1
         _settleOneEpoch();
 
-        uint256 subnetBal = awp.balanceOf(subnetManager1);
+        uint256 worknetBal = awp.balanceOf(worknetManager1);
         // Epoch 0 (no decay, 100% to recipients) + Epoch 1 (decayed, 100%)
-        uint256 epoch0Subnet = INITIAL_DAILY_EMISSION;
+        uint256 epoch0Worknet = INITIAL_DAILY_EMISSION;
         uint256 decayedEmission = INITIAL_DAILY_EMISSION * 996844 / 1000000;
-        uint256 epoch1Subnet = decayedEmission;
-        assertEq(subnetBal, epoch0Subnet + epoch1Subnet);
+        uint256 epoch1Worknet = decayedEmission;
+        assertEq(worknetBal, epoch0Worknet + epoch1Worknet);
 
         // 11. Third epoch
-        _submitWeight(subnetManager1, uint96(1000));
+        _submitWeight(worknetManager1, uint96(1000));
         _settleOneEpoch();
     }
 
-    /// @notice Test multi-subnet emission distribution
-    function test_multiSubnetEmission() public {
+    /// @notice Test multi-worknet emission distribution
+    function test_multiWorknetEmission() public {
         vm.prank(airdrop);
         awp.transfer(owner1, 3_000_000 * 1e18);
 
         vm.prank(owner1);
-        awpRegistry.register();
+        awpRegistry.setRecipient(owner1);
 
         vm.startPrank(owner1);
         awp.approve(address(awpRegistry), 2_000_000 * 1e18);
 
-        uint256 subnet1 = awpRegistry.registerSubnet(
-            IAWPRegistry.SubnetParams("Sub1", "S1", subnetManager1, bytes32(0), 0, "")
+        uint256 worknet1 = awpRegistry.registerWorknet(
+            IAWPRegistry.WorknetParams("Sub1", "S1", worknetManager1, bytes32(0), 0, "")
         );
-        uint256 subnet2 = awpRegistry.registerSubnet(
-            IAWPRegistry.SubnetParams("Sub2", "S2", subnetManager2, bytes32(0), 0, "")
+        uint256 worknet2 = awpRegistry.registerWorknet(
+            IAWPRegistry.WorknetParams("Sub2", "S2", worknetManager2, bytes32(0), 0, "")
         );
 
-        awpRegistry.activateSubnet(subnet1);
-        awpRegistry.activateSubnet(subnet2);
+        awpRegistry.activateWorknet(worknet1);
+        awpRegistry.activateWorknet(worknet2);
         vm.stopPrank();
 
         {
             address[] memory addrs = new address[](2);
-            addrs[0] = subnetManager1;
-            addrs[1] = subnetManager2;
+            addrs[0] = worknetManager1;
+            addrs[1] = worknetManager2;
             uint96[] memory ws = new uint96[](2);
             ws[0] = 300;
             ws[1] = 100;
@@ -295,8 +293,8 @@ contract IntegrationTest is Test {
         _settleOneEpoch();
         _settleOneEpoch();
 
-        uint256 bal1 = awp.balanceOf(subnetManager1);
-        uint256 bal2 = awp.balanceOf(subnetManager2);
+        uint256 bal1 = awp.balanceOf(worknetManager1);
+        uint256 bal2 = awp.balanceOf(worknetManager2);
         assertApproxEqRel(bal1, bal2 * 3, 0.01e18);
     }
 
@@ -306,7 +304,7 @@ contract IntegrationTest is Test {
         awp.transfer(owner1, 1_000_000 * 1e18);
 
         vm.startPrank(owner1);
-        awpRegistry.register();
+        awpRegistry.setRecipient(owner1);
 
         awp.approve(address(stakeNFT), 500_000 * 1e18);
         uint256 tokenId = stakeNFT.deposit(500_000 * 1e18, 1 days);
@@ -334,23 +332,23 @@ contract IntegrationTest is Test {
         awp.transfer(owner1, 2_000_000 * 1e18);
 
         vm.prank(owner1);
-        awpRegistry.register();
+        awpRegistry.setRecipient(owner1);
 
         vm.startPrank(owner1);
         awp.approve(address(awpRegistry), 1_000_000 * 1e18);
-        uint256 subnetId = awpRegistry.registerSubnet(
-            IAWPRegistry.SubnetParams("Sub", "SUB", subnetManager1, bytes32(0), 0, "")
+        uint256 worknetId = awpRegistry.registerWorknet(
+            IAWPRegistry.WorknetParams("Sub", "SUB", worknetManager1, bytes32(0), 0, "")
         );
-        awpRegistry.activateSubnet(subnetId);
+        awpRegistry.activateWorknet(worknetId);
         awp.approve(address(stakeNFT), 500_000 * 1e18);
         stakeNFT.deposit(500_000 * 1e18, 52 weeks);
-        vault.allocate(owner1, agent1, subnetId, 300_000 * 1e18);
+        vault.allocate(owner1, agent1, worknetId, 300_000 * 1e18);
 
         // Deallocate all
-        vault.deallocate(owner1, agent1, subnetId, 300_000 * 1e18);
+        vault.deallocate(owner1, agent1, worknetId, 300_000 * 1e18);
         vm.stopPrank();
 
-        assertEq(vault.getAgentStake(owner1, agent1, subnetId), 0);
+        assertEq(vault.getAgentStake(owner1, agent1, worknetId), 0);
         assertEq(vault.userTotalAllocated(owner1), 0);
     }
 
@@ -360,15 +358,15 @@ contract IntegrationTest is Test {
         awp.transfer(owner1, 2_000_000 * 1e18);
 
         vm.prank(owner1);
-        awpRegistry.register();
+        awpRegistry.setRecipient(owner1);
 
-        // Register subnet
+        // Register worknet
         vm.startPrank(owner1);
         awp.approve(address(awpRegistry), 1_000_000 * 1e18);
-        uint256 subnetId = awpRegistry.registerSubnet(
-            IAWPRegistry.SubnetParams("Sub", "SUB", subnetManager1, bytes32(0), 0, "")
+        uint256 worknetId = awpRegistry.registerWorknet(
+            IAWPRegistry.WorknetParams("Sub", "SUB", worknetManager1, bytes32(0), 0, "")
         );
-        awpRegistry.activateSubnet(subnetId);
+        awpRegistry.activateWorknet(worknetId);
         awp.approve(address(stakeNFT), 500_000 * 1e18);
         stakeNFT.deposit(500_000 * 1e18, 52 weeks);
         // Grant delegate to agent1
@@ -377,30 +375,30 @@ contract IntegrationTest is Test {
 
         // agent1 allocates on behalf of owner1
         vm.prank(agent1);
-        vault.allocate(owner1, agent2, subnetId, 100_000 * 1e18);
-        assertEq(vault.getAgentStake(owner1, agent2, subnetId), 100_000 * 1e18);
+        vault.allocate(owner1, agent2, worknetId, 100_000 * 1e18);
+        assertEq(vault.getAgentStake(owner1, agent2, worknetId), 100_000 * 1e18);
 
         // agent1 deallocates on behalf of owner1
         vm.prank(agent1);
-        vault.deallocate(owner1, agent2, subnetId, 50_000 * 1e18);
-        assertEq(vault.getAgentStake(owner1, agent2, subnetId), 50_000 * 1e18);
+        vault.deallocate(owner1, agent2, worknetId, 50_000 * 1e18);
+        assertEq(vault.getAgentStake(owner1, agent2, worknetId), 50_000 * 1e18);
     }
 
-    /// @notice Test batch emission (many subnets)
+    /// @notice Test batch emission (many worknets)
     function test_batchSettle() public {
         vm.prank(airdrop);
         awp.transfer(owner1, 10_000_000 * 1e18);
 
         vm.prank(owner1);
-        awpRegistry.register();
+        awpRegistry.setRecipient(owner1);
 
         vm.startPrank(owner1);
         awp.approve(address(awpRegistry), 10_000_000 * 1e18);
 
         for (uint256 i = 0; i < 3; i++) {
             address sc = address(uint160(0x400 + i));
-            uint256 sid = awpRegistry.registerSubnet(IAWPRegistry.SubnetParams("Sub", "SUB", sc, bytes32(0), 0, ""));
-            awpRegistry.activateSubnet(sid);
+            uint256 sid = awpRegistry.registerWorknet(IAWPRegistry.WorknetParams("Sub", "SUB", sc, bytes32(0), 0, ""));
+            awpRegistry.activateWorknet(sid);
         }
         vm.stopPrank();
 
@@ -441,13 +439,13 @@ contract IntegrationTest is Test {
 
         vm.prank(owner1);
         vm.expectRevert();
-        awpRegistry.register();
+        awpRegistry.setRecipient(owner1);
 
-        vm.prank(address(treasury));
+        vm.prank(guardian);
         awpRegistry.unpause();
 
         vm.prank(owner1);
-        awpRegistry.register();
+        awpRegistry.setRecipient(owner1);
     }
 
     // ══════════════════════════════════════════════
@@ -476,30 +474,31 @@ contract IntegrationTest is Test {
         vm.prank(airdrop);
         awp.transfer(owner1, 2_000_000 * 1e18);
 
-        // Register user and subnet
+        // Register user and worknet
         vm.prank(owner1);
-        awpRegistry.register();
+        awpRegistry.setRecipient(owner1);
 
         vm.startPrank(owner1);
         awp.approve(address(awpRegistry), 1_000_000 * 1e18);
-        uint256 subnetId = awpRegistry.registerSubnet(
-            IAWPRegistry.SubnetParams("TestSubnet", "TSUB", subnetManager1, bytes32(0), 0, "")
+        uint256 worknetId = awpRegistry.registerWorknet(
+            IAWPRegistry.WorknetParams("TestWorknet", "TSUB", worknetManager1, bytes32(0), 0, "")
         );
-        awpRegistry.activateSubnet(subnetId);
+        awpRegistry.activateWorknet(worknetId);
         vm.stopPrank();
 
-        // Guardian includes treasury as a recipient: subnetManager1=700, treasury=300
+        // Guardian includes treasury as a recipient: worknetManager1=700, treasury=300
         {
             address[] memory addrs = new address[](2);
-            addrs[0] = subnetManager1;
+            addrs[0] = worknetManager1;
             addrs[1] = address(treasury);
             uint96[] memory ws = new uint96[](2);
             ws[0] = 700;
             ws[1] = 300;
-            _sortByAddress(addrs, ws);
-            uint256 effectiveEpoch = emission.settledEpoch() + 1;
+            uint256 tw = 0;
+            for (uint256 i = 0; i < ws.length; i++) tw += ws[i];
+            uint256 effectiveEpoch = emission.settledEpoch();
             vm.prank(deployer); // deployer == guardian in tests
-            emission.submitAllocations(addrs, ws, effectiveEpoch);
+            emission.submitAllocations(_packArray(addrs, ws), tw, effectiveEpoch);
         }
 
         uint256 treasuryBefore = awp.balanceOf(address(treasury));
@@ -509,13 +508,13 @@ contract IntegrationTest is Test {
         _settleOneEpoch();
 
         uint256 treasuryAfter = awp.balanceOf(address(treasury));
-        uint256 subnetBal = awp.balanceOf(subnetManager1);
+        uint256 worknetBal = awp.balanceOf(worknetManager1);
 
         // Treasury received emission share
         uint256 treasuryGain = treasuryAfter - treasuryBefore;
         assertTrue(treasuryGain > 0);
 
-        // 7:3 ratio (subnetManager1:treasury)
-        assertApproxEqRel(subnetBal, treasuryGain * 7 / 3, 0.01e18);
+        // 7:3 ratio (worknetManager1:treasury)
+        assertApproxEqRel(worknetBal, treasuryGain * 7 / 3, 0.01e18);
     }
 }

@@ -47,7 +47,7 @@ type Indexer struct {
 // deployBlock is used as the start block on first run when sync_states is empty.
 func NewIndexer(chain *Client, pool *pgxpool.Pool, rds *redis.Client, chainID int64, deployBlock int64) (*Indexer, error) {
 	// Cache genesisTime and epochDuration (immutable, read once)
-	gt, err := chain.AWPEmission.GenesisTime(nil)
+	gt, err := chain.AWPEmission.BaseTime(nil)
 	if err != nil || gt == nil {
 		return nil, fmt.Errorf("failed to read AWPEmission.genesisTime: %w", err)
 	}
@@ -106,7 +106,7 @@ func (idx *Indexer) runSubscription(ctx context.Context) error {
 	defer sub.Unsubscribe()
 	slog.Info("indexer using eth_subscribe mode (real-time)")
 
-	// 初始 catch-up：处理订阅建立前遗漏的区块
+	// Initial catch-up: process blocks missed before subscription was established
 	if err := idx.poll(ctx); err != nil {
 		slog.Error("initial catch-up poll failed", "error", err)
 	}
@@ -133,7 +133,7 @@ func (idx *Indexer) runPolling(ctx context.Context) error {
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
-	// 60 秒后重试订阅模式
+	// Retry subscription mode after 60 seconds
 	retryTimer := time.NewTimer(60 * time.Second)
 	defer retryTimer.Stop()
 
@@ -214,7 +214,7 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 	logs, err := idx.chain.Eth.FilterLogs(ctx, ethereum.FilterQuery{
 		FromBlock: new(big.Int).SetUint64(fromBlock),
 		ToBlock:   new(big.Int).SetUint64(toBlock),
-		Addresses: []common.Address{idx.chain.AWPRegistryAddr, idx.chain.AWPEmissionAddr, idx.chain.StakeNFTAddr, idx.chain.SubnetNFTAddr, idx.chain.AWPDAOAddr, idx.chain.StakingVaultAddr},
+		Addresses: []common.Address{idx.chain.AWPRegistryAddr, idx.chain.AWPEmissionAddr, idx.chain.StakeNFTAddr, idx.chain.WorknetNFTAddr, idx.chain.AWPDAOAddr, idx.chain.StakingVaultAddr},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to filter logs: %w", err)
@@ -292,16 +292,16 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 }
 
 // refreshActiveAlphaTokens caches active alpha tokens in Redis.
-// Stores both the flat token list (for compoundFees) and the subnetId→token map (for price keying by subnetId).
+// Stores both the flat token list (for compoundFees) and the worknetId→token map (for price keying by worknetId).
 func (idx *Indexer) refreshActiveAlphaTokens(ctx context.Context, q *gen.Queries) {
 	rows, err := q.ListActiveAlphaTokensWithSubnetID(ctx, idx.chainID)
 	if err != nil {
 		return // non-critical, skip silently
 	}
 
-	// Build flat token list (backward compat for compoundFees) and subnetId→token map
+	// Build flat token list (backward compat for compoundFees) and worknetId→token map
 	tokens := make([]string, 0, len(rows))
-	subnetMap := make(map[string]string, len(rows)) // subnetId (decimal string) → alphaToken
+	subnetMap := make(map[string]string, len(rows)) // worknetId (decimal string) → alphaToken
 	for _, r := range rows {
 		tokens = append(tokens, r.AlphaToken)
 		if r.SubnetID.Valid && r.SubnetID.Int != nil {
@@ -438,10 +438,14 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// UserRegistered(address indexed user)
 	if evt, err := awpRegistry.ParseUserRegistered(lg); err == nil {
+		var registeredAt int64
+		if header, err := idx.chain.Eth.HeaderByNumber(ctx, new(big.Int).SetUint64(lg.BlockNumber)); err == nil {
+			registeredAt = int64(header.Time)
+		}
 		if err := q.SetUserRegisteredAt(ctx, gen.SetUserRegisteredAtParams{
 			ChainID:      idx.chainID,
 			Address:      strings.ToLower(evt.User.Hex()),
-			RegisteredAt: int64(lg.BlockNumber),
+			RegisteredAt: registeredAt,
 		}); err != nil {
 			return nil, fmt.Errorf("SetUserRegisteredAt: %w", err)
 		}
@@ -578,7 +582,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// StakeNFT.Transfer — NFT ownership transfer (ERC721 Transfer event)
-	// Guard on address to avoid matching SubnetNFT Transfer (same event signature)
+	// Guard on address to avoid matching WorknetNFT Transfer (same event signature)
 	if lg.Address == idx.chain.StakeNFTAddr {
 		if evt, err := stakeNFT.ParseTransfer(lg); err == nil {
 			// Skip mint (from=0) and burn (to=0) — handled by Deposited/Withdrawn
@@ -607,7 +611,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
-			SubnetID:     bigIntToNumeric(evt.SubnetId),
+			SubnetID:     bigIntToNumeric(evt.WorknetId),
 			Amount:       bigIntToNumeric(evt.Amount),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
@@ -624,7 +628,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		return []redisEvent{makeEvent("Allocated", idx.chainID, lg, map[string]interface{}{
 			"staker":   evt.Staker.Hex(),
 			"agent":    evt.Agent.Hex(),
-			"subnetId": evt.SubnetId.String(),
+			"worknetId": evt.WorknetId.String(),
 			"amount":   evt.Amount.String(),
 			"operator": evt.Operator.Hex(),
 		})}, nil
@@ -636,7 +640,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
-			SubnetID:     bigIntToNumeric(evt.SubnetId),
+			SubnetID:     bigIntToNumeric(evt.WorknetId),
 			Amount:       bigIntToNumeric(evt.Amount),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
@@ -653,7 +657,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		return []redisEvent{makeEvent("Deallocated", idx.chainID, lg, map[string]interface{}{
 			"staker":   evt.Staker.Hex(),
 			"agent":    evt.Agent.Hex(),
-			"subnetId": evt.SubnetId.String(),
+			"worknetId": evt.WorknetId.String(),
 			"amount":   evt.Amount.String(),
 			"operator": evt.Operator.Hex(),
 		})}, nil
@@ -666,7 +670,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.FromAgent.Hex()),
-			SubnetID:     bigIntToNumeric(evt.FromSubnetId),
+			SubnetID:     bigIntToNumeric(evt.FromWorknetId),
 			Amount:       bigIntToNumeric(evt.Amount),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
@@ -677,7 +681,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.ToAgent.Hex()),
-			SubnetID:     bigIntToNumeric(evt.ToSubnetId),
+			SubnetID:     bigIntToNumeric(evt.ToWorknetId),
 			Amount:       bigIntToNumeric(evt.Amount),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
@@ -686,44 +690,22 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		return []redisEvent{makeEvent("Reallocated", idx.chainID, lg, map[string]interface{}{
 			"staker":     evt.Staker.Hex(),
 			"fromAgent":  evt.FromAgent.Hex(),
-			"fromSubnet": evt.FromSubnetId.String(),
+			"fromSubnet": evt.FromWorknetId.String(),
 			"toAgent":    evt.ToAgent.Hex(),
-			"toSubnet":   evt.ToSubnetId.String(),
+			"toSubnet":   evt.ToWorknetId.String(),
 			"amount":     evt.Amount.String(),
 			"operator":   evt.Operator.Hex(),
 		})}, nil
 	}
 
-	// AgentAllocationsFrozen (emitted by StakingVault on ban/freeze)
-	if evt, err := stakingVault.ParseAgentAllocationsFrozen(lg); err == nil {
-		user := strings.ToLower(evt.User.Hex())
-		agent := strings.ToLower(evt.Agent.Hex())
-		// Zero out all allocations for this (user, agent) pair
-		if err := q.FreezeAgentAllocations(ctx, gen.FreezeAgentAllocationsParams{
-			ChainID: idx.chainID, UserAddress: user, AgentAddress: agent,
-		}); err != nil {
-			return nil, fmt.Errorf("FreezeAgentAllocations: %w", err)
-		}
-		// Subtract frozen amount from user's total allocated
-		if err := q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{
-			ChainID: idx.chainID, UserAddress: user,
-			TotalAllocated: bigIntToNumeric(evt.TotalFrozen), UpdatedBlock: int64(lg.BlockNumber),
-		}); err != nil {
-			return nil, fmt.Errorf("SubtractUserAllocated(freeze): %w", err)
-		}
-		return []redisEvent{makeEvent("AgentAllocationsFrozen", idx.chainID, lg, map[string]interface{}{
-			"user":        evt.User.Hex(),
-			"agent":       evt.Agent.Hex(),
-			"totalFrozen": evt.TotalFrozen.String(),
-		})}, nil
-	}
+	// AgentAllocationsFrozen removed — freezeAgentAllocations deleted from StakingVault
 
 	// SubnetRegistered
-	if evt, err := awpRegistry.ParseSubnetRegistered(lg); err == nil {
-		// Read skillsURI and minStake from SubnetNFT on-chain (not included in event)
+	if evt, err := awpRegistry.ParseWorknetRegistered(lg); err == nil {
+		// Read skillsURI and minStake from WorknetNFT on-chain (not included in event)
 		skillsURI := ""
 		minStake := big.NewInt(0)
-		if nftData, nftErr := idx.chain.SubnetNFT.GetSubnetData(&bind.CallOpts{Context: ctx}, evt.SubnetId); nftErr == nil {
+		if nftData, nftErr := idx.chain.WorknetNFT.GetWorknetData(&bind.CallOpts{Context: ctx}, evt.WorknetId); nftErr == nil {
 			skillsURI = nftData.SkillsURI
 			if nftData.MinStake != nil {
 				minStake = nftData.MinStake
@@ -731,18 +713,18 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}
 		// Read on-chain createdAt (block.timestamp, not block number)
 		var createdAtTs int64
-		if subnetInfo, err := idx.chain.AWPRegistry.GetSubnet(nil, evt.SubnetId); err == nil {
+		if subnetInfo, err := idx.chain.AWPRegistry.GetWorknet(nil, evt.WorknetId); err == nil {
 			createdAtTs = int64(subnetInfo.CreatedAt)
 		} else {
 			createdAtTs = int64(lg.BlockNumber) // fallback to block number if RPC fails
 		}
 		if err := q.InsertSubnet(ctx, gen.InsertSubnetParams{
-			SubnetID:       bigIntToNumeric(evt.SubnetId),
+			SubnetID:       bigIntToNumeric(evt.WorknetId),
 			ChainID:        idx.chainID,
 			Owner:          strings.ToLower(evt.Owner.Hex()),
 			Name:           evt.Name,
 			Symbol:         evt.Symbol,
-			SubnetContract: strings.ToLower(evt.SubnetManager.Hex()),
+			SubnetContract: strings.ToLower(evt.WorknetManager.Hex()),
 			SkillsUri:      pgtype.Text{String: skillsURI, Valid: skillsURI != ""},
 			MinStake:       bigIntToNumeric(minStake),
 			AlphaToken:     strings.ToLower(evt.AlphaToken.Hex()),
@@ -755,17 +737,17 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		// Mark matching salt as used in pool (best-effort; pool may not contain this address)
 		if markErr := q.MarkSaltUsedByAddress(ctx, gen.MarkSaltUsedByAddressParams{
 			ChainID:  idx.chainID,
-			SubnetID: bigIntToNumeric(evt.SubnetId),
+			SubnetID: bigIntToNumeric(evt.WorknetId),
 			Lower:    strings.ToLower(evt.AlphaToken.Hex()),
 		}); markErr != nil {
 			slog.Warn("mark salt used failed (non-critical)", "error", markErr, "alphaToken", evt.AlphaToken.Hex())
 		}
 		return []redisEvent{makeEvent("SubnetRegistered", idx.chainID, lg, map[string]interface{}{
-			"subnetId":      evt.SubnetId.String(),
+			"worknetId":      evt.WorknetId.String(),
 			"owner":         evt.Owner.Hex(),
 			"name":          evt.Name,
 			"symbol":        evt.Symbol,
-			"subnetManager": evt.SubnetManager.Hex(),
+			"worknetManager": evt.WorknetManager.Hex(),
 			"alphaToken":    evt.AlphaToken.Hex(),
 		})}, nil
 	}
@@ -774,13 +756,13 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	if evt, err := awpRegistry.ParseLPCreated(lg); err == nil {
 		poolIdHex := "0x" + hex.EncodeToString(evt.PoolId[:])
 		if err := q.UpdateSubnetLP(ctx, gen.UpdateSubnetLPParams{
-			SubnetID: bigIntToNumeric(evt.SubnetId),
+			SubnetID: bigIntToNumeric(evt.WorknetId),
 			LpPool:   pgtype.Text{String: poolIdHex, Valid: true},
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetLP: %w", err)
 		}
 		return []redisEvent{makeEvent("LPCreated", idx.chainID, lg, map[string]interface{}{
-			"subnetId":    evt.SubnetId.String(),
+			"worknetId":    evt.WorknetId.String(),
 			"poolId":      poolIdHex,
 			"awpAmount":   evt.AwpAmount.String(),
 			"alphaAmount": evt.AlphaAmount.String(),
@@ -788,93 +770,93 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	}
 
 	// SubnetActivated
-	if evt, err := awpRegistry.ParseSubnetActivated(lg); err == nil {
+	if evt, err := awpRegistry.ParseWorknetActivated(lg); err == nil {
 		// Read on-chain activatedAt (block.timestamp)
 		var activatedAtTs int64
-		if subnetInfo, err := idx.chain.AWPRegistry.GetSubnet(nil, evt.SubnetId); err == nil {
+		if subnetInfo, err := idx.chain.AWPRegistry.GetWorknet(nil, evt.WorknetId); err == nil {
 			activatedAtTs = int64(subnetInfo.ActivatedAt)
 		} else {
 			activatedAtTs = int64(lg.BlockNumber) // fallback
 		}
 		if err := q.UpdateSubnetActivated(ctx, gen.UpdateSubnetActivatedParams{
-			SubnetID:    bigIntToNumeric(evt.SubnetId),
+			SubnetID:    bigIntToNumeric(evt.WorknetId),
 			ActivatedAt: pgtype.Int8{Int64: activatedAtTs, Valid: true},
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetActivated: %w", err)
 		}
 		return []redisEvent{makeEvent("SubnetActivated", idx.chainID, lg, map[string]interface{}{
-			"subnetId": evt.SubnetId.String(),
+			"worknetId": evt.WorknetId.String(),
 		})}, nil
 	}
 
 	// SubnetPaused
-	if evt, err := awpRegistry.ParseSubnetPaused(lg); err == nil {
+	if evt, err := awpRegistry.ParseWorknetPaused(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: bigIntToNumeric(evt.SubnetId),
+			SubnetID: bigIntToNumeric(evt.WorknetId),
 			Status:   "Paused",
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Paused): %w", err)
 		}
 		return []redisEvent{makeEvent("SubnetPaused", idx.chainID, lg, map[string]interface{}{
-			"subnetId": evt.SubnetId.String(),
+			"worknetId": evt.WorknetId.String(),
 		})}, nil
 	}
 
 	// SubnetResumed
-	if evt, err := awpRegistry.ParseSubnetResumed(lg); err == nil {
+	if evt, err := awpRegistry.ParseWorknetResumed(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: bigIntToNumeric(evt.SubnetId),
+			SubnetID: bigIntToNumeric(evt.WorknetId),
 			Status:   "Active",
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Active): %w", err)
 		}
 		return []redisEvent{makeEvent("SubnetResumed", idx.chainID, lg, map[string]interface{}{
-			"subnetId": evt.SubnetId.String(),
+			"worknetId": evt.WorknetId.String(),
 		})}, nil
 	}
 
 	// SubnetBanned
-	if evt, err := awpRegistry.ParseSubnetBanned(lg); err == nil {
+	if evt, err := awpRegistry.ParseWorknetBanned(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: bigIntToNumeric(evt.SubnetId),
+			SubnetID: bigIntToNumeric(evt.WorknetId),
 			Status:   "Banned",
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Banned): %w", err)
 		}
 		return []redisEvent{makeEvent("SubnetBanned", idx.chainID, lg, map[string]interface{}{
-			"subnetId": evt.SubnetId.String(),
+			"worknetId": evt.WorknetId.String(),
 		})}, nil
 	}
 
 	// SubnetUnbanned
-	if evt, err := awpRegistry.ParseSubnetUnbanned(lg); err == nil {
+	if evt, err := awpRegistry.ParseWorknetUnbanned(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: bigIntToNumeric(evt.SubnetId),
+			SubnetID: bigIntToNumeric(evt.WorknetId),
 			Status:   "Active",
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Active): %w", err)
 		}
 		return []redisEvent{makeEvent("SubnetUnbanned", idx.chainID, lg, map[string]interface{}{
-			"subnetId": evt.SubnetId.String(),
+			"worknetId": evt.WorknetId.String(),
 		})}, nil
 	}
 
 	// SubnetDeregistered
-	if evt, err := awpRegistry.ParseSubnetDeregistered(lg); err == nil {
-		if err := q.UpdateSubnetBurned(ctx, bigIntToNumeric(evt.SubnetId)); err != nil {
+	if evt, err := awpRegistry.ParseWorknetDeregistered(lg); err == nil {
+		if err := q.UpdateSubnetBurned(ctx, bigIntToNumeric(evt.WorknetId)); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetBurned: %w", err)
 		}
 		return []redisEvent{makeEvent("SubnetDeregistered", idx.chainID, lg, map[string]interface{}{
-			"subnetId": evt.SubnetId.String(),
+			"worknetId": evt.WorknetId.String(),
 		})}, nil
 	}
 
-	// ── SubnetNFT events ──
+	// ── WorknetNFT events ──
 
-	subnetNFT := idx.chain.SubnetNFT
+	worknetNFT := idx.chain.WorknetNFT
 
-	// SkillsURIUpdated (emitted from SubnetNFT)
-	if evt, err := subnetNFT.ParseSkillsURIUpdated(lg); err == nil {
+	// SkillsURIUpdated (emitted from WorknetNFT)
+	if evt, err := worknetNFT.ParseSkillsURIUpdated(lg); err == nil {
 		if err := q.UpdateSubnetSkillsURI(ctx, gen.UpdateSubnetSkillsURIParams{
 			SubnetID:  bigIntToNumeric(evt.TokenId),
 			SkillsUri: pgtype.Text{String: evt.SkillsURI, Valid: evt.SkillsURI != ""},
@@ -882,13 +864,13 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return nil, fmt.Errorf("UpdateSubnetSkillsURI: %w", err)
 		}
 		return []redisEvent{makeEvent("SkillsURIUpdated", idx.chainID, lg, map[string]interface{}{
-			"subnetId":  evt.TokenId.String(),
+			"worknetId":  evt.TokenId.String(),
 			"skillsURI": evt.SkillsURI,
 		})}, nil
 	}
 
-	// MinStakeUpdated (emitted from SubnetNFT)
-	if evt, err := subnetNFT.ParseMinStakeUpdated(lg); err == nil {
+	// MinStakeUpdated (emitted from WorknetNFT)
+	if evt, err := worknetNFT.ParseMinStakeUpdated(lg); err == nil {
 		if err := q.UpdateSubnetMinStake(ctx, gen.UpdateSubnetMinStakeParams{
 			SubnetID: bigIntToNumeric(evt.TokenId),
 			MinStake: bigIntToNumeric(evt.MinStake),
@@ -896,41 +878,29 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return nil, fmt.Errorf("UpdateSubnetMinStake: %w", err)
 		}
 		return []redisEvent{makeEvent("MinStakeUpdated", idx.chainID, lg, map[string]interface{}{
-			"subnetId": evt.TokenId.String(),
+			"worknetId": evt.TokenId.String(),
 			"minStake": evt.MinStake.String(),
 		})}, nil
 	}
 
-	// MetadataURIUpdated (emitted from SubnetNFT) — parsed manually (binding not regenerated)
-	// event MetadataURIUpdated(uint256 indexed tokenId, string metadataURI)
-	// topic0 = 0xbf65482a576bba07ddf407b0dd39c63d560c7765323c11cc051d4a9413881a61
-	if lg.Address == idx.chain.SubnetNFTAddr && len(lg.Topics) == 2 &&
-		lg.Topics[0] == common.HexToHash("0xbf65482a576bba07ddf407b0dd39c63d560c7765323c11cc051d4a9413881a61") {
-		tokenId := lg.Topics[1].Big()
-		// ABI decode string from log data: offset (32 bytes) + length (32 bytes) + data
-		metadataURI := ""
-		if len(lg.Data) >= 64 {
-			strLen := new(big.Int).SetBytes(lg.Data[32:64]).Uint64()
-			if uint64(len(lg.Data)) >= 64+strLen {
-				metadataURI = string(lg.Data[64 : 64+strLen])
-			}
-		}
+	// MetadataURIUpdated (emitted from WorknetNFT)
+	if evt, err := idx.chain.WorknetNFT.ParseMetadataURIUpdated(lg); err == nil {
 		if err := q.UpdateSubnetMetadataURI(ctx, gen.UpdateSubnetMetadataURIParams{
-			SubnetID:    bigIntToNumeric(tokenId),
-			MetadataUri: metadataURI,
+			SubnetID:    bigIntToNumeric(evt.TokenId),
+			MetadataUri: evt.MetadataURI,
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetMetadataURI: %w", err)
 		}
 		return []redisEvent{makeEvent("MetadataURIUpdated", idx.chainID, lg, map[string]interface{}{
-			"subnetId":    tokenId.String(),
-			"metadataURI": metadataURI,
+			"worknetId":   evt.TokenId.String(),
+			"metadataURI": evt.MetadataURI,
 		})}, nil
 	}
 
-	// SubnetNFT.Transfer — subnet ownership transfer (ERC721 Transfer event)
+	// WorknetNFT.Transfer — subnet ownership transfer (ERC721 Transfer event)
 	// Guard on address to avoid matching StakeNFT Transfer (same event signature)
-	if lg.Address == idx.chain.SubnetNFTAddr {
-		if evt, err := subnetNFT.ParseTransfer(lg); err == nil {
+	if lg.Address == idx.chain.WorknetNFTAddr {
+		if evt, err := worknetNFT.ParseTransfer(lg); err == nil {
 			// Skip mint (from=0) and burn (to=0) — handled by SubnetRegistered/SubnetDeregistered
 			zeroAddr := common.Address{}
 			if evt.From != zeroAddr && evt.To != zeroAddr {
@@ -940,10 +910,10 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 				}); err != nil {
 					return nil, fmt.Errorf("UpdateSubnetOwner: %w", err)
 				}
-				return []redisEvent{makeEvent("SubnetNFTTransfer", idx.chainID, lg, map[string]interface{}{
+				return []redisEvent{makeEvent("WorknetNFTTransfer", idx.chainID, lg, map[string]interface{}{
 					"from":     evt.From.Hex(),
 					"to":       evt.To.Hex(),
-					"subnetId": evt.TokenId.String(),
+					"worknetId": evt.TokenId.String(),
 				})}, nil
 			}
 			return nil, nil
@@ -971,8 +941,14 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// EpochSettled (emitted from AWPEmission)
 	if evt, err := awpEmission.ParseEpochSettled(lg); err == nil {
-		// start_time = genesisTime + epochId * epochDuration (time-based epoch, not block number)
-		epochStartTime := idx.genesisTime + evt.Epoch.Int64()*idx.epochDuration
+		// Read current baseTime/baseEpoch/epochDuration from chain (may change via setEpochDuration/pauseEpochUntil)
+		bt, _ := idx.chain.AWPEmission.BaseTime(nil)
+		be, _ := idx.chain.AWPEmission.BaseEpoch(nil)
+		ed, _ := idx.chain.AWPEmission.EpochDuration(nil)
+		var epochStartTime int64
+		if bt != nil && be != nil && ed != nil && ed.Int64() > 0 {
+			epochStartTime = bt.Int64() + (evt.Epoch.Int64()-be.Int64())*ed.Int64()
+		}
 		if err := q.UpsertEpoch(ctx, gen.UpsertEpochParams{
 			ChainID:       idx.chainID,
 			EpochID:       evt.Epoch.Int64(),
@@ -991,18 +967,21 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// AllocationsSubmitted (emitted from AWPEmission)
 	if evt, err := awpEmission.ParseAllocationsSubmitted(lg); err == nil {
-		addrs := make([]string, len(evt.Recipients))
-		for i, a := range evt.Recipients {
-			addrs[i] = strings.ToLower(a.Hex())
-		}
-		ws := make([]string, len(evt.Weights))
-		for i, w := range evt.Weights {
-			ws[i] = w.String()
+		// Unpack [64-bit weight | 160-bit address] from uint256[] packed
+		addrs := make([]string, len(evt.Packed))
+		ws := make([]string, len(evt.Packed))
+		mask160 := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 160), big.NewInt(1))
+		for i, p := range evt.Packed {
+			addr := common.BytesToAddress(new(big.Int).And(p, mask160).Bytes())
+			weight := new(big.Int).Rsh(p, 160)
+			addrs[i] = strings.ToLower(addr.Hex())
+			ws[i] = weight.String()
 		}
 		return []redisEvent{makeEvent("AllocationsSubmitted", idx.chainID, lg, map[string]interface{}{
-			"nonce":      evt.Nonce.String(),
-			"recipients": addrs,
-			"weights":    ws,
+			"epoch":       evt.EffectiveEpoch.String(),
+			"totalWeight": evt.TotalWeight.String(),
+			"recipients":  addrs,
+			"weights":     ws,
 		})}, nil
 	}
 
@@ -1034,10 +1013,10 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return []redisEvent{makeEvent("AlphaTokenFactoryUpdated", idx.chainID, lg, map[string]interface{}{
 				"newFactory": newFactory.Hex(),
 			})}, nil
-		// DefaultSubnetManagerImplUpdated(address indexed newImpl)
-		case common.HexToHash("0xa37cb79f631c6bb2a11d965d06cce40e3c936eba1649879b8ffa233c0219f949"):
+		// DefaultWorknetManagerImplUpdated(address indexed newImpl)
+		case common.HexToHash("0x6a188d8fd7e85ab2a2e4c5bd188038185536a69910c989e130f1a5ea59534e33"):
 			newImpl := common.BytesToAddress(lg.Topics[1].Bytes())
-			return []redisEvent{makeEvent("DefaultSubnetManagerImplUpdated", idx.chainID, lg, map[string]interface{}{
+			return []redisEvent{makeEvent("DefaultWorknetManagerImplUpdated", idx.chainID, lg, map[string]interface{}{
 				"newImpl": newImpl.Hex(),
 			})}, nil
 		// DexConfigUpdated()

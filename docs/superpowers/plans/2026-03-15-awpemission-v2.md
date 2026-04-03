@@ -33,24 +33,24 @@ Replace the entire file with the V2 interface. Key changes:
 pragma solidity ^0.8.20;
 
 interface IAWPEmission {
-    // ── 结算 ──
+    // ── Settlement ──
     function settleEpoch() external;
 
-    // ── 预言机批量提交 ──
+    // ── Oracle batch submission ──
     function submitAllocations(
         uint256[] calldata subnetIds,
         uint128[] calldata weights,
         bytes[] calldata signatures
     ) external;
 
-    // ── DAO 治理（onlyTimelock） ──
+    // ── DAO governance (onlyTimelock) ──
     function emergencySetWeight(uint256 subnetId, uint128 weight) external;
     function setOracleConfig(address[] calldata oracles_, uint256 threshold_) external;
     function setEpochDuration(uint256 d) external;
     function setBatchSize(uint128 b) external;
     function setMaxActiveSubnets(uint128 m) external;
 
-    // ── AWPRegistry 生命周期同步（onlyAWPRegistry） ──
+    // ── AWPRegistry lifecycle sync (onlyAWPRegistry) ──
     function registerSubnet(uint256 subnetId, address recipient) external;
     function activateSubnet(uint256 subnetId) external;
     function deactivateSubnet(uint256 subnetId) external;
@@ -73,7 +73,7 @@ interface IAWPEmission {
     function allocationNonce() external view returns (uint256);
     function getOracleCount() external view returns (uint256);
 
-    // ── 事件 ──
+    // ── Events ──
     event GovernanceWeightUpdated(uint256 indexed subnetId, uint256 weight);
     event SubnetAWPDistributed(uint256 indexed epoch, uint256 indexed subnetId, uint256 awpAmount);
     event DAOMatchDistributed(uint256 indexed epoch, uint256 amount);

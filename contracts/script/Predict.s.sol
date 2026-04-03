@@ -8,14 +8,14 @@ import {AWPEmission} from "../src/token/AWPEmission.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
-import {SubnetNFT} from "../src/core/SubnetNFT.sol";
+import {WorknetNFT} from "../src/core/WorknetNFT.sol";
 import {LPManager} from "../src/core/LPManager.sol";
 import {LPManagerUni} from "../src/core/LPManagerUni.sol";
 import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
-import {SubnetManager} from "../src/subnets/SubnetManager.sol";
-import {SubnetManagerUni} from "../src/subnets/SubnetManagerUni.sol";
+import {WorknetManager} from "../src/worknets/WorknetManager.sol";
+import {WorknetManagerUni} from "../src/worknets/WorknetManagerUni.sol";
 
 /// @title Predict — Print the deterministic addresses for all contracts given the current .env salts
 /// @dev Run: forge script script/Predict.s.sol
@@ -25,7 +25,7 @@ import {SubnetManagerUni} from "../src/subnets/SubnetManagerUni.sol";
 contract Predict is Script {
     address constant DETERMINISTIC_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
-    uint256 constant INITIAL_DAILY_EMISSION = 15_800_000 * 1e18;
+    uint256 constant INITIAL_DAILY_EMISSION = 31_600_000 * 1e18;
     uint256 constant EPOCH_DURATION = 1 days;
     uint256 constant TIMELOCK_DELAY = 172800;
 
@@ -91,16 +91,16 @@ contract Predict is Script {
         }
         console.log("AWPRegistry proxy: ", awpRegistry);
 
-        // SubnetNFT
-        address subnetNFT = _predict(
-            _readSalt("SALT_SUBNET_NFT"),
-            abi.encodePacked(type(SubnetNFT).creationCode, abi.encode("AWP Subnet", "AWPSUB", awpRegistry))
+        // WorknetNFT
+        address worknetNFT = _predict(
+            _readSalt("SALT_WORKNET_NFT"),
+            abi.encodePacked(type(WorknetNFT).creationCode, abi.encode("AWP Worknet", "AWPSUB", awpRegistry))
         );
-        console.log("SubnetNFT:         ", subnetNFT);
+        console.log("WorknetNFT:         ", worknetNFT);
 
         // LPManager (chain-conditional: PancakeSwap on BSC, Uniswap on others)
         address lpMgr;
-        if (block.chainid == 56) {
+        if (block.chainid == 56 || block.chainid == 97) {
             lpMgr = _predict(
                 _readSalt("SALT_LP_MANAGER"),
                 abi.encodePacked(type(LPManager).creationCode, abi.encode(awpRegistry, poolManager, positionManager, permit2Addr, awp))
@@ -123,7 +123,7 @@ contract Predict is Script {
 
         // AWPEmission proxy (with guardian and GENESIS_TIME — matches Deploy.s.sol)
         uint256 genesisTime = vm.envUint("GENESIS_TIME");
-        bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, guardian, INITIAL_DAILY_EMISSION, genesisTime, EPOCH_DURATION));
+        bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, guardian, INITIAL_DAILY_EMISSION, genesisTime, EPOCH_DURATION, treasury));
         address emissionProxy = _predict(
             _readSalt("SALT_EMISSION_PROXY"),
             abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(emissionImpl, initData))
@@ -155,20 +155,20 @@ contract Predict is Script {
         );
         console.log("StakeNFT:          ", stakeNft);
 
-        // SubnetManager impl (chain-conditional)
-        address subnetMgrImpl;
-        if (block.chainid == 56) {
-            subnetMgrImpl = _predict(
-                _readSalt("SALT_SUBNET_MANAGER_IMPL"),
-                abi.encodePacked(type(SubnetManager).creationCode)
+        // WorknetManager impl (chain-conditional)
+        address worknetMgrImpl;
+        if (block.chainid == 56 || block.chainid == 97) {
+            worknetMgrImpl = _predict(
+                _readSalt("SALT_WORKNET_MANAGER_IMPL"),
+                abi.encodePacked(type(WorknetManager).creationCode)
             );
-            console.log("SubnetMgr (Pancake):", subnetMgrImpl);
+            console.log("WorknetMgr (Pancake):", worknetMgrImpl);
         } else {
-            subnetMgrImpl = _predict(
-                _readSalt("SALT_SUBNET_MANAGER_IMPL"),
-                abi.encodePacked(type(SubnetManagerUni).creationCode)
+            worknetMgrImpl = _predict(
+                _readSalt("SALT_WORKNET_MANAGER_IMPL"),
+                abi.encodePacked(type(WorknetManagerUni).creationCode)
             );
-            console.log("SubnetMgr (Uni):   ", subnetMgrImpl);
+            console.log("WorknetMgr (Uni):   ", worknetMgrImpl);
         }
 
         // AWPDAO (matches Deploy.s.sol params)

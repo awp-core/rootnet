@@ -41,8 +41,8 @@ contract AWPToken is ERC20, ERC20Permit, ERC20Burnable {
     /// @param name_     Token name (e.g. "AWP Token")
     /// @param symbol_   Token symbol (e.g. "AWP")
     /// @param deployer_ Deployer address — receives admin rights
-    /// @dev initialMint is NOT in constructor — keeps CREATE2 bytecode identical across chains.
-    ///      Call initialMint() after deployment to pre-mint tokens.
+    /// @dev Constructor does NOT mint — keeps CREATE2 bytecode identical across chains.
+    ///      Call initialMint(amount) after deployment to pre-mint tokens (amount configurable per chain, 0 = skip).
     constructor(string memory name_, string memory symbol_, address deployer_)
         ERC20(name_, symbol_)
         ERC20Permit(name_)

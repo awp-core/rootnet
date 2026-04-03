@@ -9,25 +9,25 @@ import (
 	"github.com/cortexia/rootnet/api/internal/ratelimit"
 )
 
-// JSON-RPC 2.0 错误码
+// JSON-RPC 2.0 error codes
 const (
 	rpcParseError     = -32700
 	rpcInvalidRequest = -32600
 	rpcMethodNotFound = -32601
 	rpcInvalidParams  = -32602
 	rpcInternalError  = -32603
-	rpcNotFound       = -32001 // 应用层：资源不存在
+	rpcNotFound       = -32001 // Application layer: resource not found
 )
 
-// rpcCtxKey 用于在 context 中存储请求信息
+// rpcCtxKey is used to store request info in context
 type rpcCtxKey struct{}
 
-// rpcCtxVal 存储 RPC 请求的元信息（如客户端 IP）
+// rpcCtxVal stores RPC request metadata (e.g., client IP)
 type rpcCtxVal struct {
 	ClientIP string
 }
 
-// RPCRequest JSON-RPC 2.0 请求
+// RPCRequest JSON-RPC 2.0 request
 type RPCRequest struct {
 	JSONRPC string          `json:"jsonrpc"`
 	Method  string          `json:"method"`
@@ -35,7 +35,7 @@ type RPCRequest struct {
 	ID      any             `json:"id"`
 }
 
-// RPCResponse JSON-RPC 2.0 响应
+// RPCResponse JSON-RPC 2.0 response
 type RPCResponse struct {
 	JSONRPC string   `json:"jsonrpc"`
 	Result  any      `json:"result,omitempty"`
@@ -43,16 +43,16 @@ type RPCResponse struct {
 	ID      any      `json:"id"`
 }
 
-// RPCErr JSON-RPC 2.0 错误对象
+// RPCErr JSON-RPC 2.0 error object
 type RPCErr struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 }
 
-// methodFunc 方法处理函数签名
+// methodFunc is the method handler function signature
 type methodFunc func(ctx context.Context, params json.RawMessage) (any, *RPCErr)
 
-// paramInfo 参数元数据（用于 rpc.discover）
+// paramInfo is parameter metadata (used for rpc.discover)
 type paramInfo struct {
 	Name        string `json:"name"`
 	Type        string `json:"type"`
@@ -60,24 +60,24 @@ type paramInfo struct {
 	Description string `json:"description"`
 }
 
-// methodInfo 方法元数据（用于 rpc.discover）
+// methodInfo is method metadata (used for rpc.discover)
 type methodInfo struct {
 	Name        string      `json:"name"`
 	Description string      `json:"description"`
 	Params      []paramInfo `json:"params"`
 }
 
-// methodEntry 方法注册表条目
+// methodEntry is a method registry entry
 type methodEntry struct {
 	fn   methodFunc
 	info methodInfo
 }
 
-// HandleRPC 处理 /v2 的 JSON-RPC 2.0 请求
-// GET → 返回 rpc.discover（API 文档）
-// POST → 处理 JSON-RPC 请求（支持单请求和批量请求）
+// HandleRPC handles JSON-RPC 2.0 requests on /v2
+// GET -> returns rpc.discover (API documentation)
+// POST -> processes JSON-RPC requests (supports single and batch requests)
 func (h *Handler) HandleRPC(w http.ResponseWriter, r *http.Request) {
-	// GET /v2 → 返回 rpc.discover 结果（方便浏览器查看可用方法）
+	// GET /v2 -> return rpc.discover result (allows browsing available methods)
 	if r.Method == http.MethodGet {
 		h.initRPCMethods()
 		h.writeJSON(w, http.StatusOK, map[string]any{
@@ -95,10 +95,10 @@ func (h *Handler) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 限制请求体大小
+	// Limit request body size
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB
 
-	// 注入客户端 IP 到 context（用于 rate limiting）
+	// Inject client IP into context (used for rate limiting)
 	ctx := context.WithValue(r.Context(), rpcCtxKey{}, &rpcCtxVal{
 		ClientIP: ratelimit.GetClientIP(r),
 	})
@@ -112,7 +112,7 @@ func (h *Handler) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 检测是否为批量请求
+	// Detect whether this is a batch request
 	if len(raw) > 0 && raw[0] == '[' {
 		var reqs []RPCRequest
 		if err := json.Unmarshal(raw, &reqs); err != nil {
@@ -136,7 +136,7 @@ func (h *Handler) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		// 批量请求并发执行
+		// Execute batch requests concurrently
 		responses := make([]RPCResponse, len(reqs))
 		var wg sync.WaitGroup
 		for i, req := range reqs {
@@ -164,7 +164,7 @@ func (h *Handler) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, resp)
 }
 
-// rpcClientIP 从 context 中提取客户端 IP
+// rpcClientIP extracts the client IP from context
 func rpcClientIP(ctx context.Context) string {
 	if v, ok := ctx.Value(rpcCtxKey{}).(*rpcCtxVal); ok {
 		return v.ClientIP
@@ -172,7 +172,7 @@ func rpcClientIP(ctx context.Context) string {
 	return ""
 }
 
-// initRPCMethods 初始化方法注册表（在首次调用时缓存）
+// initRPCMethods initializes the method registry (cached on first call)
 func (h *Handler) initRPCMethods() {
 	h.rpcMethodsOnce.Do(func() {
 		h.rpcMethodTable = h.rpcMethods()
@@ -186,7 +186,7 @@ func (h *Handler) initRPCMethods() {
 	})
 }
 
-// dispatchRPC 分发单个 JSON-RPC 请求
+// dispatchRPC dispatches a single JSON-RPC request
 func (h *Handler) dispatchRPC(ctx context.Context, req RPCRequest) RPCResponse {
 	if req.JSONRPC != "2.0" {
 		return RPCResponse{JSONRPC: "2.0", Error: &RPCErr{Code: rpcInvalidRequest, Message: "jsonrpc must be \"2.0\""}, ID: req.ID}
@@ -210,7 +210,7 @@ func (h *Handler) dispatchRPC(ctx context.Context, req RPCRequest) RPCResponse {
 	return RPCResponse{JSONRPC: "2.0", Result: result, ID: req.ID}
 }
 
-// rpcMethods 返回方法注册表
+// rpcMethods returns the method registry
 func (h *Handler) rpcMethods() map[string]methodEntry {
 	return map[string]methodEntry{
 		// ── stats ──
@@ -321,7 +321,7 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 			Name: "agents.batchInfo", Description: "Batch query agent info and stake in a subnet",
 			Params: []paramInfo{
 				{Name: "agents", Type: "array<string>", Required: true, Description: "Agent address list (max 100)"},
-				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
+				{Name: "worknetId", Type: "string", Required: true, Description: "Subnet ID"},
 			},
 		}},
 
@@ -366,7 +366,7 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 			Name: "staking.getAgentSubnetStake", Description: "Get agent stake in a subnet",
 			Params: []paramInfo{
 				{Name: "agent", Type: "string", Required: true, Description: "Agent address (0x...)"},
-				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
+				{Name: "worknetId", Type: "string", Required: true, Description: "Subnet ID"},
 			},
 		}},
 		"staking.getAgentSubnets": {fn: h.rpcStakingGetAgentSubnets, info: methodInfo{
@@ -378,7 +378,7 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 		"staking.getSubnetTotalStake": {fn: h.rpcStakingGetSubnetTotalStake, info: methodInfo{
 			Name: "staking.getSubnetTotalStake", Description: "Get subnet total stake",
 			Params: []paramInfo{
-				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
+				{Name: "worknetId", Type: "string", Required: true, Description: "Subnet ID"},
 			},
 		}},
 
@@ -394,19 +394,19 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 		"subnets.get": {fn: h.rpcSubnetsGet, info: methodInfo{
 			Name: "subnets.get", Description: "Get subnet details",
 			Params: []paramInfo{
-				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
+				{Name: "worknetId", Type: "string", Required: true, Description: "Subnet ID"},
 			},
 		}},
 		"subnets.getSkills": {fn: h.rpcSubnetsGetSkills, info: methodInfo{
 			Name: "subnets.getSkills", Description: "Get subnet skills URI",
 			Params: []paramInfo{
-				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
+				{Name: "worknetId", Type: "string", Required: true, Description: "Subnet ID"},
 			},
 		}},
 		"subnets.getEarnings": {fn: h.rpcSubnetsGetEarnings, info: methodInfo{
 			Name: "subnets.getEarnings", Description: "Get subnet AWP earnings history (paginated)",
 			Params: []paramInfo{
-				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
+				{Name: "worknetId", Type: "string", Required: true, Description: "Subnet ID"},
 				{Name: "page", Type: "integer", Required: false, Description: "Page number (default 1)"},
 				{Name: "limit", Type: "integer", Required: false, Description: "Items per page (default 20, max 100)"},
 			},
@@ -414,7 +414,7 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 		"subnets.getAgentInfo": {fn: h.rpcSubnetsGetAgentInfo, info: methodInfo{
 			Name: "subnets.getAgentInfo", Description: "Get agent staking info in a subnet",
 			Params: []paramInfo{
-				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
+				{Name: "worknetId", Type: "string", Required: true, Description: "Subnet ID"},
 				{Name: "agent", Type: "string", Required: true, Description: "Agent address (0x...)"},
 			},
 		}},
@@ -447,13 +447,13 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 		"tokens.getAlphaInfo": {fn: h.rpcTokensGetAlphaInfo, info: methodInfo{
 			Name: "tokens.getAlphaInfo", Description: "Get subnet Alpha token info",
 			Params: []paramInfo{
-				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
+				{Name: "worknetId", Type: "string", Required: true, Description: "Subnet ID"},
 			},
 		}},
 		"tokens.getAlphaPrice": {fn: h.rpcTokensGetAlphaPrice, info: methodInfo{
 			Name: "tokens.getAlphaPrice", Description: "Get subnet Alpha token price",
 			Params: []paramInfo{
-				{Name: "subnetId", Type: "string", Required: true, Description: "Subnet ID"},
+				{Name: "worknetId", Type: "string", Required: true, Description: "Subnet ID"},
 			},
 		}},
 
@@ -482,6 +482,76 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 		}},
 		"governance.getTreasury": {fn: h.rpcGovernanceTreasury, info: methodInfo{
 			Name: "governance.getTreasury", Description: "Get Treasury contract address", Params: []paramInfo{},
+		}},
+
+		// ── users (new) ──
+		"users.getPortfolio": {fn: h.rpcUsersGetPortfolio, info: methodInfo{
+			Name: "users.getPortfolio", Description: "Get full user portfolio (identity, balance, positions, allocations, delegates)",
+			Params: []paramInfo{
+				{Name: "address", Type: "string", Required: true, Description: "User address (0x...)"},
+				{Name: "chainId", Type: "integer", Required: false, Description: "Chain ID (default: primary chain)"},
+			},
+		}},
+		"users.getDelegates": {fn: h.rpcUsersGetDelegates, info: methodInfo{
+			Name: "users.getDelegates", Description: "Get agents bound to a user (delegate approximation from bind tree)",
+			Params: []paramInfo{
+				{Name: "address", Type: "string", Required: true, Description: "User address (0x...)"},
+				{Name: "chainId", Type: "integer", Required: false, Description: "Chain ID (default: primary chain)"},
+			},
+		}},
+
+		// ── subnets (new) ──
+		"subnets.listRanked": {fn: h.rpcSubnetsListRanked, info: methodInfo{
+			Name: "subnets.listRanked", Description: "List worknets ranked by total stake",
+			Params: []paramInfo{
+				{Name: "chainId", Type: "integer", Required: false, Description: "Chain ID (default: primary chain)"},
+				{Name: "page", Type: "integer", Required: false, Description: "Page number (default 1)"},
+				{Name: "limit", Type: "integer", Required: false, Description: "Items per page (default 20, max 100)"},
+			},
+		}},
+		"subnets.listAgents": {fn: h.rpcSubnetsListAgents, info: methodInfo{
+			Name: "subnets.listAgents", Description: "List agents in a worknet ranked by stake",
+			Params: []paramInfo{
+				{Name: "worknetId", Type: "string", Required: true, Description: "Subnet ID"},
+				{Name: "chainId", Type: "integer", Required: false, Description: "Chain ID (default: primary chain)"},
+				{Name: "page", Type: "integer", Required: false, Description: "Page number (default 1)"},
+				{Name: "limit", Type: "integer", Required: false, Description: "Items per page (default 20, max 100)"},
+			},
+		}},
+		"subnets.search": {fn: h.rpcSubnetsSearch, info: methodInfo{
+			Name: "subnets.search", Description: "Search worknets by name or symbol (ILIKE)",
+			Params: []paramInfo{
+				{Name: "query", Type: "string", Required: true, Description: "Search query (1-100 chars)"},
+				{Name: "chainId", Type: "integer", Required: false, Description: "Chain ID (default: primary chain)"},
+				{Name: "page", Type: "integer", Required: false, Description: "Page number (default 1)"},
+				{Name: "limit", Type: "integer", Required: false, Description: "Items per page (default 20, max 100)"},
+			},
+		}},
+		"subnets.getByOwner": {fn: h.rpcSubnetsGetByOwner, info: methodInfo{
+			Name: "subnets.getByOwner", Description: "Get worknets owned by an address",
+			Params: []paramInfo{
+				{Name: "owner", Type: "string", Required: true, Description: "Owner address (0x...)"},
+				{Name: "chainId", Type: "integer", Required: false, Description: "Chain ID (default: primary chain)"},
+				{Name: "page", Type: "integer", Required: false, Description: "Page number (default 1)"},
+				{Name: "limit", Type: "integer", Required: false, Description: "Items per page (default 20, max 100)"},
+			},
+		}},
+
+		// ── emission (new) ──
+		"emission.getEpochDetail": {fn: h.rpcEmissionGetEpochDetail, info: methodInfo{
+			Name: "emission.getEpochDetail", Description: "Get epoch detail with per-recipient distributions",
+			Params: []paramInfo{
+				{Name: "epochId", Type: "integer", Required: true, Description: "Epoch ID"},
+				{Name: "chainId", Type: "integer", Required: false, Description: "Chain ID (default: primary chain)"},
+			},
+		}},
+
+		// ── staking (new) ──
+		"staking.getPositionsGlobal": {fn: h.rpcStakingGetPositionsGlobal, info: methodInfo{
+			Name: "staking.getPositionsGlobal", Description: "Get user StakeNFT positions across all chains",
+			Params: []paramInfo{
+				{Name: "address", Type: "string", Required: true, Description: "User address (0x...)"},
+			},
 		}},
 	}
 }

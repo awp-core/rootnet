@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
+	"os"
 	"sync"
 	"time"
 
@@ -33,6 +34,12 @@ type Keeper struct {
 	redis       *redis.Client
 	logger      *slog.Logger
 	cancel      context.CancelFunc
+
+	// Distributed lock value (unique per instance, for safe release)
+	lockValue string
+
+	// When true, skip settleEpoch (read-only mode: cache updates only)
+	skipSettle bool
 
 	// Serializes sendSettleEpoch to prevent concurrent nonce collisions
 	txMu sync.Mutex
@@ -111,10 +118,15 @@ func NewKeeper(
 	}, nil
 }
 
-// acquireLock 尝试获取 Redis 分布式锁，防止多实例 keeper 同时运行
+// SetSkipSettle enables/disables settle-epoch execution (read-only mode when true)
+func (k *Keeper) SetSkipSettle(skip bool) { k.skipSettle = skip }
+
+// acquireLock acquires a Redis distributed lock to prevent concurrent keeper instances.
+// Uses a unique lock value so releaseLock only deletes our own lock.
 func (k *Keeper) acquireLock(ctx context.Context) bool {
 	lockKey := fmt.Sprintf("keeper:lock:%d", k.chainIDInt)
-	ok, err := k.redis.SetNX(ctx, lockKey, "1", 90*time.Second).Result()
+	k.lockValue = fmt.Sprintf("%d-%d", os.Getpid(), time.Now().UnixNano())
+	ok, err := k.redis.SetNX(ctx, lockKey, k.lockValue, 90*time.Second).Result()
 	if err != nil {
 		k.logger.Warn("failed to acquire keeper lock", "error", err)
 		return false
@@ -122,16 +134,22 @@ func (k *Keeper) acquireLock(ctx context.Context) bool {
 	return ok
 }
 
-// renewLock 续期分布式锁
+// renewLock extends the distributed lock TTL only if we still own it.
 func (k *Keeper) renewLock(ctx context.Context) {
 	lockKey := fmt.Sprintf("keeper:lock:%d", k.chainIDInt)
-	k.redis.Expire(ctx, lockKey, 90*time.Second)
+	script := `if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("EXPIRE", KEYS[1], ARGV[2]) else return 0 end`
+	result, _ := k.redis.Eval(ctx, script, []string{lockKey}, k.lockValue, 90).Int64()
+	if result == 0 {
+		k.logger.Warn("lost keeper lock, another instance may have taken over", "chainId", k.chainIDInt)
+	}
 }
 
-// releaseLock 释放分布式锁
+// releaseLock releases the distributed lock only if we own it (safe against stale lock deletion).
 func (k *Keeper) releaseLock() {
 	lockKey := fmt.Sprintf("keeper:lock:%d", k.chainIDInt)
-	k.redis.Del(context.Background(), lockKey)
+	// Lua: only delete if the lock value matches ours
+	script := `if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("DEL", KEYS[1]) else return 0 end`
+	k.redis.Eval(context.Background(), script, []string{lockKey}, k.lockValue)
 }
 
 // Start launches the scheduled task scheduler.
@@ -139,7 +157,7 @@ func (k *Keeper) Start(_ context.Context) {
 	ctx, cancel := context.WithCancel(context.Background())
 	k.cancel = cancel
 
-	// 分布式锁：防止多个 keeper 实例同时运行
+	// Distributed lock: prevent multiple keeper instances from running simultaneously
 	if !k.acquireLock(ctx) {
 		k.logger.Error("another keeper instance is already running for this chain, exiting", "chainId", k.chainIDInt)
 		return
@@ -175,7 +193,7 @@ func (k *Keeper) Start(_ context.Context) {
 		}
 	}
 
-	// 每 30 秒续期分布式锁（TTL 60s，确保锁不过期）
+	// Renew distributed lock every 30s (TTL 60s, ensures lock does not expire)
 	if _, err := k.cron.AddFunc("@every 30s", func() {
 		k.renewLock(ctx)
 	}); err != nil {
@@ -250,7 +268,7 @@ func (k *Keeper) trySettleEpoch(ctx context.Context) {
 		return
 	}
 
-	if currentEpoch.Cmp(settledEpoch) > 0 {
+	if currentEpoch.Cmp(settledEpoch) >= 0 && !k.skipSettle {
 		k.logger.Info("new epoch ready, executing settleEpoch",
 			"settledEpoch", settledEpoch.String(),
 			"currentEpoch", currentEpoch.String(),
@@ -373,16 +391,16 @@ type alphaPriceResult struct {
 // updateAlphaPrices reads sqrtPriceX96 from each active subnet's LP pool and caches the price.
 // Called every 25s as part of updateTokenPrices.
 // Uses a bounded worker pool (max 10 concurrent) to parallelize RPC calls across tokens.
-// Redis keys are keyed by subnetId (alpha_price:{subnetId}) per spec.
+// Redis keys are keyed by worknetId (alpha_price:{worknetId}) per spec.
 func (k *Keeper) updateAlphaPrices(ctx context.Context) {
-	// Read subnetId→alphaToken map from Redis (populated by indexer)
+	// Read worknetId→alphaToken map from Redis (populated by indexer)
 	subnetMapKey := fmt.Sprintf("active_alpha_subnet_map:%d", k.chainIDInt)
 	data, err := k.redis.Get(ctx, subnetMapKey).Result()
 	if err != nil {
 		return // no active tokens, skip
 	}
 
-	var subnetMap map[string]string // subnetId → alphaToken
+	var subnetMap map[string]string // worknetId → alphaToken
 	if err := json.Unmarshal([]byte(data), &subnetMap); err != nil {
 		return
 	}
@@ -424,7 +442,7 @@ func (k *Keeper) updateAlphaPrices(ctx context.Context) {
 			// Read sqrtPriceX96 from PoolManager
 			slot0, err := k.poolManager.GetSlot0(nil, poolId)
 			if err != nil {
-				k.logger.Debug("failed to read pool slot0", "subnetId", e.subnetID, "alphaToken", e.token, "error", err)
+				k.logger.Debug("failed to read pool slot0", "worknetId", e.subnetID, "alphaToken", e.token, "error", err)
 				return
 			}
 
@@ -483,7 +501,7 @@ func (k *Keeper) updateAlphaPrices(ctx context.Context) {
 // Called every 24h by cron. Each compoundFees call collects accrued trading fees from
 // the LP position and reinvests them as additional liquidity.
 func (k *Keeper) compoundAllFees(ctx context.Context) {
-	// 不再全程持锁 — 每笔交易单独持锁，避免阻塞 settleEpoch
+	// No longer holding lock for entire duration — lock per-tx to avoid blocking settleEpoch
 
 	alphaTokensKey := fmt.Sprintf("active_alpha_tokens:%d", k.chainIDInt)
 	data, err := k.redis.Get(ctx, alphaTokensKey).Result()
@@ -506,7 +524,7 @@ func (k *Keeper) compoundAllFees(ctx context.Context) {
 	for _, tokenHex := range alphaTokens {
 		token := common.HexToAddress(tokenHex)
 
-		// Per-tx: lock → auth(自动 nonce) → 发送 → unlock → 等确认
+		// Per-tx: lock -> auth (auto nonce) -> send -> unlock -> wait for confirmation
 		k.txMu.Lock()
 		auth, err := k.auth()
 		if err != nil {
@@ -526,7 +544,7 @@ func (k *Keeper) compoundAllFees(ctx context.Context) {
 		}
 		k.logger.Info("compoundFees tx sent", "alphaToken", tokenHex, "txHash", tx.Hash().Hex())
 
-		// 等待 tx 上链后再发下一笔，避免 nonce 冲突
+		// Wait for tx to be mined before sending next one to avoid nonce conflicts
 		_, _ = bind.WaitMined(timeoutCtx, k.client, tx)
 		cancel()
 		compounded++
@@ -537,7 +555,7 @@ func (k *Keeper) compoundAllFees(ctx context.Context) {
 	}
 }
 
-// updateRelayerBalance 读取 relayer 原生代币余额，写入 Redis 并在余额过低时告警
+// updateRelayerBalance reads the relayer native token balance, writes to Redis, and alerts when balance is low
 func (k *Keeper) updateRelayerBalance(ctx context.Context) {
 	addr := crypto.PubkeyToAddress(k.key.PublicKey)
 	balance, err := k.client.BalanceAt(ctx, addr, nil)
@@ -548,7 +566,7 @@ func (k *Keeper) updateRelayerBalance(ctx context.Context) {
 	key := fmt.Sprintf("relayer_balance:%d", k.chainIDInt)
 	k.redis.Set(ctx, key, balance.String(), 1*time.Minute)
 
-	// 余额低于 0.01 ETH/BNB 时告警
+	// Alert when balance is below 0.01 ETH/BNB
 	threshold := big.NewInt(1e16)
 	if balance.Cmp(threshold) < 0 {
 		k.logger.Error("ALERT: relayer balance critically low",

@@ -21,6 +21,7 @@ import (
 // Handler is the main handler holding all dependencies
 type Handler struct {
 	queries      *gen.Queries
+	db           gen.DBTX              // raw DB access for queries not covered by sqlc
 	rdb          *redis.Client
 	cfg          *config.Config
 	logger       *slog.Logger
@@ -28,7 +29,7 @@ type Handler struct {
 	chainReaders map[int64]ChainReader // chainId → on-chain reader (nonce, etc.)
 	chains       []config.ChainConfig  // loaded chains (nil in single-chain mode)
 
-	// JSON-RPC 方法表缓存（sync.Once 初始化）
+	// JSON-RPC method table cache (initialized via sync.Once)
 	rpcMethodsOnce    sync.Once
 	rpcMethodTable    map[string]methodEntry
 	rpcDiscoverResult []methodInfo
@@ -43,9 +44,10 @@ type ChainReader interface {
 }
 
 // NewHandler creates a new Handler instance
-func NewHandler(queries *gen.Queries, rdb *redis.Client, cfg *config.Config, logger *slog.Logger, limiter *ratelimit.Limiter) *Handler {
+func NewHandler(queries *gen.Queries, db gen.DBTX, rdb *redis.Client, cfg *config.Config, logger *slog.Logger, limiter *ratelimit.Limiter) *Handler {
 	return &Handler{
 		queries: queries,
+		db:      db,
 		rdb:     rdb,
 		cfg:     cfg,
 		logger:  logger,
@@ -74,7 +76,7 @@ func (h *Handler) getChainReader(chainID int64) ChainReader {
 	if cr, ok := h.chainReaders[chainID]; ok {
 		return cr
 	}
-	// 单链 fallback：返回唯一的 reader
+	// Single-chain fallback: return the only reader
 	if len(h.chainReaders) == 1 {
 		for _, cr := range h.chainReaders {
 			return cr
@@ -117,7 +119,7 @@ func (h *Handler) parsePageParams(r *http.Request) (limit, offset int) {
 	return int(l), int(o)
 }
 
-// writeSvcError 将 svcError 转为 HTTP 错误响应
+// writeSvcError converts a svcError to an HTTP error response
 func (h *Handler) writeSvcError(w http.ResponseWriter, err error) {
 	var se *svcError
 	if errors.As(err, &se) {
@@ -212,7 +214,7 @@ func (h *Handler) buildDetailedHealth(ctx context.Context) map[string]interface{
 			ch["keeperCacheAlive"] = false
 		}
 
-		// Relayer 原生代币余额（keeper 每 25s 更新）
+		// Relayer native token balance (updated by keeper every 25s)
 		balanceKey := fmt.Sprintf("relayer_balance:%d", cid)
 		if bal, err := h.rdb.Get(ctx, balanceKey).Result(); err == nil {
 			ch["relayerBalance"] = bal
@@ -222,7 +224,7 @@ func (h *Handler) buildDetailedHealth(ctx context.Context) map[string]interface{
 	}
 	health["chains"] = chainsHealth
 
-	// Redis 连通性
+	// Redis connectivity
 	if err := h.rdb.Ping(ctx).Err(); err != nil {
 		health["redis"] = "error"
 		health["status"] = "degraded"
@@ -230,7 +232,7 @@ func (h *Handler) buildDetailedHealth(ctx context.Context) map[string]interface{
 		health["redis"] = "ok"
 	}
 
-	// 数据库连通性
+	// Database connectivity
 	if _, err := h.queries.GetUserCount(ctx, h.defaultChainID()); err != nil {
 		health["database"] = "error"
 		health["status"] = "degraded"
@@ -262,7 +264,7 @@ type registryResponse struct {
 	AWPEmission       string              `json:"awpEmission"`
 	StakingVault      string              `json:"stakingVault"`
 	StakeNFT          string              `json:"stakeNFT"`
-	SubnetNFT         string              `json:"subnetNFT"`
+	WorknetNFT         string              `json:"worknetNFT"`
 	LPManager         string              `json:"lpManager"`
 	AlphaTokenFactory string              `json:"alphaTokenFactory"`
 	DAO               string              `json:"dao"`
@@ -388,4 +390,25 @@ func (h *Handler) CheckAddress(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.writeJSON(w, http.StatusOK, resp)
+}
+
+// GetDB returns the raw DB connection for announcement routes
+func (h *Handler) GetDB() gen.DBTX {
+	return h.db
+}
+
+// AdminAuthMiddleware is a chi middleware that checks Bearer token auth
+func (h *Handler) AdminAuthMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if h.cfg.AdminToken == "" {
+			h.writeError(w, http.StatusServiceUnavailable, "admin API not configured")
+			return
+		}
+		auth := r.Header.Get("Authorization")
+		if auth == "" || auth != "Bearer "+h.cfg.AdminToken {
+			h.writeError(w, http.StatusUnauthorized, "invalid or missing admin token")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }

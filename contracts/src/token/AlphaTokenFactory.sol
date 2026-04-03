@@ -5,7 +5,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {AlphaToken} from "./AlphaToken.sol";
 
 /// @title AlphaTokenFactory — deploys AlphaToken via CREATE2 with configurable vanity address validation
-/// @notice Uses CREATE2 to deploy an independent AlphaToken instance for each subnet.
+/// @notice Uses CREATE2 to deploy an independent AlphaToken instance for each worknet.
 ///         Vanity rules are configured at deployment: 4 prefix positions + 4 suffix positions.
 ///         Each position encodes a required hex character with EIP-55 case sensitivity.
 /// @dev Vanity rule encoding per position (uint8):
@@ -54,22 +54,22 @@ contract AlphaTokenFactory is Ownable {
     }
 
     /// @notice Deploy a new AlphaToken instance via CREATE2 (only AWPRegistry may call)
-    /// @param subnetId_ Subnet ID
+    /// @param worknetId_ Worknet ID
     /// @param name_     Token name
     /// @param symbol_   Token symbol
     /// @param admin_    Admin address for the instance (typically AWPRegistry itself)
-    /// @param salt_     CREATE2 salt; if bytes32(0), uses subnetId as salt
+    /// @param salt_     CREATE2 salt; if bytes32(0), uses worknetId as salt
     /// @return Address of the newly created AlphaToken contract
-    function deploy(uint256 subnetId_, string memory name_, string memory symbol_, address admin_, bytes32 salt_)
+    function deploy(uint256 worknetId_, string memory name_, string memory symbol_, address admin_, bytes32 salt_)
         external
         returns (address)
     {
         if (msg.sender != awpRegistry) revert NotAWPRegistry();
 
-        bytes32 effectiveSalt = salt_ == bytes32(0) ? bytes32(subnetId_) : salt_;
+        bytes32 effectiveSalt = salt_ == bytes32(0) ? bytes32(worknetId_) : salt_;
 
         AlphaToken token = new AlphaToken{salt: effectiveSalt}();
-        token.initialize(name_, symbol_, subnetId_, admin_);
+        token.initialize(name_, symbol_, worknetId_, admin_);
 
         // Validate vanity address if rule is configured
         if (vanityRule != 0) {

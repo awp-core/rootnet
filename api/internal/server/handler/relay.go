@@ -18,29 +18,34 @@ import (
 )
 
 // revertErrors maps 4-byte Solidity error selectors to user-friendly messages.
-// Selectors verified against contract source via cast sig on 2026-03-29.
+// Selectors verified against contract source via cast sig on 2026-04-02.
 var revertErrors = map[string]string{
 	// ── AWPRegistry errors ──
-	"0xe6c4247b": "invalid address",
+	"0xd92e233d": "zero address",
+	"0xf48904b2": "self-bind not allowed",
 	"0x8b906c97": "caller is not the deployer",
 	"0x0dc149f0": "already initialized",
 	"0xcad4da2a": "caller is not the Timelock",
 	"0xef6d0f02": "caller is not the Guardian",
-	"0x6a6a9712": "invalid subnet params (name 1-64 bytes, symbol 1-16 bytes)",
-	"0x7991d6f7": "subnet manager address required (auto-deploy not available)",
-	"0x6ce3ac0e": "invalid subnet status",
+	"0x33b4f8bf": "invalid worknet name (1-64 bytes)",
+	"0xa581811c": "invalid worknet symbol (1-16 bytes)",
+	"0xfdc63ea7": "computed LP AWP amount is zero",
+	"0xccfad018": "mint amount must be > 0",
+	"0x158dc889": "immunity period too short (min 7 days)",
+	"0x4ff2aff2": "worknet manager address required (auto-deploy not available)",
+	"0x6baa309b": "invalid worknet status for this operation",
 	"0x84e3b93f": "immunity period not expired",
-	"0x30cd7471": "not the subnet owner",
+	"0x30cd7471": "not the worknet owner",
 	"0xdbbbe822": "price too low",
 	"0x24fe1192": "price too high",
 	"0xdf4cc36d": "signature deadline expired",
 	"0x8baa579f": "invalid EIP-712 signature",
-	"0xab59c60f": "max active subnets reached (10000)",
+	"0xfb92bbfa": "max active worknets reached (10000)",
 	"0x9146c723": "cycle detected in binding tree",
-	"0xc253bd89": "binding chain too long (max 100)",
+	"0xd93ed101": "binding chain too deep (max 256)",
+	"0xa18bfb23": "name or symbol contains invalid characters (\" or \\)",
 	"0xea8e4eb5": "not authorized (not staker or delegate)",
 	"0x373d7529": "cannot revoke own delegation",
-	"0x3a81d6fc": "already registered",
 
 	// ── OZ ERC20 errors ──
 	"0xe450d38c": "insufficient AWP balance",
@@ -74,12 +79,15 @@ var revertErrors = map[string]string{
 	"0x401640ae": "lock duration cannot be shortened",
 	"0x481ffa6a": "lock must exceed current time",
 	"0xd0bfc8d2": "not authorized (onlyAWPRegistry)",
+	"0xa13bdd4f": "cannot rescue staked AWP token",
 
 	// ── StakingVault errors ──
 	"0xdf2d4774": "insufficient allocation",
-	"0xd92e233d": "zero address",
+	"0x1f2a2005": "amount cannot be zero",
+	"0x54ada055": "amount exceeds uint128 max",
+	"0xd76d9a3d": "worknet ID cannot be zero",
+	"0x2fe6f8a8": "allocation would overflow uint128",
 	"0xa741a045": "already set",
-	"0x78838d16": "subnet ID cannot be zero",
 
 	// ── AlphaToken errors ──
 	"0xc30436e9": "exceeds AWP max supply",
@@ -89,31 +97,41 @@ var revertErrors = map[string]string{
 	"0x69b757d8": "minter paused",
 	"0x815eb757": "minters locked",
 	"0xf7a632f5": "invalid callback",
+	"0xddefae28": "initial mint already called",
 
 	// ── AlphaTokenFactory errors ──
 	"0x16a1ae75": "invalid vanity address (EIP-55 mismatch)",
 
 	// ── LPManager errors ──
 	"0x03119322": "LP pool already exists",
+	"0xf591b277": "no LP pool exists for this token",
+	"0x5a916d92": "amount exceeds Permit2 uint160 limit",
 
 	// ── AWPEmission errors ──
 	"0x9c8d2cd2": "invalid recipient",
 	"0xac4258ee": "epoch not ready for settlement",
 	"0xc2cf00fc": "emission mining complete (MAX_SUPPLY reached)",
 	"0xc7d141a8": "settlement in progress",
-	"0xa24a13a6": "array length mismatch",
-	"0x613970e0": "invalid parameter",
-	"0x56384ae8": "duplicate recipient",
+	"0x19a2a9bd": "zero weight not allowed",
+	"0x3971ddf8": "too many recipients",
+	"0x5ae6162f": "invalid decay factor",
+	"0x96cb8a7f": "limit cannot be zero",
+	"0x8b8a8a93": "genesis time not reached yet",
+	"0x66128a97": "epoch duration cannot be zero",
 	"0x11631a24": "must be future epoch",
 
-	// ── SubnetManager errors ──
+	"0xb7c39e25": "invalid resume time (must be in the future)",
+
+	// ── WorknetManager errors ──
+	"0x334ee9a1": "invalid slippage tolerance (1-5000 bps)",
+	"0xf4742923": "strategy is paused",
 	"0x646cf558": "already claimed",
 	"0x09bde339": "invalid Merkle proof",
 	"0xb466ddbf": "Merkle root already set for this epoch",
 	"0x8da6b984": "no Merkle root for this epoch",
-	"0x1f2a2005": "zero amount",
+	"0xb263ae73": "zero Merkle root",
 
-	// ── SubnetManagerUni errors ──
+	// ── WorknetManagerUni errors ──
 	"0xae18210a": "not the pool manager",
 	"0x8199f5f3": "slippage exceeded",
 
@@ -122,13 +140,12 @@ var revertErrors = map[string]string{
 	"0xa1f0d74b": "token already voted in this proposal",
 	"0xf6fafba0": "lock expired",
 	"0x467b1124": "NFT minted after proposal creation",
-	"0xcabeb655": "insufficient voting power",
 	"0x376ef12e": "use proposeWithTokens instead",
-	"0x67542396": "use castVoteWithParams instead",
+	"0xc10b42c7": "use castVoteWithParams instead",
 	"0xbf5bbc9c": "invalid quorum percent",
 	"0x2721b57b": "zero total voting power",
 
-	// ── SubnetNFT errors ──
+	// ── WorknetNFT errors ──
 	"0x44943622": "token does not exist",
 }
 
@@ -152,13 +169,23 @@ func decodeRelayError(err error) string {
 			}
 		}
 	}
-	// Fallback: find any 0x + 8 hex chars
+	// Fallback: find a valid 4-byte selector (0x + exactly 8 hex chars)
 	if idx := strings.Index(s, "0x"); idx >= 0 && len(s) >= idx+10 {
 		selector := s[idx : idx+10]
-		if msg, ok := revertErrors[selector]; ok {
-			return msg
+		// Validate it's a proper hex selector
+		isHex := true
+		for _, c := range selector[2:] {
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				isHex = false
+				break
+			}
 		}
-		return "on-chain revert: " + selector
+		if isHex {
+			if msg, ok := revertErrors[selector]; ok {
+				return msg
+			}
+			return "on-chain revert: " + selector
+		}
 	}
 	// Non-revert errors — match common patterns without leaking internal details
 	if strings.Contains(s, "nonce") {
@@ -183,7 +210,7 @@ func decodeRelayError(err error) string {
 		return "relay nonce conflict (replacement tx), please retry"
 	}
 	if strings.Contains(s, "execution reverted") {
-		return "on-chain execution reverted — common causes: insufficient AWP balance, missing allowance, or contract paused"
+		return "on-chain execution reverted (unrecognized error selector)"
 	}
 	// Final fallback — include a sanitized hint from the error type
 	return "relay failed: internal error, please try again"
@@ -207,7 +234,7 @@ func NewRelayHandler(relayers map[int64]*chain.Relayer, limiter *ratelimit.Limit
 
 // resolveRelayer returns the relayer for the given chainId, or the single relayer if only one exists
 func (rh *RelayHandler) resolveRelayer(chainID int64) (*chain.Relayer, error) {
-	// 单链模式：直接返回唯一 relayer
+	// Single-chain mode: directly return the only relayer
 	if len(rh.relayers) == 1 && chainID == 0 {
 		for _, r := range rh.relayers {
 			return r, nil
@@ -285,7 +312,7 @@ type relayAllocateRequest struct {
 	ChainID   int64  `json:"chainId"`
 	Staker    string `json:"staker"`
 	Agent     string `json:"agent"`
-	SubnetID  string `json:"subnetId"`
+	SubnetID  string `json:"worknetId"`
 	Amount    string `json:"amount"` // wei string
 	Deadline  uint64 `json:"deadline"`
 	Signature string `json:"signature"`
@@ -295,7 +322,7 @@ type relayDeallocateRequest struct {
 	ChainID   int64  `json:"chainId"`
 	Staker    string `json:"staker"`
 	Agent     string `json:"agent"`
-	SubnetID  string `json:"subnetId"`
+	SubnetID  string `json:"worknetId"`
 	Amount    string `json:"amount"` // wei string
 	Deadline  uint64 `json:"deadline"`
 	Signature string `json:"signature"`
@@ -304,7 +331,7 @@ type relayDeallocateRequest struct {
 type relayActivateSubnetRequest struct {
 	ChainID   int64  `json:"chainId"`
 	User      string `json:"user"`
-	SubnetID  string `json:"subnetId"`
+	SubnetID  string `json:"worknetId"`
 	Deadline  uint64 `json:"deadline"`
 	Signature string `json:"signature"`
 }
@@ -314,8 +341,8 @@ type relayRegisterSubnetRequest struct {
 	User              string `json:"user"`
 	Name              string `json:"name"`
 	Symbol            string `json:"symbol"`
-	SubnetManager     string `json:"subnetManager"`    // "0x0...0" or "" = auto-deploy SubnetManager
-	Salt              string `json:"salt"`              // bytes32 hex, "0x00...00" = use subnetId
+	WorknetManager     string `json:"worknetManager"`    // "0x0...0" or "" = auto-deploy WorknetManager
+	Salt              string `json:"salt"`              // bytes32 hex, "0x00...00" = use worknetId
 	MinStake          string `json:"minStake"`          // minimum stake wei string (0 = no minimum)
 	SkillsURI         string `json:"skillsUri"`         // skills description URI
 	Deadline          uint64 `json:"deadline"`
@@ -523,7 +550,7 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 	}
 	if !common.IsHexAddress(req.Staker) { rh.writeError(w, http.StatusBadRequest, "invalid staker address"); return }
 	if !common.IsHexAddress(req.Agent) { rh.writeError(w, http.StatusBadRequest, "invalid agent address"); return }
-	if req.SubnetID == "" { rh.writeError(w, http.StatusBadRequest, "subnetId is required"); return }
+	if req.SubnetID == "" { rh.writeError(w, http.StatusBadRequest, "worknetId is required"); return }
 	if req.Amount == "" { rh.writeError(w, http.StatusBadRequest, "amount is required"); return }
 	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() { rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired"); return }
 	if req.Signature == "" { rh.writeError(w, http.StatusBadRequest, "missing signature"); return }
@@ -535,8 +562,8 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 	if rateLimitErr != nil { rh.writeError(w, http.StatusInternalServerError, "rate limit check failed"); return }
 	if exceeded { rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay")); return }
 
-	subnetId, ok := new(big.Int).SetString(req.SubnetID, 10)
-	if !ok || subnetId.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid subnetId"); return }
+	worknetId, ok := new(big.Int).SetString(req.SubnetID, 10)
+	if !ok || worknetId.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid worknetId"); return }
 
 	amount, amtOk := new(big.Int).SetString(req.Amount, 10)
 	if !amtOk || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
@@ -549,7 +576,7 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 
 	txHash, err := relayer.RelayAllocate(r.Context(),
 		common.HexToAddress(req.Staker), common.HexToAddress(req.Agent),
-		subnetId, amount,
+		worknetId, amount,
 		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
 	if err != nil {
 		rh.logger.Error("relay allocateFor failed", "error", err, "staker", req.Staker)
@@ -569,7 +596,7 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 	}
 	if !common.IsHexAddress(req.Staker) { rh.writeError(w, http.StatusBadRequest, "invalid staker address"); return }
 	if !common.IsHexAddress(req.Agent) { rh.writeError(w, http.StatusBadRequest, "invalid agent address"); return }
-	if req.SubnetID == "" { rh.writeError(w, http.StatusBadRequest, "subnetId is required"); return }
+	if req.SubnetID == "" { rh.writeError(w, http.StatusBadRequest, "worknetId is required"); return }
 	if req.Amount == "" { rh.writeError(w, http.StatusBadRequest, "amount is required"); return }
 	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() { rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired"); return }
 	if req.Signature == "" { rh.writeError(w, http.StatusBadRequest, "missing signature"); return }
@@ -581,8 +608,8 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 	if rateLimitErr != nil { rh.writeError(w, http.StatusInternalServerError, "rate limit check failed"); return }
 	if exceeded { rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay")); return }
 
-	subnetId, ok := new(big.Int).SetString(req.SubnetID, 10)
-	if !ok || subnetId.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid subnetId"); return }
+	worknetId, ok := new(big.Int).SetString(req.SubnetID, 10)
+	if !ok || worknetId.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid worknetId"); return }
 
 	amount, amtOk := new(big.Int).SetString(req.Amount, 10)
 	if !amtOk || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
@@ -595,7 +622,7 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 
 	txHash, err := relayer.RelayDeallocate(r.Context(),
 		common.HexToAddress(req.Staker), common.HexToAddress(req.Agent),
-		subnetId, amount,
+		worknetId, amount,
 		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
 	if err != nil {
 		rh.logger.Error("relay deallocateFor failed", "error", err, "staker", req.Staker)
@@ -614,16 +641,16 @@ func (rh *RelayHandler) RelayActivateSubnet(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if !common.IsHexAddress(req.User) { rh.writeError(w, http.StatusBadRequest, "invalid user address"); return }
-	if req.SubnetID == "" { rh.writeError(w, http.StatusBadRequest, "subnetId is required"); return }
+	if req.SubnetID == "" { rh.writeError(w, http.StatusBadRequest, "worknetId is required"); return }
 	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() { rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired"); return }
 	if req.Signature == "" { rh.writeError(w, http.StatusBadRequest, "missing signature"); return }
 
 	v, rs, ss, err := parseSignature(req.Signature)
 	if err != nil { rh.writeError(w, http.StatusBadRequest, err.Error()); return }
 
-	subnetId, ok := new(big.Int).SetString(req.SubnetID, 10)
-	if !ok || subnetId.Sign() <= 0 {
-		rh.writeError(w, http.StatusBadRequest, "invalid subnetId")
+	worknetId, ok := new(big.Int).SetString(req.SubnetID, 10)
+	if !ok || worknetId.Sign() <= 0 {
+		rh.writeError(w, http.StatusBadRequest, "invalid worknetId")
 		return
 	}
 
@@ -638,10 +665,10 @@ func (rh *RelayHandler) RelayActivateSubnet(w http.ResponseWriter, r *http.Reque
 	}
 
 	txHash, err := relayer.RelayActivateSubnet(r.Context(),
-		common.HexToAddress(req.User), subnetId,
+		common.HexToAddress(req.User), worknetId,
 		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
 	if err != nil {
-		rh.logger.Error("relay activateSubnetFor failed", "error", err, "user", req.User, "subnetId", req.SubnetID)
+		rh.logger.Error("relay activateSubnetFor failed", "error", err, "user", req.User, "worknetId", req.SubnetID)
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
 		return
 	}
@@ -719,8 +746,8 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 	}
 
 	var subnetMgr common.Address
-	if req.SubnetManager != "" && common.IsHexAddress(req.SubnetManager) {
-		subnetMgr = common.HexToAddress(req.SubnetManager)
+	if req.WorknetManager != "" && common.IsHexAddress(req.WorknetManager) {
+		subnetMgr = common.HexToAddress(req.WorknetManager)
 	}
 
 	minStake, _ := new(big.Int).SetString(req.MinStake, 10)
@@ -728,10 +755,10 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 		minStake = big.NewInt(0)
 	}
 
-	params := bindings.IAWPRegistrySubnetParams{
+	params := bindings.IAWPRegistryWorknetParams{
 		Name:          req.Name,
 		Symbol:        req.Symbol,
-		SubnetManager: subnetMgr,
+		WorknetManager: subnetMgr,
 		Salt:          salt,
 		MinStake:      minStake,
 		SkillsURI:     req.SkillsURI,
@@ -760,7 +787,7 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
-// GetRelayStatus GET /api/relay/status/{txHash} — 查询 relay 交易的链上确认状态
+// GetRelayStatus GET /api/relay/status/{txHash} — query on-chain confirmation status of a relay transaction
 func (rh *RelayHandler) GetRelayStatus(w http.ResponseWriter, r *http.Request) {
 	txHash := chi.URLParam(r, "txHash")
 	if txHash == "" || len(txHash) != 66 {
@@ -774,6 +801,10 @@ func (rh *RelayHandler) GetRelayStatus(w http.ResponseWriter, r *http.Request) {
 		anyRelayer = rl
 		break
 	}
+	if anyRelayer == nil {
+		rh.writeError(w, http.StatusServiceUnavailable, "no relayer configured")
+		return
+	}
 	status, err := anyRelayer.GetTxStatus(r.Context(), txHash)
 	if err != nil {
 		rh.writeJSON(w, http.StatusOK, map[string]string{"status": "unknown", "txHash": txHash})
@@ -781,4 +812,183 @@ func (rh *RelayHandler) GetRelayStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rh.writeJSON(w, http.StatusOK, status)
+}
+
+// ── Grant/Revoke Delegate + Unbind relay endpoints ──
+
+type relayDelegateRequest struct {
+	ChainID   int64  `json:"chainId"`
+	User      string `json:"user"`
+	Delegate  string `json:"delegate"`
+	Deadline  uint64 `json:"deadline"`
+	Signature string `json:"signature"`
+}
+
+type relayUnbindRequest struct {
+	ChainID   int64  `json:"chainId"`
+	User      string `json:"user"`
+	Deadline  uint64 `json:"deadline"`
+	Signature string `json:"signature"`
+}
+
+// RelayGrantDelegate POST /api/relay/grant-delegate
+func (rh *RelayHandler) RelayGrantDelegate(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+
+	var req relayDelegateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		rh.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if !common.IsHexAddress(req.User) || !common.IsHexAddress(req.Delegate) {
+		rh.writeError(w, http.StatusBadRequest, "invalid address")
+		return
+	}
+	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() {
+		rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired")
+		return
+	}
+	if req.Signature == "" {
+		rh.writeError(w, http.StatusBadRequest, "missing signature")
+		return
+	}
+
+	v, rs, ss, err := parseSignature(req.Signature)
+	if err != nil {
+		rh.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	exceeded, rateLimitErr := rh.checkRateLimit(r)
+	if rateLimitErr != nil {
+		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
+		return
+	}
+	if exceeded {
+		rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay"))
+		return
+	}
+
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
+	txHash, err := relayer.RelayGrantDelegate(r.Context(), common.HexToAddress(req.User), common.HexToAddress(req.Delegate), new(big.Int).SetUint64(req.Deadline), v, rs, ss)
+	if err != nil {
+		rh.logger.Error("relay grantDelegateFor failed", "error", err, "user", req.User)
+		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
+		return
+	}
+
+	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
+}
+
+// RelayRevokeDelegate POST /api/relay/revoke-delegate
+func (rh *RelayHandler) RelayRevokeDelegate(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+
+	var req relayDelegateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		rh.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if !common.IsHexAddress(req.User) || !common.IsHexAddress(req.Delegate) {
+		rh.writeError(w, http.StatusBadRequest, "invalid address")
+		return
+	}
+	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() {
+		rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired")
+		return
+	}
+	if req.Signature == "" {
+		rh.writeError(w, http.StatusBadRequest, "missing signature")
+		return
+	}
+
+	v, rs, ss, err := parseSignature(req.Signature)
+	if err != nil {
+		rh.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	exceeded, rateLimitErr := rh.checkRateLimit(r)
+	if rateLimitErr != nil {
+		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
+		return
+	}
+	if exceeded {
+		rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay"))
+		return
+	}
+
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
+	txHash, err := relayer.RelayRevokeDelegate(r.Context(), common.HexToAddress(req.User), common.HexToAddress(req.Delegate), new(big.Int).SetUint64(req.Deadline), v, rs, ss)
+	if err != nil {
+		rh.logger.Error("relay revokeDelegateFor failed", "error", err, "user", req.User)
+		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
+		return
+	}
+
+	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
+}
+
+// RelayUnbind POST /api/relay/unbind
+func (rh *RelayHandler) RelayUnbind(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+
+	var req relayUnbindRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		rh.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if !common.IsHexAddress(req.User) {
+		rh.writeError(w, http.StatusBadRequest, "invalid user address")
+		return
+	}
+	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() {
+		rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired")
+		return
+	}
+	if req.Signature == "" {
+		rh.writeError(w, http.StatusBadRequest, "missing signature")
+		return
+	}
+
+	v, rs, ss, err := parseSignature(req.Signature)
+	if err != nil {
+		rh.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	exceeded, rateLimitErr := rh.checkRateLimit(r)
+	if rateLimitErr != nil {
+		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
+		return
+	}
+	if exceeded {
+		rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay"))
+		return
+	}
+
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
+	txHash, err := relayer.RelayUnbind(r.Context(), common.HexToAddress(req.User), new(big.Int).SetUint64(req.Deadline), v, rs, ss)
+	if err != nil {
+		rh.logger.Error("relay unbindFor failed", "error", err, "user", req.User)
+		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
+		return
+	}
+
+	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }

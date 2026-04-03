@@ -31,7 +31,7 @@ var (
 
 // StakingVaultMetaData contains all meta data concerning the StakingVault contract.
 var StakingVaultMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"constructor\",\"inputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"UPGRADE_INTERFACE_VERSION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"allocate\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"allocateFor\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"awpRegistry\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"deallocate\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"deallocateFor\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"eip712Domain\",\"inputs\":[],\"outputs\":[{\"name\":\"fields\",\"type\":\"bytes1\",\"internalType\":\"bytes1\"},{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"version\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"verifyingContract\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"extensions\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"freezeAgentAllocations\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"getAgentStake\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getAgentSubnets\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getSubnetTotalStake\",\"inputs\":[{\"name\":\"subnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"awpRegistry_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"treasury_\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"nonces\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proxiableUUID\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"reallocate\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"fromAgent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"fromSubnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"toAgent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"toSubnetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setStakeNFT\",\"inputs\":[{\"name\":\"stakeNFT_\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"stakeNFT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"subnetTotalStake\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"treasury\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"upgradeToAndCall\",\"inputs\":[{\"name\":\"newImplementation\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"userTotalAllocated\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"AgentAllocationsFrozen\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"totalFrozen\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Allocated\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Deallocated\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"subnetId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"EIP712DomainChanged\",\"inputs\":[],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Reallocated\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"fromAgent\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"fromSubnetId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"toAgent\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"toSubnetId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Upgraded\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"AddressEmptyCode\",\"inputs\":[{\"name\":\"target\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"AlreadySet\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureLength\",\"inputs\":[{\"name\":\"length\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureS\",\"inputs\":[{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"ERC1967InvalidImplementation\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC1967NonPayable\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ExpiredSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"FailedCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InsufficientAllocation\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InsufficientUnallocated\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidAmount\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidInitialization\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotAWPRegistry\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotAuthorized\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotInitializing\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotTimelock\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnauthorizedCallContext\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnsupportedProxiableUUID\",\"inputs\":[{\"name\":\"slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"ZeroAddress\",\"inputs\":[]}]",
+	ABI: "[{\"type\":\"constructor\",\"inputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"UPGRADE_INTERFACE_VERSION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"allocate\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"worknetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"allocateFor\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"worknetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"awpRegistry\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"deallocate\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"worknetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"deallocateFor\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"worknetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"deadline\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"v\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"r\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"eip712Domain\",\"inputs\":[],\"outputs\":[{\"name\":\"fields\",\"type\":\"bytes1\",\"internalType\":\"bytes1\"},{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"version\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"verifyingContract\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"extensions\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getAgentStake\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"worknetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getAgentWorknets\",\"inputs\":[{\"name\":\"user\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getWorknetTotalStake\",\"inputs\":[{\"name\":\"worknetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"guardian\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"awpRegistry_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"guardian_\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"nonces\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proxiableUUID\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"reallocate\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"fromAgent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"fromWorknetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"toAgent\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"toWorknetId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setGuardian\",\"inputs\":[{\"name\":\"g\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setStakeNFT\",\"inputs\":[{\"name\":\"stakeNFT_\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"stakeNFT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"upgradeToAndCall\",\"inputs\":[{\"name\":\"newImplementation\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"userTotalAllocated\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"worknetTotalStake\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"Allocated\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"worknetId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Deallocated\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"agent\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"worknetId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"EIP712DomainChanged\",\"inputs\":[],\"anonymous\":false},{\"type\":\"event\",\"name\":\"GuardianUpdated\",\"inputs\":[{\"name\":\"newGuardian\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Reallocated\",\"inputs\":[{\"name\":\"staker\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"fromAgent\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"fromWorknetId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"toAgent\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"toWorknetId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"amount\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"operator\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"StakeNFTSet\",\"inputs\":[{\"name\":\"stakeNFT\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Upgraded\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"AddressEmptyCode\",\"inputs\":[{\"name\":\"target\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"AllocationOverflow\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"AlreadySet\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"AmountExceedsUint128\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureLength\",\"inputs\":[{\"name\":\"length\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"ECDSAInvalidSignatureS\",\"inputs\":[{\"name\":\"s\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"ERC1967InvalidImplementation\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC1967NonPayable\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ExpiredSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"FailedCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InsufficientAllocation\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InsufficientUnallocated\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidInitialization\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidSignature\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotAWPRegistry\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotAuthorized\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotGuardian\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotInitializing\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ReentrancyGuardReentrantCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnauthorizedCallContext\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnsupportedProxiableUUID\",\"inputs\":[{\"name\":\"slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"ZeroAddress\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ZeroAmount\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ZeroWorknetId\",\"inputs\":[]}]",
 }
 
 // StakingVaultABI is the input ABI used to generate the binding from.
@@ -314,10 +314,10 @@ func (_StakingVault *StakingVaultCallerSession) Eip712Domain() (struct {
 
 // GetAgentStake is a free data retrieval call binding the contract method 0xf1ad80c6.
 //
-// Solidity: function getAgentStake(address user, address agent, uint256 subnetId) view returns(uint256)
-func (_StakingVault *StakingVaultCaller) GetAgentStake(opts *bind.CallOpts, user common.Address, agent common.Address, subnetId *big.Int) (*big.Int, error) {
+// Solidity: function getAgentStake(address user, address agent, uint256 worknetId) view returns(uint256)
+func (_StakingVault *StakingVaultCaller) GetAgentStake(opts *bind.CallOpts, user common.Address, agent common.Address, worknetId *big.Int) (*big.Int, error) {
 	var out []interface{}
-	err := _StakingVault.contract.Call(opts, &out, "getAgentStake", user, agent, subnetId)
+	err := _StakingVault.contract.Call(opts, &out, "getAgentStake", user, agent, worknetId)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -331,24 +331,24 @@ func (_StakingVault *StakingVaultCaller) GetAgentStake(opts *bind.CallOpts, user
 
 // GetAgentStake is a free data retrieval call binding the contract method 0xf1ad80c6.
 //
-// Solidity: function getAgentStake(address user, address agent, uint256 subnetId) view returns(uint256)
-func (_StakingVault *StakingVaultSession) GetAgentStake(user common.Address, agent common.Address, subnetId *big.Int) (*big.Int, error) {
-	return _StakingVault.Contract.GetAgentStake(&_StakingVault.CallOpts, user, agent, subnetId)
+// Solidity: function getAgentStake(address user, address agent, uint256 worknetId) view returns(uint256)
+func (_StakingVault *StakingVaultSession) GetAgentStake(user common.Address, agent common.Address, worknetId *big.Int) (*big.Int, error) {
+	return _StakingVault.Contract.GetAgentStake(&_StakingVault.CallOpts, user, agent, worknetId)
 }
 
 // GetAgentStake is a free data retrieval call binding the contract method 0xf1ad80c6.
 //
-// Solidity: function getAgentStake(address user, address agent, uint256 subnetId) view returns(uint256)
-func (_StakingVault *StakingVaultCallerSession) GetAgentStake(user common.Address, agent common.Address, subnetId *big.Int) (*big.Int, error) {
-	return _StakingVault.Contract.GetAgentStake(&_StakingVault.CallOpts, user, agent, subnetId)
+// Solidity: function getAgentStake(address user, address agent, uint256 worknetId) view returns(uint256)
+func (_StakingVault *StakingVaultCallerSession) GetAgentStake(user common.Address, agent common.Address, worknetId *big.Int) (*big.Int, error) {
+	return _StakingVault.Contract.GetAgentStake(&_StakingVault.CallOpts, user, agent, worknetId)
 }
 
-// GetAgentSubnets is a free data retrieval call binding the contract method 0x0358ccb5.
+// GetAgentWorknets is a free data retrieval call binding the contract method 0xfd4fd2e8.
 //
-// Solidity: function getAgentSubnets(address user, address agent) view returns(uint256[])
-func (_StakingVault *StakingVaultCaller) GetAgentSubnets(opts *bind.CallOpts, user common.Address, agent common.Address) ([]*big.Int, error) {
+// Solidity: function getAgentWorknets(address user, address agent) view returns(uint256[])
+func (_StakingVault *StakingVaultCaller) GetAgentWorknets(opts *bind.CallOpts, user common.Address, agent common.Address) ([]*big.Int, error) {
 	var out []interface{}
-	err := _StakingVault.contract.Call(opts, &out, "getAgentSubnets", user, agent)
+	err := _StakingVault.contract.Call(opts, &out, "getAgentWorknets", user, agent)
 
 	if err != nil {
 		return *new([]*big.Int), err
@@ -360,26 +360,26 @@ func (_StakingVault *StakingVaultCaller) GetAgentSubnets(opts *bind.CallOpts, us
 
 }
 
-// GetAgentSubnets is a free data retrieval call binding the contract method 0x0358ccb5.
+// GetAgentWorknets is a free data retrieval call binding the contract method 0xfd4fd2e8.
 //
-// Solidity: function getAgentSubnets(address user, address agent) view returns(uint256[])
-func (_StakingVault *StakingVaultSession) GetAgentSubnets(user common.Address, agent common.Address) ([]*big.Int, error) {
-	return _StakingVault.Contract.GetAgentSubnets(&_StakingVault.CallOpts, user, agent)
+// Solidity: function getAgentWorknets(address user, address agent) view returns(uint256[])
+func (_StakingVault *StakingVaultSession) GetAgentWorknets(user common.Address, agent common.Address) ([]*big.Int, error) {
+	return _StakingVault.Contract.GetAgentWorknets(&_StakingVault.CallOpts, user, agent)
 }
 
-// GetAgentSubnets is a free data retrieval call binding the contract method 0x0358ccb5.
+// GetAgentWorknets is a free data retrieval call binding the contract method 0xfd4fd2e8.
 //
-// Solidity: function getAgentSubnets(address user, address agent) view returns(uint256[])
-func (_StakingVault *StakingVaultCallerSession) GetAgentSubnets(user common.Address, agent common.Address) ([]*big.Int, error) {
-	return _StakingVault.Contract.GetAgentSubnets(&_StakingVault.CallOpts, user, agent)
+// Solidity: function getAgentWorknets(address user, address agent) view returns(uint256[])
+func (_StakingVault *StakingVaultCallerSession) GetAgentWorknets(user common.Address, agent common.Address) ([]*big.Int, error) {
+	return _StakingVault.Contract.GetAgentWorknets(&_StakingVault.CallOpts, user, agent)
 }
 
-// GetSubnetTotalStake is a free data retrieval call binding the contract method 0x1ed2facb.
+// GetWorknetTotalStake is a free data retrieval call binding the contract method 0x5bfe237f.
 //
-// Solidity: function getSubnetTotalStake(uint256 subnetId) view returns(uint256)
-func (_StakingVault *StakingVaultCaller) GetSubnetTotalStake(opts *bind.CallOpts, subnetId *big.Int) (*big.Int, error) {
+// Solidity: function getWorknetTotalStake(uint256 worknetId) view returns(uint256)
+func (_StakingVault *StakingVaultCaller) GetWorknetTotalStake(opts *bind.CallOpts, worknetId *big.Int) (*big.Int, error) {
 	var out []interface{}
-	err := _StakingVault.contract.Call(opts, &out, "getSubnetTotalStake", subnetId)
+	err := _StakingVault.contract.Call(opts, &out, "getWorknetTotalStake", worknetId)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -391,18 +391,49 @@ func (_StakingVault *StakingVaultCaller) GetSubnetTotalStake(opts *bind.CallOpts
 
 }
 
-// GetSubnetTotalStake is a free data retrieval call binding the contract method 0x1ed2facb.
+// GetWorknetTotalStake is a free data retrieval call binding the contract method 0x5bfe237f.
 //
-// Solidity: function getSubnetTotalStake(uint256 subnetId) view returns(uint256)
-func (_StakingVault *StakingVaultSession) GetSubnetTotalStake(subnetId *big.Int) (*big.Int, error) {
-	return _StakingVault.Contract.GetSubnetTotalStake(&_StakingVault.CallOpts, subnetId)
+// Solidity: function getWorknetTotalStake(uint256 worknetId) view returns(uint256)
+func (_StakingVault *StakingVaultSession) GetWorknetTotalStake(worknetId *big.Int) (*big.Int, error) {
+	return _StakingVault.Contract.GetWorknetTotalStake(&_StakingVault.CallOpts, worknetId)
 }
 
-// GetSubnetTotalStake is a free data retrieval call binding the contract method 0x1ed2facb.
+// GetWorknetTotalStake is a free data retrieval call binding the contract method 0x5bfe237f.
 //
-// Solidity: function getSubnetTotalStake(uint256 subnetId) view returns(uint256)
-func (_StakingVault *StakingVaultCallerSession) GetSubnetTotalStake(subnetId *big.Int) (*big.Int, error) {
-	return _StakingVault.Contract.GetSubnetTotalStake(&_StakingVault.CallOpts, subnetId)
+// Solidity: function getWorknetTotalStake(uint256 worknetId) view returns(uint256)
+func (_StakingVault *StakingVaultCallerSession) GetWorknetTotalStake(worknetId *big.Int) (*big.Int, error) {
+	return _StakingVault.Contract.GetWorknetTotalStake(&_StakingVault.CallOpts, worknetId)
+}
+
+// Guardian is a free data retrieval call binding the contract method 0x452a9320.
+//
+// Solidity: function guardian() view returns(address)
+func (_StakingVault *StakingVaultCaller) Guardian(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _StakingVault.contract.Call(opts, &out, "guardian")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// Guardian is a free data retrieval call binding the contract method 0x452a9320.
+//
+// Solidity: function guardian() view returns(address)
+func (_StakingVault *StakingVaultSession) Guardian() (common.Address, error) {
+	return _StakingVault.Contract.Guardian(&_StakingVault.CallOpts)
+}
+
+// Guardian is a free data retrieval call binding the contract method 0x452a9320.
+//
+// Solidity: function guardian() view returns(address)
+func (_StakingVault *StakingVaultCallerSession) Guardian() (common.Address, error) {
+	return _StakingVault.Contract.Guardian(&_StakingVault.CallOpts)
 }
 
 // Nonces is a free data retrieval call binding the contract method 0x7ecebe00.
@@ -498,68 +529,6 @@ func (_StakingVault *StakingVaultCallerSession) StakeNFT() (common.Address, erro
 	return _StakingVault.Contract.StakeNFT(&_StakingVault.CallOpts)
 }
 
-// SubnetTotalStake is a free data retrieval call binding the contract method 0xf1e18405.
-//
-// Solidity: function subnetTotalStake(uint256 ) view returns(uint256)
-func (_StakingVault *StakingVaultCaller) SubnetTotalStake(opts *bind.CallOpts, arg0 *big.Int) (*big.Int, error) {
-	var out []interface{}
-	err := _StakingVault.contract.Call(opts, &out, "subnetTotalStake", arg0)
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// SubnetTotalStake is a free data retrieval call binding the contract method 0xf1e18405.
-//
-// Solidity: function subnetTotalStake(uint256 ) view returns(uint256)
-func (_StakingVault *StakingVaultSession) SubnetTotalStake(arg0 *big.Int) (*big.Int, error) {
-	return _StakingVault.Contract.SubnetTotalStake(&_StakingVault.CallOpts, arg0)
-}
-
-// SubnetTotalStake is a free data retrieval call binding the contract method 0xf1e18405.
-//
-// Solidity: function subnetTotalStake(uint256 ) view returns(uint256)
-func (_StakingVault *StakingVaultCallerSession) SubnetTotalStake(arg0 *big.Int) (*big.Int, error) {
-	return _StakingVault.Contract.SubnetTotalStake(&_StakingVault.CallOpts, arg0)
-}
-
-// Treasury is a free data retrieval call binding the contract method 0x61d027b3.
-//
-// Solidity: function treasury() view returns(address)
-func (_StakingVault *StakingVaultCaller) Treasury(opts *bind.CallOpts) (common.Address, error) {
-	var out []interface{}
-	err := _StakingVault.contract.Call(opts, &out, "treasury")
-
-	if err != nil {
-		return *new(common.Address), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
-
-	return out0, err
-
-}
-
-// Treasury is a free data retrieval call binding the contract method 0x61d027b3.
-//
-// Solidity: function treasury() view returns(address)
-func (_StakingVault *StakingVaultSession) Treasury() (common.Address, error) {
-	return _StakingVault.Contract.Treasury(&_StakingVault.CallOpts)
-}
-
-// Treasury is a free data retrieval call binding the contract method 0x61d027b3.
-//
-// Solidity: function treasury() view returns(address)
-func (_StakingVault *StakingVaultCallerSession) Treasury() (common.Address, error) {
-	return _StakingVault.Contract.Treasury(&_StakingVault.CallOpts)
-}
-
 // UserTotalAllocated is a free data retrieval call binding the contract method 0x32ffa4ce.
 //
 // Solidity: function userTotalAllocated(address ) view returns(uint256)
@@ -591,151 +560,182 @@ func (_StakingVault *StakingVaultCallerSession) UserTotalAllocated(arg0 common.A
 	return _StakingVault.Contract.UserTotalAllocated(&_StakingVault.CallOpts, arg0)
 }
 
-// Allocate is a paid mutator transaction binding the contract method 0xd035a9a7.
+// WorknetTotalStake is a free data retrieval call binding the contract method 0x8c00c09c.
 //
-// Solidity: function allocate(address staker, address agent, uint256 subnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultTransactor) Allocate(opts *bind.TransactOpts, staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.contract.Transact(opts, "allocate", staker, agent, subnetId, amount)
+// Solidity: function worknetTotalStake(uint256 ) view returns(uint256)
+func (_StakingVault *StakingVaultCaller) WorknetTotalStake(opts *bind.CallOpts, arg0 *big.Int) (*big.Int, error) {
+	var out []interface{}
+	err := _StakingVault.contract.Call(opts, &out, "worknetTotalStake", arg0)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// WorknetTotalStake is a free data retrieval call binding the contract method 0x8c00c09c.
+//
+// Solidity: function worknetTotalStake(uint256 ) view returns(uint256)
+func (_StakingVault *StakingVaultSession) WorknetTotalStake(arg0 *big.Int) (*big.Int, error) {
+	return _StakingVault.Contract.WorknetTotalStake(&_StakingVault.CallOpts, arg0)
+}
+
+// WorknetTotalStake is a free data retrieval call binding the contract method 0x8c00c09c.
+//
+// Solidity: function worknetTotalStake(uint256 ) view returns(uint256)
+func (_StakingVault *StakingVaultCallerSession) WorknetTotalStake(arg0 *big.Int) (*big.Int, error) {
+	return _StakingVault.Contract.WorknetTotalStake(&_StakingVault.CallOpts, arg0)
 }
 
 // Allocate is a paid mutator transaction binding the contract method 0xd035a9a7.
 //
-// Solidity: function allocate(address staker, address agent, uint256 subnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultSession) Allocate(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.Contract.Allocate(&_StakingVault.TransactOpts, staker, agent, subnetId, amount)
+// Solidity: function allocate(address staker, address agent, uint256 worknetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultTransactor) Allocate(opts *bind.TransactOpts, staker common.Address, agent common.Address, worknetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.contract.Transact(opts, "allocate", staker, agent, worknetId, amount)
 }
 
 // Allocate is a paid mutator transaction binding the contract method 0xd035a9a7.
 //
-// Solidity: function allocate(address staker, address agent, uint256 subnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultTransactorSession) Allocate(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.Contract.Allocate(&_StakingVault.TransactOpts, staker, agent, subnetId, amount)
+// Solidity: function allocate(address staker, address agent, uint256 worknetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultSession) Allocate(staker common.Address, agent common.Address, worknetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.Contract.Allocate(&_StakingVault.TransactOpts, staker, agent, worknetId, amount)
+}
+
+// Allocate is a paid mutator transaction binding the contract method 0xd035a9a7.
+//
+// Solidity: function allocate(address staker, address agent, uint256 worknetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultTransactorSession) Allocate(staker common.Address, agent common.Address, worknetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.Contract.Allocate(&_StakingVault.TransactOpts, staker, agent, worknetId, amount)
 }
 
 // AllocateFor is a paid mutator transaction binding the contract method 0x7d66c5c5.
 //
-// Solidity: function allocateFor(address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_StakingVault *StakingVaultTransactor) AllocateFor(opts *bind.TransactOpts, staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _StakingVault.contract.Transact(opts, "allocateFor", staker, agent, subnetId, amount, deadline, v, r, s)
+// Solidity: function allocateFor(address staker, address agent, uint256 worknetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
+func (_StakingVault *StakingVaultTransactor) AllocateFor(opts *bind.TransactOpts, staker common.Address, agent common.Address, worknetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _StakingVault.contract.Transact(opts, "allocateFor", staker, agent, worknetId, amount, deadline, v, r, s)
 }
 
 // AllocateFor is a paid mutator transaction binding the contract method 0x7d66c5c5.
 //
-// Solidity: function allocateFor(address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_StakingVault *StakingVaultSession) AllocateFor(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _StakingVault.Contract.AllocateFor(&_StakingVault.TransactOpts, staker, agent, subnetId, amount, deadline, v, r, s)
+// Solidity: function allocateFor(address staker, address agent, uint256 worknetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
+func (_StakingVault *StakingVaultSession) AllocateFor(staker common.Address, agent common.Address, worknetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _StakingVault.Contract.AllocateFor(&_StakingVault.TransactOpts, staker, agent, worknetId, amount, deadline, v, r, s)
 }
 
 // AllocateFor is a paid mutator transaction binding the contract method 0x7d66c5c5.
 //
-// Solidity: function allocateFor(address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_StakingVault *StakingVaultTransactorSession) AllocateFor(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _StakingVault.Contract.AllocateFor(&_StakingVault.TransactOpts, staker, agent, subnetId, amount, deadline, v, r, s)
+// Solidity: function allocateFor(address staker, address agent, uint256 worknetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
+func (_StakingVault *StakingVaultTransactorSession) AllocateFor(staker common.Address, agent common.Address, worknetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _StakingVault.Contract.AllocateFor(&_StakingVault.TransactOpts, staker, agent, worknetId, amount, deadline, v, r, s)
 }
 
 // Deallocate is a paid mutator transaction binding the contract method 0x716fb83d.
 //
-// Solidity: function deallocate(address staker, address agent, uint256 subnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultTransactor) Deallocate(opts *bind.TransactOpts, staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.contract.Transact(opts, "deallocate", staker, agent, subnetId, amount)
+// Solidity: function deallocate(address staker, address agent, uint256 worknetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultTransactor) Deallocate(opts *bind.TransactOpts, staker common.Address, agent common.Address, worknetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.contract.Transact(opts, "deallocate", staker, agent, worknetId, amount)
 }
 
 // Deallocate is a paid mutator transaction binding the contract method 0x716fb83d.
 //
-// Solidity: function deallocate(address staker, address agent, uint256 subnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultSession) Deallocate(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.Contract.Deallocate(&_StakingVault.TransactOpts, staker, agent, subnetId, amount)
+// Solidity: function deallocate(address staker, address agent, uint256 worknetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultSession) Deallocate(staker common.Address, agent common.Address, worknetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.Contract.Deallocate(&_StakingVault.TransactOpts, staker, agent, worknetId, amount)
 }
 
 // Deallocate is a paid mutator transaction binding the contract method 0x716fb83d.
 //
-// Solidity: function deallocate(address staker, address agent, uint256 subnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultTransactorSession) Deallocate(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.Contract.Deallocate(&_StakingVault.TransactOpts, staker, agent, subnetId, amount)
+// Solidity: function deallocate(address staker, address agent, uint256 worknetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultTransactorSession) Deallocate(staker common.Address, agent common.Address, worknetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.Contract.Deallocate(&_StakingVault.TransactOpts, staker, agent, worknetId, amount)
 }
 
 // DeallocateFor is a paid mutator transaction binding the contract method 0x10fe1208.
 //
-// Solidity: function deallocateFor(address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_StakingVault *StakingVaultTransactor) DeallocateFor(opts *bind.TransactOpts, staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _StakingVault.contract.Transact(opts, "deallocateFor", staker, agent, subnetId, amount, deadline, v, r, s)
+// Solidity: function deallocateFor(address staker, address agent, uint256 worknetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
+func (_StakingVault *StakingVaultTransactor) DeallocateFor(opts *bind.TransactOpts, staker common.Address, agent common.Address, worknetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _StakingVault.contract.Transact(opts, "deallocateFor", staker, agent, worknetId, amount, deadline, v, r, s)
 }
 
 // DeallocateFor is a paid mutator transaction binding the contract method 0x10fe1208.
 //
-// Solidity: function deallocateFor(address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_StakingVault *StakingVaultSession) DeallocateFor(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _StakingVault.Contract.DeallocateFor(&_StakingVault.TransactOpts, staker, agent, subnetId, amount, deadline, v, r, s)
+// Solidity: function deallocateFor(address staker, address agent, uint256 worknetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
+func (_StakingVault *StakingVaultSession) DeallocateFor(staker common.Address, agent common.Address, worknetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _StakingVault.Contract.DeallocateFor(&_StakingVault.TransactOpts, staker, agent, worknetId, amount, deadline, v, r, s)
 }
 
 // DeallocateFor is a paid mutator transaction binding the contract method 0x10fe1208.
 //
-// Solidity: function deallocateFor(address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
-func (_StakingVault *StakingVaultTransactorSession) DeallocateFor(staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
-	return _StakingVault.Contract.DeallocateFor(&_StakingVault.TransactOpts, staker, agent, subnetId, amount, deadline, v, r, s)
-}
-
-// FreezeAgentAllocations is a paid mutator transaction binding the contract method 0x6f980813.
-//
-// Solidity: function freezeAgentAllocations(address user, address agent) returns()
-func (_StakingVault *StakingVaultTransactor) FreezeAgentAllocations(opts *bind.TransactOpts, user common.Address, agent common.Address) (*types.Transaction, error) {
-	return _StakingVault.contract.Transact(opts, "freezeAgentAllocations", user, agent)
-}
-
-// FreezeAgentAllocations is a paid mutator transaction binding the contract method 0x6f980813.
-//
-// Solidity: function freezeAgentAllocations(address user, address agent) returns()
-func (_StakingVault *StakingVaultSession) FreezeAgentAllocations(user common.Address, agent common.Address) (*types.Transaction, error) {
-	return _StakingVault.Contract.FreezeAgentAllocations(&_StakingVault.TransactOpts, user, agent)
-}
-
-// FreezeAgentAllocations is a paid mutator transaction binding the contract method 0x6f980813.
-//
-// Solidity: function freezeAgentAllocations(address user, address agent) returns()
-func (_StakingVault *StakingVaultTransactorSession) FreezeAgentAllocations(user common.Address, agent common.Address) (*types.Transaction, error) {
-	return _StakingVault.Contract.FreezeAgentAllocations(&_StakingVault.TransactOpts, user, agent)
+// Solidity: function deallocateFor(address staker, address agent, uint256 worknetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) returns()
+func (_StakingVault *StakingVaultTransactorSession) DeallocateFor(staker common.Address, agent common.Address, worknetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, r [32]byte, s [32]byte) (*types.Transaction, error) {
+	return _StakingVault.Contract.DeallocateFor(&_StakingVault.TransactOpts, staker, agent, worknetId, amount, deadline, v, r, s)
 }
 
 // Initialize is a paid mutator transaction binding the contract method 0x485cc955.
 //
-// Solidity: function initialize(address awpRegistry_, address treasury_) returns()
-func (_StakingVault *StakingVaultTransactor) Initialize(opts *bind.TransactOpts, awpRegistry_ common.Address, treasury_ common.Address) (*types.Transaction, error) {
-	return _StakingVault.contract.Transact(opts, "initialize", awpRegistry_, treasury_)
+// Solidity: function initialize(address awpRegistry_, address guardian_) returns()
+func (_StakingVault *StakingVaultTransactor) Initialize(opts *bind.TransactOpts, awpRegistry_ common.Address, guardian_ common.Address) (*types.Transaction, error) {
+	return _StakingVault.contract.Transact(opts, "initialize", awpRegistry_, guardian_)
 }
 
 // Initialize is a paid mutator transaction binding the contract method 0x485cc955.
 //
-// Solidity: function initialize(address awpRegistry_, address treasury_) returns()
-func (_StakingVault *StakingVaultSession) Initialize(awpRegistry_ common.Address, treasury_ common.Address) (*types.Transaction, error) {
-	return _StakingVault.Contract.Initialize(&_StakingVault.TransactOpts, awpRegistry_, treasury_)
+// Solidity: function initialize(address awpRegistry_, address guardian_) returns()
+func (_StakingVault *StakingVaultSession) Initialize(awpRegistry_ common.Address, guardian_ common.Address) (*types.Transaction, error) {
+	return _StakingVault.Contract.Initialize(&_StakingVault.TransactOpts, awpRegistry_, guardian_)
 }
 
 // Initialize is a paid mutator transaction binding the contract method 0x485cc955.
 //
-// Solidity: function initialize(address awpRegistry_, address treasury_) returns()
-func (_StakingVault *StakingVaultTransactorSession) Initialize(awpRegistry_ common.Address, treasury_ common.Address) (*types.Transaction, error) {
-	return _StakingVault.Contract.Initialize(&_StakingVault.TransactOpts, awpRegistry_, treasury_)
+// Solidity: function initialize(address awpRegistry_, address guardian_) returns()
+func (_StakingVault *StakingVaultTransactorSession) Initialize(awpRegistry_ common.Address, guardian_ common.Address) (*types.Transaction, error) {
+	return _StakingVault.Contract.Initialize(&_StakingVault.TransactOpts, awpRegistry_, guardian_)
 }
 
 // Reallocate is a paid mutator transaction binding the contract method 0xd5d5278d.
 //
-// Solidity: function reallocate(address staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultTransactor) Reallocate(opts *bind.TransactOpts, staker common.Address, fromAgent common.Address, fromSubnetId *big.Int, toAgent common.Address, toSubnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.contract.Transact(opts, "reallocate", staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
+// Solidity: function reallocate(address staker, address fromAgent, uint256 fromWorknetId, address toAgent, uint256 toWorknetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultTransactor) Reallocate(opts *bind.TransactOpts, staker common.Address, fromAgent common.Address, fromWorknetId *big.Int, toAgent common.Address, toWorknetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.contract.Transact(opts, "reallocate", staker, fromAgent, fromWorknetId, toAgent, toWorknetId, amount)
 }
 
 // Reallocate is a paid mutator transaction binding the contract method 0xd5d5278d.
 //
-// Solidity: function reallocate(address staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultSession) Reallocate(staker common.Address, fromAgent common.Address, fromSubnetId *big.Int, toAgent common.Address, toSubnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.Contract.Reallocate(&_StakingVault.TransactOpts, staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
+// Solidity: function reallocate(address staker, address fromAgent, uint256 fromWorknetId, address toAgent, uint256 toWorknetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultSession) Reallocate(staker common.Address, fromAgent common.Address, fromWorknetId *big.Int, toAgent common.Address, toWorknetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.Contract.Reallocate(&_StakingVault.TransactOpts, staker, fromAgent, fromWorknetId, toAgent, toWorknetId, amount)
 }
 
 // Reallocate is a paid mutator transaction binding the contract method 0xd5d5278d.
 //
-// Solidity: function reallocate(address staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) returns()
-func (_StakingVault *StakingVaultTransactorSession) Reallocate(staker common.Address, fromAgent common.Address, fromSubnetId *big.Int, toAgent common.Address, toSubnetId *big.Int, amount *big.Int) (*types.Transaction, error) {
-	return _StakingVault.Contract.Reallocate(&_StakingVault.TransactOpts, staker, fromAgent, fromSubnetId, toAgent, toSubnetId, amount)
+// Solidity: function reallocate(address staker, address fromAgent, uint256 fromWorknetId, address toAgent, uint256 toWorknetId, uint256 amount) returns()
+func (_StakingVault *StakingVaultTransactorSession) Reallocate(staker common.Address, fromAgent common.Address, fromWorknetId *big.Int, toAgent common.Address, toWorknetId *big.Int, amount *big.Int) (*types.Transaction, error) {
+	return _StakingVault.Contract.Reallocate(&_StakingVault.TransactOpts, staker, fromAgent, fromWorknetId, toAgent, toWorknetId, amount)
+}
+
+// SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
+//
+// Solidity: function setGuardian(address g) returns()
+func (_StakingVault *StakingVaultTransactor) SetGuardian(opts *bind.TransactOpts, g common.Address) (*types.Transaction, error) {
+	return _StakingVault.contract.Transact(opts, "setGuardian", g)
+}
+
+// SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
+//
+// Solidity: function setGuardian(address g) returns()
+func (_StakingVault *StakingVaultSession) SetGuardian(g common.Address) (*types.Transaction, error) {
+	return _StakingVault.Contract.SetGuardian(&_StakingVault.TransactOpts, g)
+}
+
+// SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
+//
+// Solidity: function setGuardian(address g) returns()
+func (_StakingVault *StakingVaultTransactorSession) SetGuardian(g common.Address) (*types.Transaction, error) {
+	return _StakingVault.Contract.SetGuardian(&_StakingVault.TransactOpts, g)
 }
 
 // SetStakeNFT is a paid mutator transaction binding the contract method 0x48f069ec.
@@ -778,160 +778,6 @@ func (_StakingVault *StakingVaultSession) UpgradeToAndCall(newImplementation com
 // Solidity: function upgradeToAndCall(address newImplementation, bytes data) payable returns()
 func (_StakingVault *StakingVaultTransactorSession) UpgradeToAndCall(newImplementation common.Address, data []byte) (*types.Transaction, error) {
 	return _StakingVault.Contract.UpgradeToAndCall(&_StakingVault.TransactOpts, newImplementation, data)
-}
-
-// StakingVaultAgentAllocationsFrozenIterator is returned from FilterAgentAllocationsFrozen and is used to iterate over the raw logs and unpacked data for AgentAllocationsFrozen events raised by the StakingVault contract.
-type StakingVaultAgentAllocationsFrozenIterator struct {
-	Event *StakingVaultAgentAllocationsFrozen // Event containing the contract specifics and raw log
-
-	contract *bind.BoundContract // Generic contract to use for unpacking event data
-	event    string              // Event name to use for unpacking event data
-
-	logs chan types.Log        // Log channel receiving the found contract events
-	sub  ethereum.Subscription // Subscription for errors, completion and termination
-	done bool                  // Whether the subscription completed delivering logs
-	fail error                 // Occurred error to stop iteration
-}
-
-// Next advances the iterator to the subsequent event, returning whether there
-// are any more events found. In case of a retrieval or parsing error, false is
-// returned and Error() can be queried for the exact failure.
-func (it *StakingVaultAgentAllocationsFrozenIterator) Next() bool {
-	// If the iterator failed, stop iterating
-	if it.fail != nil {
-		return false
-	}
-	// If the iterator completed, deliver directly whatever's available
-	if it.done {
-		select {
-		case log := <-it.logs:
-			it.Event = new(StakingVaultAgentAllocationsFrozen)
-			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-				it.fail = err
-				return false
-			}
-			it.Event.Raw = log
-			return true
-
-		default:
-			return false
-		}
-	}
-	// Iterator still in progress, wait for either a data or an error event
-	select {
-	case log := <-it.logs:
-		it.Event = new(StakingVaultAgentAllocationsFrozen)
-		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-			it.fail = err
-			return false
-		}
-		it.Event.Raw = log
-		return true
-
-	case err := <-it.sub.Err():
-		it.done = true
-		it.fail = err
-		return it.Next()
-	}
-}
-
-// Error returns any retrieval or parsing error occurred during filtering.
-func (it *StakingVaultAgentAllocationsFrozenIterator) Error() error {
-	return it.fail
-}
-
-// Close terminates the iteration process, releasing any pending underlying
-// resources.
-func (it *StakingVaultAgentAllocationsFrozenIterator) Close() error {
-	it.sub.Unsubscribe()
-	return nil
-}
-
-// StakingVaultAgentAllocationsFrozen represents a AgentAllocationsFrozen event raised by the StakingVault contract.
-type StakingVaultAgentAllocationsFrozen struct {
-	User        common.Address
-	Agent       common.Address
-	TotalFrozen *big.Int
-	Raw         types.Log // Blockchain specific contextual infos
-}
-
-// FilterAgentAllocationsFrozen is a free log retrieval operation binding the contract event 0x823cbf835fe0c4834f90d65da805f8a714ff7df3c298a0de29e4547944378f4f.
-//
-// Solidity: event AgentAllocationsFrozen(address indexed user, address indexed agent, uint256 totalFrozen)
-func (_StakingVault *StakingVaultFilterer) FilterAgentAllocationsFrozen(opts *bind.FilterOpts, user []common.Address, agent []common.Address) (*StakingVaultAgentAllocationsFrozenIterator, error) {
-
-	var userRule []interface{}
-	for _, userItem := range user {
-		userRule = append(userRule, userItem)
-	}
-	var agentRule []interface{}
-	for _, agentItem := range agent {
-		agentRule = append(agentRule, agentItem)
-	}
-
-	logs, sub, err := _StakingVault.contract.FilterLogs(opts, "AgentAllocationsFrozen", userRule, agentRule)
-	if err != nil {
-		return nil, err
-	}
-	return &StakingVaultAgentAllocationsFrozenIterator{contract: _StakingVault.contract, event: "AgentAllocationsFrozen", logs: logs, sub: sub}, nil
-}
-
-// WatchAgentAllocationsFrozen is a free log subscription operation binding the contract event 0x823cbf835fe0c4834f90d65da805f8a714ff7df3c298a0de29e4547944378f4f.
-//
-// Solidity: event AgentAllocationsFrozen(address indexed user, address indexed agent, uint256 totalFrozen)
-func (_StakingVault *StakingVaultFilterer) WatchAgentAllocationsFrozen(opts *bind.WatchOpts, sink chan<- *StakingVaultAgentAllocationsFrozen, user []common.Address, agent []common.Address) (event.Subscription, error) {
-
-	var userRule []interface{}
-	for _, userItem := range user {
-		userRule = append(userRule, userItem)
-	}
-	var agentRule []interface{}
-	for _, agentItem := range agent {
-		agentRule = append(agentRule, agentItem)
-	}
-
-	logs, sub, err := _StakingVault.contract.WatchLogs(opts, "AgentAllocationsFrozen", userRule, agentRule)
-	if err != nil {
-		return nil, err
-	}
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		defer sub.Unsubscribe()
-		for {
-			select {
-			case log := <-logs:
-				// New log arrived, parse the event and forward to the user
-				event := new(StakingVaultAgentAllocationsFrozen)
-				if err := _StakingVault.contract.UnpackLog(event, "AgentAllocationsFrozen", log); err != nil {
-					return err
-				}
-				event.Raw = log
-
-				select {
-				case sink <- event:
-				case err := <-sub.Err():
-					return err
-				case <-quit:
-					return nil
-				}
-			case err := <-sub.Err():
-				return err
-			case <-quit:
-				return nil
-			}
-		}
-	}), nil
-}
-
-// ParseAgentAllocationsFrozen is a log parse operation binding the contract event 0x823cbf835fe0c4834f90d65da805f8a714ff7df3c298a0de29e4547944378f4f.
-//
-// Solidity: event AgentAllocationsFrozen(address indexed user, address indexed agent, uint256 totalFrozen)
-func (_StakingVault *StakingVaultFilterer) ParseAgentAllocationsFrozen(log types.Log) (*StakingVaultAgentAllocationsFrozen, error) {
-	event := new(StakingVaultAgentAllocationsFrozen)
-	if err := _StakingVault.contract.UnpackLog(event, "AgentAllocationsFrozen", log); err != nil {
-		return nil, err
-	}
-	event.Raw = log
-	return event, nil
 }
 
 // StakingVaultAllocatedIterator is returned from FilterAllocated and is used to iterate over the raw logs and unpacked data for Allocated events raised by the StakingVault contract.
@@ -1003,17 +849,17 @@ func (it *StakingVaultAllocatedIterator) Close() error {
 
 // StakingVaultAllocated represents a Allocated event raised by the StakingVault contract.
 type StakingVaultAllocated struct {
-	Staker   common.Address
-	Agent    common.Address
-	SubnetId *big.Int
-	Amount   *big.Int
-	Operator common.Address
-	Raw      types.Log // Blockchain specific contextual infos
+	Staker    common.Address
+	Agent     common.Address
+	WorknetId *big.Int
+	Amount    *big.Int
+	Operator  common.Address
+	Raw       types.Log // Blockchain specific contextual infos
 }
 
 // FilterAllocated is a free log retrieval operation binding the contract event 0x655f98c7dae1bab3e2db10cdb4407717b9d219cf2e585adc1edba92d48af2b15.
 //
-// Solidity: event Allocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator)
+// Solidity: event Allocated(address indexed staker, address indexed agent, uint256 worknetId, uint256 amount, address operator)
 func (_StakingVault *StakingVaultFilterer) FilterAllocated(opts *bind.FilterOpts, staker []common.Address, agent []common.Address) (*StakingVaultAllocatedIterator, error) {
 
 	var stakerRule []interface{}
@@ -1034,7 +880,7 @@ func (_StakingVault *StakingVaultFilterer) FilterAllocated(opts *bind.FilterOpts
 
 // WatchAllocated is a free log subscription operation binding the contract event 0x655f98c7dae1bab3e2db10cdb4407717b9d219cf2e585adc1edba92d48af2b15.
 //
-// Solidity: event Allocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator)
+// Solidity: event Allocated(address indexed staker, address indexed agent, uint256 worknetId, uint256 amount, address operator)
 func (_StakingVault *StakingVaultFilterer) WatchAllocated(opts *bind.WatchOpts, sink chan<- *StakingVaultAllocated, staker []common.Address, agent []common.Address) (event.Subscription, error) {
 
 	var stakerRule []interface{}
@@ -1080,7 +926,7 @@ func (_StakingVault *StakingVaultFilterer) WatchAllocated(opts *bind.WatchOpts, 
 
 // ParseAllocated is a log parse operation binding the contract event 0x655f98c7dae1bab3e2db10cdb4407717b9d219cf2e585adc1edba92d48af2b15.
 //
-// Solidity: event Allocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator)
+// Solidity: event Allocated(address indexed staker, address indexed agent, uint256 worknetId, uint256 amount, address operator)
 func (_StakingVault *StakingVaultFilterer) ParseAllocated(log types.Log) (*StakingVaultAllocated, error) {
 	event := new(StakingVaultAllocated)
 	if err := _StakingVault.contract.UnpackLog(event, "Allocated", log); err != nil {
@@ -1159,17 +1005,17 @@ func (it *StakingVaultDeallocatedIterator) Close() error {
 
 // StakingVaultDeallocated represents a Deallocated event raised by the StakingVault contract.
 type StakingVaultDeallocated struct {
-	Staker   common.Address
-	Agent    common.Address
-	SubnetId *big.Int
-	Amount   *big.Int
-	Operator common.Address
-	Raw      types.Log // Blockchain specific contextual infos
+	Staker    common.Address
+	Agent     common.Address
+	WorknetId *big.Int
+	Amount    *big.Int
+	Operator  common.Address
+	Raw       types.Log // Blockchain specific contextual infos
 }
 
 // FilterDeallocated is a free log retrieval operation binding the contract event 0xd55bd7964253d1d9ce9187c8187b1c904274a3f374c9074f6de6fa77746bf345.
 //
-// Solidity: event Deallocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator)
+// Solidity: event Deallocated(address indexed staker, address indexed agent, uint256 worknetId, uint256 amount, address operator)
 func (_StakingVault *StakingVaultFilterer) FilterDeallocated(opts *bind.FilterOpts, staker []common.Address, agent []common.Address) (*StakingVaultDeallocatedIterator, error) {
 
 	var stakerRule []interface{}
@@ -1190,7 +1036,7 @@ func (_StakingVault *StakingVaultFilterer) FilterDeallocated(opts *bind.FilterOp
 
 // WatchDeallocated is a free log subscription operation binding the contract event 0xd55bd7964253d1d9ce9187c8187b1c904274a3f374c9074f6de6fa77746bf345.
 //
-// Solidity: event Deallocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator)
+// Solidity: event Deallocated(address indexed staker, address indexed agent, uint256 worknetId, uint256 amount, address operator)
 func (_StakingVault *StakingVaultFilterer) WatchDeallocated(opts *bind.WatchOpts, sink chan<- *StakingVaultDeallocated, staker []common.Address, agent []common.Address) (event.Subscription, error) {
 
 	var stakerRule []interface{}
@@ -1236,7 +1082,7 @@ func (_StakingVault *StakingVaultFilterer) WatchDeallocated(opts *bind.WatchOpts
 
 // ParseDeallocated is a log parse operation binding the contract event 0xd55bd7964253d1d9ce9187c8187b1c904274a3f374c9074f6de6fa77746bf345.
 //
-// Solidity: event Deallocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator)
+// Solidity: event Deallocated(address indexed staker, address indexed agent, uint256 worknetId, uint256 amount, address operator)
 func (_StakingVault *StakingVaultFilterer) ParseDeallocated(log types.Log) (*StakingVaultDeallocated, error) {
 	event := new(StakingVaultDeallocated)
 	if err := _StakingVault.contract.UnpackLog(event, "Deallocated", log); err != nil {
@@ -1373,6 +1219,150 @@ func (_StakingVault *StakingVaultFilterer) WatchEIP712DomainChanged(opts *bind.W
 func (_StakingVault *StakingVaultFilterer) ParseEIP712DomainChanged(log types.Log) (*StakingVaultEIP712DomainChanged, error) {
 	event := new(StakingVaultEIP712DomainChanged)
 	if err := _StakingVault.contract.UnpackLog(event, "EIP712DomainChanged", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// StakingVaultGuardianUpdatedIterator is returned from FilterGuardianUpdated and is used to iterate over the raw logs and unpacked data for GuardianUpdated events raised by the StakingVault contract.
+type StakingVaultGuardianUpdatedIterator struct {
+	Event *StakingVaultGuardianUpdated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *StakingVaultGuardianUpdatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(StakingVaultGuardianUpdated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(StakingVaultGuardianUpdated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *StakingVaultGuardianUpdatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *StakingVaultGuardianUpdatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// StakingVaultGuardianUpdated represents a GuardianUpdated event raised by the StakingVault contract.
+type StakingVaultGuardianUpdated struct {
+	NewGuardian common.Address
+	Raw         types.Log // Blockchain specific contextual infos
+}
+
+// FilterGuardianUpdated is a free log retrieval operation binding the contract event 0x6bb7ff33e730289800c62ad882105a144a74010d2bdbb9a942544a3005ad55bf.
+//
+// Solidity: event GuardianUpdated(address indexed newGuardian)
+func (_StakingVault *StakingVaultFilterer) FilterGuardianUpdated(opts *bind.FilterOpts, newGuardian []common.Address) (*StakingVaultGuardianUpdatedIterator, error) {
+
+	var newGuardianRule []interface{}
+	for _, newGuardianItem := range newGuardian {
+		newGuardianRule = append(newGuardianRule, newGuardianItem)
+	}
+
+	logs, sub, err := _StakingVault.contract.FilterLogs(opts, "GuardianUpdated", newGuardianRule)
+	if err != nil {
+		return nil, err
+	}
+	return &StakingVaultGuardianUpdatedIterator{contract: _StakingVault.contract, event: "GuardianUpdated", logs: logs, sub: sub}, nil
+}
+
+// WatchGuardianUpdated is a free log subscription operation binding the contract event 0x6bb7ff33e730289800c62ad882105a144a74010d2bdbb9a942544a3005ad55bf.
+//
+// Solidity: event GuardianUpdated(address indexed newGuardian)
+func (_StakingVault *StakingVaultFilterer) WatchGuardianUpdated(opts *bind.WatchOpts, sink chan<- *StakingVaultGuardianUpdated, newGuardian []common.Address) (event.Subscription, error) {
+
+	var newGuardianRule []interface{}
+	for _, newGuardianItem := range newGuardian {
+		newGuardianRule = append(newGuardianRule, newGuardianItem)
+	}
+
+	logs, sub, err := _StakingVault.contract.WatchLogs(opts, "GuardianUpdated", newGuardianRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(StakingVaultGuardianUpdated)
+				if err := _StakingVault.contract.UnpackLog(event, "GuardianUpdated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseGuardianUpdated is a log parse operation binding the contract event 0x6bb7ff33e730289800c62ad882105a144a74010d2bdbb9a942544a3005ad55bf.
+//
+// Solidity: event GuardianUpdated(address indexed newGuardian)
+func (_StakingVault *StakingVaultFilterer) ParseGuardianUpdated(log types.Log) (*StakingVaultGuardianUpdated, error) {
+	event := new(StakingVaultGuardianUpdated)
+	if err := _StakingVault.contract.UnpackLog(event, "GuardianUpdated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
@@ -1582,19 +1572,19 @@ func (it *StakingVaultReallocatedIterator) Close() error {
 
 // StakingVaultReallocated represents a Reallocated event raised by the StakingVault contract.
 type StakingVaultReallocated struct {
-	Staker       common.Address
-	FromAgent    common.Address
-	FromSubnetId *big.Int
-	ToAgent      common.Address
-	ToSubnetId   *big.Int
-	Amount       *big.Int
-	Operator     common.Address
-	Raw          types.Log // Blockchain specific contextual infos
+	Staker        common.Address
+	FromAgent     common.Address
+	FromWorknetId *big.Int
+	ToAgent       common.Address
+	ToWorknetId   *big.Int
+	Amount        *big.Int
+	Operator      common.Address
+	Raw           types.Log // Blockchain specific contextual infos
 }
 
 // FilterReallocated is a free log retrieval operation binding the contract event 0x726c93ba67bfe4c677e37114279f0ad9aab5ee9ffbd1158923be5d0fec3b1b45.
 //
-// Solidity: event Reallocated(address indexed staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount, address operator)
+// Solidity: event Reallocated(address indexed staker, address fromAgent, uint256 fromWorknetId, address toAgent, uint256 toWorknetId, uint256 amount, address operator)
 func (_StakingVault *StakingVaultFilterer) FilterReallocated(opts *bind.FilterOpts, staker []common.Address) (*StakingVaultReallocatedIterator, error) {
 
 	var stakerRule []interface{}
@@ -1611,7 +1601,7 @@ func (_StakingVault *StakingVaultFilterer) FilterReallocated(opts *bind.FilterOp
 
 // WatchReallocated is a free log subscription operation binding the contract event 0x726c93ba67bfe4c677e37114279f0ad9aab5ee9ffbd1158923be5d0fec3b1b45.
 //
-// Solidity: event Reallocated(address indexed staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount, address operator)
+// Solidity: event Reallocated(address indexed staker, address fromAgent, uint256 fromWorknetId, address toAgent, uint256 toWorknetId, uint256 amount, address operator)
 func (_StakingVault *StakingVaultFilterer) WatchReallocated(opts *bind.WatchOpts, sink chan<- *StakingVaultReallocated, staker []common.Address) (event.Subscription, error) {
 
 	var stakerRule []interface{}
@@ -1653,10 +1643,154 @@ func (_StakingVault *StakingVaultFilterer) WatchReallocated(opts *bind.WatchOpts
 
 // ParseReallocated is a log parse operation binding the contract event 0x726c93ba67bfe4c677e37114279f0ad9aab5ee9ffbd1158923be5d0fec3b1b45.
 //
-// Solidity: event Reallocated(address indexed staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount, address operator)
+// Solidity: event Reallocated(address indexed staker, address fromAgent, uint256 fromWorknetId, address toAgent, uint256 toWorknetId, uint256 amount, address operator)
 func (_StakingVault *StakingVaultFilterer) ParseReallocated(log types.Log) (*StakingVaultReallocated, error) {
 	event := new(StakingVaultReallocated)
 	if err := _StakingVault.contract.UnpackLog(event, "Reallocated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// StakingVaultStakeNFTSetIterator is returned from FilterStakeNFTSet and is used to iterate over the raw logs and unpacked data for StakeNFTSet events raised by the StakingVault contract.
+type StakingVaultStakeNFTSetIterator struct {
+	Event *StakingVaultStakeNFTSet // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *StakingVaultStakeNFTSetIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(StakingVaultStakeNFTSet)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(StakingVaultStakeNFTSet)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *StakingVaultStakeNFTSetIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *StakingVaultStakeNFTSetIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// StakingVaultStakeNFTSet represents a StakeNFTSet event raised by the StakingVault contract.
+type StakingVaultStakeNFTSet struct {
+	StakeNFT common.Address
+	Raw      types.Log // Blockchain specific contextual infos
+}
+
+// FilterStakeNFTSet is a free log retrieval operation binding the contract event 0xa7dc7ffb248216564bae4b23cefffef79fb6c1d1809fa0e0064ad670c04d0a68.
+//
+// Solidity: event StakeNFTSet(address indexed stakeNFT)
+func (_StakingVault *StakingVaultFilterer) FilterStakeNFTSet(opts *bind.FilterOpts, stakeNFT []common.Address) (*StakingVaultStakeNFTSetIterator, error) {
+
+	var stakeNFTRule []interface{}
+	for _, stakeNFTItem := range stakeNFT {
+		stakeNFTRule = append(stakeNFTRule, stakeNFTItem)
+	}
+
+	logs, sub, err := _StakingVault.contract.FilterLogs(opts, "StakeNFTSet", stakeNFTRule)
+	if err != nil {
+		return nil, err
+	}
+	return &StakingVaultStakeNFTSetIterator{contract: _StakingVault.contract, event: "StakeNFTSet", logs: logs, sub: sub}, nil
+}
+
+// WatchStakeNFTSet is a free log subscription operation binding the contract event 0xa7dc7ffb248216564bae4b23cefffef79fb6c1d1809fa0e0064ad670c04d0a68.
+//
+// Solidity: event StakeNFTSet(address indexed stakeNFT)
+func (_StakingVault *StakingVaultFilterer) WatchStakeNFTSet(opts *bind.WatchOpts, sink chan<- *StakingVaultStakeNFTSet, stakeNFT []common.Address) (event.Subscription, error) {
+
+	var stakeNFTRule []interface{}
+	for _, stakeNFTItem := range stakeNFT {
+		stakeNFTRule = append(stakeNFTRule, stakeNFTItem)
+	}
+
+	logs, sub, err := _StakingVault.contract.WatchLogs(opts, "StakeNFTSet", stakeNFTRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(StakingVaultStakeNFTSet)
+				if err := _StakingVault.contract.UnpackLog(event, "StakeNFTSet", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseStakeNFTSet is a log parse operation binding the contract event 0xa7dc7ffb248216564bae4b23cefffef79fb6c1d1809fa0e0064ad670c04d0a68.
+//
+// Solidity: event StakeNFTSet(address indexed stakeNFT)
+func (_StakingVault *StakingVaultFilterer) ParseStakeNFTSet(log types.Log) (*StakingVaultStakeNFTSet, error) {
+	event := new(StakingVaultStakeNFTSet)
+	if err := _StakingVault.contract.UnpackLog(event, "StakeNFTSet", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log

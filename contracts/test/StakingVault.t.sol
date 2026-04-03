@@ -19,8 +19,8 @@ contract StakingVaultTest is Test {
     address public agent2 = makeAddr("agent2");
     address public nonAWPRegistry = makeAddr("nonAWPRegistry");
 
-    uint256 public constant SUBNET_1 = 1;
-    uint256 public constant SUBNET_2 = 2;
+    uint256 public constant WORKNET_1 = 1;
+    uint256 public constant WORKNET_2 = 2;
     uint256 public constant DEPOSIT_AMOUNT = 1000 ether;
     uint256 public constant EPOCH_DURATION = 7 days;
     uint256 public genesisTime;
@@ -68,27 +68,27 @@ contract StakingVaultTest is Test {
 
     function test_allocate_basic() public {
         vm.prank(user1);
-        vault.allocate(user1, agent1, SUBNET_1, 300 ether);
+        vault.allocate(user1, agent1, WORKNET_1, 300 ether);
 
-        assertEq(vault.getAgentStake(user1, agent1, SUBNET_1), 300 ether);
+        assertEq(vault.getAgentStake(user1, agent1, WORKNET_1), 300 ether);
         assertEq(vault.userTotalAllocated(user1), 300 ether);
-        assertEq(vault.subnetTotalStake(SUBNET_1), 300 ether);
+        assertEq(vault.worknetTotalStake(WORKNET_1), 300 ether);
     }
 
     function test_allocate_moreThanUnallocated_reverts() public {
         vm.prank(user1);
-        vault.allocate(user1, agent1, SUBNET_1, 800 ether);
+        vault.allocate(user1, agent1, WORKNET_1, 800 ether);
 
         // Only 200 unallocated, allocating 300 should fail
         vm.prank(user1);
         vm.expectRevert(StakingVault.InsufficientUnallocated.selector);
-        vault.allocate(user1, agent2, SUBNET_2, 300 ether);
+        vault.allocate(user1, agent2, WORKNET_2, 300 ether);
     }
 
     function test_allocate_zeroAmount_reverts() public {
         vm.prank(user1);
-        vm.expectRevert(StakingVault.InvalidAmount.selector);
-        vault.allocate(user1, agent1, SUBNET_1, 0);
+        vm.expectRevert(StakingVault.ZeroAmount.selector);
+        vault.allocate(user1, agent1, WORKNET_1, 0);
     }
 
     // ══════════════════════════════════════════════
@@ -97,31 +97,31 @@ contract StakingVaultTest is Test {
 
     function test_deallocate_basic() public {
         vm.prank(user1);
-        vault.allocate(user1, agent1, SUBNET_1, 500 ether);
+        vault.allocate(user1, agent1, WORKNET_1, 500 ether);
         vm.prank(user1);
-        vault.deallocate(user1, agent1, SUBNET_1, 200 ether);
+        vault.deallocate(user1, agent1, WORKNET_1, 200 ether);
 
-        assertEq(vault.getAgentStake(user1, agent1, SUBNET_1), 300 ether);
+        assertEq(vault.getAgentStake(user1, agent1, WORKNET_1), 300 ether);
         assertEq(vault.userTotalAllocated(user1), 300 ether);
-        assertEq(vault.subnetTotalStake(SUBNET_1), 300 ether);
+        assertEq(vault.worknetTotalStake(WORKNET_1), 300 ether);
     }
 
     function test_deallocate_full_zerosStake() public {
         vm.prank(user1);
-        vault.allocate(user1, agent1, SUBNET_1, 500 ether);
+        vault.allocate(user1, agent1, WORKNET_1, 500 ether);
         vm.prank(user1);
-        vault.deallocate(user1, agent1, SUBNET_1, 500 ether);
+        vault.deallocate(user1, agent1, WORKNET_1, 500 ether);
 
-        assertEq(vault.getAgentStake(user1, agent1, SUBNET_1), 0);
+        assertEq(vault.getAgentStake(user1, agent1, WORKNET_1), 0);
     }
 
     function test_deallocate_moreThanAllocated_reverts() public {
         vm.prank(user1);
-        vault.allocate(user1, agent1, SUBNET_1, 200 ether);
+        vault.allocate(user1, agent1, WORKNET_1, 200 ether);
 
         vm.prank(user1);
         vm.expectRevert(StakingVault.InsufficientAllocation.selector);
-        vault.deallocate(user1, agent1, SUBNET_1, 300 ether);
+        vault.deallocate(user1, agent1, WORKNET_1, 300 ether);
     }
 
     // ══════════════════════════════════════════════
@@ -130,18 +130,18 @@ contract StakingVaultTest is Test {
 
     function test_reallocate_immediate() public {
         vm.prank(user1);
-        vault.allocate(user1, agent1, SUBNET_1, 500 ether);
+        vault.allocate(user1, agent1, WORKNET_1, 500 ether);
 
         vm.prank(user1);
-        vault.reallocate(user1, agent1, SUBNET_1, agent2, SUBNET_2, 200 ether);
+        vault.reallocate(user1, agent1, WORKNET_1, agent2, WORKNET_2, 200 ether);
 
         // Immediate effect
-        assertEq(vault.getAgentStake(user1, agent1, SUBNET_1), 300 ether);
-        assertEq(vault.getAgentStake(user1, agent2, SUBNET_2), 200 ether);
+        assertEq(vault.getAgentStake(user1, agent1, WORKNET_1), 300 ether);
+        assertEq(vault.getAgentStake(user1, agent2, WORKNET_2), 200 ether);
 
-        // Subnet totals
-        assertEq(vault.subnetTotalStake(SUBNET_1), 300 ether);
-        assertEq(vault.subnetTotalStake(SUBNET_2), 200 ether);
+        // Worknet totals
+        assertEq(vault.worknetTotalStake(WORKNET_1), 300 ether);
+        assertEq(vault.worknetTotalStake(WORKNET_2), 200 ether);
 
         // userTotalAllocated unchanged
         assertEq(vault.userTotalAllocated(user1), 500 ether);
@@ -149,136 +149,73 @@ contract StakingVaultTest is Test {
 
     function test_reallocate_multipleAccumulate() public {
         vm.prank(user1);
-        vault.allocate(user1, agent1, SUBNET_1, 500 ether);
+        vault.allocate(user1, agent1, WORKNET_1, 500 ether);
 
         vm.prank(user1);
-        vault.reallocate(user1, agent1, SUBNET_1, agent2, SUBNET_2, 100 ether);
+        vault.reallocate(user1, agent1, WORKNET_1, agent2, WORKNET_2, 100 ether);
         vm.prank(user1);
-        vault.reallocate(user1, agent1, SUBNET_1, agent2, SUBNET_2, 150 ether);
+        vault.reallocate(user1, agent1, WORKNET_1, agent2, WORKNET_2, 150 ether);
 
-        assertEq(vault.getAgentStake(user1, agent1, SUBNET_1), 250 ether);
-        assertEq(vault.getAgentStake(user1, agent2, SUBNET_2), 250 ether);
+        assertEq(vault.getAgentStake(user1, agent1, WORKNET_1), 250 ether);
+        assertEq(vault.getAgentStake(user1, agent2, WORKNET_2), 250 ether);
     }
 
     function test_reallocate_insufficientAllocation_reverts() public {
         vm.prank(user1);
-        vault.allocate(user1, agent1, SUBNET_1, 100 ether);
+        vault.allocate(user1, agent1, WORKNET_1, 100 ether);
 
         vm.prank(user1);
         vm.expectRevert(StakingVault.InsufficientAllocation.selector);
-        vault.reallocate(user1, agent1, SUBNET_1, agent2, SUBNET_2, 200 ether);
+        vault.reallocate(user1, agent1, WORKNET_1, agent2, WORKNET_2, 200 ether);
     }
 
     function test_reallocate_zeroAmount_reverts() public {
         vm.prank(user1);
-        vault.allocate(user1, agent1, SUBNET_1, 100 ether);
+        vault.allocate(user1, agent1, WORKNET_1, 100 ether);
 
         vm.prank(user1);
-        vm.expectRevert(StakingVault.InvalidAmount.selector);
-        vault.reallocate(user1, agent1, SUBNET_1, agent2, SUBNET_2, 0);
+        vm.expectRevert(StakingVault.ZeroAmount.selector);
+        vault.reallocate(user1, agent1, WORKNET_1, agent2, WORKNET_2, 0);
     }
 
     // ══════════════════════════════════════════════
     // Freeze Agent allocations tests
     // ══════════════════════════════════════════════
 
-    function test_freezeAgentAllocations_immediateRelease() public {
-        vm.startPrank(user1);
-        vault.allocate(user1, agent1, SUBNET_1, 300 ether);
-        vault.allocate(user1, agent1, SUBNET_2, 200 ether);
-        vm.stopPrank();
-
-        vault.freezeAgentAllocations(user1, agent1);
-
-        // Allocations zeroed
-        assertEq(vault.getAgentStake(user1, agent1, SUBNET_1), 0);
-        assertEq(vault.getAgentStake(user1, agent1, SUBNET_2), 0);
-
-        // Subnet totals reduced
-        assertEq(vault.subnetTotalStake(SUBNET_1), 0);
-        assertEq(vault.subnetTotalStake(SUBNET_2), 0);
-
-        // userTotalAllocated released
-        assertEq(vault.userTotalAllocated(user1), 0);
-    }
-
-    function test_freezeAgentAllocations_agentSubnetsCleared() public {
-        vm.startPrank(user1);
-        vault.allocate(user1, agent1, SUBNET_1, 300 ether);
-        vault.allocate(user1, agent1, SUBNET_2, 200 ether);
-        vm.stopPrank();
-
-        assertEq(vault.getAgentSubnets(user1, agent1).length, 2);
-
-        vault.freezeAgentAllocations(user1, agent1);
-
-        // Set must be fully cleared after freeze
-        assertEq(vault.getAgentSubnets(user1, agent1).length, 0);
-    }
-
-    function test_deallocate_full_clearsAgentSubnets() public {
+    function test_deallocate_full_clearsAgentWorknets() public {
         vm.prank(user1);
-        vault.allocate(user1, agent1, SUBNET_1, 500 ether);
-        assertEq(vault.getAgentSubnets(user1, agent1).length, 1);
+        vault.allocate(user1, agent1, WORKNET_1, 500 ether);
+        assertEq(vault.getAgentWorknets(user1, agent1).length, 1);
 
         vm.prank(user1);
-        vault.deallocate(user1, agent1, SUBNET_1, 500 ether);
+        vault.deallocate(user1, agent1, WORKNET_1, 500 ether);
 
-        // Subnet removed from set after full deallocation
-        assertEq(vault.getAgentSubnets(user1, agent1).length, 0);
-    }
-
-    function test_freezeAfterReallocate_setsConsistent() public {
-        vm.startPrank(user1);
-        vault.allocate(user1, agent1, SUBNET_1, 500 ether);
-
-        // Reallocate everything from agent1/SUBNET_1 to agent2/SUBNET_2
-        vault.reallocate(user1, agent1, SUBNET_1, agent2, SUBNET_2, 500 ether);
-        vm.stopPrank();
-
-        // agent1 should have no subnets left
-        assertEq(vault.getAgentSubnets(user1, agent1).length, 0);
-        // agent2 should have SUBNET_2
-        assertEq(vault.getAgentSubnets(user1, agent2).length, 1);
-
-        // Freeze agent1 — should be a no-op (no allocations)
-        vault.freezeAgentAllocations(user1, agent1);
-        assertEq(vault.userTotalAllocated(user1), 500 ether);
-
-        // Freeze agent2 — should clear everything
-        vault.freezeAgentAllocations(user1, agent2);
-        assertEq(vault.getAgentStake(user1, agent2, SUBNET_2), 0);
-        assertEq(vault.getAgentSubnets(user1, agent2).length, 0);
-        assertEq(vault.userTotalAllocated(user1), 0);
+        // Worknet removed from set after full deallocation
+        assertEq(vault.getAgentWorknets(user1, agent1).length, 0);
     }
 
     // ══════════════════════════════════════════════
-    // onlyAWPRegistry access control tests
+    // Access control tests
     // ══════════════════════════════════════════════
 
     function test_notAuthorized_allocate() public {
         vm.prank(nonAWPRegistry);
         vm.expectRevert(StakingVault.NotAuthorized.selector);
-        vault.allocate(user1, agent1, SUBNET_1, 100 ether);
+        vault.allocate(user1, agent1, WORKNET_1, 100 ether);
     }
 
     function test_notAuthorized_deallocate() public {
         vm.prank(nonAWPRegistry);
         vm.expectRevert(StakingVault.NotAuthorized.selector);
-        vault.deallocate(user1, agent1, SUBNET_1, 100 ether);
+        vault.deallocate(user1, agent1, WORKNET_1, 100 ether);
     }
 
     function test_notAuthorized_reallocate() public {
         vm.prank(nonAWPRegistry);
         vm.expectRevert(StakingVault.NotAuthorized.selector);
-        vault.reallocate(user1, agent1, SUBNET_1, agent2, SUBNET_2, 100 ether);
+        vault.reallocate(user1, agent1, WORKNET_1, agent2, WORKNET_2, 100 ether);
     }
 
-    function test_onlyAWPRegistry_freezeAgentAllocations() public {
-        vm.prank(nonAWPRegistry);
-        vm.expectRevert(StakingVault.NotAWPRegistry.selector);
-        vault.freezeAgentAllocations(user1, agent1);
-    }
 
     // ══════════════════════════════════════════════
     // Gasless EIP-712 allocateFor / deallocateFor tests
@@ -300,7 +237,7 @@ contract StakingVaultTest is Test {
     function test_allocateFor_gasless() public {
         (address signer, uint256 signerPk) = makeAddrAndKey("gaslessSigner");
 
-        // 给 signer 代币并质押
+        // Give signer tokens and stake
         awp.transfer(signer, 10_000 ether);
         vm.startPrank(signer);
         awp.approve(address(stakeNFT), 10_000 ether);
@@ -312,17 +249,17 @@ contract StakingVaultTest is Test {
         uint256 deadline = block.timestamp + 1 hours;
 
         bytes32 structHash = keccak256(abi.encode(
-            keccak256("Allocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)"),
-            signer, agent1, SUBNET_1, amount, nonce, deadline
+            keccak256("Allocate(address staker,address agent,uint256 worknetId,uint256 amount,uint256 nonce,uint256 deadline)"),
+            signer, agent1, WORKNET_1, amount, nonce, deadline
         ));
         bytes32 digest = _getVaultDigest(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
 
-        // relayer 提交 gasless 交易
+        // Relayer submits gasless tx
         vm.prank(user2);
-        vault.allocateFor(signer, agent1, SUBNET_1, amount, deadline, v, r, s);
+        vault.allocateFor(signer, agent1, WORKNET_1, amount, deadline, v, r, s);
 
-        assertEq(vault.getAgentStake(signer, agent1, SUBNET_1), amount);
+        assertEq(vault.getAgentStake(signer, agent1, WORKNET_1), amount);
         assertEq(vault.nonces(signer), nonce + 1);
     }
 
@@ -335,18 +272,18 @@ contract StakingVaultTest is Test {
         stakeNFT.deposit(1000 ether, 52 weeks);
         vm.stopPrank();
 
-        uint256 deadline = block.timestamp - 1; // 过期
+        uint256 deadline = block.timestamp - 1; // expired
 
         bytes32 structHash = keccak256(abi.encode(
-            keccak256("Allocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)"),
-            signer, agent1, SUBNET_1, uint256(500 ether), uint256(0), deadline
+            keccak256("Allocate(address staker,address agent,uint256 worknetId,uint256 amount,uint256 nonce,uint256 deadline)"),
+            signer, agent1, WORKNET_1, uint256(500 ether), uint256(0), deadline
         ));
         bytes32 digest = _getVaultDigest(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
 
         vm.prank(user2);
         vm.expectRevert(StakingVault.ExpiredSignature.selector);
-        vault.allocateFor(signer, agent1, SUBNET_1, 500 ether, deadline, v, r, s);
+        vault.allocateFor(signer, agent1, WORKNET_1, 500 ether, deadline, v, r, s);
     }
 
     function test_allocateFor_wrongSigner_reverts() public {
@@ -363,15 +300,15 @@ contract StakingVaultTest is Test {
         uint256 nonce = vault.nonces(signer);
 
         bytes32 structHash = keccak256(abi.encode(
-            keccak256("Allocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)"),
-            signer, agent1, SUBNET_1, uint256(500 ether), nonce, deadline
+            keccak256("Allocate(address staker,address agent,uint256 worknetId,uint256 amount,uint256 nonce,uint256 deadline)"),
+            signer, agent1, WORKNET_1, uint256(500 ether), nonce, deadline
         ));
         bytes32 digest = _getVaultDigest(structHash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongPk, digest); // 使用错误的私钥签名
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongPk, digest); // Sign with wrong private key
 
         vm.prank(user2);
         vm.expectRevert(StakingVault.InvalidSignature.selector);
-        vault.allocateFor(signer, agent1, SUBNET_1, 500 ether, deadline, v, r, s);
+        vault.allocateFor(signer, agent1, WORKNET_1, 500 ether, deadline, v, r, s);
     }
 
     function test_allocateFor_replayProtection() public {
@@ -388,20 +325,20 @@ contract StakingVaultTest is Test {
         uint256 deadline = block.timestamp + 1 hours;
 
         bytes32 structHash = keccak256(abi.encode(
-            keccak256("Allocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)"),
-            signer, agent1, SUBNET_1, amount, nonce, deadline
+            keccak256("Allocate(address staker,address agent,uint256 worknetId,uint256 amount,uint256 nonce,uint256 deadline)"),
+            signer, agent1, WORKNET_1, amount, nonce, deadline
         ));
         bytes32 digest = _getVaultDigest(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
 
-        // 第一次调用成功
+        // First call succeeds
         vm.prank(user2);
-        vault.allocateFor(signer, agent1, SUBNET_1, amount, deadline, v, r, s);
+        vault.allocateFor(signer, agent1, WORKNET_1, amount, deadline, v, r, s);
 
-        // 第二次使用相同签名应该失败（nonce 已递增）
+        // Second call with same sig should fail (nonce incremented)
         vm.prank(user2);
         vm.expectRevert(StakingVault.InvalidSignature.selector);
-        vault.allocateFor(signer, agent1, SUBNET_1, amount, deadline, v, r, s);
+        vault.allocateFor(signer, agent1, WORKNET_1, amount, deadline, v, r, s);
     }
 
     function test_deallocateFor_gasless() public {
@@ -411,7 +348,7 @@ contract StakingVaultTest is Test {
         vm.startPrank(signer);
         awp.approve(address(stakeNFT), 10_000 ether);
         stakeNFT.deposit(1000 ether, 52 weeks);
-        vault.allocate(signer, agent1, SUBNET_1, 500 ether);
+        vault.allocate(signer, agent1, WORKNET_1, 500 ether);
         vm.stopPrank();
 
         uint256 amount = 200 ether;
@@ -419,16 +356,16 @@ contract StakingVaultTest is Test {
         uint256 deadline = block.timestamp + 1 hours;
 
         bytes32 structHash = keccak256(abi.encode(
-            keccak256("Deallocate(address staker,address agent,uint256 subnetId,uint256 amount,uint256 nonce,uint256 deadline)"),
-            signer, agent1, SUBNET_1, amount, nonce, deadline
+            keccak256("Deallocate(address staker,address agent,uint256 worknetId,uint256 amount,uint256 nonce,uint256 deadline)"),
+            signer, agent1, WORKNET_1, amount, nonce, deadline
         ));
         bytes32 digest = _getVaultDigest(structHash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signerPk, digest);
 
         vm.prank(user2);
-        vault.deallocateFor(signer, agent1, SUBNET_1, amount, deadline, v, r, s);
+        vault.deallocateFor(signer, agent1, WORKNET_1, amount, deadline, v, r, s);
 
-        assertEq(vault.getAgentStake(signer, agent1, SUBNET_1), 300 ether);
+        assertEq(vault.getAgentStake(signer, agent1, WORKNET_1), 300 ether);
         assertEq(vault.nonces(signer), nonce + 1);
     }
 
@@ -444,17 +381,17 @@ contract StakingVaultTest is Test {
     }
 
     // ══════════════════════════════════════════════
-    // New tests: deallocate rejects subnetId=0, treasury can upgrade
+    // New tests: deallocate rejects worknetId=0, treasury can upgrade
     // ══════════════════════════════════════════════
 
-    function test_deallocate_revertsSubnetIdZero() public {
-        // First allocate to a valid subnet
+    function test_deallocate_revertsWorknetIdZero() public {
+        // First allocate to a valid worknet
         vm.prank(user1);
-        vault.allocate(user1, agent1, SUBNET_1, 500 ether);
+        vault.allocate(user1, agent1, WORKNET_1, 500 ether);
 
-        // Deallocate with subnetId=0 should revert
+        // Deallocate with worknetId=0 should revert
         vm.prank(user1);
-        vm.expectRevert(StakingVault.InvalidAmount.selector);
+        vm.expectRevert(StakingVault.ZeroWorknetId.selector);
         vault.deallocate(user1, agent1, 0, 100 ether);
     }
 
@@ -467,6 +404,6 @@ contract StakingVaultTest is Test {
         // Verify state is preserved after upgrade
         assertEq(vault.awpRegistry(), address(this));
         assertEq(vault.guardian(), address(this));
-        assertEq(vault.getAgentStake(user1, agent1, SUBNET_1), 0);
+        assertEq(vault.getAgentStake(user1, agent1, WORKNET_1), 0);
     }
 }

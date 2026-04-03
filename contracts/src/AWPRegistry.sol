@@ -16,12 +16,12 @@ import {IAlphaToken} from "./interfaces/IAlphaToken.sol";
 import {IAlphaTokenFactory} from "./interfaces/IAlphaTokenFactory.sol";
 import {IStakingVault} from "./interfaces/IStakingVault.sol";
 import {IStakeNFT} from "./interfaces/IStakeNFT.sol";
-import {ISubnetNFT} from "./interfaces/ISubnetNFT.sol";
+import {IWorknetNFT} from "./interfaces/IWorknetNFT.sol";
 import {ILPManager} from "./interfaces/ILPManager.sol";
 import {IAWPRegistry} from "./interfaces/IAWPRegistry.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-/// @title AWPRegistry — Unified entry point for the AWP protocol (subnet management + staking management)
+/// @title AWPRegistry — Unified entry point for the AWP protocol (worknet management + staking management)
 /// @author AWP Team
 /// @notice Account System V2: tree-based binding, optional registration, explicit staker parameter.
 /// @dev Inheritance: Initializable + UUPSUpgradeable (UUPS proxy pattern), PausableUpgradeable (emergency pause),
@@ -34,11 +34,11 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     //  Address registry — external module addresses injected via initializeRegistry after deployment
     // ══════════════════════════════════════════════
 
-    /// @notice AWP token contract address (ERC20, 10B MAX_SUPPLY, 200M pre-minted, remainder via AWPEmission)
+    /// @notice AWP token contract address (ERC20, 10B MAX_SUPPLY, configurable initialMint, remainder via AWPEmission)
     address public awpToken;
-    /// @notice SubnetNFT contract address; each subnet corresponds to one NFT (tokenId = subnetId)
-    address public subnetNFT;
-    /// @notice AlphaToken factory contract address, used to deploy an independent Alpha token for each subnet
+    /// @notice WorknetNFT contract address; each worknet corresponds to one NFT (tokenId = worknetId)
+    address public worknetNFT;
+    /// @notice AlphaToken factory contract address, used to deploy an independent Alpha token for each worknet
     address public alphaTokenFactory;
     /// @notice AWP emission contract address, the only contract holding AWP minting rights
     address public awpEmission;
@@ -48,13 +48,13 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     address public stakingVault;
     /// @notice StakeNFT contract address — manages AWP staking positions as NFTs
     address public stakeNFT;
-    /// @notice Treasury (Timelock) address — holds governance operation rights (onlyTimelock)
+    /// @notice Treasury (Timelock) address — holds governance operation rights (onlyGuardian)
     address public treasury;
     /// @notice Guardian address — holds emergency pause rights (onlyGuardian)
     address public guardian;
-    /// @notice Default subnet implementation address (for auto-deploying subnet contracts via proxy)
-    address public defaultSubnetManagerImpl;
-    /// @notice ABI-encoded DEX configuration passed to SubnetManager.initialize()
+    /// @notice Default worknet implementation address (for auto-deploying worknet contracts via proxy)
+    address public defaultWorknetManagerImpl;
+    /// @notice ABI-encoded DEX configuration passed to WorknetManager.initialize()
     ///         (clPoolManager, clPositionManager, clSwapRouter, permit2, poolFee, tickSpacing)
     bytes public dexConfig;
 
@@ -78,30 +78,29 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     mapping(address => mapping(address => bool)) public delegates;
 
     // ══════════════════════════════════════════════
-    //  Subnet data
+    //  Worknet data
     // ══════════════════════════════════════════════
 
-    /// @notice subnetId => SubnetInfo mapping, stores the on-chain state of each subnet
-    mapping(uint256 => SubnetInfo) public subnets;
+    /// @notice worknetId => WorknetInfo mapping, stores the on-chain state of each worknet
+    mapping(uint256 => WorknetInfo) public worknets;
 
-    /// @dev Next local counter for subnet ID generation, auto-increments from 1.
-    /// Global subnetId = (block.chainid << 64) | _nextLocalId
+    /// @dev Next local counter for worknet ID generation, auto-increments from 1.
+    /// Global worknetId = (block.chainid << 64) | _nextLocalId
     uint256 private _nextLocalId;
 
-    /// @dev Active subnet ID set
-    EnumerableSet.UintSet private activeSubnetIds;
+    /// @dev Active worknet ID set
+    EnumerableSet.UintSet private activeWorknetIds;
 
-    /// @notice Maximum number of active subnets
-    uint128 public constant MAX_ACTIVE_SUBNETS = 10000;
+    /// @notice Maximum number of active worknets
+    uint128 public constant MAX_ACTIVE_WORKNETS = 10000;
 
-    /// @notice Initial price of the Alpha token when registering a subnet (denominated in AWP), default 0.01 AWP
+    /// @notice Initial price of the Alpha token when registering a worknet (denominated in AWP), default 0.01 AWP
     uint256 public initialAlphaPrice;
 
-    /// @notice Initial Alpha token mint amount per subnet: 100 million (100_000_000 * 1e18)
-    /// @notice Alpha token mint amount per subnet registration (governance-settable)
+    /// @notice Alpha token mint amount per worknet registration (governance-settable, default 100M)
     uint256 public initialAlphaMint;
 
-    /// @notice Subnet deregistration immunity period; Timelock cannot deregister the subnet during this window
+    /// @notice Worknet deregistration immunity period; Timelock cannot deregister the worknet during this window
     uint256 public immunityPeriod;
 
     // ══════════════════════════════════════════════
@@ -122,29 +121,35 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     bytes32 private constant SET_RECIPIENT_TYPEHASH =
         keccak256("SetRecipient(address user,address recipient,uint256 nonce,uint256 deadline)");
 
-    /// @dev EIP-712 type hash: ActivateSubnet(address user, uint256 subnetId, uint256 nonce, uint256 deadline)
-    bytes32 private constant ACTIVATE_SUBNET_TYPEHASH =
-        keccak256("ActivateSubnet(address user,uint256 subnetId,uint256 nonce,uint256 deadline)");
+    /// @dev EIP-712 type hash: ActivateWorknet(address user, uint256 worknetId, uint256 nonce, uint256 deadline)
+    bytes32 private constant ACTIVATE_WORKNET_TYPEHASH =
+        keccak256("ActivateWorknet(address user,uint256 worknetId,uint256 nonce,uint256 deadline)");
 
-    /// @dev EIP-712 type hash for SubnetParams nested struct
-    bytes32 private constant SUBNET_PARAMS_TYPEHASH =
-        keccak256("SubnetParams(string name,string symbol,address subnetManager,bytes32 salt,uint128 minStake,string skillsURI)");
+    /// @dev EIP-712 type hash for WorknetParams nested struct
+    bytes32 private constant WORKNET_PARAMS_TYPEHASH =
+        keccak256("WorknetParams(string name,string symbol,address worknetManager,bytes32 salt,uint128 minStake,string skillsURI)");
 
-    /// @dev EIP-712 type hash: RegisterSubnet with nested SubnetParams (per EIP-712 §encodeType)
-    bytes32 private constant REGISTER_SUBNET_TYPEHASH =
-        keccak256("RegisterSubnet(address user,SubnetParams params,uint256 nonce,uint256 deadline)SubnetParams(string name,string symbol,address subnetManager,bytes32 salt,uint128 minStake,string skillsURI)");
+    /// @dev EIP-712 type hash: RegisterWorknet with nested WorknetParams (per EIP-712 §encodeType)
+    bytes32 private constant REGISTER_WORKNET_TYPEHASH =
+        keccak256("RegisterWorknet(address user,WorknetParams params,uint256 nonce,uint256 deadline)WorknetParams(string name,string symbol,address worknetManager,bytes32 salt,uint128 minStake,string skillsURI)");
+
+    /// @dev EIP-712 type hash: GrantDelegate(address user, address delegate, uint256 nonce, uint256 deadline)
+    bytes32 private constant GRANT_DELEGATE_TYPEHASH =
+        keccak256("GrantDelegate(address user,address delegate,uint256 nonce,uint256 deadline)");
+
+    /// @dev EIP-712 type hash: RevokeDelegate(address user, address delegate, uint256 nonce, uint256 deadline)
+    bytes32 private constant REVOKE_DELEGATE_TYPEHASH =
+        keccak256("RevokeDelegate(address user,address delegate,uint256 nonce,uint256 deadline)");
+
+    /// @dev EIP-712 type hash: Unbind(address user, uint256 nonce, uint256 deadline)
+    bytes32 private constant UNBIND_TYPEHASH =
+        keccak256("Unbind(address user,uint256 nonce,uint256 deadline)");
 
     // ══════════════════════════════════════════════
     //  Permission modifiers
     // ══════════════════════════════════════════════
 
-    /// @dev Only the Treasury (Timelock) may call, used for governance operations
-    modifier onlyTimelock() {
-        if (msg.sender != treasury) revert NotTimelock();
-        _;
-    }
-
-    /// @dev Only the Guardian may call, used for emergency pausing
+    /// @dev Only the Guardian may call
     modifier onlyGuardian() {
         if (msg.sender != guardian) revert NotGuardian();
         _;
@@ -158,19 +163,25 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     error NotDeployer();
     /// @dev Registry is already initialized; cannot call again
     error AlreadyInitialized();
-    /// @dev Caller is not the Treasury (Timelock)
-    error NotTimelock();
     /// @dev Caller is not the Guardian
     error NotGuardian();
-    /// @dev Subnet parameters are invalid (name/symbol length out of bounds)
-    error InvalidSubnetParams();
-    /// @dev Subnet contract address cannot be the zero address
-    error SubnetManagerRequired();
-    /// @dev Subnet status does not meet the precondition for the operation
-    error InvalidSubnetStatus();
-    /// @dev Subnet is still within its immunity period and cannot be deregistered
+    /// @dev Worknet name is invalid (empty or > 64 bytes)
+    error InvalidWorknetName();
+    /// @dev Worknet symbol is invalid (empty or > 16 bytes)
+    error InvalidWorknetSymbol();
+    /// @dev Computed LP AWP amount is zero
+    error ZeroLPAmount();
+    /// @dev Mint amount must be > 0
+    error InvalidMintAmount();
+    /// @dev Immunity period too short (minimum 7 days)
+    error ImmunityTooShort();
+    /// @dev Worknet contract address cannot be the zero address
+    error WorknetManagerRequired();
+    /// @dev Worknet status does not meet the precondition
+    error InvalidWorknetStatus(uint256 worknetId, uint8 currentStatus);
+    /// @dev Worknet is still within its immunity period and cannot be deregistered
     error ImmunityNotExpired();
-    /// @dev Caller is not the subnet NFT owner
+    /// @dev Caller is not the worknet NFT owner
     error NotOwner();
     /// @dev Initial Alpha price is too low (minimum 1e12)
     error PriceTooLow();
@@ -178,21 +189,23 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     error ExpiredSignature();
     /// @dev EIP-712 signature verification failed (recovered signer does not match expected)
     error InvalidSignature();
-    /// @dev Active subnet count has reached the maximum
-    error MaxActiveSubnetsReached();
+    /// @dev Active worknet count has reached the maximum
+    error MaxActiveWorknetsReached();
     /// @dev Initial Alpha price is too high
     error PriceTooHigh();
-    /// @dev Allocation does not meet the subnet's minimum stake requirement
-    /// @dev Invalid address (zero address or self-bind)
-    error InvalidAddress();
+    /// @dev Zero address passed
+    error ZeroAddress();
+    /// @dev Self-bind is not allowed
+    error SelfBind();
     /// @dev Binding would create a cycle in the tree
     error CycleDetected();
-    /// @dev Binding chain is too long (safety limit)
-    error ChainTooLong();
+    /// @dev Binding chain exceeds maximum depth
+    error ChainTooDeep();
     /// @dev Cannot revoke self as delegate
     error CannotRevokeSelf();
+    /// @dev Name/symbol contains JSON-unsafe characters (" or \)
+    error JsonUnsafeCharacter();
     /// @dev Address is already registered
-    error AlreadyRegistered();
 
     // ══════════════════════════════════════════════
     //  Constructor
@@ -217,19 +230,20 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         __ReentrancyGuard_init();
         __EIP712_init("AWPRegistry", "1");
 
+        if (deployer_ == address(0) || treasury_ == address(0) || guardian_ == address(0)) revert ZeroAddress();
         _deployer = deployer_;
         treasury = treasury_;
         guardian = guardian_;
 
-        // Inline initializer values (not executed for proxy storage)
+        // Default values written to proxy storage during initialize()
         _nextLocalId = 1;
-        initialAlphaPrice = 1e16;
+        initialAlphaPrice = 1e15; // 0.001 AWP per Alpha
         initialAlphaMint = 100_000_000 * 1e18;
         immunityPeriod = 30 days;
     }
 
-    /// @dev UUPS upgrade authorization — only Timelock may upgrade
-    function _authorizeUpgrade(address) internal override onlyTimelock {}
+    /// @dev UUPS upgrade authorization — only Guardian may upgrade
+    function _authorizeUpgrade(address) internal override onlyGuardian {}
 
     // ═══════════════════════════════════════════════
     //  Registry — module address registry
@@ -239,28 +253,32 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     /// @dev After successful call _deployer is zeroed, permanently locked; cannot be called again.
     function initializeRegistry(
         address awpToken_,
-        address subnetNFT_,
+        address worknetNFT_,
         address alphaTokenFactory_,
         address awpEmission_,
         address lpManager_,
         address stakingVault_,
         address stakeNFT_,
-        address defaultSubnetManagerImpl_,
+        address defaultWorknetManagerImpl_,
         bytes calldata dexConfig_
     ) external {
         // Only the deployer may call
         if (msg.sender != _deployer) revert NotDeployer();
         // Prevent re-initialization
         if (registryInitialized) revert AlreadyInitialized();
+        // Validate critical addresses (cannot re-call after deployer is zeroed)
+        if (awpToken_ == address(0) || worknetNFT_ == address(0) || alphaTokenFactory_ == address(0)
+            || awpEmission_ == address(0) || lpManager_ == address(0) || stakingVault_ == address(0)
+            || stakeNFT_ == address(0)) revert ZeroAddress();
 
         awpToken = awpToken_;
-        subnetNFT = subnetNFT_;
+        worknetNFT = worknetNFT_;
         alphaTokenFactory = alphaTokenFactory_;
         awpEmission = awpEmission_;
         lpManager = lpManager_;
         stakingVault = stakingVault_;
         stakeNFT = stakeNFT_;
-        defaultSubnetManagerImpl = defaultSubnetManagerImpl_;
+        defaultWorknetManagerImpl = defaultWorknetManagerImpl_;
         dexConfig = dexConfig_;
 
         // Link StakingVault → StakeNFT (one-time setter, resolves CREATE2 circular dependency)
@@ -272,7 +290,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     }
 
     /// @notice Retrieve all module addresses in a single call
-    /// @return In order: awpToken, subnetNFT, alphaTokenFactory, awpEmission,
+    /// @return In order: awpToken, worknetNFT, alphaTokenFactory, awpEmission,
     ///         lpManager, stakingVault, stakeNFT, treasury, guardian
     function getRegistry()
         external
@@ -291,7 +309,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     {
         return (
             awpToken,
-            subnetNFT,
+            worknetNFT,
             alphaTokenFactory,
             awpEmission,
             lpManager,
@@ -307,12 +325,6 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     // ═══════════════════════════════════════════════
 
     /// @notice Self-register: sets recipient to self and increments registeredCount
-    function register() external nonReentrant whenNotPaused {
-        if (recipient[msg.sender] != address(0)) revert AlreadyRegistered();
-        recipient[msg.sender] = msg.sender;
-        registeredCount++;
-        emit UserRegistered(msg.sender);
-    }
 
     // ═══════════════════════════════════════════════
     //  Account V2: Binding (tree structure)
@@ -322,10 +334,9 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     /// @dev Anti-cycle: walk up from target, if we find msg.sender → cycle
     /// @param target Address to bind to
     function bind(address target) external nonReentrant whenNotPaused {
-        if (target == address(0)) revert InvalidAddress();
-        if (target == msg.sender) revert InvalidAddress();
+        if (target == address(0)) revert ZeroAddress();
+        if (target == msg.sender) revert SelfBind();
         _checkCycle(msg.sender, target);
-        // First-time interaction: count as registered
         if (boundTo[msg.sender] == address(0) && recipient[msg.sender] == address(0)) {
             registeredCount++;
             emit UserRegistered(msg.sender);
@@ -352,8 +363,8 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         nonReentrant
         whenNotPaused
     {
-        if (target == address(0)) revert InvalidAddress();
-        if (target == agent) revert InvalidAddress();
+        if (target == address(0)) revert ZeroAddress();
+        if (target == agent) revert SelfBind();
         _verifyDigest(agent, keccak256(abi.encode(BIND_TYPEHASH, agent, target, nonces[agent]++, deadline)), deadline, v, r, s);
 
         _checkCycle(agent, target);
@@ -372,13 +383,12 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     /// @notice Set reward recipient for msg.sender
     /// @param addr Recipient address
     function setRecipient(address addr) external nonReentrant whenNotPaused {
-        if (addr == address(0)) revert InvalidAddress();
-        bool firstTime = recipient[msg.sender] == address(0);
-        recipient[msg.sender] = addr;
-        if (firstTime) {
+        if (addr == address(0)) revert ZeroAddress();
+        if (recipient[msg.sender] == address(0) && boundTo[msg.sender] == address(0)) {
             registeredCount++;
             emit UserRegistered(msg.sender);
         }
+        recipient[msg.sender] = addr;
         emit RecipientSet(msg.sender, addr);
     }
 
@@ -387,16 +397,14 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         address user, address _recipient, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) external nonReentrant whenNotPaused {
-        if (_recipient == address(0)) revert InvalidAddress();
+        if (_recipient == address(0)) revert ZeroAddress();
         _verifyDigest(user, keccak256(abi.encode(SET_RECIPIENT_TYPEHASH, user, _recipient, nonces[user]++, deadline)), deadline, v, r, s);
 
-        // If this is the first time setting recipient (registration), increment counter
-        bool firstTime = recipient[user] == address(0);
-        recipient[user] = _recipient;
-        if (firstTime) {
+        if (recipient[user] == address(0) && boundTo[user] == address(0)) {
             registeredCount++;
             emit UserRegistered(user);
         }
+        recipient[user] = _recipient;
         emit RecipientSet(user, _recipient);
     }
 
@@ -405,10 +413,10 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     /// @return The reward recipient address
     function resolveRecipient(address addr) external view returns (address) {
         address cur = addr;
-        uint256 depth = 0;
+        uint256 depth;
         while (boundTo[cur] != address(0) && boundTo[cur] != cur) {
             cur = boundTo[cur];
-            if (++depth >= 100) break;
+            if (++depth >= 256) revert ChainTooDeep();
         }
         return recipient[cur] != address(0) ? recipient[cur] : cur;
     }
@@ -420,17 +428,17 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         resolved = new address[](addrs.length);
         for (uint256 i = 0; i < addrs.length;) {
             address cur = addrs[i];
-            uint256 depth = 0;
+            uint256 depth;
             while (boundTo[cur] != address(0) && boundTo[cur] != cur) {
                 cur = boundTo[cur];
-                if (++depth >= 100) break;
+                if (++depth >= 256) revert ChainTooDeep();
             }
             resolved[i] = recipient[cur] != address(0) ? recipient[cur] : cur;
             unchecked { ++i; }
         }
     }
 
-    /// @notice Check if an address is registered (has a non-zero recipient)
+    /// @notice Check if an address is registered (has a binding or a non-zero recipient)
     /// @param addr Address to check
     /// @return true if registered
     function isRegistered(address addr) external view returns (bool) {
@@ -456,280 +464,322 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         emit DelegateRevoked(msg.sender, delegate);
     }
 
-    // ═══════════════════════════════════════════════
-    //  Subnet Registration
-    // ═══════════════════════════════════════════════
-
-    /// @notice Register a new subnet: deploy Alpha token, create LP, mint NFT
-    /// @param params Subnet parameters (name, symbol, subnetManager, salt, minStake)
-    /// @return subnetId Newly created subnet ID
-    function registerSubnet(SubnetParams calldata params) external nonReentrant whenNotPaused returns (uint256) {
-        return _registerSubnet(msg.sender, params);
+    /// @notice Gasless grant delegate: relayer pays gas, user signs EIP-712
+    function grantDelegateFor(
+        address user, address delegate, uint256 deadline,
+        uint8 v, bytes32 r, bytes32 s
+    ) external whenNotPaused {
+        _verifyDigest(user, keccak256(abi.encode(GRANT_DELEGATE_TYPEHASH, user, delegate, nonces[user]++, deadline)), deadline, v, r, s);
+        delegates[user][delegate] = true;
+        emit DelegateGranted(user, delegate);
     }
 
-    /// @notice Gasless subnet registration: relayer pays gas, user signs EIP-712 and pays AWP
-    function registerSubnetFor(
+    /// @notice Gasless revoke delegate: relayer pays gas, user signs EIP-712
+    function revokeDelegateFor(
+        address user, address delegate, uint256 deadline,
+        uint8 v, bytes32 r, bytes32 s
+    ) external whenNotPaused {
+        if (delegate == user) revert CannotRevokeSelf();
+        _verifyDigest(user, keccak256(abi.encode(REVOKE_DELEGATE_TYPEHASH, user, delegate, nonces[user]++, deadline)), deadline, v, r, s);
+        delegates[user][delegate] = false;
+        emit DelegateRevoked(user, delegate);
+    }
+
+    /// @notice Gasless unbind: relayer pays gas, user signs EIP-712
+    function unbindFor(
+        address user, uint256 deadline,
+        uint8 v, bytes32 r, bytes32 s
+    ) external nonReentrant whenNotPaused {
+        _verifyDigest(user, keccak256(abi.encode(UNBIND_TYPEHASH, user, nonces[user]++, deadline)), deadline, v, r, s);
+        boundTo[user] = address(0);
+        emit Unbound(user);
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Worknet Registration
+    // ═══════════════════════════════════════════════
+
+    /// @notice Register a new worknet: deploy Alpha token, create LP, mint NFT
+    /// @param params Worknet parameters (name, symbol, worknetManager, salt, minStake)
+    /// @return worknetId Newly created worknet ID
+    function registerWorknet(WorknetParams calldata params) external nonReentrant whenNotPaused returns (uint256) {
+        return _registerWorknet(msg.sender, params);
+    }
+
+    /// @notice Gasless worknet registration: relayer pays gas, user signs EIP-712 and pays AWP
+    function registerWorknetFor(
         address user,
-        SubnetParams calldata params,
+        WorknetParams calldata params,
         uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) external nonReentrant whenNotPaused returns (uint256) {
-        _verifyRegisterSubnetSignature(user, params, deadline, v, r, s);
-        return _registerSubnet(user, params);
+        _verifyRegisterWorknetSignature(user, params, deadline, v, r, s);
+        return _registerWorknet(user, params);
     }
 
-    /// @notice Fully gasless subnet registration with EIP-2612 permit (no prior approve tx needed)
-    function registerSubnetForWithPermit(
+    /// @notice Fully gasless worknet registration with EIP-2612 permit (no prior approve tx needed)
+    function registerWorknetForWithPermit(
         address user,
-        SubnetParams calldata params,
+        WorknetParams calldata params,
         uint256 deadline,
         uint8 permitV, bytes32 permitR, bytes32 permitS,
         uint8 registerV, bytes32 registerR, bytes32 registerS
     ) external nonReentrant whenNotPaused returns (uint256) {
         uint256 lpAWPAmount = initialAlphaMint * initialAlphaPrice / 1e18;
-        IERC20Permit(awpToken).permit(user, address(this), lpAWPAmount, deadline, permitV, permitR, permitS);
-        _verifyRegisterSubnetSignature(user, params, deadline, registerV, registerR, registerS);
-        return _registerSubnet(user, params);
+        // Wrap in try/catch: if permit was already consumed (e.g., front-run), allowance may already be set
+        try IERC20Permit(awpToken).permit(user, address(this), lpAWPAmount, deadline, permitV, permitR, permitS) {} catch {}
+        _verifyRegisterWorknetSignature(user, params, deadline, registerV, registerR, registerS);
+        return _registerWorknet(user, params);
     }
 
-    /// @dev Verify EIP-712 signature for registerSubnetFor
-    function _verifyRegisterSubnetSignature(
-        address user, SubnetParams calldata params, uint256 deadline,
+    /// @dev Verify EIP-712 signature for registerWorknetFor
+    function _verifyRegisterWorknetSignature(
+        address user, WorknetParams calldata params, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) internal {
         bytes32 paramsStructHash = keccak256(abi.encode(
-            SUBNET_PARAMS_TYPEHASH,
+            WORKNET_PARAMS_TYPEHASH,
             keccak256(bytes(params.name)),
             keccak256(bytes(params.symbol)),
-            params.subnetManager, params.salt, params.minStake,
+            params.worknetManager, params.salt, params.minStake,
             keccak256(bytes(params.skillsURI))
         ));
-        _verifyDigest(user, keccak256(abi.encode(REGISTER_SUBNET_TYPEHASH, user, paramsStructHash, nonces[user]++, deadline)), deadline, v, r, s);
+        _verifyDigest(user, keccak256(abi.encode(REGISTER_WORKNET_TYPEHASH, user, paramsStructHash, nonces[user]++, deadline)), deadline, v, r, s);
     }
 
-    /// @dev Internal: shared logic for registerSubnet and registerSubnetFor
-    function _registerSubnet(address user, SubnetParams calldata params) internal returns (uint256) {
-        if (bytes(params.name).length == 0 || bytes(params.name).length > 64) revert InvalidSubnetParams();
-        if (bytes(params.symbol).length == 0 || bytes(params.symbol).length > 16) revert InvalidSubnetParams();
-        bool autoDeploySubnet = params.subnetManager == address(0);
-        if (autoDeploySubnet && defaultSubnetManagerImpl == address(0)) revert SubnetManagerRequired();
+    /// @dev Internal: shared logic for registerWorknet and registerWorknetFor
+    function _registerWorknet(address user, WorknetParams calldata params) internal returns (uint256) {
+        if (bytes(params.name).length == 0 || bytes(params.name).length > 64) revert InvalidWorknetName();
+        if (bytes(params.symbol).length == 0 || bytes(params.symbol).length > 16) revert InvalidWorknetSymbol();
+        // Reject characters that break on-chain JSON metadata in WorknetNFT.tokenURI
+        _rejectJsonUnsafe(bytes(params.name));
+        _rejectJsonUnsafe(bytes(params.symbol));
+        if (bytes(params.skillsURI).length > 0) _rejectJsonUnsafe(bytes(params.skillsURI));
+        bool autoDeployWorknet = params.worknetManager == address(0);
+        if (autoDeployWorknet && defaultWorknetManagerImpl == address(0)) revert WorknetManagerRequired();
 
         uint256 lpAWPAmount = initialAlphaMint * initialAlphaPrice / 1e18;
-        if (lpAWPAmount == 0) revert InvalidSubnetParams();
+        if (lpAWPAmount == 0) revert ZeroLPAmount();
         IERC20(awpToken).safeTransferFrom(user, lpManager, lpAWPAmount);
 
-        uint256 subnetId = (block.chainid << 64) | _nextLocalId++;
+        uint256 worknetId = (block.chainid << 64) | _nextLocalId++;
 
         (address alphaToken, bytes32 poolId) = _deployAlphaAndLP(
-            subnetId, params.name, params.symbol, lpAWPAmount, params.salt
+            worknetId, params.name, params.symbol, lpAWPAmount, params.salt
         );
 
         address sc;
-        if (autoDeploySubnet) {
+        if (autoDeployWorknet) {
             bytes memory initData = abi.encodeWithSignature(
                 "initialize(address,address,address,bytes32,address,bytes)",
                 address(this), alphaToken, awpToken, poolId, user, dexConfig
             );
-            sc = address(new ERC1967Proxy(defaultSubnetManagerImpl, initData));
+            sc = address(new ERC1967Proxy(defaultWorknetManagerImpl, initData));
         } else {
-            sc = params.subnetManager;
+            sc = params.worknetManager;
         }
 
-        IAlphaToken(alphaToken).setSubnetMinter(sc);
-        ISubnetNFT(subnetNFT).mint(user, subnetId, params.name, sc, alphaToken, params.minStake, params.skillsURI);
-        subnets[subnetId] = SubnetInfo({
+        IAlphaToken(alphaToken).setWorknetMinter(sc);
+        IWorknetNFT(worknetNFT).mint(user, worknetId, params.name, sc, alphaToken, params.minStake, params.skillsURI);
+        worknets[worknetId] = WorknetInfo({
             lpPool: poolId,
-            status: SubnetStatus.Pending,
+            status: WorknetStatus.Pending,
             createdAt: uint64(block.timestamp),
             activatedAt: 0
         });
 
-        _emitSubnetRegistered(subnetId, user, sc, alphaToken, poolId, lpAWPAmount, params);
-        return subnetId;
+        _emitWorknetRegistered(worknetId, user, sc, alphaToken, poolId, lpAWPAmount, params);
+        return worknetId;
     }
 
-    /// @dev Deploy Alpha token + create LP (does NOT set subnet minter — caller must do that)
+    /// @dev Deploy Alpha token + create LP (does NOT set worknet minter — caller must do that)
     function _deployAlphaAndLP(
-        uint256 subnetId, string calldata name, string calldata symbol,
+        uint256 worknetId, string calldata name, string calldata symbol,
         uint256 lpAWPAmount, bytes32 salt
     ) internal returns (address alphaToken, bytes32 poolId) {
-        alphaToken = IAlphaTokenFactory(alphaTokenFactory).deploy(subnetId, name, symbol, address(this), salt);
+        alphaToken = IAlphaTokenFactory(alphaTokenFactory).deploy(worknetId, name, symbol, address(this), salt);
         IAlphaToken(alphaToken).mint(lpManager, initialAlphaMint);
         (poolId,) = ILPManager(lpManager).createPoolAndAddLiquidity(alphaToken, lpAWPAmount, initialAlphaMint);
     }
 
-    /// @dev Emit subnet registration events
-    function _emitSubnetRegistered(
-        uint256 subnetId, address user, address sc, address alphaToken, bytes32 poolId, uint256 lpAWPAmount, SubnetParams calldata params
+    /// @dev Emit worknet registration events
+    function _emitWorknetRegistered(
+        uint256 worknetId, address user, address sc, address alphaToken, bytes32 poolId, uint256 lpAWPAmount, WorknetParams calldata params
     ) internal {
-        emit SubnetRegistered(
-            subnetId, user,
+        emit WorknetRegistered(
+            worknetId, user,
             params.name, params.symbol,
             sc, alphaToken
         );
-        emit LPCreated(subnetId, poolId, lpAWPAmount, initialAlphaMint);
+        emit LPCreated(worknetId, poolId, lpAWPAmount, initialAlphaMint);
     }
 
     // ═══════════════════════════════════════════════
-    //  Subnet Lifecycle Management
+    //  Worknet Lifecycle Management
     // ═══════════════════════════════════════════════
 
-    /// @notice Activate a subnet: Pending → Active (only the NFT Owner may call)
-    function activateSubnet(uint256 subnetId) external nonReentrant whenNotPaused {
-        if (ISubnetNFT(subnetNFT).ownerOf(subnetId) != msg.sender) revert NotOwner();
-        _activateSubnet(subnetId);
+    /// @notice Activate a worknet: Pending → Active (only the NFT Owner may call)
+    function activateWorknet(uint256 worknetId) external nonReentrant whenNotPaused {
+        if (IWorknetNFT(worknetNFT).ownerOf(worknetId) != msg.sender) revert NotOwner();
+        _activateWorknet(worknetId);
     }
 
-    /// @notice Gasless activate subnet: relayer pays gas, NFT owner signs EIP-712
-    function activateSubnetFor(
-        address user, uint256 subnetId, uint256 deadline,
+    /// @notice Gasless activate worknet: relayer pays gas, NFT owner signs EIP-712
+    function activateWorknetFor(
+        address user, uint256 worknetId, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) external nonReentrant whenNotPaused {
-        _verifyDigest(user, keccak256(abi.encode(ACTIVATE_SUBNET_TYPEHASH, user, subnetId, nonces[user]++, deadline)), deadline, v, r, s);
-        if (ISubnetNFT(subnetNFT).ownerOf(subnetId) != user) revert NotOwner();
-        _activateSubnet(subnetId);
+        _verifyDigest(user, keccak256(abi.encode(ACTIVATE_WORKNET_TYPEHASH, user, worknetId, nonces[user]++, deadline)), deadline, v, r, s);
+        if (IWorknetNFT(worknetNFT).ownerOf(worknetId) != user) revert NotOwner();
+        _activateWorknet(worknetId);
     }
 
     /// @dev Shared activation logic
-    function _activateSubnet(uint256 subnetId) internal {
-        SubnetInfo storage info = subnets[subnetId];
-        if (info.status != SubnetStatus.Pending) revert InvalidSubnetStatus();
-        if (activeSubnetIds.length() >= MAX_ACTIVE_SUBNETS) revert MaxActiveSubnetsReached();
-        info.status = SubnetStatus.Active;
+    function _activateWorknet(uint256 worknetId) internal {
+        WorknetInfo storage info = worknets[worknetId];
+        if (info.status != WorknetStatus.Pending) revert InvalidWorknetStatus(worknetId, uint8(info.status));
+        if (activeWorknetIds.length() >= MAX_ACTIVE_WORKNETS) revert MaxActiveWorknetsReached();
+        info.status = WorknetStatus.Active;
         info.activatedAt = uint64(block.timestamp);
-        activeSubnetIds.add(subnetId);
-        emit SubnetActivated(subnetId);
+        activeWorknetIds.add(worknetId);
+        emit WorknetActivated(worknetId);
     }
 
-    /// @notice Pause a subnet: Active → Paused (only the NFT Owner may call)
-    function pauseSubnet(uint256 subnetId) external nonReentrant whenNotPaused {
-        if (ISubnetNFT(subnetNFT).ownerOf(subnetId) != msg.sender) revert NotOwner();
-        SubnetInfo storage info = subnets[subnetId];
-        if (info.status != SubnetStatus.Active) revert InvalidSubnetStatus();
+    /// @notice Pause a worknet: Active → Paused (only the NFT Owner may call)
+    function pauseWorknet(uint256 worknetId) external nonReentrant whenNotPaused {
+        if (IWorknetNFT(worknetNFT).ownerOf(worknetId) != msg.sender) revert NotOwner();
+        WorknetInfo storage info = worknets[worknetId];
+        if (info.status != WorknetStatus.Active) revert InvalidWorknetStatus(worknetId, uint8(info.status));
 
-        info.status = SubnetStatus.Paused;
-        activeSubnetIds.remove(subnetId);
+        info.status = WorknetStatus.Paused;
+        activeWorknetIds.remove(worknetId);
 
-        emit SubnetPaused(subnetId);
+        emit WorknetPaused(worknetId);
     }
 
-    /// @notice Resume a subnet: Paused → Active (only the NFT Owner may call)
-    function resumeSubnet(uint256 subnetId) external nonReentrant whenNotPaused {
-        if (ISubnetNFT(subnetNFT).ownerOf(subnetId) != msg.sender) revert NotOwner();
-        SubnetInfo storage info = subnets[subnetId];
-        if (info.status != SubnetStatus.Paused) revert InvalidSubnetStatus();
+    /// @notice Resume a worknet: Paused → Active (only the NFT Owner may call)
+    function resumeWorknet(uint256 worknetId) external nonReentrant whenNotPaused {
+        if (IWorknetNFT(worknetNFT).ownerOf(worknetId) != msg.sender) revert NotOwner();
+        WorknetInfo storage info = worknets[worknetId];
+        if (info.status != WorknetStatus.Paused) revert InvalidWorknetStatus(worknetId, uint8(info.status));
 
-        if (activeSubnetIds.length() >= MAX_ACTIVE_SUBNETS) revert MaxActiveSubnetsReached();
-        info.status = SubnetStatus.Active;
-        activeSubnetIds.add(subnetId);
+        if (activeWorknetIds.length() >= MAX_ACTIVE_WORKNETS) revert MaxActiveWorknetsReached();
+        info.status = WorknetStatus.Active;
+        activeWorknetIds.add(worknetId);
 
-        emit SubnetResumed(subnetId);
+        emit WorknetResumed(worknetId);
     }
 
-    /// @notice Ban a subnet: Active/Paused → Banned (only Timelock may call)
-    function banSubnet(uint256 subnetId) external onlyTimelock {
-        SubnetInfo storage info = subnets[subnetId];
-        SubnetStatus status = info.status;
-        if (status != SubnetStatus.Active && status != SubnetStatus.Paused) revert InvalidSubnetStatus();
+    /// @notice Ban a worknet: Active/Paused → Banned (Guardian only)
+    function banWorknet(uint256 worknetId) external onlyGuardian {
+        WorknetInfo storage info = worknets[worknetId];
+        WorknetStatus status = info.status;
+        if (status != WorknetStatus.Active && status != WorknetStatus.Paused && status != WorknetStatus.Pending)
+            revert InvalidWorknetStatus(worknetId, uint8(status));
 
-        ISubnetNFT.SubnetData memory sd = ISubnetNFT(subnetNFT).getSubnetData(subnetId);
-        if (sd.subnetManager != address(0)) {
-            IAlphaToken(sd.alphaToken).setMinterPaused(sd.subnetManager, true);
+        IWorknetNFT.WorknetData memory sd = IWorknetNFT(worknetNFT).getWorknetData(worknetId);
+        if (sd.worknetManager != address(0)) {
+            IAlphaToken(sd.alphaToken).setMinterPaused(sd.worknetManager, true);
         }
-        if (status == SubnetStatus.Active) {
-            activeSubnetIds.remove(subnetId);
+        if (status == WorknetStatus.Active) {
+            activeWorknetIds.remove(worknetId);
         }
-        info.status = SubnetStatus.Banned;
+        info.status = WorknetStatus.Banned;
 
-        emit SubnetBanned(subnetId);
+        emit WorknetBanned(worknetId);
     }
 
-    /// @notice Unban a subnet: Banned → Active (only Timelock may call)
-    function unbanSubnet(uint256 subnetId) external onlyTimelock {
-        SubnetInfo storage info = subnets[subnetId];
-        if (info.status != SubnetStatus.Banned) revert InvalidSubnetStatus();
+    /// @notice Unban a worknet: Banned → Active (Guardian only)
+    function unbanWorknet(uint256 worknetId) external onlyGuardian {
+        WorknetInfo storage info = worknets[worknetId];
+        if (info.status != WorknetStatus.Banned) revert InvalidWorknetStatus(worknetId, uint8(info.status));
 
-        ISubnetNFT.SubnetData memory sd = ISubnetNFT(subnetNFT).getSubnetData(subnetId);
-        if (sd.subnetManager != address(0)) {
-            IAlphaToken(sd.alphaToken).setMinterPaused(sd.subnetManager, false);
+        IWorknetNFT.WorknetData memory sd = IWorknetNFT(worknetNFT).getWorknetData(worknetId);
+        if (sd.worknetManager != address(0)) {
+            IAlphaToken(sd.alphaToken).setMinterPaused(sd.worknetManager, false);
         }
-        if (activeSubnetIds.length() >= MAX_ACTIVE_SUBNETS) revert MaxActiveSubnetsReached();
-        info.status = SubnetStatus.Active;
-        activeSubnetIds.add(subnetId);
+        if (activeWorknetIds.length() >= MAX_ACTIVE_WORKNETS) revert MaxActiveWorknetsReached();
+        info.status = WorknetStatus.Active;
+        activeWorknetIds.add(worknetId);
 
-        emit SubnetUnbanned(subnetId);
+        emit WorknetUnbanned(worknetId);
     }
 
-    /// @notice Deregister a subnet: permanently delete subnet data (only Timelock; immunity period must have elapsed)
-    function deregisterSubnet(uint256 subnetId) external onlyTimelock {
-        SubnetInfo storage info = subnets[subnetId];
-        if (info.status != SubnetStatus.Banned) revert InvalidSubnetStatus();
+    /// @notice Deregister a worknet: permanently delete worknet data (Guardian only; immunity period must have elapsed)
+    /// @dev Accepts Banned or Pending status. Pending worknets can be deregistered directly (never activated).
+    function deregisterWorknet(uint256 worknetId) external onlyGuardian {
+        WorknetInfo storage info = worknets[worknetId];
+        WorknetStatus status = info.status;
+        if (status != WorknetStatus.Banned && status != WorknetStatus.Pending)
+            revert InvalidWorknetStatus(worknetId, uint8(status));
         uint256 immunityStart = info.activatedAt > 0 ? uint256(info.activatedAt) : uint256(info.createdAt);
         if (block.timestamp <= immunityStart + immunityPeriod) revert ImmunityNotExpired();
 
-        ISubnetNFT.SubnetData memory sd = ISubnetNFT(subnetNFT).getSubnetData(subnetId);
-        if (sd.subnetManager != address(0)) {
-            IAlphaToken(sd.alphaToken).setMinterPaused(sd.subnetManager, true);
-        }
-        activeSubnetIds.remove(subnetId);
-        delete subnets[subnetId];
-        ISubnetNFT(subnetNFT).burn(subnetId);
+        // Pending worknets were never activated — no minter to pause, no activeWorknetIds entry
+        // Banned worknets already had minter paused and removed from activeWorknetIds by banWorknet
+        delete worknets[worknetId];
+        IWorknetNFT(worknetNFT).burn(worknetId);
 
-        emit SubnetDeregistered(subnetId);
+        emit WorknetDeregistered(worknetId);
     }
 
     // ═══════════════════════════════════════════════
-    //  Subnet Parameters
+    //  Worknet Parameters
     // ═══════════════════════════════════════════════
 
-    /// @notice Set the initial Alpha price when registering a subnet (only Timelock may call)
-    function setInitialAlphaPrice(uint256 price) external onlyTimelock {
+    /// @notice Set the initial Alpha price when registering a worknet (Guardian only)
+    function setInitialAlphaPrice(uint256 price) external onlyGuardian {
         if (price < 1e12) revert PriceTooLow();
         if (price > 1e30) revert PriceTooHigh();
         initialAlphaPrice = price;
         emit InitialAlphaPriceUpdated(price);
     }
 
-    /// @notice Update the initial Alpha token mint amount per subnet (only Timelock)
-    function setInitialAlphaMint(uint256 amount) external onlyTimelock {
-        if (amount == 0) revert InvalidSubnetParams();
+    /// @notice Update the initial Alpha token mint amount per worknet (Guardian only)
+    function setInitialAlphaMint(uint256 amount) external onlyGuardian {
+        if (amount == 0) revert InvalidMintAmount();
         initialAlphaMint = amount;
         emit InitialAlphaMintUpdated(amount);
     }
 
     /// @notice Update the guardian address (only Guardian may call — self-sovereign)
-    /// @dev Single-chain DAO cannot change guardian. If Guardian keys lost, recover via UUPS upgrade.
+    /// @dev Guardian manages itself. If Guardian keys are lost, there is no on-chain recovery path.
     function setGuardian(address g) external onlyGuardian {
-        if (g == address(0)) revert InvalidAddress();
+        if (g == address(0)) revert ZeroAddress();
         guardian = g;
         emit GuardianUpdated(g);
     }
 
-    /// @notice Set the subnet deregistration immunity period (only Timelock may call)
-    function setImmunityPeriod(uint256 p) external onlyTimelock {
-        if (p < 7 days) revert InvalidSubnetParams();
+    /// @notice Set the worknet deregistration immunity period (Guardian only)
+    function setImmunityPeriod(uint256 p) external onlyGuardian {
+        if (p < 7 days) revert ImmunityTooShort();
         immunityPeriod = p;
         emit ImmunityPeriodUpdated(p);
     }
 
-    /// @notice Replace the AlphaToken factory (only Timelock may call)
-    function setAlphaTokenFactory(address factory) external onlyTimelock {
-        if (factory == address(0)) revert InvalidAddress();
+    /// @notice Replace the AlphaToken factory (Guardian only)
+    function setAlphaTokenFactory(address factory) external onlyGuardian {
+        if (factory == address(0)) revert ZeroAddress();
         alphaTokenFactory = factory;
         emit AlphaTokenFactoryUpdated(factory);
     }
 
-    /// @notice Set the default subnet implementation (only Timelock may call)
-    function setSubnetManagerImpl(address impl) external onlyTimelock {
-        if (impl == address(0)) revert InvalidAddress();
-        defaultSubnetManagerImpl = impl;
-        emit DefaultSubnetManagerImplUpdated(impl);
+    /// @notice Set the default worknet implementation (Guardian only)
+    function setWorknetManagerImpl(address impl) external onlyGuardian {
+        if (impl == address(0)) revert ZeroAddress();
+        defaultWorknetManagerImpl = impl;
+        emit DefaultWorknetManagerImplUpdated(impl);
     }
 
-    /// @notice Update DEX configuration for future auto-deployed SubnetManagers (only Timelock)
-    function setDexConfig(bytes calldata dexConfig_) external onlyTimelock {
+    /// @notice Update DEX configuration for future auto-deployed WorknetManagers (Guardian only)
+    function setDexConfig(bytes calldata dexConfig_) external onlyGuardian {
         dexConfig = dexConfig_;
         emit DexConfigUpdated();
+    }
+
+    /// @notice Set the base URI for WorknetNFT metadata (Guardian only)
+    function setWorknetBaseURI(string calldata baseURI) external onlyGuardian {
+        IWorknetNFT(worknetNFT).setBaseURI(baseURI);
     }
 
     // ═══════════════════════════════════════════════
@@ -742,27 +792,27 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         address root;
         /// @dev Whether the agent has a binding or the root has a recipient set
         bool isValid;
-        /// @dev Agent's stake amount on the specified subnet (uses root as staker)
+        /// @dev Agent's stake amount on the specified worknet (uses root as staker)
         uint256 stake;
         /// @dev Reward recipient address for the root
         address rewardRecipient;
     }
 
-    /// @notice Query complete information for a single agent on a specified subnet
+    /// @notice Query complete information for a single agent on a specified worknet
     /// @param agent Agent address
-    /// @param subnetId Subnet ID
+    /// @param worknetId Worknet ID
     /// @return AgentInfo containing root, isValid, stake, rewardRecipient
-    function getAgentInfo(address agent, uint256 subnetId) external view returns (AgentInfo memory) {
+    function getAgentInfo(address agent, uint256 worknetId) external view returns (AgentInfo memory) {
         // Walk the binding tree to find the root
         address root = _resolveRoot(agent);
         bool isValid = boundTo[agent] != address(0) || recipient[agent] != address(0);
-        uint256 stake = IStakingVault(stakingVault).getAgentStake(root, agent, subnetId);
+        uint256 stake = IStakingVault(stakingVault).getAgentStake(root, agent, worknetId);
         address recip = recipient[root] != address(0) ? recipient[root] : root;
         return AgentInfo(root, isValid, stake, recip);
     }
 
-    /// @notice Batch query information for multiple agents on a specified subnet
-    function getAgentsInfo(address[] calldata agents, uint256 subnetId)
+    /// @notice Batch query information for multiple agents on a specified worknet
+    function getAgentsInfo(address[] calldata agents, uint256 worknetId)
         external
         view
         returns (AgentInfo[] memory)
@@ -773,7 +823,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
             address root = _resolveRoot(agent);
             bool isValid = boundTo[agent] != address(0) || recipient[agent] != address(0);
             uint256 stake = isValid
-                ? IStakingVault(stakingVault).getAgentStake(root, agent, subnetId)
+                ? IStakingVault(stakingVault).getAgentStake(root, agent, worknetId)
                 : 0;
             address recip = isValid
                 ? (recipient[root] != address(0) ? recipient[root] : root)
@@ -791,24 +841,34 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         if (ECDSA.recover(digest, v, r, s) != expectedSigner) revert InvalidSignature();
     }
 
+    /// @dev Reject strings containing " or \ (breaks on-chain JSON in WorknetNFT.tokenURI)
+    function _rejectJsonUnsafe(bytes memory b) internal pure {
+        for (uint256 i = 0; i < b.length;) {
+            bytes1 c = b[i];
+            // Reject: " (0x22), \ (0x5c), and control characters (0x00-0x1F) per RFC 8259
+            if (c == 0x22 || c == 0x5c || c < 0x20) revert JsonUnsafeCharacter();
+            unchecked { ++i; }
+        }
+    }
+
     /// @dev Anti-cycle check: walk up from target, revert if sender is found in the chain
     function _checkCycle(address sender, address target) internal view {
         address cur = target;
-        uint256 depth = 0;
+        uint256 depth;
         while (boundTo[cur] != address(0) && boundTo[cur] != cur) {
             if (boundTo[cur] == sender) revert CycleDetected();
             cur = boundTo[cur];
-            if (++depth >= 100) revert ChainTooLong();
+            if (++depth >= 256) revert ChainTooDeep();
         }
     }
 
     /// @dev Walk the binding chain to find the root
     function _resolveRoot(address addr) internal view returns (address) {
         address cur = addr;
-        uint256 depth = 0;
+        uint256 depth;
         while (boundTo[cur] != address(0) && boundTo[cur] != cur) {
             cur = boundTo[cur];
-            if (++depth >= 100) break;
+            if (++depth >= 256) revert ChainTooDeep();
         }
         return cur;
     }
@@ -817,18 +877,18 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     //  View — general view functions
     // ═══════════════════════════════════════════════
 
-    /// @notice Get subnet lifecycle state
-    function getSubnet(uint256 subnetId) external view returns (SubnetInfo memory) {
-        return subnets[subnetId];
+    /// @notice Get worknet lifecycle state
+    function getWorknet(uint256 worknetId) external view returns (WorknetInfo memory) {
+        return worknets[worknetId];
     }
 
-    /// @notice Get complete subnet info combining AWPRegistry state + SubnetNFT identity
-    function getSubnetFull(uint256 subnetId) external view returns (SubnetFullInfo memory) {
-        SubnetInfo storage info = subnets[subnetId];
-        ISubnetNFT.SubnetData memory nftData = ISubnetNFT(subnetNFT).getSubnetData(subnetId);
+    /// @notice Get complete worknet info combining AWPRegistry state + WorknetNFT identity
+    function getWorknetFull(uint256 worknetId) external view returns (WorknetFullInfo memory) {
+        WorknetInfo storage info = worknets[worknetId];
+        IWorknetNFT.WorknetData memory nftData = IWorknetNFT(worknetNFT).getWorknetData(worknetId);
 
-        return SubnetFullInfo({
-            subnetManager: nftData.subnetManager,
+        return WorknetFullInfo({
+            worknetManager: nftData.worknetManager,
             alphaToken: nftData.alphaToken,
             lpPool: info.lpPool,
             status: info.status,
@@ -841,34 +901,34 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         });
     }
 
-    /// @notice Get the current number of active subnets
-    function getActiveSubnetCount() external view returns (uint256) {
-        return activeSubnetIds.length();
+    /// @notice Get the current number of active worknets
+    function getActiveWorknetCount() external view returns (uint256) {
+        return activeWorknetIds.length();
     }
 
-    /// @notice Get the active subnet ID at a given index
-    function getActiveSubnetIdAt(uint256 index) external view returns (uint256) {
-        return activeSubnetIds.at(index);
+    /// @notice Get the active worknet ID at a given index
+    function getActiveWorknetIdAt(uint256 index) external view returns (uint256) {
+        return activeWorknetIds.at(index);
     }
 
-    /// @notice Check whether a specified subnet is in the Active state
-    function isSubnetActive(uint256 subnetId) external view returns (bool) {
-        return subnets[subnetId].status == SubnetStatus.Active;
+    /// @notice Check whether a specified worknet is in the Active state
+    function isWorknetActive(uint256 worknetId) external view returns (bool) {
+        return worknets[worknetId].status == WorknetStatus.Active;
     }
 
-    /// @notice Get the next subnet ID to be assigned (globally unique: chainId << 64 | localCounter)
-    function nextSubnetId() external view returns (uint256) {
+    /// @notice Get the next worknet ID to be assigned (globally unique: chainId << 64 | localCounter)
+    function nextWorknetId() external view returns (uint256) {
         return (block.chainid << 64) | _nextLocalId;
     }
 
-    /// @notice Extract chainId from a global subnetId
-    function extractChainId(uint256 subnetId) external pure returns (uint256) {
-        return subnetId >> 64;
+    /// @notice Extract chainId from a global worknetId
+    function extractChainId(uint256 worknetId) external pure returns (uint256) {
+        return worknetId >> 64;
     }
 
-    /// @notice Extract local counter from a global subnetId
-    function extractLocalId(uint256 subnetId) external pure returns (uint256) {
-        return subnetId & ((1 << 64) - 1);
+    /// @notice Extract local counter from a global worknetId
+    function extractLocalId(uint256 worknetId) external pure returns (uint256) {
+        return worknetId & ((1 << 64) - 1);
     }
 
     // ═══════════════════════════════════════════════
@@ -880,8 +940,31 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         _pause();
     }
 
-    /// @notice Unpause the contract (only Timelock may call)
-    function unpause() external onlyTimelock {
+    /// @notice Unpause the contract (Guardian only)
+    function unpause() external onlyGuardian {
         _unpause();
+    }
+
+    /// @notice Update the LP manager address (Guardian only, for DEX migration)
+    function setLPManager(address lpManager_) external onlyGuardian {
+        if (lpManager_ == address(0)) revert ZeroAddress();
+        lpManager = lpManager_;
+        emit LPManagerUpdated(lpManager_);
+    }
+
+    /// @notice Get active worknet IDs with pagination
+    /// @param offset Starting index
+    /// @param limit Maximum number of IDs to return
+    function getActiveWorknetIds(uint256 offset, uint256 limit) external view returns (uint256[] memory) {
+        uint256 total = activeWorknetIds.length();
+        if (offset >= total) return new uint256[](0);
+        uint256 end = offset + limit;
+        if (end > total) end = total;
+        uint256[] memory ids = new uint256[](end - offset);
+        for (uint256 i = offset; i < end;) {
+            ids[i - offset] = activeWorknetIds.at(i);
+            unchecked { ++i; }
+        }
+        return ids;
     }
 }

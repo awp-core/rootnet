@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {SubnetManager, ICLPositionManager, IPermit2} from "./SubnetManager.sol";
+import {WorknetManager, ICLPositionManager, IPermit2} from "./WorknetManager.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LiquidityAmounts} from "infinity-periphery/src/pool-cl/libraries/LiquidityAmounts.sol";
@@ -36,19 +36,19 @@ interface IUniPoolManager {
     function take(address currency, address to, uint256 amount) external;
 }
 
-/// @title SubnetManagerUni — SubnetManager variant for Uniswap V4 (Base, Ethereum, etc.)
+/// @title WorknetManagerUni — WorknetManager variant for Uniswap V4 (Base, Ethereum, etc.)
 /// @notice Overrides initialize to construct Uniswap V4 PoolKey, and overrides all DEX
 ///         interaction functions to use the Uni V4 PoolKey format and StateView for reads.
 ///         dexConfig must encode 7 fields: (poolManager, positionManager, swapRouter, permit2, poolFee, tickSpacing, stateView)
 /// @dev Deploy this implementation for chains using Uniswap V4 (not PancakeSwap V4).
 ///      _buybackAndBurn uses PoolManager.unlock + swap callback (PositionManager does NOT handle swap actions).
-contract SubnetManagerUni is SubnetManager {
+contract WorknetManagerUni is WorknetManager {
     using SafeERC20 for IERC20;
 
     // ── Uniswap V4 specific storage ──
-    // NOTE: These are placed after SubnetManager's __gap[38], so they do NOT consume gap slots.
-    // SubnetManagerUni is a separate implementation — not an upgrade of SubnetManager.
-    // If SubnetManager is independently upgraded and expands into __gap, a new SubnetManagerUni
+    // NOTE: These are placed after WorknetManager's __gap[38], so they do NOT consume gap slots.
+    // WorknetManagerUni is a separate implementation — not an upgrade of WorknetManager.
+    // If WorknetManager is independently upgraded and expands into __gap, a new WorknetManagerUni
     // implementation must be deployed with matching storage layout.
     address public stateView;
     UniPoolKey public uniPoolKey;
@@ -73,7 +73,7 @@ contract SubnetManagerUni is SubnetManager {
             address stateView_
         ) = abi.decode(dexConfig_, (address, address, address, address, uint24, int24, address));
 
-        // 共享初始化：AccessControl、ReentrancyGuard、存储、角色授予
+        // Shared init: AccessControl, ReentrancyGuard, storage, role grants
         _initializeBase(
             awpRegistry_, alphaToken_, awpToken_, poolId_, admin_,
             clPoolManager_, clPositionManager_, clSwapRouter_, permit2_, poolFee_, tickSpacing_
@@ -95,7 +95,7 @@ contract SubnetManagerUni is SubnetManager {
         });
     }
 
-    /// @dev 覆写：从 StateView 读取 slot0（Uniswap V4 PoolManager 不直接暴露 getSlot0）
+    /// @dev Override: read slot0 from StateView (Uniswap V4 PoolManager does not expose getSlot0 directly)
     function _getSlot0() internal view override returns (uint160 sqrtPriceX96, int24 tick) {
         (sqrtPriceX96, tick,,) = IStateView(stateView).getSlot0(poolId);
     }
@@ -162,7 +162,7 @@ contract SubnetManagerUni is SubnetManager {
         } else {
             expectedOut = FullMath.mulDiv(FullMath.mulDiv(amount, 1 << 96, sqrtPriceX96), 1 << 96, sqrtPriceX96);
         }
-        uint128 minOut = uint128(expectedOut * 95 / 100); // 5% slippage tolerance
+        uint128 minOut = uint128(expectedOut * (10000 - slippageBps) / 10000);
 
         uint256 before = alphaToken.balanceOf(address(this));
 

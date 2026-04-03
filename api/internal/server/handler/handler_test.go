@@ -71,7 +71,7 @@ func newTestEnv(t *testing.T) *testEnv {
 		ChainID:             31337,
 		TreasuryAddress:     "0x1234567890abcdef1234567890abcdef12345678",
 		AWPRegistryAddress:  "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		SubnetNFTAddress:    "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		WorknetNFTAddress:    "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		DAOAddress:          "0xcccccccccccccccccccccccccccccccccccccccc",
 		AWPTokenAddress:     "0xdddddddddddddddddddddddddddddddddddddd",
 		StakingVaultAddress: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
@@ -79,7 +79,7 @@ func newTestEnv(t *testing.T) *testEnv {
 	}
 
 	limiter := ratelimit.NewLimiter(rdb, logger)
-	h := handler.NewHandler(queries, rdb, cfg, logger, limiter)
+	h := handler.NewHandler(queries, pool, rdb, cfg, logger, limiter)
 	hub := ws.NewHub(rdb, logger)
 	router := server.NewRouter(server.RouterParams{Handler: h, Hub: hub})
 
@@ -168,8 +168,8 @@ func TestGetRegistry(t *testing.T) {
 	if resp["awpRegistry"] != "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
 		t.Errorf("unexpected awpRegistry: %s", resp["awpRegistry"])
 	}
-	if resp["subnetNFT"] != "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
-		t.Errorf("unexpected subnetNFT: %s", resp["subnetNFT"])
+	if resp["worknetNFT"] != "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
+		t.Errorf("unexpected worknetNFT: %s", resp["worknetNFT"])
 	}
 	if resp["dao"] != "0xcccccccccccccccccccccccccccccccccccccccc" {
 		t.Errorf("unexpected dao: %s", resp["dao"])
@@ -572,7 +572,7 @@ func TestBatchAgentInfo(t *testing.T) {
 		agent2, ownerAddr,
 	)
 
-	body := `{"agents":["` + agent1 + `","` + agent2 + `"],"subnetId":1}`
+	body := `{"agents":["` + agent1 + `","` + agent2 + `"],"worknetId":1}`
 	rr := env.request("POST", "/api/agents/batch-info", body)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
@@ -593,7 +593,7 @@ func TestBatchAgentInfoTooMany(t *testing.T) {
 	for i := range agents {
 		agents[i] = "\"0x0000000000000000000000000000000000000001\""
 	}
-	body := `{"agents":[` + strings.Join(agents, ",") + `],"subnetId":1}`
+	body := `{"agents":[` + strings.Join(agents, ",") + `],"worknetId":1}`
 
 	rr := env.request("POST", "/api/agents/batch-info", body)
 	if rr.Code != http.StatusBadRequest {
@@ -1179,8 +1179,8 @@ func TestGetAlphaInfo(t *testing.T) {
 	}
 	var resp map[string]any
 	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
-	if resp["subnetId"] != float64(5) {
-		t.Errorf("expected subnetId=5, got %v", resp["subnetId"])
+	if resp["worknetId"] != float64(5) {
+		t.Errorf("expected worknetId=5, got %v", resp["worknetId"])
 	}
 	if resp["name"] != "AlphaNet" {
 		t.Errorf("expected name=AlphaNet, got %v", resp["name"])
@@ -1624,7 +1624,7 @@ func TestJSONRPC_Discover(t *testing.T) {
 		t.Fatal("expected non-empty methods array")
 	}
 
-	// 验证至少包含关键方法
+	// Verify at least key methods are included
 	methodNames := make(map[string]bool)
 	for _, m := range methods {
 		if mm, ok := m.(map[string]any); ok {
@@ -1698,7 +1698,7 @@ func TestJSONRPC_MethodNotFound(t *testing.T) {
 func TestJSONRPC_InvalidParams(t *testing.T) {
 	env := newTestEnv(t)
 
-	// 无效地址
+	// Invalid address
 	body := `{"jsonrpc":"2.0","method":"users.get","params":{"address":"invalid"},"id":5}`
 	rr := env.request("POST", "/v2", body)
 
@@ -1729,7 +1729,7 @@ func TestJSONRPC_BatchRequest(t *testing.T) {
 		t.Fatalf("expected 3 responses in batch, got %d", len(responses))
 	}
 
-	// 每个响应都应有 result（无 error）
+	// Each response should have result (no error)
 	for i, resp := range responses {
 		if resp["error"] != nil {
 			t.Errorf("batch response %d has error: %v", i, resp["error"])
@@ -1771,7 +1771,7 @@ func TestJSONRPC_SubnetsGet(t *testing.T) {
 		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
 		 VALUES (31337, 1, '0xowner', 'TestSubnet', 'TS', '0xsc', '0xat', 'Active', 100)`)
 
-	body := `{"jsonrpc":"2.0","method":"subnets.get","params":{"subnetId":"1"},"id":7}`
+	body := `{"jsonrpc":"2.0","method":"subnets.get","params":{"worknetId":"1"},"id":7}`
 	rr := env.request("POST", "/v2", body)
 
 	var resp map[string]any
@@ -1821,7 +1821,7 @@ func TestJSONRPC_InvalidJSON(t *testing.T) {
 func TestJSONRPC_MissingVersion(t *testing.T) {
 	env := newTestEnv(t)
 
-	// 没有 jsonrpc 字段
+	// Missing jsonrpc field
 	body := `{"method":"health.check","id":1}`
 	rr := env.request("POST", "/v2", body)
 	if rr.Code != http.StatusOK {
@@ -1834,7 +1834,7 @@ func TestJSONRPC_MissingVersion(t *testing.T) {
 		t.Errorf("expected invalid request error (-32600), got %v", errObj["code"])
 	}
 
-	// jsonrpc 字段值错误
+	// Incorrect jsonrpc field value
 	body2 := `{"jsonrpc":"1.0","method":"health.check","id":2}`
 	rr2 := env.request("POST", "/v2", body2)
 	var resp2 map[string]any
@@ -1865,7 +1865,7 @@ func TestJSONRPC_EmptyBatch(t *testing.T) {
 func TestJSONRPC_BatchSizeExceeded(t *testing.T) {
 	env := newTestEnv(t)
 
-	// 构建 21 个请求的批量数组
+	// Build batch array of 21 requests
 	batch := "["
 	for i := 1; i <= 21; i++ {
 		if i > 1 {
@@ -1890,7 +1890,7 @@ func TestJSONRPC_BatchSizeExceeded(t *testing.T) {
 func TestJSONRPC_NullParams(t *testing.T) {
 	env := newTestEnv(t)
 
-	// null params — 对无参方法应正常工作
+	// null params — should work for parameterless methods
 	body := `{"jsonrpc":"2.0","method":"health.check","params":null,"id":1}`
 	rr := env.request("POST", "/v2", body)
 	var resp map[string]any
@@ -1903,7 +1903,7 @@ func TestJSONRPC_NullParams(t *testing.T) {
 		t.Errorf("expected status ok, got %v", result["status"])
 	}
 
-	// 缺少 params 字段 — 同样应正常
+	// Missing params field — should also work
 	body2 := `{"jsonrpc":"2.0","method":"health.check","id":2}`
 	rr2 := env.request("POST", "/v2", body2)
 	var resp2 map[string]any
@@ -1916,7 +1916,7 @@ func TestJSONRPC_NullParams(t *testing.T) {
 func TestJSONRPC_IDPreservation(t *testing.T) {
 	env := newTestEnv(t)
 
-	// 字符串 ID
+	// String ID
 	body1 := `{"jsonrpc":"2.0","method":"health.check","id":"my-string-id"}`
 	rr1 := env.request("POST", "/v2", body1)
 	var resp1 map[string]any
@@ -1925,7 +1925,7 @@ func TestJSONRPC_IDPreservation(t *testing.T) {
 		t.Errorf("expected string id 'my-string-id', got %v", resp1["id"])
 	}
 
-	// 数字 ID
+	// Numeric ID
 	body2 := `{"jsonrpc":"2.0","method":"health.check","id":42}`
 	rr2 := env.request("POST", "/v2", body2)
 	var resp2 map[string]any
@@ -1954,7 +1954,7 @@ func TestJSONRPC_StakingGetBalance(t *testing.T) {
 
 	addr := "0x0000000000000000000000000000000000aabb01"
 
-	// 插入 stake position（总质押 = 10001）— 使用 numericFromInt64 保证 Exp=0
+	// Insert stake position (total staked = 10001) — using numericFromInt64 to ensure Exp=0
 	if err := env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
 		ChainID: 31337, TokenID: 1, Owner: addr, Amount: numericFromInt64(7001),
 		LockEndTime: 99999, CreatedAt: 100,
@@ -1968,7 +1968,7 @@ func TestJSONRPC_StakingGetBalance(t *testing.T) {
 		t.Fatalf("InsertStakePosition 2 failed: %v", err)
 	}
 
-	// 插入 user_balances（已分配 = 4001）
+	// Insert user_balances (allocated = 4001)
 	if err := env.queries.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: 31337, UserAddress: addr}); err != nil {
 		t.Fatalf("InitUserBalance failed: %v", err)
 	}
@@ -2004,7 +2004,7 @@ func TestJSONRPC_StakingGetAllocations(t *testing.T) {
 
 	addr := "0x0000000000000000000000000000000000aabb02"
 
-	// 插入 3 条 allocation（用 raw SQL 避免 sqlc 参数问题）
+	// Insert 3 allocations (using raw SQL to avoid sqlc parameter issues)
 	for i := int64(1); i <= 3; i++ {
 		agent := fmt.Sprintf("0x00000000000000000000000000000000000000a%d", i)
 		if _, err := env.pool.Exec(ctx,
@@ -2031,7 +2031,7 @@ func TestJSONRPC_StakingGetAllocations(t *testing.T) {
 		t.Errorf("expected 2 allocations (limit=2), got %d; body=%s", len(result), rr.Body.String())
 	}
 
-	// 第二页应有 1 条
+	// Second page should have 1 entry
 	body2 := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getAllocations","params":{"address":"%s","page":2,"limit":2},"id":2}`, addr)
 	rr2 := env.request("POST", "/v2", body2)
 	var resp2 map[string]any
@@ -2052,7 +2052,7 @@ func TestJSONRPC_StakingGetAgentSubnetStake(t *testing.T) {
 		AgentAddress: agent, SubnetID: numericFromInt64(500), Amount: numericFromInt64(7777),
 	})
 
-	body := `{"jsonrpc":"2.0","method":"staking.getAgentSubnetStake","params":{"agent":"0x00000000000000000000000000000000000000a1","subnetId":"500"},"id":1}`
+	body := `{"jsonrpc":"2.0","method":"staking.getAgentSubnetStake","params":{"agent":"0x00000000000000000000000000000000000000a1","worknetId":"500"},"id":1}`
 	rr := env.request("POST", "/v2", body)
 
 	var resp map[string]any
@@ -2071,7 +2071,7 @@ func TestJSONRPC_StakingGetAgentSubnets(t *testing.T) {
 	ctx := context.Background()
 
 	agent := "0x00000000000000000000000000000000000000b1"
-	// 插入同一 agent 在不同子网的 allocation
+	// Insert allocation for same agent in different subnets
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 		ChainID: 31337, UserAddress: "0x0000000000000000000000000000000000user01",
 		AgentAddress: agent, SubnetID: numericFromInt64(100), Amount: numericFromInt64(5000),
@@ -2102,7 +2102,7 @@ func TestJSONRPC_StakingGetSubnetTotalStake(t *testing.T) {
 	env := newTestEnv(t)
 	ctx := context.Background()
 
-	// 插入多个 agent 在同一子网的 allocation — 使用不能被10整除的数避免 pgx NUMERIC Exp>0
+	// Insert allocation for multiple agents in same subnet — use values not divisible by 10 to avoid pgx NUMERIC Exp>0
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 		ChainID: 31337, UserAddress: "0x0000000000000000000000000000000000user01",
 		AgentAddress: "0x00000000000000000000000000000000000000c1",
@@ -2114,7 +2114,7 @@ func TestJSONRPC_StakingGetSubnetTotalStake(t *testing.T) {
 		SubnetID: numericFromInt64(999), Amount: numericFromInt64(3002),
 	})
 
-	body := `{"jsonrpc":"2.0","method":"staking.getSubnetTotalStake","params":{"subnetId":"999"},"id":1}`
+	body := `{"jsonrpc":"2.0","method":"staking.getSubnetTotalStake","params":{"worknetId":"999"},"id":1}`
 	rr := env.request("POST", "/v2", body)
 
 	var resp map[string]any
@@ -2136,7 +2136,7 @@ func TestJSONRPC_SubnetsList(t *testing.T) {
 	env := newTestEnv(t)
 	ctx := context.Background()
 
-	// 插入不同状态的子网
+	// Insert subnets with different statuses
 	_, _ = env.pool.Exec(ctx,
 		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
 		 VALUES (31337, 1001, '0xowner1', 'Sub1', 'S1', '0xsc1', '0xat1', 'Active', 100)`)
@@ -2147,7 +2147,7 @@ func TestJSONRPC_SubnetsList(t *testing.T) {
 		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
 		 VALUES (31337, 1003, '0xowner3', 'Sub3', 'S3', '0xsc3', '0xat3', 'Active', 300)`)
 
-	// 测试不带过滤
+	// Test without filter
 	body := `{"jsonrpc":"2.0","method":"subnets.list","params":{},"id":1}`
 	rr := env.request("POST", "/v2", body)
 	var resp map[string]any
@@ -2160,7 +2160,7 @@ func TestJSONRPC_SubnetsList(t *testing.T) {
 		t.Errorf("expected 3 subnets, got %d", len(result))
 	}
 
-	// 测试按状态过滤
+	// Test with status filter
 	body2 := `{"jsonrpc":"2.0","method":"subnets.list","params":{"status":"Active"},"id":2}`
 	rr2 := env.request("POST", "/v2", body2)
 	var resp2 map[string]any
@@ -2182,7 +2182,7 @@ func TestJSONRPC_SubnetsGetSkills(t *testing.T) {
 		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at, skills_uri)
 		 VALUES (31337, 2001, '0xowner', 'SkillSub', 'SK', '0xsc', '0xat', 'Active', 100, 'ipfs://QmSkillsHash')`)
 
-	body := `{"jsonrpc":"2.0","method":"subnets.getSkills","params":{"subnetId":"2001"},"id":1}`
+	body := `{"jsonrpc":"2.0","method":"subnets.getSkills","params":{"worknetId":"2001"},"id":1}`
 	rr := env.request("POST", "/v2", body)
 
 	var resp map[string]any
@@ -2194,9 +2194,9 @@ func TestJSONRPC_SubnetsGetSkills(t *testing.T) {
 	if result["skillsURI"] != "ipfs://QmSkillsHash" {
 		t.Errorf("expected skillsURI=ipfs://QmSkillsHash, got %v", result["skillsURI"])
 	}
-	// subnetId 返回为 pgtype.Numeric，JSON 序列化为 number
-	if fmt.Sprintf("%v", result["subnetId"]) != "2001" {
-		t.Errorf("expected subnetId=2001, got %v", result["subnetId"])
+	// worknetId returned as pgtype.Numeric, serialized as number in JSON
+	if fmt.Sprintf("%v", result["worknetId"]) != "2001" {
+		t.Errorf("expected worknetId=2001, got %v", result["worknetId"])
 	}
 }
 
@@ -2208,8 +2208,8 @@ func TestJSONRPC_SubnetsGetEarnings(t *testing.T) {
 		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
 		 VALUES (31337, 3001, '0xowner', 'EarnSub', 'ES', '0xsc', '0xat', 'Active', 100)`)
 
-	// 验证空结果（无 epoch 数据）
-	body := `{"jsonrpc":"2.0","method":"subnets.getEarnings","params":{"subnetId":"3001"},"id":1}`
+	// Verify empty result (no epoch data)
+	body := `{"jsonrpc":"2.0","method":"subnets.getEarnings","params":{"worknetId":"3001"},"id":1}`
 	rr := env.request("POST", "/v2", body)
 
 	var resp map[string]any
@@ -2255,7 +2255,7 @@ func TestJSONRPC_AddressCheck(t *testing.T) {
 		t.Errorf("expected recipient, got %v", result["recipient"])
 	}
 
-	// 未注册地址应返回 isRegistered=false
+	// Unregistered address should return isRegistered=false
 	body2 := `{"jsonrpc":"2.0","method":"address.check","params":{"address":"0x0000000000000000000000000000000000ff0000"},"id":2}`
 	rr2 := env.request("POST", "/v2", body2)
 	var resp2 map[string]any
@@ -2274,10 +2274,10 @@ func TestJSONRPC_AgentsGetByOwner(t *testing.T) {
 	agent1 := "0x0000000000000000000000000000000000000b02"
 	agent2 := "0x0000000000000000000000000000000000000b03"
 
-	// 插入 owner
+	// Insert owner
 	_, _ = env.pool.Exec(ctx,
 		`INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, '')`, owner)
-	// 插入绑定到 owner 的 agent
+	// Insert agent bound to owner
 	_, _ = env.pool.Exec(ctx,
 		`INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2)`, agent1, owner)
 	_, _ = env.pool.Exec(ctx,
@@ -2359,7 +2359,7 @@ func TestJSONRPC_GovernanceListProposals(t *testing.T) {
 		Status: "Executed",
 	})
 
-	// 不过滤
+	// Without filter
 	body := `{"jsonrpc":"2.0","method":"governance.listProposals","params":{},"id":1}`
 	rr := env.request("POST", "/v2", body)
 	var resp map[string]any
@@ -2372,7 +2372,7 @@ func TestJSONRPC_GovernanceListProposals(t *testing.T) {
 		t.Errorf("expected 2 proposals, got %d", len(result))
 	}
 
-	// 按状态过滤
+	// With status filter
 	body2 := `{"jsonrpc":"2.0","method":"governance.listProposals","params":{"status":"Active"},"id":2}`
 	rr2 := env.request("POST", "/v2", body2)
 	var resp2 map[string]any
@@ -2438,18 +2438,18 @@ func TestJSONRPC_EmissionSchedule(t *testing.T) {
 	}
 	result := resp["result"].(map[string]any)
 
-	// 应有 currentDailyEmission 字段
+	// Should have currentDailyEmission field
 	if result["currentDailyEmission"] == nil {
 		t.Error("expected currentDailyEmission field")
 	}
 
-	// 应有 projections 数组，含 3 个条目（30/90/365天）
+	// Should have projections array with 3 entries (30/90/365 days)
 	projections, ok := result["projections"].([]any)
 	if !ok || len(projections) != 3 {
 		t.Fatalf("expected 3 projections, got %v", result["projections"])
 	}
 
-	// 验证每个 projection 结构
+	// Verify each projection structure
 	for _, p := range projections {
 		proj := p.(map[string]any)
 		if proj["days"] == nil || proj["totalEmission"] == nil || proj["finalDailyRate"] == nil {
@@ -2462,7 +2462,7 @@ func TestJSONRPC_EmissionListEpochs(t *testing.T) {
 	env := newTestEnv(t)
 	ctx := context.Background()
 
-	// 空结果
+	// Empty result
 	body := `{"jsonrpc":"2.0","method":"emission.listEpochs","params":{},"id":1}`
 	rr := env.request("POST", "/v2", body)
 	var resp map[string]any
@@ -2475,7 +2475,7 @@ func TestJSONRPC_EmissionListEpochs(t *testing.T) {
 		t.Errorf("expected 0 epochs, got %d", len(result))
 	}
 
-	// 插入 epoch 数据
+	// Insert epoch data
 	_, _ = env.pool.Exec(ctx,
 		"INSERT INTO epochs (chain_id, epoch_id, start_time, daily_emission) VALUES (31337, $1, $2, $3)",
 		0, 86400, 15800000)
@@ -2517,7 +2517,7 @@ func TestJSONRPC_UsersGetNotFound(t *testing.T) {
 func TestJSONRPC_SubnetsGetNotFound(t *testing.T) {
 	env := newTestEnv(t)
 
-	body := `{"jsonrpc":"2.0","method":"subnets.get","params":{"subnetId":"999999"},"id":1}`
+	body := `{"jsonrpc":"2.0","method":"subnets.get","params":{"worknetId":"999999"},"id":1}`
 	rr := env.request("POST", "/v2", body)
 
 	var resp map[string]any
@@ -2538,10 +2538,10 @@ func TestJSONRPC_InvalidSubnetID(t *testing.T) {
 		name string
 		body string
 	}{
-		{"zero", `{"jsonrpc":"2.0","method":"subnets.get","params":{"subnetId":"0"},"id":1}`},
-		{"negative", `{"jsonrpc":"2.0","method":"subnets.get","params":{"subnetId":"-1"},"id":2}`},
-		{"non-numeric", `{"jsonrpc":"2.0","method":"subnets.get","params":{"subnetId":"abc"},"id":3}`},
-		{"empty", `{"jsonrpc":"2.0","method":"subnets.get","params":{"subnetId":""},"id":4}`},
+		{"zero", `{"jsonrpc":"2.0","method":"subnets.get","params":{"worknetId":"0"},"id":1}`},
+		{"negative", `{"jsonrpc":"2.0","method":"subnets.get","params":{"worknetId":"-1"},"id":2}`},
+		{"non-numeric", `{"jsonrpc":"2.0","method":"subnets.get","params":{"worknetId":"abc"},"id":3}`},
+		{"empty", `{"jsonrpc":"2.0","method":"subnets.get","params":{"worknetId":""},"id":4}`},
 	}
 
 	for _, tc := range tests {
@@ -2599,11 +2599,11 @@ func TestJSONRPC_E2E_StakingFlow(t *testing.T) {
 	userAddr := "0x0000000000000000000000000000000000e2e001"
 	agentAddr := "0x0000000000000000000000000000000000e2e002"
 
-	// Step 1: 创建用户
+	// Step 1: Create user
 	_, _ = env.pool.Exec(ctx,
 		`INSERT INTO users (chain_id, address, bound_to, registered_at) VALUES (31337, $1, '', 100)`, userAddr)
 
-	// 验证用户存在
+	// Verify user exists
 	body := fmt.Sprintf(`{"jsonrpc":"2.0","method":"users.get","params":{"address":"%s"},"id":1}`, userAddr)
 	rr := env.request("POST", "/v2", body)
 	var resp1 map[string]any
@@ -2612,7 +2612,7 @@ func TestJSONRPC_E2E_StakingFlow(t *testing.T) {
 		t.Fatalf("Step 1 failed: %v", resp1["error"])
 	}
 
-	// Step 2: 插入 stake positions（总质押 = 15001）
+	// Step 2: Insert stake positions (total staked = 15001)
 	if err := env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
 		ChainID: 31337, TokenID: 101, Owner: userAddr, Amount: numericFromInt64(10001),
 		LockEndTime: 99999, CreatedAt: 100,
@@ -2626,7 +2626,7 @@ func TestJSONRPC_E2E_StakingFlow(t *testing.T) {
 		t.Fatalf("InsertStakePosition 2: %v", err)
 	}
 
-	// Step 3: 插入 allocations
+	// Step 3: Insert allocations
 	if err := env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 		ChainID: 31337, UserAddress: userAddr, AgentAddress: agentAddr,
 		SubnetID: numericFromInt64(500), Amount: numericFromInt64(8001), UpdatedBlock: 100,
@@ -2642,7 +2642,7 @@ func TestJSONRPC_E2E_StakingFlow(t *testing.T) {
 		t.Fatalf("AddUserAllocated: %v", err)
 	}
 
-	// Step 4: 查询 balance
+	// Step 4: Query balance
 	body4 := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getBalance","params":{"address":"%s"},"id":4}`, userAddr)
 	rr4 := env.request("POST", "/v2", body4)
 	var resp4 map[string]any
@@ -2661,7 +2661,7 @@ func TestJSONRPC_E2E_StakingFlow(t *testing.T) {
 		t.Errorf("expected unallocated=7000, got %v", balance["unallocated"])
 	}
 
-	// Step 5: 查询 allocations
+	// Step 5: Query allocations
 	body5 := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getAllocations","params":{"address":"%s"},"id":5}`, userAddr)
 	rr5 := env.request("POST", "/v2", body5)
 	var resp5 map[string]any
@@ -2671,8 +2671,8 @@ func TestJSONRPC_E2E_StakingFlow(t *testing.T) {
 		t.Fatalf("expected 1 allocation, got %d", len(allocs))
 	}
 
-	// Step 6: 查询 agent subnet stake
-	body6 := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getAgentSubnetStake","params":{"agent":"%s","subnetId":"500"},"id":6}`, agentAddr)
+	// Step 6: Query agent subnet stake
+	body6 := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getAgentSubnetStake","params":{"agent":"%s","worknetId":"500"},"id":6}`, agentAddr)
 	rr6 := env.request("POST", "/v2", body6)
 	var resp6 map[string]any
 	_ = json.Unmarshal(rr6.Body.Bytes(), &resp6)

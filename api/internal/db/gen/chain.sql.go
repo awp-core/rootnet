@@ -34,7 +34,7 @@ func (q *Queries) ListChains(ctx context.Context) ([]Chain, error) {
 			&i.AwpEmission,
 			&i.StakingVault,
 			&i.StakeNft,
-			&i.SubnetNft,
+			&i.WorknetNft,
 			&i.DaoAddress,
 			&i.LpManager,
 			&i.PoolManager,
@@ -67,7 +67,7 @@ func (q *Queries) GetChain(ctx context.Context, chainID int64) (Chain, error) {
 		&i.AwpEmission,
 		&i.StakingVault,
 		&i.StakeNft,
-		&i.SubnetNft,
+		&i.WorknetNft,
 		&i.DaoAddress,
 		&i.LpManager,
 		&i.PoolManager,
@@ -93,7 +93,7 @@ type InsertChainParams struct {
 	AwpEmission  string `json:"awp_emission"`
 	StakingVault string `json:"staking_vault"`
 	StakeNft     string `json:"stake_nft"`
-	SubnetNft    string `json:"subnet_nft"`
+	WorknetNft    string `json:"subnet_nft"`
 	DaoAddress   string `json:"dao_address"`
 	LpManager    string `json:"lp_manager"`
 	PoolManager  string `json:"pool_manager"`
@@ -112,7 +112,7 @@ func (q *Queries) InsertChain(ctx context.Context, arg InsertChainParams) error 
 		arg.AwpEmission,
 		arg.StakingVault,
 		arg.StakeNft,
-		arg.SubnetNft,
+		arg.WorknetNft,
 		arg.DaoAddress,
 		arg.LpManager,
 		arg.PoolManager,
@@ -155,7 +155,7 @@ func (q *Queries) ListAllChains(ctx context.Context) ([]Chain, error) {
 			&i.AwpEmission,
 			&i.StakingVault,
 			&i.StakeNft,
-			&i.SubnetNft,
+			&i.WorknetNft,
 			&i.DaoAddress,
 			&i.LpManager,
 			&i.PoolManager,

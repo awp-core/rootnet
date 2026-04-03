@@ -8,13 +8,13 @@ import {AWPEmission} from "../src/token/AWPEmission.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
-import {SubnetNFT} from "../src/core/SubnetNFT.sol";
+import {WorknetNFT} from "../src/core/WorknetNFT.sol";
 import {LPManager} from "../src/core/LPManager.sol";
 import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
-import {SubnetManager} from "../src/subnets/SubnetManager.sol";
-import {SubnetManagerUni} from "../src/subnets/SubnetManagerUni.sol";
+import {WorknetManager} from "../src/worknets/WorknetManager.sol";
+import {WorknetManagerUni} from "../src/worknets/WorknetManagerUni.sol";
 import {LPManagerUni} from "../src/core/LPManagerUni.sol";
 
 /// @title InitCodeHashes — Compute initcode hashes for vanity salt mining (tiered)
@@ -23,7 +23,7 @@ import {LPManagerUni} from "../src/core/LPManagerUni.sol";
 ///      Tiered: higher tiers depend on addresses from lower tiers.
 ///      Set ADDR_* env vars as you mine each tier, then re-run for the next tier.
 contract InitCodeHashes is Script {
-    uint256 constant INITIAL_DAILY_EMISSION = 15_800_000 * 1e18;
+    uint256 constant INITIAL_DAILY_EMISSION = 31_600_000 * 1e18;
     uint256 constant EPOCH_DURATION = 1 days;
     uint256 constant TIMELOCK_DELAY = 172800;
 
@@ -56,8 +56,8 @@ contract InitCodeHashes is Script {
         _logHash("AWPToken", abi.encodePacked(type(AWPToken).creationCode, abi.encode("AWP Token", "AWP", deployer)));
         _logHash("AlphaTokenFactory", abi.encodePacked(type(AlphaTokenFactory).creationCode, abi.encode(deployer, vanityRule)));
         _logHash("AWPEmission_impl", abi.encodePacked(type(AWPEmission).creationCode));
-        _logHash("SubnetManager_impl (PancakeSwap)", abi.encodePacked(type(SubnetManager).creationCode));
-        _logHash("SubnetManager_impl (Uniswap)", abi.encodePacked(type(SubnetManagerUni).creationCode));
+        _logHash("WorknetManager_impl (PancakeSwap)", abi.encodePacked(type(WorknetManager).creationCode));
+        _logHash("WorknetManager_impl (Uniswap)", abi.encodePacked(type(WorknetManagerUni).creationCode));
         _logHash("AWPRegistry_impl", abi.encodePacked(type(AWPRegistry).creationCode));
 
         // Tier 2: Treasury (no dependency on other deployed contracts)
@@ -80,13 +80,13 @@ contract InitCodeHashes is Script {
         // Tier 4: Depends on AWPRegistry + AWP
         console.log("");
         console.log("--- Tier 4 (depends on AWPRegistry + AWP) ---");
-        _logHash("SubnetNFT", abi.encodePacked(type(SubnetNFT).creationCode, abi.encode("AWP Subnet", "AWPSUB", awpRegistry)));
+        _logHash("WorknetNFT", abi.encodePacked(type(WorknetNFT).creationCode, abi.encode("AWP Worknet", "AWPSUB", awpRegistry)));
         _logHash("LPManager (PancakeSwap)", abi.encodePacked(type(LPManager).creationCode, abi.encode(awpRegistry, poolManager, positionManager, permit2Addr, awp)));
         _logHash("LPManager (Uniswap)", abi.encodePacked(type(LPManagerUni).creationCode, abi.encode(awpRegistry, poolManager, positionManager, permit2Addr, awp)));
         _logHash("StakingVault_impl", abi.encodePacked(type(StakingVault).creationCode));
 
-        uint256 genesisTime = vm.envOr("GENESIS_TIME", uint256(0));
-        bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, guardian, INITIAL_DAILY_EMISSION, genesisTime, EPOCH_DURATION));
+        uint256 genesisTime = vm.envUint("GENESIS_TIME"); // Must match Deploy.s.sol; wrong value = wrong proxy hash
+        bytes memory initData = abi.encodeCall(AWPEmission.initialize, (awp, guardian, INITIAL_DAILY_EMISSION, genesisTime, EPOCH_DURATION, treasury));
         _logHash("AWPEmission_proxy", abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(emissionImpl, initData)));
         console.log("  (genesisTime used:", genesisTime, ")");
 

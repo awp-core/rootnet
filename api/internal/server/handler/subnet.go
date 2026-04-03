@@ -10,7 +10,7 @@ import (
 // ListSubnets returns a paginated list of subnets with optional status filter.
 // Without ?chainId → returns subnets from ALL chains. With ?chainId=8453 → single chain.
 func (h *Handler) ListSubnets(w http.ResponseWriter, r *http.Request) {
-	// 子网列表默认跨链：不传 chainId 时返回所有链的子网
+	// Subnet list defaults to cross-chain: returns subnets from all chains when chainId is not specified
 	var chainID int64
 	if v := r.URL.Query().Get("chainId"); v != "" {
 		if id, err := strconv.ParseInt(v, 10, 64); err == nil && id > 0 {

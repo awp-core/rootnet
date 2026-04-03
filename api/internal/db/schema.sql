@@ -142,3 +142,19 @@ CREATE TABLE indexed_blocks (
     block_hash   CHAR(66) NOT NULL,  -- 0x-prefixed hex
     PRIMARY KEY (chain_id, block_number)
 );
+
+-- Announcements / messages (for LLM and frontend consumption)
+CREATE TABLE announcements (
+    id          SERIAL PRIMARY KEY,
+    chain_id    BIGINT NOT NULL DEFAULT 0,         -- 0 = all chains
+    title       VARCHAR(200) NOT NULL,
+    content     TEXT NOT NULL,
+    category    VARCHAR(50) NOT NULL DEFAULT 'general', -- general, maintenance, governance, emission, security
+    priority    SMALLINT NOT NULL DEFAULT 0,        -- 0=info, 1=warning, 2=critical
+    active      BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at  TIMESTAMPTZ,                        -- NULL = never expires
+    metadata    JSONB                               -- arbitrary key-value for LLM context
+);
+CREATE INDEX idx_announcements_active ON announcements(active, created_at DESC);
+CREATE INDEX idx_announcements_category ON announcements(category);

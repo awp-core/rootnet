@@ -31,7 +31,7 @@ var (
 
 // AlphaTokenMetaData contains all meta data concerning the AlphaToken contract.
 var AlphaTokenMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"constructor\",\"inputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"MAX_SUPPLY\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"admin\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"allowance\",\"inputs\":[{\"name\":\"owner\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"spender\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"approve\",\"inputs\":[{\"name\":\"spender\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"value\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"approveAndCall\",\"inputs\":[{\"name\":\"spender\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"balanceOf\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"burn\",\"inputs\":[{\"name\":\"value\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"burnFrom\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"value\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"createdAt\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint64\",\"internalType\":\"uint64\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"currentMintableLimit\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"decimals\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint8\",\"internalType\":\"uint8\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"grossMintedSinceLock\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"name_\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"symbol_\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"subnetId_\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"admin_\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"mint\",\"inputs\":[{\"name\":\"to\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"minterPaused\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"minters\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"mintersLocked\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"name\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"setMinterPaused\",\"inputs\":[{\"name\":\"minter\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"paused\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setSubnetMinter\",\"inputs\":[{\"name\":\"subnetManager\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"subnetId\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"supplyAtLock\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"symbol\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"totalSupply\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"transfer\",\"inputs\":[{\"name\":\"to\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"value\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"transferAndCall\",\"inputs\":[{\"name\":\"to\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"transferFrom\",\"inputs\":[{\"name\":\"from\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"to\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"value\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"event\",\"name\":\"Approval\",\"inputs\":[{\"name\":\"owner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"spender\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"value\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"SubnetMinterSet\",\"inputs\":[{\"name\":\"subnetManager\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Transfer\",\"inputs\":[{\"name\":\"from\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"to\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"value\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"ERC20InsufficientAllowance\",\"inputs\":[{\"name\":\"spender\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"allowance\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"needed\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"ERC20InsufficientBalance\",\"inputs\":[{\"name\":\"sender\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"balance\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"needed\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"ERC20InvalidApprover\",\"inputs\":[{\"name\":\"approver\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC20InvalidReceiver\",\"inputs\":[{\"name\":\"receiver\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC20InvalidSender\",\"inputs\":[{\"name\":\"sender\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC20InvalidSpender\",\"inputs\":[{\"name\":\"spender\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ExceedsMaxSupply\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ExceedsMintableLimit\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidCallback\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidInitialization\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MinterPaused\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MintersLocked\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotAdmin\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotInitializing\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotMinter\",\"inputs\":[]}]",
+	ABI: "[{\"type\":\"constructor\",\"inputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"MAX_SUPPLY\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"admin\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"allowance\",\"inputs\":[{\"name\":\"owner\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"spender\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"approve\",\"inputs\":[{\"name\":\"spender\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"value\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"approveAndCall\",\"inputs\":[{\"name\":\"spender\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"balanceOf\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"burn\",\"inputs\":[{\"name\":\"value\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"burnFrom\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"value\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"createdAt\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint64\",\"internalType\":\"uint64\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"currentMintableLimit\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"decimals\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint8\",\"internalType\":\"uint8\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"grossMintedSinceLock\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"name_\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"symbol_\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"worknetId_\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"admin_\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"mint\",\"inputs\":[{\"name\":\"to\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"minterPaused\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"minters\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"mintersLocked\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"name\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"setMinterPaused\",\"inputs\":[{\"name\":\"minter\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"paused\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setWorknetMinter\",\"inputs\":[{\"name\":\"worknetManager\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"supplyAtLock\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"symbol\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"totalSupply\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"transfer\",\"inputs\":[{\"name\":\"to\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"value\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"transferAndCall\",\"inputs\":[{\"name\":\"to\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"amount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"transferFrom\",\"inputs\":[{\"name\":\"from\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"to\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"value\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"worknetId\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"Approval\",\"inputs\":[{\"name\":\"owner\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"spender\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"value\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Transfer\",\"inputs\":[{\"name\":\"from\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"to\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"value\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"WorknetMinterSet\",\"inputs\":[{\"name\":\"worknetManager\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"ERC20InsufficientAllowance\",\"inputs\":[{\"name\":\"spender\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"allowance\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"needed\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"ERC20InsufficientBalance\",\"inputs\":[{\"name\":\"sender\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"balance\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"needed\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"ERC20InvalidApprover\",\"inputs\":[{\"name\":\"approver\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC20InvalidReceiver\",\"inputs\":[{\"name\":\"receiver\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC20InvalidSender\",\"inputs\":[{\"name\":\"sender\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC20InvalidSpender\",\"inputs\":[{\"name\":\"spender\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ExceedsMaxSupply\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ExceedsMintableLimit\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidCallback\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidInitialization\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MinterPaused\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MintersLocked\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotAdmin\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotInitializing\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotMinter\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ZeroAddress\",\"inputs\":[]}]",
 }
 
 // AlphaTokenABI is the input ABI used to generate the binding from.
@@ -552,37 +552,6 @@ func (_AlphaToken *AlphaTokenCallerSession) Name() (string, error) {
 	return _AlphaToken.Contract.Name(&_AlphaToken.CallOpts)
 }
 
-// SubnetId is a free data retrieval call binding the contract method 0x0a5bfa07.
-//
-// Solidity: function subnetId() view returns(uint256)
-func (_AlphaToken *AlphaTokenCaller) SubnetId(opts *bind.CallOpts) (*big.Int, error) {
-	var out []interface{}
-	err := _AlphaToken.contract.Call(opts, &out, "subnetId")
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// SubnetId is a free data retrieval call binding the contract method 0x0a5bfa07.
-//
-// Solidity: function subnetId() view returns(uint256)
-func (_AlphaToken *AlphaTokenSession) SubnetId() (*big.Int, error) {
-	return _AlphaToken.Contract.SubnetId(&_AlphaToken.CallOpts)
-}
-
-// SubnetId is a free data retrieval call binding the contract method 0x0a5bfa07.
-//
-// Solidity: function subnetId() view returns(uint256)
-func (_AlphaToken *AlphaTokenCallerSession) SubnetId() (*big.Int, error) {
-	return _AlphaToken.Contract.SubnetId(&_AlphaToken.CallOpts)
-}
-
 // SupplyAtLock is a free data retrieval call binding the contract method 0xea32345b.
 //
 // Solidity: function supplyAtLock() view returns(uint256)
@@ -676,6 +645,37 @@ func (_AlphaToken *AlphaTokenCallerSession) TotalSupply() (*big.Int, error) {
 	return _AlphaToken.Contract.TotalSupply(&_AlphaToken.CallOpts)
 }
 
+// WorknetId is a free data retrieval call binding the contract method 0x08e5d167.
+//
+// Solidity: function worknetId() view returns(uint256)
+func (_AlphaToken *AlphaTokenCaller) WorknetId(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _AlphaToken.contract.Call(opts, &out, "worknetId")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// WorknetId is a free data retrieval call binding the contract method 0x08e5d167.
+//
+// Solidity: function worknetId() view returns(uint256)
+func (_AlphaToken *AlphaTokenSession) WorknetId() (*big.Int, error) {
+	return _AlphaToken.Contract.WorknetId(&_AlphaToken.CallOpts)
+}
+
+// WorknetId is a free data retrieval call binding the contract method 0x08e5d167.
+//
+// Solidity: function worknetId() view returns(uint256)
+func (_AlphaToken *AlphaTokenCallerSession) WorknetId() (*big.Int, error) {
+	return _AlphaToken.Contract.WorknetId(&_AlphaToken.CallOpts)
+}
+
 // Approve is a paid mutator transaction binding the contract method 0x095ea7b3.
 //
 // Solidity: function approve(address spender, uint256 value) returns(bool)
@@ -762,23 +762,23 @@ func (_AlphaToken *AlphaTokenTransactorSession) BurnFrom(account common.Address,
 
 // Initialize is a paid mutator transaction binding the contract method 0xbd3a13f6.
 //
-// Solidity: function initialize(string name_, string symbol_, uint256 subnetId_, address admin_) returns()
-func (_AlphaToken *AlphaTokenTransactor) Initialize(opts *bind.TransactOpts, name_ string, symbol_ string, subnetId_ *big.Int, admin_ common.Address) (*types.Transaction, error) {
-	return _AlphaToken.contract.Transact(opts, "initialize", name_, symbol_, subnetId_, admin_)
+// Solidity: function initialize(string name_, string symbol_, uint256 worknetId_, address admin_) returns()
+func (_AlphaToken *AlphaTokenTransactor) Initialize(opts *bind.TransactOpts, name_ string, symbol_ string, worknetId_ *big.Int, admin_ common.Address) (*types.Transaction, error) {
+	return _AlphaToken.contract.Transact(opts, "initialize", name_, symbol_, worknetId_, admin_)
 }
 
 // Initialize is a paid mutator transaction binding the contract method 0xbd3a13f6.
 //
-// Solidity: function initialize(string name_, string symbol_, uint256 subnetId_, address admin_) returns()
-func (_AlphaToken *AlphaTokenSession) Initialize(name_ string, symbol_ string, subnetId_ *big.Int, admin_ common.Address) (*types.Transaction, error) {
-	return _AlphaToken.Contract.Initialize(&_AlphaToken.TransactOpts, name_, symbol_, subnetId_, admin_)
+// Solidity: function initialize(string name_, string symbol_, uint256 worknetId_, address admin_) returns()
+func (_AlphaToken *AlphaTokenSession) Initialize(name_ string, symbol_ string, worknetId_ *big.Int, admin_ common.Address) (*types.Transaction, error) {
+	return _AlphaToken.Contract.Initialize(&_AlphaToken.TransactOpts, name_, symbol_, worknetId_, admin_)
 }
 
 // Initialize is a paid mutator transaction binding the contract method 0xbd3a13f6.
 //
-// Solidity: function initialize(string name_, string symbol_, uint256 subnetId_, address admin_) returns()
-func (_AlphaToken *AlphaTokenTransactorSession) Initialize(name_ string, symbol_ string, subnetId_ *big.Int, admin_ common.Address) (*types.Transaction, error) {
-	return _AlphaToken.Contract.Initialize(&_AlphaToken.TransactOpts, name_, symbol_, subnetId_, admin_)
+// Solidity: function initialize(string name_, string symbol_, uint256 worknetId_, address admin_) returns()
+func (_AlphaToken *AlphaTokenTransactorSession) Initialize(name_ string, symbol_ string, worknetId_ *big.Int, admin_ common.Address) (*types.Transaction, error) {
+	return _AlphaToken.Contract.Initialize(&_AlphaToken.TransactOpts, name_, symbol_, worknetId_, admin_)
 }
 
 // Mint is a paid mutator transaction binding the contract method 0x40c10f19.
@@ -823,25 +823,25 @@ func (_AlphaToken *AlphaTokenTransactorSession) SetMinterPaused(minter common.Ad
 	return _AlphaToken.Contract.SetMinterPaused(&_AlphaToken.TransactOpts, minter, paused)
 }
 
-// SetSubnetMinter is a paid mutator transaction binding the contract method 0xc3897a67.
+// SetWorknetMinter is a paid mutator transaction binding the contract method 0xb218a8ee.
 //
-// Solidity: function setSubnetMinter(address subnetManager) returns()
-func (_AlphaToken *AlphaTokenTransactor) SetSubnetMinter(opts *bind.TransactOpts, subnetManager common.Address) (*types.Transaction, error) {
-	return _AlphaToken.contract.Transact(opts, "setSubnetMinter", subnetManager)
+// Solidity: function setWorknetMinter(address worknetManager) returns()
+func (_AlphaToken *AlphaTokenTransactor) SetWorknetMinter(opts *bind.TransactOpts, worknetManager common.Address) (*types.Transaction, error) {
+	return _AlphaToken.contract.Transact(opts, "setWorknetMinter", worknetManager)
 }
 
-// SetSubnetMinter is a paid mutator transaction binding the contract method 0xc3897a67.
+// SetWorknetMinter is a paid mutator transaction binding the contract method 0xb218a8ee.
 //
-// Solidity: function setSubnetMinter(address subnetManager) returns()
-func (_AlphaToken *AlphaTokenSession) SetSubnetMinter(subnetManager common.Address) (*types.Transaction, error) {
-	return _AlphaToken.Contract.SetSubnetMinter(&_AlphaToken.TransactOpts, subnetManager)
+// Solidity: function setWorknetMinter(address worknetManager) returns()
+func (_AlphaToken *AlphaTokenSession) SetWorknetMinter(worknetManager common.Address) (*types.Transaction, error) {
+	return _AlphaToken.Contract.SetWorknetMinter(&_AlphaToken.TransactOpts, worknetManager)
 }
 
-// SetSubnetMinter is a paid mutator transaction binding the contract method 0xc3897a67.
+// SetWorknetMinter is a paid mutator transaction binding the contract method 0xb218a8ee.
 //
-// Solidity: function setSubnetMinter(address subnetManager) returns()
-func (_AlphaToken *AlphaTokenTransactorSession) SetSubnetMinter(subnetManager common.Address) (*types.Transaction, error) {
-	return _AlphaToken.Contract.SetSubnetMinter(&_AlphaToken.TransactOpts, subnetManager)
+// Solidity: function setWorknetMinter(address worknetManager) returns()
+func (_AlphaToken *AlphaTokenTransactorSession) SetWorknetMinter(worknetManager common.Address) (*types.Transaction, error) {
+	return _AlphaToken.Contract.SetWorknetMinter(&_AlphaToken.TransactOpts, worknetManager)
 }
 
 // Transfer is a paid mutator transaction binding the contract method 0xa9059cbb.
@@ -1195,150 +1195,6 @@ func (_AlphaToken *AlphaTokenFilterer) ParseInitialized(log types.Log) (*AlphaTo
 	return event, nil
 }
 
-// AlphaTokenSubnetMinterSetIterator is returned from FilterSubnetMinterSet and is used to iterate over the raw logs and unpacked data for SubnetMinterSet events raised by the AlphaToken contract.
-type AlphaTokenSubnetMinterSetIterator struct {
-	Event *AlphaTokenSubnetMinterSet // Event containing the contract specifics and raw log
-
-	contract *bind.BoundContract // Generic contract to use for unpacking event data
-	event    string              // Event name to use for unpacking event data
-
-	logs chan types.Log        // Log channel receiving the found contract events
-	sub  ethereum.Subscription // Subscription for errors, completion and termination
-	done bool                  // Whether the subscription completed delivering logs
-	fail error                 // Occurred error to stop iteration
-}
-
-// Next advances the iterator to the subsequent event, returning whether there
-// are any more events found. In case of a retrieval or parsing error, false is
-// returned and Error() can be queried for the exact failure.
-func (it *AlphaTokenSubnetMinterSetIterator) Next() bool {
-	// If the iterator failed, stop iterating
-	if it.fail != nil {
-		return false
-	}
-	// If the iterator completed, deliver directly whatever's available
-	if it.done {
-		select {
-		case log := <-it.logs:
-			it.Event = new(AlphaTokenSubnetMinterSet)
-			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-				it.fail = err
-				return false
-			}
-			it.Event.Raw = log
-			return true
-
-		default:
-			return false
-		}
-	}
-	// Iterator still in progress, wait for either a data or an error event
-	select {
-	case log := <-it.logs:
-		it.Event = new(AlphaTokenSubnetMinterSet)
-		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-			it.fail = err
-			return false
-		}
-		it.Event.Raw = log
-		return true
-
-	case err := <-it.sub.Err():
-		it.done = true
-		it.fail = err
-		return it.Next()
-	}
-}
-
-// Error returns any retrieval or parsing error occurred during filtering.
-func (it *AlphaTokenSubnetMinterSetIterator) Error() error {
-	return it.fail
-}
-
-// Close terminates the iteration process, releasing any pending underlying
-// resources.
-func (it *AlphaTokenSubnetMinterSetIterator) Close() error {
-	it.sub.Unsubscribe()
-	return nil
-}
-
-// AlphaTokenSubnetMinterSet represents a SubnetMinterSet event raised by the AlphaToken contract.
-type AlphaTokenSubnetMinterSet struct {
-	SubnetManager common.Address
-	Raw           types.Log // Blockchain specific contextual infos
-}
-
-// FilterSubnetMinterSet is a free log retrieval operation binding the contract event 0x8bdccaef9c25fe0f8c3e8a55078a69bbc855da69e6b489b85e6e75e9ca59fe24.
-//
-// Solidity: event SubnetMinterSet(address indexed subnetManager)
-func (_AlphaToken *AlphaTokenFilterer) FilterSubnetMinterSet(opts *bind.FilterOpts, subnetManager []common.Address) (*AlphaTokenSubnetMinterSetIterator, error) {
-
-	var subnetManagerRule []interface{}
-	for _, subnetManagerItem := range subnetManager {
-		subnetManagerRule = append(subnetManagerRule, subnetManagerItem)
-	}
-
-	logs, sub, err := _AlphaToken.contract.FilterLogs(opts, "SubnetMinterSet", subnetManagerRule)
-	if err != nil {
-		return nil, err
-	}
-	return &AlphaTokenSubnetMinterSetIterator{contract: _AlphaToken.contract, event: "SubnetMinterSet", logs: logs, sub: sub}, nil
-}
-
-// WatchSubnetMinterSet is a free log subscription operation binding the contract event 0x8bdccaef9c25fe0f8c3e8a55078a69bbc855da69e6b489b85e6e75e9ca59fe24.
-//
-// Solidity: event SubnetMinterSet(address indexed subnetManager)
-func (_AlphaToken *AlphaTokenFilterer) WatchSubnetMinterSet(opts *bind.WatchOpts, sink chan<- *AlphaTokenSubnetMinterSet, subnetManager []common.Address) (event.Subscription, error) {
-
-	var subnetManagerRule []interface{}
-	for _, subnetManagerItem := range subnetManager {
-		subnetManagerRule = append(subnetManagerRule, subnetManagerItem)
-	}
-
-	logs, sub, err := _AlphaToken.contract.WatchLogs(opts, "SubnetMinterSet", subnetManagerRule)
-	if err != nil {
-		return nil, err
-	}
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		defer sub.Unsubscribe()
-		for {
-			select {
-			case log := <-logs:
-				// New log arrived, parse the event and forward to the user
-				event := new(AlphaTokenSubnetMinterSet)
-				if err := _AlphaToken.contract.UnpackLog(event, "SubnetMinterSet", log); err != nil {
-					return err
-				}
-				event.Raw = log
-
-				select {
-				case sink <- event:
-				case err := <-sub.Err():
-					return err
-				case <-quit:
-					return nil
-				}
-			case err := <-sub.Err():
-				return err
-			case <-quit:
-				return nil
-			}
-		}
-	}), nil
-}
-
-// ParseSubnetMinterSet is a log parse operation binding the contract event 0x8bdccaef9c25fe0f8c3e8a55078a69bbc855da69e6b489b85e6e75e9ca59fe24.
-//
-// Solidity: event SubnetMinterSet(address indexed subnetManager)
-func (_AlphaToken *AlphaTokenFilterer) ParseSubnetMinterSet(log types.Log) (*AlphaTokenSubnetMinterSet, error) {
-	event := new(AlphaTokenSubnetMinterSet)
-	if err := _AlphaToken.contract.UnpackLog(event, "SubnetMinterSet", log); err != nil {
-		return nil, err
-	}
-	event.Raw = log
-	return event, nil
-}
-
 // AlphaTokenTransferIterator is returned from FilterTransfer and is used to iterate over the raw logs and unpacked data for Transfer events raised by the AlphaToken contract.
 type AlphaTokenTransferIterator struct {
 	Event *AlphaTokenTransfer // Event containing the contract specifics and raw log
@@ -1487,6 +1343,150 @@ func (_AlphaToken *AlphaTokenFilterer) WatchTransfer(opts *bind.WatchOpts, sink 
 func (_AlphaToken *AlphaTokenFilterer) ParseTransfer(log types.Log) (*AlphaTokenTransfer, error) {
 	event := new(AlphaTokenTransfer)
 	if err := _AlphaToken.contract.UnpackLog(event, "Transfer", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// AlphaTokenWorknetMinterSetIterator is returned from FilterWorknetMinterSet and is used to iterate over the raw logs and unpacked data for WorknetMinterSet events raised by the AlphaToken contract.
+type AlphaTokenWorknetMinterSetIterator struct {
+	Event *AlphaTokenWorknetMinterSet // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *AlphaTokenWorknetMinterSetIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(AlphaTokenWorknetMinterSet)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(AlphaTokenWorknetMinterSet)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *AlphaTokenWorknetMinterSetIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *AlphaTokenWorknetMinterSetIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// AlphaTokenWorknetMinterSet represents a WorknetMinterSet event raised by the AlphaToken contract.
+type AlphaTokenWorknetMinterSet struct {
+	WorknetManager common.Address
+	Raw            types.Log // Blockchain specific contextual infos
+}
+
+// FilterWorknetMinterSet is a free log retrieval operation binding the contract event 0x21adb39f6834aac66de042684d84e00f5ecd3b57a6e022b84b8531a113c8b1c0.
+//
+// Solidity: event WorknetMinterSet(address indexed worknetManager)
+func (_AlphaToken *AlphaTokenFilterer) FilterWorknetMinterSet(opts *bind.FilterOpts, worknetManager []common.Address) (*AlphaTokenWorknetMinterSetIterator, error) {
+
+	var worknetManagerRule []interface{}
+	for _, worknetManagerItem := range worknetManager {
+		worknetManagerRule = append(worknetManagerRule, worknetManagerItem)
+	}
+
+	logs, sub, err := _AlphaToken.contract.FilterLogs(opts, "WorknetMinterSet", worknetManagerRule)
+	if err != nil {
+		return nil, err
+	}
+	return &AlphaTokenWorknetMinterSetIterator{contract: _AlphaToken.contract, event: "WorknetMinterSet", logs: logs, sub: sub}, nil
+}
+
+// WatchWorknetMinterSet is a free log subscription operation binding the contract event 0x21adb39f6834aac66de042684d84e00f5ecd3b57a6e022b84b8531a113c8b1c0.
+//
+// Solidity: event WorknetMinterSet(address indexed worknetManager)
+func (_AlphaToken *AlphaTokenFilterer) WatchWorknetMinterSet(opts *bind.WatchOpts, sink chan<- *AlphaTokenWorknetMinterSet, worknetManager []common.Address) (event.Subscription, error) {
+
+	var worknetManagerRule []interface{}
+	for _, worknetManagerItem := range worknetManager {
+		worknetManagerRule = append(worknetManagerRule, worknetManagerItem)
+	}
+
+	logs, sub, err := _AlphaToken.contract.WatchLogs(opts, "WorknetMinterSet", worknetManagerRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(AlphaTokenWorknetMinterSet)
+				if err := _AlphaToken.contract.UnpackLog(event, "WorknetMinterSet", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseWorknetMinterSet is a log parse operation binding the contract event 0x21adb39f6834aac66de042684d84e00f5ecd3b57a6e022b84b8531a113c8b1c0.
+//
+// Solidity: event WorknetMinterSet(address indexed worknetManager)
+func (_AlphaToken *AlphaTokenFilterer) ParseWorknetMinterSet(log types.Log) (*AlphaTokenWorknetMinterSet, error) {
+	event := new(AlphaTokenWorknetMinterSet)
+	if err := _AlphaToken.contract.UnpackLog(event, "WorknetMinterSet", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log

@@ -74,8 +74,8 @@ verify_chain() {
         "$(cast abi-encode 'c(address,uint64)' "$DEPLOYER" "${VANITY_RULE:-0}")" "AlphaTokenFactory"
     vc "$TREASURY_ADDRESS" "src/governance/Treasury.sol:Treasury" \
         "$(cast abi-encode 'c(uint256,address[],address[],address)' 172800 '[]' '[0x0000000000000000000000000000000000000000]' "$DEPLOYER")" "Treasury"
-    vc "$SUBNETNFT_ADDRESS" "src/core/SubnetNFT.sol:SubnetNFT" \
-        "$(cast abi-encode 'c(string,string,address)' 'AWP Subnet' 'AWPSUB' "$AWP_REGISTRY_ADDRESS")" "SubnetNFT"
+    vc "$WORKNETNFT_ADDRESS" "src/core/WorknetNFT.sol:WorknetNFT" \
+        "$(cast abi-encode 'c(string,string,address)' 'AWP Worknet' 'AWPSUB' "$AWP_REGISTRY_ADDRESS")" "WorknetNFT"
     vc "$STAKE_NFT_ADDRESS" "src/core/StakeNFT.sol:StakeNFT" \
         "$(cast abi-encode 'c(address,address,address)' "$AWP_TOKEN_ADDRESS" "$STAKING_VAULT_ADDRESS" "$AWP_REGISTRY_ADDRESS")" "StakeNFT"
     vc "$DAO_ADDRESS" "src/governance/AWPDAO.sol:AWPDAO" \
@@ -90,11 +90,11 @@ verify_chain() {
     if [[ "$chain_id" == "56" || "$chain_id" == "97" ]]; then
         vc "$LP_MANAGER_ADDRESS" "src/core/LPManager.sol:LPManager" \
             "$(cast abi-encode 'c(address,address,address,address,address)' "$AWP_REGISTRY_ADDRESS" "${POOL_MANAGER:-}" "${POSITION_MANAGER:-}" "${PERMIT2:-}" "$AWP_TOKEN_ADDRESS")" "LPManager (PancakeSwap)"
-        [[ -n "${SUBNET_MANAGER_IMPL:-}" ]] && vc "$SUBNET_MANAGER_IMPL" "src/subnets/SubnetManager.sol:SubnetManager" "" "SubnetManager (impl)"
+        [[ -n "${WORKNET_MANAGER_IMPL:-}" ]] && vc "$WORKNET_MANAGER_IMPL" "src/worknets/WorknetManager.sol:WorknetManager" "" "WorknetManager (impl)"
     else
         vc "$LP_MANAGER_ADDRESS" "src/core/LPManagerUni.sol:LPManagerUni" \
             "$(cast abi-encode 'c(address,address,address,address,address)' "$AWP_REGISTRY_ADDRESS" "${POOL_MANAGER:-}" "${POSITION_MANAGER:-}" "${PERMIT2:-}" "$AWP_TOKEN_ADDRESS")" "LPManagerUni (Uniswap)"
-        [[ -n "${SUBNET_MANAGER_IMPL:-}" ]] && vc "$SUBNET_MANAGER_IMPL" "src/subnets/SubnetManagerUni.sol:SubnetManagerUni" "" "SubnetManagerUni (impl)"
+        [[ -n "${WORKNET_MANAGER_IMPL:-}" ]] && vc "$WORKNET_MANAGER_IMPL" "src/worknets/WorknetManagerUni.sol:WorknetManagerUni" "" "WorknetManagerUni (impl)"
     fi
 
     echo "  ✓ $chain_name verification complete"

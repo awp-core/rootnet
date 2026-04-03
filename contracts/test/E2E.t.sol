@@ -10,7 +10,7 @@ import {AWPEmission} from "../src/token/AWPEmission.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
-import {SubnetNFT} from "../src/core/SubnetNFT.sol";
+import {WorknetNFT} from "../src/core/WorknetNFT.sol";
 import {MockLPManager} from "./helpers/MockLPManager.sol";
 import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {IAWPRegistry} from "../src/interfaces/IAWPRegistry.sol";
@@ -26,7 +26,7 @@ contract E2ETest is Test {
     AWPEmission emission;
     StakingVault vault;
     StakeNFT stakeNFT;
-    SubnetNFT nft;
+    WorknetNFT nft;
     MockLPManager lp;
     AWPRegistry awpRegistry;
     Treasury treasury;
@@ -46,12 +46,12 @@ contract E2ETest is Test {
     address agentB = address(0x2002);
     address agentC = address(0x2003);
 
-    // Mock subnet contracts
-    address subnetC1 = address(0x3001);
-    address subnetC2 = address(0x3002);
-    address subnetC3 = address(0x3003);
+    // Mock worknet contracts
+    address worknetC1 = address(0x3001);
+    address worknetC2 = address(0x3002);
+    address worknetC3 = address(0x3003);
 
-    uint256 constant INITIAL_DAILY = 15_800_000 * 1e18;
+    uint256 constant INITIAL_DAILY = 31_600_000 * 1e18;
     uint256 constant EPOCH = 1 days;
     uint256 constant LP_COST = 1_000_000 * 1e18; // 100M Alpha * 0.01 AWP
 
@@ -75,14 +75,14 @@ contract E2ETest is Test {
             address(awpRegistryImpl),
             abi.encodeCall(AWPRegistry.initialize, (deployer, address(treasury), guardian))
         )));
-        nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(awpRegistry));
+        nft = new WorknetNFT("AWP Worknet", "AWPSUB", address(awpRegistry));
         lp = new MockLPManager(address(awpRegistry), address(awp));
 
         // Deploy AWPEmission (UUPS proxy) — deployer == guardian in tests
         AWPEmission emissionImpl = new AWPEmission();
         bytes memory emissionInitData = abi.encodeCall(
             AWPEmission.initialize,
-            (address(awp), deployer, INITIAL_DAILY, block.timestamp, EPOCH)
+            (address(awp), deployer, INITIAL_DAILY, block.timestamp, EPOCH, address(treasury))
         );
         ERC1967Proxy emissionProxy = new ERC1967Proxy(address(emissionImpl), emissionInitData);
         emission = AWPEmission(address(emissionProxy));
@@ -108,6 +108,7 @@ contract E2ETest is Test {
         );
         treasury.grantRole(treasury.PROPOSER_ROLE(), address(dao));
         treasury.grantRole(treasury.CANCELLER_ROLE(), address(dao));
+        treasury.grantRole(treasury.DEFAULT_ADMIN_ROLE(), guardian);
         treasury.renounceRole(treasury.DEFAULT_ADMIN_ROLE(), deployer);
 
         // Initialize registry (no accessManager)
@@ -134,7 +135,7 @@ contract E2ETest is Test {
 
     function _registerUser(address user) internal {
         vm.prank(user);
-        awpRegistry.register();
+        awpRegistry.setRecipient(user);
     }
 
     function _bindAgent(address agent, address target) internal {
@@ -142,24 +143,24 @@ contract E2ETest is Test {
         awpRegistry.bind(target);
     }
 
-    function _registerSubnet(address owner, address sc) internal returns (uint256) {
+    function _registerWorknet(address owner, address sc) internal returns (uint256) {
         vm.startPrank(owner);
         awp.approve(address(awpRegistry), LP_COST);
-        uint256 id = awpRegistry.registerSubnet(
-            IAWPRegistry.SubnetParams("Subnet", "SUB", sc, bytes32(0), 0, "")
+        uint256 id = awpRegistry.registerWorknet(
+            IAWPRegistry.WorknetParams("Worknet", "SUB", sc, bytes32(0), 0, "")
         );
         vm.stopPrank();
         return id;
     }
 
     /// @dev Deposit AWP via StakeNFT and allocate via AWPRegistry (explicit staker)
-    function _depositAndAllocate(address staker, address agent, uint256 subnetId, uint256 deposit, uint256 alloc)
+    function _depositAndAllocate(address staker, address agent, uint256 worknetId, uint256 deposit, uint256 alloc)
         internal
     {
         vm.startPrank(staker);
         awp.approve(address(stakeNFT), deposit);
         stakeNFT.deposit(deposit, 52 weeks);
-        vault.allocate(staker, agent, subnetId, alloc);
+        vault.allocate(staker, agent, worknetId, alloc);
         vm.stopPrank();
     }
 
@@ -168,23 +169,20 @@ contract E2ETest is Test {
         emission.settleEpoch(200);
     }
 
-    function _sortByAddress(address[] memory addrs, uint96[] memory ws) internal pure {
-        uint256 n = addrs.length;
-        for (uint256 i = 0; i < n; i++) {
-            for (uint256 j = i + 1; j < n; j++) {
-                if (uint160(addrs[i]) > uint160(addrs[j])) {
-                    (addrs[i], addrs[j]) = (addrs[j], addrs[i]);
-                    (ws[i], ws[j]) = (ws[j], ws[i]);
-                }
-            }
+    function _packArray(address[] memory addrs, uint96[] memory ws) internal pure returns (uint256[] memory) {
+        uint256[] memory packed = new uint256[](addrs.length);
+        for (uint256 i = 0; i < addrs.length; i++) {
+            packed[i] = (uint256(ws[i]) << 160) | uint256(uint160(addrs[i]));
         }
+        return packed;
     }
 
     function _submitWeights(address[] memory recipients, uint96[] memory weights) internal {
-        _sortByAddress(recipients, weights);
-        uint256 effectiveEpoch = emission.settledEpoch() + 1;
-        vm.prank(deployer); // deployer == guardian in tests
-        emission.submitAllocations(recipients, weights, effectiveEpoch);
+        uint256 tw = 0;
+        for (uint256 i = 0; i < weights.length; i++) tw += weights[i];
+        uint256 effectiveEpoch = emission.settledEpoch();
+        vm.prank(deployer); // deployer is AWPEmission guardian in E2E tests
+        emission.submitAllocations(_packArray(recipients, weights), tw, effectiveEpoch);
     }
 
     function _submitWeight(address _recipient, uint96 weight) internal {
@@ -196,15 +194,15 @@ contract E2ETest is Test {
     }
 
     // ════════════════════════════════════════════
-    //  E2E 1: Subnet NFT transfer -> ownership change
+    //  E2E 1: Worknet NFT transfer -> ownership change
     // ════════════════════════════════════════════
 
-    function test_e2e_subnetNFTTransfer() public {
+    function test_e2e_worknetNFTTransfer() public {
         _registerUser(alice);
-        uint256 sid = _registerSubnet(alice, subnetC1);
+        uint256 sid = _registerWorknet(alice, worknetC1);
 
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid);
+        awpRegistry.activateWorknet(sid);
 
         vm.prank(alice);
         nft.transferFrom(alice, bob, sid);
@@ -212,15 +210,15 @@ contract E2ETest is Test {
 
         vm.prank(alice);
         vm.expectRevert(AWPRegistry.NotOwner.selector);
-        awpRegistry.pauseSubnet(sid);
+        awpRegistry.pauseWorknet(sid);
 
         vm.prank(bob);
-        awpRegistry.pauseSubnet(sid);
-        assertFalse(awpRegistry.isSubnetActive(sid));
+        awpRegistry.pauseWorknet(sid);
+        assertFalse(awpRegistry.isWorknetActive(sid));
 
         vm.prank(bob);
-        awpRegistry.resumeSubnet(sid);
-        assertTrue(awpRegistry.isSubnetActive(sid));
+        awpRegistry.resumeWorknet(sid);
+        assertTrue(awpRegistry.isWorknetActive(sid));
     }
 
     // ════════════════════════════════════════════
@@ -231,9 +229,9 @@ contract E2ETest is Test {
         _registerUser(alice);
         _bindAgent(agentA, alice);
         _bindAgent(agentB, alice);
-        uint256 sid = _registerSubnet(alice, subnetC1);
+        uint256 sid = _registerWorknet(alice, worknetC1);
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid);
+        awpRegistry.activateWorknet(sid);
 
         _depositAndAllocate(alice, agentA, sid, 10_000 * 1e18, 8_000 * 1e18);
 
@@ -247,49 +245,49 @@ contract E2ETest is Test {
     }
 
     // ════════════════════════════════════════════
-    //  E2E 3: Full subnet lifecycle
+    //  E2E 3: Full worknet lifecycle
     // ════════════════════════════════════════════
 
-    function test_e2e_subnetFullLifecycle() public {
+    function test_e2e_worknetFullLifecycle() public {
         _registerUser(alice);
-        uint256 sid = _registerSubnet(alice, subnetC1);
+        uint256 sid = _registerWorknet(alice, worknetC1);
 
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid);
-        assertEq(uint256(awpRegistry.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
+        awpRegistry.activateWorknet(sid);
+        assertEq(uint256(awpRegistry.getWorknet(sid).status), uint256(IAWPRegistry.WorknetStatus.Active));
 
         vm.prank(alice);
-        awpRegistry.pauseSubnet(sid);
-        assertEq(uint256(awpRegistry.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Paused));
+        awpRegistry.pauseWorknet(sid);
+        assertEq(uint256(awpRegistry.getWorknet(sid).status), uint256(IAWPRegistry.WorknetStatus.Paused));
 
         vm.prank(alice);
-        awpRegistry.resumeSubnet(sid);
-        assertEq(uint256(awpRegistry.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
+        awpRegistry.resumeWorknet(sid);
+        assertEq(uint256(awpRegistry.getWorknet(sid).status), uint256(IAWPRegistry.WorknetStatus.Active));
 
-        vm.prank(address(treasury));
-        awpRegistry.banSubnet(sid);
-        assertEq(uint256(awpRegistry.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Banned));
+        vm.prank(guardian);
+        awpRegistry.banWorknet(sid);
+        assertEq(uint256(awpRegistry.getWorknet(sid).status), uint256(IAWPRegistry.WorknetStatus.Banned));
 
-        AlphaToken alpha = AlphaToken(awpRegistry.getSubnetFull(sid).alphaToken);
-        assertTrue(alpha.minterPaused(subnetC1));
+        AlphaToken alpha = AlphaToken(awpRegistry.getWorknetFull(sid).alphaToken);
+        assertTrue(alpha.minterPaused(worknetC1));
 
-        vm.prank(address(treasury));
-        awpRegistry.unbanSubnet(sid);
-        assertEq(uint256(awpRegistry.getSubnet(sid).status), uint256(IAWPRegistry.SubnetStatus.Active));
-        assertFalse(alpha.minterPaused(subnetC1));
+        vm.prank(guardian);
+        awpRegistry.unbanWorknet(sid);
+        assertEq(uint256(awpRegistry.getWorknet(sid).status), uint256(IAWPRegistry.WorknetStatus.Active));
+        assertFalse(alpha.minterPaused(worknetC1));
 
         // Must ban again before deregister (deregister requires Banned status)
-        vm.prank(address(treasury));
-        awpRegistry.banSubnet(sid);
+        vm.prank(guardian);
+        awpRegistry.banWorknet(sid);
 
         vm.warp(block.timestamp + 31 days);
-        vm.prank(address(treasury));
-        awpRegistry.deregisterSubnet(sid);
+        vm.prank(guardian);
+        awpRegistry.deregisterWorknet(sid);
 
         vm.expectRevert();
         nft.ownerOf(sid);
         vm.expectRevert();
-        awpRegistry.getSubnetFull(sid);
+        awpRegistry.getWorknetFull(sid);
     }
 
     // ════════════════════════════════════════════
@@ -298,9 +296,9 @@ contract E2ETest is Test {
 
     function test_e2e_daoGovernanceWeight() public {
         _registerUser(alice);
-        uint256 sid = _registerSubnet(alice, subnetC1);
+        uint256 sid = _registerWorknet(alice, worknetC1);
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid);
+        awpRegistry.activateWorknet(sid);
 
         uint256 stakeAmount = 40_000_000 * 1e18;
         vm.startPrank(alice);
@@ -308,40 +306,19 @@ contract E2ETest is Test {
         uint256 tokenId = stakeNFT.deposit(stakeAmount, 52 weeks);
         vm.stopPrank();
 
-        _submitWeight(subnetC1, uint96(100));
+        _submitWeight(worknetC1, uint96(100));
         _settleEpoch();
         _settleEpoch();
 
         vm.roll(block.number + 1);
 
-        // DAO proposal: change initialAlphaPrice via Timelock
-        address[] memory targets = new address[](1);
-        targets[0] = address(awpRegistry);
-        uint256[] memory values = new uint256[](1);
-        bytes[] memory calldatas = new bytes[](1);
-        calldatas[0] = abi.encodeCall(awpRegistry.setInitialAlphaPrice, (42e18));
-        bytes32 descHash = keccak256("Set initial alpha price");
-
-        uint256[] memory propTokenIds = new uint256[](1);
-        propTokenIds[0] = tokenId;
-        vm.prank(alice);
-        uint256 proposalId = dao.proposeWithTokens(targets, values, calldatas, "Set initial alpha price", propTokenIds);
-
-        vm.roll(block.number + 2);
-
-        uint256[] memory tokenIds = new uint256[](1);
-        tokenIds[0] = tokenId;
-        bytes memory params = abi.encode(tokenIds);
-        vm.prank(alice);
-        dao.castVoteWithReasonAndParams(proposalId, 1, "", params);
-
-        vm.roll(block.number + 101);
-
-        dao.queue(targets, values, calldatas, descHash);
-        vm.warp(block.timestamp + 2);
-        dao.execute(targets, values, calldatas, descHash);
-
+        // Guardian directly sets initialAlphaPrice (was onlyTimelock, now onlyGuardian)
+        vm.prank(guardian);
+        awpRegistry.setInitialAlphaPrice(42e18);
         assertEq(awpRegistry.initialAlphaPrice(), 42e18);
+
+        // Verify stake exists
+        assertGt(awp.balanceOf(address(stakeNFT)), 0);
     }
 
     // ════════════════════════════════════════════
@@ -350,17 +327,17 @@ contract E2ETest is Test {
 
     function test_e2e_emissionDecayMultiEpoch() public {
         _registerUser(alice);
-        uint256 sid = _registerSubnet(alice, subnetC1);
+        uint256 sid = _registerWorknet(alice, worknetC1);
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid);
+        awpRegistry.activateWorknet(sid);
 
-        _submitWeight(subnetC1, uint96(100));
+        _submitWeight(worknetC1, uint96(100));
 
         uint256 prevEmission = INITIAL_DAILY;
 
         for (uint256 i = 0; i < 10; i++) {
             if (i > 0) {
-                _submitWeight(subnetC1, uint96(100));
+                _submitWeight(worknetC1, uint96(100));
             }
             _settleEpoch();
             uint256 currentEmission = emission.currentDailyEmission();
@@ -374,25 +351,25 @@ contract E2ETest is Test {
     }
 
     // ════════════════════════════════════════════
-    //  E2E 6: Multi-user multi-subnet concurrency
+    //  E2E 6: Multi-user multi-worknet concurrency
     // ════════════════════════════════════════════
 
-    function test_e2e_multiUserMultiSubnet() public {
+    function test_e2e_multiUserMultiWorknet() public {
         _registerUser(alice);
         _registerUser(bob);
         _registerUser(charlie);
 
-        uint256 sid1 = _registerSubnet(alice, subnetC1);
-        uint256 sid2 = _registerSubnet(alice, subnetC2);
+        uint256 sid1 = _registerWorknet(alice, worknetC1);
+        uint256 sid2 = _registerWorknet(alice, worknetC2);
         vm.startPrank(alice);
-        awpRegistry.activateSubnet(sid1);
-        awpRegistry.activateSubnet(sid2);
+        awpRegistry.activateWorknet(sid1);
+        awpRegistry.activateWorknet(sid2);
         vm.stopPrank();
 
         {
             address[] memory addrs = new address[](2);
-            addrs[0] = subnetC1;
-            addrs[1] = subnetC2;
+            addrs[0] = worknetC1;
+            addrs[1] = worknetC2;
             uint96[] memory ws = new uint96[](2);
             ws[0] = 200;
             ws[1] = 100;
@@ -403,14 +380,14 @@ contract E2ETest is Test {
         _depositAndAllocate(bob, agentB, sid1, 50_000 * 1e18, 50_000 * 1e18);
         _depositAndAllocate(charlie, agentC, sid2, 30_000 * 1e18, 30_000 * 1e18);
 
-        assertEq(vault.getSubnetTotalStake(sid1), 130_000 * 1e18);
-        assertEq(vault.getSubnetTotalStake(sid2), 30_000 * 1e18);
+        assertEq(vault.getWorknetTotalStake(sid1), 130_000 * 1e18);
+        assertEq(vault.getWorknetTotalStake(sid2), 30_000 * 1e18);
 
         _settleEpoch();
         _settleEpoch();
 
-        uint256 bal1 = awp.balanceOf(subnetC1);
-        uint256 bal2 = awp.balanceOf(subnetC2);
+        uint256 bal1 = awp.balanceOf(worknetC1);
+        uint256 bal2 = awp.balanceOf(worknetC2);
         assertApproxEqRel(bal1, bal2 * 2, 0.01e18);
     }
 
@@ -438,10 +415,10 @@ contract E2ETest is Test {
 
     function test_e2e_emissionClampNearMaxSupply() public {
         _registerUser(alice);
-        uint256 sid = _registerSubnet(alice, subnetC1);
+        uint256 sid = _registerWorknet(alice, worknetC1);
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid);
-        _submitWeight(subnetC1, uint96(100));
+        awpRegistry.activateWorknet(sid);
+        _submitWeight(worknetC1, uint96(100));
 
         _settleEpoch();
         _settleEpoch();
@@ -458,17 +435,17 @@ contract E2ETest is Test {
 
     function test_e2e_notSettlingGuard() public {
         _registerUser(alice);
-        uint256 sid = _registerSubnet(alice, subnetC1);
-        uint256 sid2 = _registerSubnet(alice, subnetC2);
+        uint256 sid = _registerWorknet(alice, worknetC1);
+        uint256 sid2 = _registerWorknet(alice, worknetC2);
         vm.startPrank(alice);
-        awpRegistry.activateSubnet(sid);
-        awpRegistry.activateSubnet(sid2);
+        awpRegistry.activateWorknet(sid);
+        awpRegistry.activateWorknet(sid2);
         vm.stopPrank();
 
         {
             address[] memory addrs = new address[](2);
-            addrs[0] = subnetC1;
-            addrs[1] = subnetC2;
+            addrs[0] = worknetC1;
+            addrs[1] = worknetC2;
             uint96[] memory ws = new uint96[](2);
             ws[0] = 100;
             ws[1] = 100;
@@ -484,10 +461,10 @@ contract E2ETest is Test {
         emission.settleEpoch(200);
         assertEq(emission.settleProgress(), 0);
 
-        uint256 sid3 = _registerSubnet(alice, subnetC3);
+        uint256 sid3 = _registerWorknet(alice, worknetC3);
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid3);
-        assertTrue(awpRegistry.isSubnetActive(sid3));
+        awpRegistry.activateWorknet(sid3);
+        assertTrue(awpRegistry.isWorknetActive(sid3));
     }
 
     // ════════════════════════════════════════════
@@ -496,9 +473,9 @@ contract E2ETest is Test {
 
     function test_e2e_deallocateReleasesAllocations() public {
         _registerUser(alice);
-        uint256 sid = _registerSubnet(alice, subnetC1);
+        uint256 sid = _registerWorknet(alice, worknetC1);
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid);
+        awpRegistry.activateWorknet(sid);
 
         _depositAndAllocate(alice, agentA, sid, 10_000 * 1e18, 5_000 * 1e18);
 
@@ -516,9 +493,9 @@ contract E2ETest is Test {
 
     function test_e2e_depositAndAllocate() public {
         _registerUser(alice);
-        uint256 sid = _registerSubnet(alice, subnetC1);
+        uint256 sid = _registerWorknet(alice, worknetC1);
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid);
+        awpRegistry.activateWorknet(sid);
 
         vm.startPrank(bob);
         awp.approve(address(stakeNFT), 20_000 * 1e18);
@@ -537,9 +514,9 @@ contract E2ETest is Test {
     function test_e2e_rewardRecipient() public {
         _registerUser(alice);
         _bindAgent(agentA, alice);
-        uint256 sid = _registerSubnet(alice, subnetC1);
+        uint256 sid = _registerWorknet(alice, worknetC1);
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid);
+        awpRegistry.activateWorknet(sid);
 
         assertEq(awpRegistry.resolveRecipient(alice), alice);
 
@@ -560,17 +537,17 @@ contract E2ETest is Test {
         _registerUser(alice);
         _registerUser(bob);
 
-        uint256 sid1 = _registerSubnet(alice, subnetC1);
-        uint256 sid2 = _registerSubnet(alice, subnetC2);
+        uint256 sid1 = _registerWorknet(alice, worknetC1);
+        uint256 sid2 = _registerWorknet(alice, worknetC2);
         vm.startPrank(alice);
-        awpRegistry.activateSubnet(sid1);
-        awpRegistry.activateSubnet(sid2);
+        awpRegistry.activateWorknet(sid1);
+        awpRegistry.activateWorknet(sid2);
         vm.stopPrank();
 
         {
             address[] memory addrs = new address[](2);
-            addrs[0] = subnetC1;
-            addrs[1] = subnetC2;
+            addrs[0] = worknetC1;
+            addrs[1] = worknetC2;
             uint96[] memory ws = new uint96[](2);
             ws[0] = 100;
             ws[1] = 100;
@@ -582,8 +559,8 @@ contract E2ETest is Test {
 
         _settleEpoch();
         _settleEpoch();
-        uint256 sc1Bal1 = awp.balanceOf(subnetC1);
-        uint256 sc2Bal1 = awp.balanceOf(subnetC2);
+        uint256 sc1Bal1 = awp.balanceOf(worknetC1);
+        uint256 sc2Bal1 = awp.balanceOf(worknetC2);
         assertEq(sc1Bal1, sc2Bal1);
 
         // Alice deallocates
@@ -591,7 +568,7 @@ contract E2ETest is Test {
         vault.deallocate(alice, agentA, sid1, 3_000 * 1e18);
 
         _submitWeights(
-            _toArray2(subnetC1, subnetC2),
+            _toArray2(worknetC1, worknetC2),
             _toUint96Array2(100, 100)
         );
         _settleEpoch();
@@ -601,14 +578,14 @@ contract E2ETest is Test {
         vault.deallocate(bob, agentB, sid2, 5_000 * 1e18);
 
         _submitWeights(
-            _toArray2(subnetC1, subnetC2),
+            _toArray2(worknetC1, worknetC2),
             _toUint96Array2(100, 100)
         );
         _settleEpoch();
         assertEq(emission.currentEpoch(), 4);
 
-        assertTrue(awp.balanceOf(subnetC1) > sc1Bal1);
-        assertTrue(awp.balanceOf(subnetC2) > sc2Bal1);
+        assertTrue(awp.balanceOf(worknetC1) > sc1Bal1);
+        assertTrue(awp.balanceOf(worknetC2) > sc2Bal1);
     }
 
     // ════════════════════════════════════════════
@@ -629,35 +606,35 @@ contract E2ETest is Test {
     }
 
     // ════════════════════════════════════════════
-    //  E2E 15: Alpha Token subnet contract minting
+    //  E2E 15: Alpha Token worknet contract minting
     // ════════════════════════════════════════════
 
     function test_e2e_alphaTokenMinting() public {
         _registerUser(alice);
-        uint256 sid = _registerSubnet(alice, subnetC1);
+        uint256 sid = _registerWorknet(alice, worknetC1);
 
-        AlphaToken alpha = AlphaToken(awpRegistry.getSubnetFull(sid).alphaToken);
+        AlphaToken alpha = AlphaToken(awpRegistry.getWorknetFull(sid).alphaToken);
         assertFalse(alpha.minters(address(awpRegistry)));
         assertTrue(alpha.mintersLocked());
 
         vm.warp(block.timestamp + 10 days);
-        vm.prank(subnetC1);
+        vm.prank(worknetC1);
         alpha.mint(alice, 1_000_000 * 1e18);
         assertEq(alpha.balanceOf(alice), 1_000_000 * 1e18);
 
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid);
-        vm.prank(address(treasury));
-        awpRegistry.banSubnet(sid);
+        awpRegistry.activateWorknet(sid);
+        vm.prank(guardian);
+        awpRegistry.banWorknet(sid);
 
-        vm.prank(subnetC1);
+        vm.prank(worknetC1);
         vm.expectRevert(AlphaToken.MinterPaused.selector);
         alpha.mint(alice, 100);
 
-        vm.prank(address(treasury));
-        awpRegistry.unbanSubnet(sid);
+        vm.prank(guardian);
+        awpRegistry.unbanWorknet(sid);
         vm.warp(block.timestamp + 1 days);
-        vm.prank(subnetC1);
+        vm.prank(worknetC1);
         alpha.mint(alice, 500_000 * 1e18);
         assertEq(alpha.balanceOf(alice), 1_500_000 * 1e18);
     }
@@ -668,9 +645,9 @@ contract E2ETest is Test {
 
     function test_e2e_emergencyPause() public {
         _registerUser(alice);
-        uint256 sid = _registerSubnet(alice, subnetC1);
+        uint256 sid = _registerWorknet(alice, worknetC1);
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid);
+        awpRegistry.activateWorknet(sid);
         _depositAndAllocate(alice, agentA, sid, 10_000 * 1e18, 5_000 * 1e18);
 
         vm.prank(guardian);
@@ -679,9 +656,9 @@ contract E2ETest is Test {
         // AWPRegistry operations blocked
         vm.startPrank(alice);
         vm.expectRevert();
-        awpRegistry.register();
+        awpRegistry.setRecipient(alice);
         vm.expectRevert();
-        awpRegistry.activateSubnet(sid);
+        awpRegistry.activateWorknet(sid);
         vm.stopPrank();
 
         // StakingVault allocate/deallocate are NOT gated by AWPRegistry pause
@@ -693,7 +670,7 @@ contract E2ETest is Test {
         assertEq(emission.settledEpoch(), 1);
 
         // Unpause
-        vm.prank(address(treasury));
+        vm.prank(guardian);
         awpRegistry.unpause();
 
         vm.prank(alice);
@@ -711,9 +688,9 @@ contract E2ETest is Test {
         _bindAgent(agentA, alice);
         _bindAgent(agentB, bob);
 
-        uint256 sid = _registerSubnet(alice, subnetC1);
+        uint256 sid = _registerWorknet(alice, worknetC1);
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid);
+        awpRegistry.activateWorknet(sid);
 
         _depositAndAllocate(alice, agentA, sid, 5_000 * 1e18, 3_000 * 1e18);
         _depositAndAllocate(bob, agentB, sid, 2_000 * 1e18, 2_000 * 1e18);
@@ -787,18 +764,18 @@ contract E2ETest is Test {
     }
 
     // ════════════════════════════════════════════
-    //  E2E 20: Multi-user same subnet reallocate
+    //  E2E 20: Multi-user same worknet reallocate
     // ════════════════════════════════════════════
 
-    function test_e2e_multiUserSameSubnetReallocate() public {
+    function test_e2e_multiUserSameWorknetReallocate() public {
         _registerUser(alice);
         _registerUser(bob);
 
-        uint256 sid1 = _registerSubnet(alice, subnetC1);
-        uint256 sid2 = _registerSubnet(alice, subnetC2);
+        uint256 sid1 = _registerWorknet(alice, worknetC1);
+        uint256 sid2 = _registerWorknet(alice, worknetC2);
         vm.startPrank(alice);
-        awpRegistry.activateSubnet(sid1);
-        awpRegistry.activateSubnet(sid2);
+        awpRegistry.activateWorknet(sid1);
+        awpRegistry.activateWorknet(sid2);
         vm.stopPrank();
 
         _depositAndAllocate(alice, agentA, sid1, 1_000 * 1e18, 500 * 1e18);
@@ -815,8 +792,8 @@ contract E2ETest is Test {
         assertEq(vault.getAgentStake(bob, agentB, sid1), 200 * 1e18);
         assertEq(vault.getAgentStake(bob, agentB, sid2), 100 * 1e18);
 
-        assertEq(vault.getSubnetTotalStake(sid1), 500 * 1e18);
-        assertEq(vault.getSubnetTotalStake(sid2), 300 * 1e18);
+        assertEq(vault.getWorknetTotalStake(sid1), 500 * 1e18);
+        assertEq(vault.getWorknetTotalStake(sid2), 300 * 1e18);
     }
 
     // ════════════════════════════════════════════
@@ -837,10 +814,10 @@ contract E2ETest is Test {
         vm.startPrank(alice);
         awp.approve(address(awpRegistry), LP_COST * 5);
         for (uint256 i = 0; i < 5; i++) {
-            uint256 sid = awpRegistry.registerSubnet(
-                IAWPRegistry.SubnetParams("S", "S", scs[i], bytes32(0), 0, "")
+            uint256 sid = awpRegistry.registerWorknet(
+                IAWPRegistry.WorknetParams("S", "S", scs[i], bytes32(0), 0, "")
             );
-            awpRegistry.activateSubnet(sid);
+            awpRegistry.activateWorknet(sid);
         }
         vm.stopPrank();
 
@@ -868,9 +845,9 @@ contract E2ETest is Test {
 
     function test_e2e_delegateOperations() public {
         _registerUser(alice);
-        uint256 sid = _registerSubnet(alice, subnetC1);
+        uint256 sid = _registerWorknet(alice, worknetC1);
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid);
+        awpRegistry.activateWorknet(sid);
 
         _depositAndAllocate(alice, agentA, sid, 10_000 * 1e18, 5_000 * 1e18);
 
@@ -925,31 +902,31 @@ contract E2ETest is Test {
     }
 
     // ════════════════════════════════════════════
-    //  E2E 23: Cross-chain allocate (local + foreign subnetId)
+    //  E2E 23: Cross-chain allocate (local + foreign worknetId)
     // ════════════════════════════════════════════
 
     function test_e2e_crossChainAllocate() public {
         _registerUser(alice);
-        uint256 localSubnet = _registerSubnet(alice, subnetC1);
+        uint256 localWorknet = _registerWorknet(alice, worknetC1);
         vm.prank(alice);
-        awpRegistry.activateSubnet(localSubnet);
+        awpRegistry.activateWorknet(localWorknet);
 
-        // alice 质押并分配到本地子网
+        // alice stakes and allocates to local worknet
         vm.startPrank(alice);
         awp.approve(address(stakeNFT), 10_000 * 1e18);
         stakeNFT.deposit(10_000 * 1e18, 52 weeks);
-        vault.allocate(alice, agentA, localSubnet, 3_000 * 1e18);
+        vault.allocate(alice, agentA, localWorknet, 3_000 * 1e18);
 
-        // 分配到 "外部" 子网（不同链的 subnetId）
-        uint256 foreignSubnet = (uint256(42161) << 64) | 99;
-        vault.allocate(alice, agentA, foreignSubnet, 2_000 * 1e18);
+        // Allocate to "foreign" worknet (different chain's worknetId)
+        uint256 foreignWorknet = (uint256(42161) << 64) | 99;
+        vault.allocate(alice, agentA, foreignWorknet, 2_000 * 1e18);
         vm.stopPrank();
 
-        // 验证两个分配都已记录
-        assertEq(vault.getAgentStake(alice, agentA, localSubnet), 3_000 * 1e18);
-        assertEq(vault.getAgentStake(alice, agentA, foreignSubnet), 2_000 * 1e18);
+        // Verify both allocations recorded
+        assertEq(vault.getAgentStake(alice, agentA, localWorknet), 3_000 * 1e18);
+        assertEq(vault.getAgentStake(alice, agentA, foreignWorknet), 2_000 * 1e18);
 
-        // 总分配 = 5000，总质押 = 10000，因此未分配 = 5000
+        // Total allocated = 5000, total staked = 10000, so unallocated = 5000
         assertEq(vault.userTotalAllocated(alice), 5_000 * 1e18);
     }
 
@@ -959,12 +936,12 @@ contract E2ETest is Test {
 
     function test_e2e_guardianEmissionFlow() public {
         _registerUser(alice);
-        uint256 sid = _registerSubnet(alice, subnetC1);
+        uint256 sid = _registerWorknet(alice, worknetC1);
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid);
+        awpRegistry.activateWorknet(sid);
 
-        // Guardian submits weights for subnetC1
-        _submitWeight(subnetC1, uint96(500));
+        // Guardian submits weights for worknetC1
+        _submitWeight(worknetC1, uint96(500));
 
         // Settle epoch 0 (weights promoted from epoch 1)
         _settleEpoch();
@@ -972,17 +949,17 @@ contract E2ETest is Test {
         // Settle epoch 1
         _settleEpoch();
 
-        // subnetC1 receives 100% of emission (no DAO split)
+        // worknetC1 receives 100% of emission (no DAO split)
         uint256 epoch0Pool = INITIAL_DAILY;
         uint256 epoch1Pool = INITIAL_DAILY * 996844 / 1000000;
-        assertEq(awp.balanceOf(subnetC1), epoch0Pool + epoch1Pool);
+        assertEq(awp.balanceOf(worknetC1), epoch0Pool + epoch1Pool);
         // Treasury gets nothing unless Guardian includes it
         assertEq(awp.balanceOf(address(treasury)), 50_000_000 * 1e18); // unchanged from deploy
 
         // Now Guardian includes treasury as a recipient for epoch 3
         {
             address[] memory addrs = new address[](2);
-            addrs[0] = subnetC1;
+            addrs[0] = worknetC1;
             addrs[1] = address(treasury);
             uint96[] memory ws = new uint96[](2);
             ws[0] = 700;
@@ -998,29 +975,29 @@ contract E2ETest is Test {
     }
 
     // ════════════════════════════════════════════
-    //  E2E 25: Cross-chain subnetId encoding
+    //  E2E 25: Cross-chain worknetId encoding
     // ════════════════════════════════════════════
 
-    function test_e2e_crossChainSubnetId() public {
+    function test_e2e_crossChainWorknetId() public {
         _registerUser(alice);
 
-        // Register a subnet and verify its subnetId encoding
-        uint256 sid = _registerSubnet(alice, subnetC1);
+        // Register a worknet and verify its worknetId encoding
+        uint256 sid = _registerWorknet(alice, worknetC1);
 
         // Verify encoding: (block.chainid << 64) | localCounter
         uint256 encodedChainId = sid >> 64;
         uint256 localId = sid & ((1 << 64) - 1);
         assertEq(encodedChainId, block.chainid);
-        assertEq(localId, 1); // first subnet registered
+        assertEq(localId, 1); // first worknet registered
 
         // Register another — localId should be 2
-        uint256 sid2 = _registerSubnet(alice, subnetC2);
+        uint256 sid2 = _registerWorknet(alice, worknetC2);
         uint256 localId2 = sid2 & ((1 << 64) - 1);
         assertEq(localId2, 2);
 
-        // Allocate to the registered subnet
+        // Allocate to the registered worknet
         vm.prank(alice);
-        awpRegistry.activateSubnet(sid);
+        awpRegistry.activateWorknet(sid);
         vm.startPrank(alice);
         awp.approve(address(stakeNFT), 5_000 * 1e18);
         stakeNFT.deposit(5_000 * 1e18, 52 weeks);
@@ -1036,18 +1013,18 @@ contract E2ETest is Test {
 
     function test_e2e_multiEpochWithGuardianResubmit() public {
         _registerUser(alice);
-        uint256 sid1 = _registerSubnet(alice, subnetC1);
-        uint256 sid2 = _registerSubnet(alice, subnetC2);
+        uint256 sid1 = _registerWorknet(alice, worknetC1);
+        uint256 sid2 = _registerWorknet(alice, worknetC2);
         vm.startPrank(alice);
-        awpRegistry.activateSubnet(sid1);
-        awpRegistry.activateSubnet(sid2);
+        awpRegistry.activateWorknet(sid1);
+        awpRegistry.activateWorknet(sid2);
         vm.stopPrank();
 
-        // Guardian submits epoch 1 weights: subnetC1=800, subnetC2=200
+        // Guardian submits epoch 1 weights: worknetC1=800, worknetC2=200
         {
             address[] memory addrs = new address[](2);
-            addrs[0] = subnetC1;
-            addrs[1] = subnetC2;
+            addrs[0] = worknetC1;
+            addrs[1] = worknetC2;
             uint96[] memory ws = new uint96[](2);
             ws[0] = 800;
             ws[1] = 200;
@@ -1058,17 +1035,17 @@ contract E2ETest is Test {
         _settleEpoch();
         _settleEpoch();
 
-        uint256 sc1BalEpoch1 = awp.balanceOf(subnetC1);
-        uint256 sc2BalEpoch1 = awp.balanceOf(subnetC2);
+        uint256 sc1BalEpoch1 = awp.balanceOf(worknetC1);
+        uint256 sc2BalEpoch1 = awp.balanceOf(worknetC2);
 
         // 4:1 ratio after epochs 0+1
         assertApproxEqRel(sc1BalEpoch1, sc2BalEpoch1 * 4, 0.01e18);
 
-        // Guardian resubmits for epoch 3: now subnetC1=100, subnetC2=900
+        // Guardian resubmits for epoch 3: now worknetC1=100, worknetC2=900
         {
             address[] memory addrs = new address[](2);
-            addrs[0] = subnetC1;
-            addrs[1] = subnetC2;
+            addrs[0] = worknetC1;
+            addrs[1] = worknetC2;
             uint96[] memory ws = new uint96[](2);
             ws[0] = 100;
             ws[1] = 900;
@@ -1078,10 +1055,10 @@ contract E2ETest is Test {
         // Settle epoch 2
         _settleEpoch();
 
-        uint256 sc1BalEpoch2 = awp.balanceOf(subnetC1);
-        uint256 sc2BalEpoch2 = awp.balanceOf(subnetC2);
+        uint256 sc1BalEpoch2 = awp.balanceOf(worknetC1);
+        uint256 sc2BalEpoch2 = awp.balanceOf(worknetC2);
 
-        // Epoch 2 incremental emission: subnetC2 got 9x more than subnetC1 in this epoch
+        // Epoch 2 incremental emission: worknetC2 got 9x more than worknetC1 in this epoch
         uint256 sc1Epoch2Gain = sc1BalEpoch2 - sc1BalEpoch1;
         uint256 sc2Epoch2Gain = sc2BalEpoch2 - sc2BalEpoch1;
         assertApproxEqRel(sc2Epoch2Gain, sc1Epoch2Gain * 9, 0.01e18);

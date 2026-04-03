@@ -20,7 +20,7 @@ type agentInfoItem struct {
 // batchAgentInfoRequest is the request body for batch agent info queries
 type batchAgentInfoRequest struct {
 	Agents   []string    `json:"agents"`
-	SubnetID json.Number `json:"subnetId"`
+	SubnetID json.Number `json:"worknetId"`
 }
 
 // GetAgentsByOwner returns all agents (addresses) bound to a given owner
@@ -99,7 +99,7 @@ func (h *Handler) BatchAgentInfo(w http.ResponseWriter, r *http.Request) {
 
 	subnetNum, err := parseSubnetIDString(req.SubnetID.String())
 	if err != nil {
-		h.writeError(w, http.StatusBadRequest, "subnetId must be a positive integer")
+		h.writeError(w, http.StatusBadRequest, "worknetId must be a positive integer")
 		return
 	}
 
@@ -112,27 +112,27 @@ func (h *Handler) BatchAgentInfo(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, results)
 }
 
-// parseSubnetID parses the subnetId URL parameter into pgtype.Numeric.
-// subnetId can exceed int64 range (e.g. (8453<<64)|1 = 77 bits), so we parse as big.Int.
+// parseSubnetID parses the worknetId URL parameter into pgtype.Numeric.
+// worknetId can exceed int64 range (e.g. (8453<<64)|1 = 77 bits), so we parse as big.Int.
 func parseSubnetID(r *http.Request) (pgtype.Numeric, error) {
-	raw := chi.URLParam(r, "subnetId")
+	raw := chi.URLParam(r, "worknetId")
 	if raw == "" {
 		return pgtype.Numeric{}, errMissingSubnetID
 	}
 	return parseSubnetIDString(raw)
 }
 
-// errMissingSubnetID is a sentinel error for missing subnetId parameter
-var errMissingSubnetID = &svcError{Kind: errBadInput, Message: "missing subnetId parameter"}
+// errMissingSubnetID is a sentinel error for missing worknetId parameter
+var errMissingSubnetID = &svcError{Kind: errBadInput, Message: "missing worknetId parameter"}
 
 // parseSubnetIDString converts a decimal string to a pgtype.Numeric, validating > 0.
 func parseSubnetIDString(s string) (pgtype.Numeric, error) {
 	id, ok := new(big.Int).SetString(s, 10)
 	if !ok {
-		return pgtype.Numeric{}, &svcError{Kind: errBadInput, Message: "subnetId must be an integer"}
+		return pgtype.Numeric{}, &svcError{Kind: errBadInput, Message: "worknetId must be an integer"}
 	}
 	if id.Sign() <= 0 {
-		return pgtype.Numeric{}, &svcError{Kind: errBadInput, Message: "subnetId must be a positive integer"}
+		return pgtype.Numeric{}, &svcError{Kind: errBadInput, Message: "worknetId must be a positive integer"}
 	}
 	return pgtype.Numeric{Int: id, Exp: 0, Valid: true}, nil
 }

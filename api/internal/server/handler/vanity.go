@@ -56,7 +56,7 @@ func (vh *VanityHandler) writeError(w http.ResponseWriter, status int, msg strin
 	vh.writeJSON(w, status, map[string]string{"error": msg})
 }
 
-// resolveChainID 从 HTTP 请求中提取 chainId 查询参数，回退到默认 chainID
+// resolveChainID extracts the chainId query parameter from an HTTP request, falling back to default chainID
 func (vh *VanityHandler) resolveChainID(r *http.Request) int64 {
 	if v := r.URL.Query().Get("chainId"); v != "" {
 		if id, err := strconv.ParseInt(v, 10, 64); err == nil && id > 0 {

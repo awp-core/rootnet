@@ -64,7 +64,6 @@ contract AWPDAO is
     error TokenAlreadyVoted();
     error LockExpired();
     error MintedAfterProposal();
-    error InsufficientVotingPower();
     error UseProposeWithTokens();
 
     /// @notice Constructor
@@ -122,24 +121,24 @@ contract AWPDAO is
     }
 
     /// @dev Block castVote (no params) — users must use castVoteWithReasonAndParams with tokenId array
-    error UsecastVoteWithParams();
+    error UseCastVoteWithParams();
     error InvalidQuorumPercent();
     error ZeroTotalVotingPower();
 
     function castVote(uint256, uint8) public pure override returns (uint256) {
-        revert UsecastVoteWithParams();
+        revert UseCastVoteWithParams();
     }
 
     function castVoteWithReason(uint256, uint8, string calldata) public pure override returns (uint256) {
-        revert UsecastVoteWithParams();
+        revert UseCastVoteWithParams();
     }
 
     function castVoteBySig(uint256, uint8, address, bytes memory) public pure override returns (uint256) {
-        revert UsecastVoteWithParams();
+        revert UseCastVoteWithParams();
     }
 
     function castVoteWithReasonAndParamsBySig(uint256, uint8, address, string calldata, bytes memory, bytes memory) public pure override returns (uint256) {
-        revert UsecastVoteWithParams();
+        revert UseCastVoteWithParams();
     }
 
     /// @notice Get vote tallies for a proposal
@@ -232,10 +231,14 @@ contract AWPDAO is
     //  Quorum and threshold
     // ═══════════════════════════════════════════════
 
-    /// @notice Update quorum percentage (only via governance through Timelock)
-    function setQuorumPercent(uint256 newQuorumPercent) external onlyGovernance {
+    event QuorumPercentUpdated(uint256 newQuorumPercent);
+
+    /// @notice Update quorum percentage (governance or Treasury directly for emergency deadlock recovery)
+    function setQuorumPercent(uint256 newQuorumPercent) external {
+        if (msg.sender != _executor() && msg.sender != address(this)) revert GovernorOnlyExecutor(msg.sender);
         if (newQuorumPercent == 0 || newQuorumPercent > 100) revert InvalidQuorumPercent();
         quorumPercent = newQuorumPercent;
+        emit QuorumPercentUpdated(newQuorumPercent);
     }
 
     /// @notice Quorum = totalVotingPower * quorumPercent / 100

@@ -15,8 +15,8 @@ type emissionProjection struct {
 var (
 	decayFactor    = big.NewInt(996844)
 	decayPrecision = big.NewInt(1000000)
-	// Initial daily emission: 15,800,000 * 1e18
-	initialDailyEmission, _ = new(big.Int).SetString("15800000000000000000000000", 10)
+	// Initial daily emission: 31,600,000 * 1e18 (must match AWPEmission.initialize)
+	initialDailyEmission, _ = new(big.Int).SetString("31600000000000000000000000", 10)
 )
 
 // GetCurrentEmission retrieves the current emission data from the Redis cache

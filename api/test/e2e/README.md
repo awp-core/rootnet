@@ -1,19 +1,19 @@
 # E2E Tests
 
-## 运行方式
+## How to Run
 
-E2E 测试需要 Anvil 本地链 + PostgreSQL + Redis。由于合约使用 `via_ir=true` 编译较慢（~60s），
-建议在 CI 环境或有足够算力的机器上运行。
+E2E tests require Anvil local chain + PostgreSQL + Redis. Since contracts compile slowly with `via_ir=true` (~60s),
+it is recommended to run on CI environments or machines with sufficient computing power.
 
-### 前置条件
+### Prerequisites
 
-1. 启动 Anvil: `anvil --port 18545`
-2. 部署合约: `cd contracts && forge script script/TestDeploy.s.sol:TestDeploy --rpc-url http://127.0.0.1:18545 --broadcast`
-3. 启动 PostgreSQL + Redis
-4. 创建测试数据库: `createdb awp_test`
-5. 应用 schema: `psql awp_test < api/internal/db/schema.sql`
+1. Start Anvil: `anvil --port 18545`
+2. Deploy contracts: `cd contracts && forge script script/TestDeploy.s.sol:TestDeploy --rpc-url http://127.0.0.1:18545 --broadcast`
+3. Start PostgreSQL + Redis
+4. Create test database: `createdb awp_test`
+5. Apply schema: `psql awp_test < api/internal/db/schema.sql`
 
-### 运行
+### Run
 
 ```bash
 TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/awp_test?sslmode=disable" \

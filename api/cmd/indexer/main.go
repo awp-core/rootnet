@@ -72,7 +72,7 @@ func newChainClient(cfg *config.Config) (*chain.Client, error) {
 		"AWPToken":     cfg.AWPTokenAddress,
 		"AWPEmission":  cfg.AWPEmissionAddress,
 		"StakingVault": cfg.StakingVaultAddress,
-		"SubnetNFT":    cfg.SubnetNFTAddress,
+		"WorknetNFT":    cfg.WorknetNFTAddress,
 		"AWPDAO":       cfg.DAOAddress,
 		"StakeNFT":     cfg.StakeNFTAddress,
 	}
@@ -138,16 +138,16 @@ func startMultiChain(lc fx.Lifecycle, pool *pgxpool.Pool, rdb *redis.Client, cfg
 		name    string
 	}
 
-	// 创建所有chain client和indexer（在启动前完成，失败则阻止启动）
+	// Create all chain clients and indexers (completed before start; failure prevents startup)
 	entries := make([]indexerEntry, 0, len(chains))
 	for _, ch := range chains {
-		// 为每条链创建 chain client（per-chain 地址覆盖优先于全局 env）
+		// Create chain client for each chain (per-chain address overrides take priority over global env)
 		addrs := map[string]string{
 			"AWPRegistry":  config.ResolveAddress(ch.AWPRegistry, cfg.AWPRegistryAddress),
 			"AWPToken":     config.ResolveAddress(ch.AWPToken, cfg.AWPTokenAddress),
 			"AWPEmission":  config.ResolveAddress(ch.AWPEmission, cfg.AWPEmissionAddress),
 			"StakingVault": config.ResolveAddress(ch.StakingVault, cfg.StakingVaultAddress),
-			"SubnetNFT":    config.ResolveAddress(ch.SubnetNFT, cfg.SubnetNFTAddress),
+			"WorknetNFT":    config.ResolveAddress(ch.WorknetNFT, cfg.WorknetNFTAddress),
 			"AWPDAO":       config.ResolveAddress(ch.DAOAddress, cfg.DAOAddress),
 			"StakeNFT":     config.ResolveAddress(ch.StakeNFT, cfg.StakeNFTAddress),
 		}
@@ -186,7 +186,7 @@ func startMultiChain(lc fx.Lifecycle, pool *pgxpool.Pool, rdb *redis.Client, cfg
 					}
 				}(e)
 			}
-			// WaitGroup不在OnStart中等待——goroutine在后台运行直到OnStop
+			// WaitGroup is not awaited in OnStart — goroutines run in background until OnStop
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {

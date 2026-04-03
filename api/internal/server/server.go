@@ -56,6 +56,8 @@ func NewRouter(p RouterParams) chi.Router {
 			r.Get("/count", h.GetUserCount)
 			r.Get("/global", h.ListUsersGlobal)
 			r.Get("/{address}", h.GetUser)
+			r.Get("/{address}/portfolio", h.GetPortfolio)
+			r.Get("/{address}/delegates", h.GetDelegates)
 		})
 
 		// Address lookup
@@ -78,21 +80,26 @@ func NewRouter(p RouterParams) chi.Router {
 			r.Get("/user/{address}/balance", h.GetBalance)
 			r.Get("/user/{address}/balance/global", h.GetUserBalanceGlobal)
 			r.Get("/user/{address}/positions", h.GetStakePositions)
+			r.Get("/user/{address}/positions/global", h.GetStakePositionsGlobal)
 			r.Get("/user/{address}/allocations", h.GetAllocations)
 			r.Get("/user/{address}/pending", h.GetPending)
 			r.Get("/user/{address}/frozen", h.GetFrozen)
-			r.Get("/agent/{agent}/subnet/{subnetId}", h.GetAgentSubnetStake)
+			r.Get("/agent/{agent}/subnet/{worknetId}", h.GetAgentSubnetStake)
 			r.Get("/agent/{agent}/subnets", h.GetAgentSubnets)
-			r.Get("/subnet/{subnetId}/total", h.GetSubnetTotalStake)
+			r.Get("/subnet/{worknetId}/total", h.GetSubnetTotalStake)
 		})
 
 		// Subnets
 		r.Route("/subnets", func(r chi.Router) {
 			r.Get("/", h.ListSubnets)
-			r.Get("/{subnetId}", h.GetSubnet)
-			r.Get("/{subnetId}/skills", h.GetSubnetSkills)
-			r.Get("/{subnetId}/earnings", h.GetSubnetEarnings)
-			r.Get("/{subnetId}/agents/{agent}", h.GetSubnetAgentInfo)
+			r.Get("/ranked", h.ListWorknetsRanked)
+			r.Get("/search", h.SearchWorknets)
+			r.Get("/by-owner/{owner}", h.GetWorknetsByOwner)
+			r.Get("/{worknetId}", h.GetSubnet)
+			r.Get("/{worknetId}/skills", h.GetSubnetSkills)
+			r.Get("/{worknetId}/earnings", h.GetSubnetEarnings)
+			r.Get("/{worknetId}/agents", h.ListWorknetAgents)
+			r.Get("/{worknetId}/agents/{agent}", h.GetSubnetAgentInfo)
 		})
 
 		// Emission
@@ -101,14 +108,15 @@ func NewRouter(p RouterParams) chi.Router {
 			r.Get("/schedule", h.GetEmissionSchedule)
 			r.Get("/global-schedule", h.GetGlobalEmissionSchedule)
 			r.Get("/epochs", h.ListEpochs)
+			r.Get("/epochs/{epochId}", h.GetEpochDetail)
 		})
 
 		// Tokens
 		r.Route("/tokens", func(r chi.Router) {
 			r.Get("/awp", h.GetAWPInfo)
 			r.Get("/awp/global", h.GetAWPInfoGlobal)
-			r.Get("/alpha/{subnetId}", h.GetAlphaInfo)
-			r.Get("/alpha/{subnetId}/price", h.GetAlphaPrice)
+			r.Get("/alpha/{worknetId}", h.GetAlphaInfo)
+			r.Get("/alpha/{worknetId}/price", h.GetAlphaPrice)
 		})
 
 		// Governance
@@ -143,11 +151,17 @@ func NewRouter(p RouterParams) chi.Router {
 			r.Post("/deallocate", p.RelayHandler.RelayDeallocate)
 			r.Post("/activate-subnet", p.RelayHandler.RelayActivateSubnet)
 			r.Post("/register-subnet", p.RelayHandler.RelayRegisterSubnet)
+			r.Post("/grant-delegate", p.RelayHandler.RelayGrantDelegate)
+			r.Post("/revoke-delegate", p.RelayHandler.RelayRevokeDelegate)
+			r.Post("/unbind", p.RelayHandler.RelayUnbind)
 			r.Get("/status/{txHash}", p.RelayHandler.GetRelayStatus)
 		})
 	}
 
-	// JSON-RPC 2.0 入口（GET = rpc.discover 文档，POST = JSON-RPC 请求）
+	// Announcements (public + admin)
+	handler.RegisterAnnouncementRoutes(r, h.GetDB(), h.AdminAuthMiddleware)
+
+	// JSON-RPC 2.0 entry point (GET = rpc.discover documentation, POST = JSON-RPC request)
 	r.Get("/v2", h.HandleRPC)
 	r.Post("/v2", h.HandleRPC)
 

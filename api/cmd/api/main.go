@@ -34,6 +34,7 @@ func main() {
 			newDBPool,
 			newRedis,
 			newQueries,
+			newDBTX,
 			newLimiter,
 			handler.NewHandler,
 			ws.NewHub,
@@ -88,6 +89,10 @@ func newQueries(pool *pgxpool.Pool) *gen.Queries {
 	return gen.New(pool)
 }
 
+func newDBTX(pool *pgxpool.Pool) gen.DBTX {
+	return pool
+}
+
 func newLimiter(rdb *redis.Client, logger *slog.Logger) *ratelimit.Limiter {
 	return ratelimit.NewLimiter(rdb, logger)
 }
@@ -107,7 +112,7 @@ func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, rdb *redis.Client, lim
 	relayers := make(map[int64]*chain.Relayer)
 	var clients []*ethclient.Client
 
-	// 收集要连接的 RPC URL 列表（单链 or 多链）
+	// Collect list of RPC URLs to connect to (single-chain or multi-chain)
 	type chainRPC struct {
 		rpcURL       string
 		awpRegistry  string
@@ -210,7 +215,7 @@ func newVanityHandler(cfg *config.Config, queries *gen.Queries, limiter *ratelim
 	}
 
 	logger.Info("vanity compute-salt endpoint enabled", "factory", cfg.AlphaFactoryAddress, "vanityRule", cfg.VanityRule)
-	// 默认 chainID：多链时用第一条链，单链时用 cfg.ChainID
+	// Default chainID: use first chain in multi-chain mode, cfg.ChainID in single-chain mode
 	vanityChainID := cfg.ChainID
 	if cfg.ChainsFile != "" {
 		if chains, err := config.LoadChains(cfg.ChainsFile); err == nil && len(chains) > 0 {
@@ -222,7 +227,7 @@ func newVanityHandler(cfg *config.Config, queries *gen.Queries, limiter *ratelim
 
 // wireChainReader creates a lightweight chain client for on-chain reads (nonce, etc.)
 func wireChainReader(lc fx.Lifecycle, h *handler.Handler, hub *ws.Hub, queries *gen.Queries, cfg *config.Config, logger *slog.Logger) {
-	// 注入 WebSocket 分配查询接口（chainID 从事件中获取，fallback 用第一条配置链）
+	// Inject WebSocket allocation query interface (chainID from events, fallback to first configured chain)
 	defaultCID := cfg.ChainID
 	if cfg.ChainsFile != "" {
 		if chains, err := config.LoadChains(cfg.ChainsFile); err == nil && len(chains) > 0 {
@@ -233,7 +238,7 @@ func wireChainReader(lc fx.Lifecycle, h *handler.Handler, hub *ws.Hub, queries *
 
 	var clients []*chain.Client
 
-	// 多链模式：为每条链创建独立 chain reader
+	// Multi-chain mode: create independent chain reader for each chain
 	if cfg.ChainsFile != "" {
 		chains, loadErr := config.LoadChains(cfg.ChainsFile)
 		if loadErr == nil && len(chains) > 0 {
@@ -244,7 +249,7 @@ func wireChainReader(lc fx.Lifecycle, h *handler.Handler, hub *ws.Hub, queries *
 					"AWPToken":     config.ResolveAddress(ch.AWPToken, cfg.AWPTokenAddress),
 					"AWPEmission":  config.ResolveAddress(ch.AWPEmission, cfg.AWPEmissionAddress),
 					"StakingVault": config.ResolveAddress(ch.StakingVault, cfg.StakingVaultAddress),
-					"SubnetNFT":    config.ResolveAddress(ch.SubnetNFT, cfg.SubnetNFTAddress),
+					"WorknetNFT":    config.ResolveAddress(ch.WorknetNFT, cfg.WorknetNFTAddress),
 					"AWPDAO":       config.ResolveAddress(ch.DAOAddress, cfg.DAOAddress),
 					"StakeNFT":     config.ResolveAddress(ch.StakeNFT, cfg.StakeNFTAddress),
 				}
@@ -263,13 +268,13 @@ func wireChainReader(lc fx.Lifecycle, h *handler.Handler, hub *ws.Hub, queries *
 			logger.Warn("failed to load chains config", "error", loadErr)
 		}
 	} else if cfg.RPCURL != "" {
-		// 单链模式
+		// Single-chain mode
 		addrs := map[string]string{
 			"AWPRegistry":  cfg.AWPRegistryAddress,
 			"AWPToken":     cfg.AWPTokenAddress,
 			"AWPEmission":  cfg.AWPEmissionAddress,
 			"StakingVault": cfg.StakingVaultAddress,
-			"SubnetNFT":    cfg.SubnetNFTAddress,
+			"WorknetNFT":    cfg.WorknetNFTAddress,
 			"AWPDAO":       cfg.DAOAddress,
 			"StakeNFT":     cfg.StakeNFTAddress,
 		}

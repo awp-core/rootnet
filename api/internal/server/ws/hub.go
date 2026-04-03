@@ -15,10 +15,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// allocationWatch 订阅特定 (agent, subnetId) 分配变动
+// allocationWatch subscribes to allocation changes for a specific (agent, worknetId)
 type allocationWatch struct {
 	Agent    string `json:"agent"`
-	SubnetID string `json:"subnetId"`
+	SubnetID string `json:"worknetId"`
 }
 
 // Client represents a WebSocket client connection
@@ -27,12 +27,13 @@ type Client struct {
 	conn             *websocket.Conn
 	send             chan []byte
 	filters          map[string]bool // event type filters
-	allocWatches     map[string]bool // "agent:subnetId" 精确匹配
-	subnetWatches    map[string]bool // "subnetId" 整子网匹配（agent 省略时）
+	allocWatches     map[string]bool // "agent:worknetId" exact match
+	subnetWatches    map[string]bool // "worknetId" whole-subnet match (when agent is omitted)
+	watchAddresses   map[string]bool // user-level address filter (lowercase address)
 	ip               string          // client IP for connection limit tracking
 }
 
-// AllocationQuerier 查询 (agent, subnetId) 当前分配量（由 handler 层注入）
+// AllocationQuerier queries current allocation for (agent, worknetId) (injected by handler layer)
 type AllocationQuerier interface {
 	GetAgentSubnetStakeWS(ctx context.Context, chainID int64, agent string, subnetID string) (string, error)
 }
@@ -56,6 +57,7 @@ type Hub struct {
 type filterMessage struct {
 	Subscribe        []string          `json:"subscribe,omitempty"`
 	WatchAllocations []allocationWatch `json:"watchAllocations,omitempty"`
+	WatchAddresses   []string          `json:"watchAddresses,omitempty"`
 }
 
 // broadcastEvent is used to parse the event type, chainId, and data from a broadcast message
@@ -65,7 +67,7 @@ type broadcastEvent struct {
 	Data    map[string]interface{} `json:"data,omitempty"`
 }
 
-// broadcastEventType 仅解析 type 字段（用于不关心 data 的场景）
+// broadcastEventType parses only the type field (for scenarios where data is not needed)
 type broadcastEventType struct {
 	Type    string `json:"type"`
 	ChainID int64  `json:"chainId"`
@@ -84,8 +86,8 @@ func NewHub(rdb *redis.Client, logger *slog.Logger) *Hub {
 	}
 }
 
-// SetAllocationQuerier 注入分配查询接口（用于推送时附带当前余额）
-// 必须在 Hub.Run() 之前调用
+// SetAllocationQuerier injects the allocation query interface (used to include current balance in push)
+// Must be called before Hub.Run()
 func (h *Hub) SetAllocationQuerier(q AllocationQuerier, chainID int64) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -172,7 +174,7 @@ func (h *Hub) Run(ctx context.Context) {
 					}
 					time.Sleep(backoff)
 					pubsub = h.rdb.Subscribe(ctx, "chain_events")
-					// 验证连接是否真正成功
+					// Verify the connection actually succeeded
 					pingCtx, pingCancel := context.WithTimeout(ctx, 3*time.Second)
 					err := pubsub.Ping(pingCtx)
 					pingCancel()
@@ -198,29 +200,29 @@ func (h *Hub) Run(ctx context.Context) {
 	}
 }
 
-// allocEventTypes 是触发分配推送的事件类型
+// allocEventTypes are event types that trigger allocation push
 var allocEventTypes = map[string]bool{
 	"Allocated":   true,
 	"Deallocated": true,
 	"Reallocated": true,
 }
 
-// allocDelivery 记录需要推送的分配变更（在锁外收集，锁外查询 DB，锁外发送）
+// allocDelivery records allocation changes to push (collected outside lock, DB queried outside lock, sent outside lock)
 type allocDelivery struct {
 	client *Client
-	key    string // "agent:subnetId"
+	key    string // "agent:worknetId"
 }
 
 // broadcastToClients sends a message to all connected clients (respecting filter settings)
 func (h *Hub) broadcastToClients(msg []byte) {
-	// 先解析 type（不关心 data 类型，避免类型不匹配导致 unmarshal 失败）
+	// Parse type first (ignoring data type to avoid unmarshal failures from type mismatch)
 	var evtType broadcastEventType
 	eventType := ""
 	if err := json.Unmarshal(msg, &evtType); err == nil {
 		eventType = evtType.Type
 	}
 
-	// 仅对分配事件才解析完整 data
+	// Only parse full data for allocation events
 	var evt broadcastEvent
 	var allocKeys []string
 	if allocEventTypes[eventType] {
@@ -229,7 +231,7 @@ func (h *Hub) broadcastToClients(msg []byte) {
 		}
 	}
 
-	// 提取涉及的 subnetId 列表（用于子网级匹配）
+	// Extract involved worknetId list (for subnet-level matching)
 	var allocSubnets []string
 	if len(allocKeys) > 0 {
 		seen := make(map[string]bool)
@@ -243,7 +245,7 @@ func (h *Hub) broadcastToClients(msg []byte) {
 		}
 	}
 
-	// Phase 1: 持锁收集需要推送的客户端列表（不做 DB 查询）
+	// Phase 1: Collect client list to push while holding lock (no DB queries)
 	var deliveries []allocDelivery
 
 	h.mu.Lock()
@@ -251,18 +253,18 @@ func (h *Hub) broadcastToClients(msg []byte) {
 		hasWatches := len(client.allocWatches) > 0 || len(client.subnetWatches) > 0
 		matched := false
 
-		// 1. 分配订阅推送（收集匹配的 key，不发送）
+		// 1. Allocation subscription push (collect matching keys, do not send)
 		if hasWatches && len(allocKeys) > 0 {
 			matchedKeys := make(map[string]bool)
 
-			// 1a. 精确匹配 agent:subnetId（不 break，收集所有匹配）
+			// 1a. Exact match agent:worknetId (no break, collect all matches)
 			for _, key := range allocKeys {
 				if client.allocWatches[key] {
 					matchedKeys[key] = true
 				}
 			}
 
-			// 1b. 子网级匹配（收集所有匹配子网的 key）
+			// 1b. Subnet-level match (collect all keys matching the subnet)
 			for _, sid := range allocSubnets {
 				if client.subnetWatches[sid] {
 					for _, key := range allocKeys {
@@ -279,8 +281,24 @@ func (h *Hub) broadcastToClients(msg []byte) {
 			}
 		}
 
-		// 2. 常规 type 过滤推送（直接发送原始消息，不需要 DB 查询）
+		// 2. Regular type-filtered push (send original message directly, no DB query needed)
 		if !matched {
+			// 2a. Address-level filter: if client set watchAddresses, only push events involving those addresses
+			if len(client.watchAddresses) > 0 {
+				if evt.Data == nil && allocEventTypes[eventType] {
+					// Already parsed above
+				} else if evt.Data == nil {
+					// Need to parse data to check address fields
+					var addrEvt broadcastEvent
+					if err := json.Unmarshal(msg, &addrEvt); err == nil {
+						evt = addrEvt
+					}
+				}
+				if !matchesWatchAddresses(evt.Data, client.watchAddresses) {
+					continue
+				}
+			}
+
 			if len(client.filters) > 0 && eventType != "" {
 				if !client.filters[eventType] {
 					continue
@@ -296,9 +314,9 @@ func (h *Hub) broadcastToClients(msg []byte) {
 	}
 	h.mu.Unlock()
 
-	// Phase 2: 在锁外做 DB 查询并发送 enriched 消息（按 key 去重查询）
+	// Phase 2: Do DB queries and send enriched messages outside lock (deduplicated by key)
 	if len(deliveries) > 0 {
-		// 2a: 按 watchKey 去重，每个 key 只查一次 DB
+		// 2a: Deduplicate by watchKey, query DB only once per key
 		enrichCache := make(map[string][]byte)
 		for _, d := range deliveries {
 			if _, ok := enrichCache[d.key]; !ok {
@@ -309,7 +327,7 @@ func (h *Hub) broadcastToClients(msg []byte) {
 			}
 		}
 
-		// 2b: 用缓存结果发送给所有匹配客户端
+		// 2b: Send cached results to all matching clients
 		for _, d := range deliveries {
 			data, ok := enrichCache[d.key]
 			if !ok {
@@ -329,15 +347,35 @@ func (h *Hub) broadcastToClients(msg []byte) {
 	}
 }
 
-// extractAllocKeys 从事件 data 中提取涉及的 "agent:subnetId" key 列表
+// addressFields are field names in event data that may contain addresses
+var addressFields = []string{"staker", "user", "agent", "owner", "from", "to", "proposer", "recipient", "fromAgent", "toAgent"}
+
+// matchesWatchAddresses checks if address fields in event data match the client watchAddresses
+func matchesWatchAddresses(data map[string]interface{}, watchAddresses map[string]bool) bool {
+	if data == nil || len(watchAddresses) == 0 {
+		return false
+	}
+	for _, field := range addressFields {
+		if v, ok := data[field]; ok {
+			if addr, ok := v.(string); ok && len(addr) == 42 {
+				if watchAddresses[strings.ToLower(addr)] {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// extractAllocKeys extracts the involved "agent:worknetId" key list from event data
 func extractAllocKeys(eventType string, data map[string]interface{}) []string {
 	var keys []string
 	agent, _ := data["agent"].(string)
-	subnetID, _ := data["subnetId"].(string)
+	subnetID, _ := data["worknetId"].(string)
 	if agent != "" && subnetID != "" {
 		keys = append(keys, strings.ToLower(agent)+":"+subnetID)
 	}
-	// Reallocated 涉及两个 (agent, subnet) 对
+	// Reallocated involves two (agent, subnet) pairs
 	if eventType == "Reallocated" {
 		fromAgent, _ := data["fromAgent"].(string)
 		fromSubnet, _ := data["fromSubnet"].(string)
@@ -353,7 +391,7 @@ func extractAllocKeys(eventType string, data map[string]interface{}) []string {
 	return keys
 }
 
-// enrichAllocEvent 为分配事件附加当前余额（在锁外调用）
+// enrichAllocEvent enriches an allocation event with current balance (called outside lock)
 func (h *Hub) enrichAllocEvent(evt broadcastEvent, watchKey string) map[string]interface{} {
 	result := map[string]interface{}{
 		"type":        "AllocationChanged",
@@ -366,9 +404,9 @@ func (h *Hub) enrichAllocEvent(evt broadcastEvent, watchKey string) map[string]i
 	if len(parts) == 2 {
 		agent, subnetID := parts[0], parts[1]
 		result["agent"] = agent
-		result["subnetId"] = subnetID
+		result["worknetId"] = subnetID
 
-		// 使用事件中的 chainID；如果为 0 则回退到 Hub 的默认 chainID
+		// Use chainID from event; if 0, fall back to Hub default chainID
 		cid := evt.ChainID
 		h.mu.RLock()
 		q := h.allocQuery
@@ -432,13 +470,14 @@ func (h *Hub) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	conn.SetReadLimit(4096)
 
 	client := &Client{
-		hub:           h,
-		conn:          conn,
-		send:          make(chan []byte, 256),
-		filters:       make(map[string]bool),
-		allocWatches:  make(map[string]bool),
-		subnetWatches: make(map[string]bool),
-		ip:            ip,
+		hub:            h,
+		conn:           conn,
+		send:           make(chan []byte, 256),
+		filters:        make(map[string]bool),
+		allocWatches:   make(map[string]bool),
+		subnetWatches:  make(map[string]bool),
+		watchAddresses: make(map[string]bool),
+		ip:             ip,
 	}
 
 	h.register <- client
@@ -486,7 +525,20 @@ func (h *Hub) readPump(ctx context.Context, client *Client) {
 			h.logger.Debug("client updated filters", "filters", fm.Subscribe)
 		}
 
-		// 处理分配监听订阅
+		// Handle address-level filter subscription
+		if len(fm.WatchAddresses) > 0 && len(fm.WatchAddresses) <= 50 {
+			h.mu.Lock()
+			client.watchAddresses = make(map[string]bool, len(fm.WatchAddresses))
+			for _, addr := range fm.WatchAddresses {
+				if len(addr) == 42 && addr[:2] == "0x" {
+					client.watchAddresses[strings.ToLower(addr)] = true
+				}
+			}
+			h.mu.Unlock()
+			h.logger.Debug("client updated address watches", "count", len(client.watchAddresses))
+		}
+
+		// Handle allocation watch subscription
 		if len(fm.WatchAllocations) > 0 && len(fm.WatchAllocations) <= 100 {
 			h.mu.Lock()
 			client.allocWatches = make(map[string]bool)
@@ -496,7 +548,7 @@ func (h *Hub) readPump(ctx context.Context, client *Client) {
 					continue
 				}
 				if w.Agent == "" {
-					// 省略 agent = 订阅整个子网
+					// Omitting agent = subscribe to entire subnet
 					client.subnetWatches[w.SubnetID] = true
 				} else if len(w.Agent) == 42 {
 					key := strings.ToLower(w.Agent) + ":" + w.SubnetID

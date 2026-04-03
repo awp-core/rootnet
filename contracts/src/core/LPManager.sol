@@ -59,7 +59,7 @@ contract LPManager is LPManagerBase {
         clPositionManager = clPositionManager_;
     }
 
-    /// @dev 初始化 PancakeSwap V4 CL pool
+    /// @dev Initialize PancakeSwap V4 CL pool
     function _initializePool(address c0, address c1, uint160 sqrtPriceX96) internal override {
         PoolKey memory poolKey = _buildPoolKey(c0, c1);
         ICLPoolManager(clPoolManager).initialize(poolKey, sqrtPriceX96);
@@ -70,21 +70,21 @@ contract LPManager is LPManagerBase {
         address c0, address c1,
         uint256 amt0, uint256 amt1, uint160 sqrtPriceX96
     ) internal override returns (uint256 lpTokenId) {
-        // 通过 Permit2 approve token 到 CLPositionManager
+        // Approve tokens to CLPositionManager via Permit2
         IERC20(c0).forceApprove(permit2, amt0);
         IPermit2(permit2).approve(c0, clPositionManager, uint160(amt0), uint48(block.timestamp + 600));
         IERC20(c1).forceApprove(permit2, amt1);
         IPermit2(permit2).approve(c1, clPositionManager, uint160(amt1), uint48(block.timestamp + 600));
 
-        // 使用 PancakeSwap 官方 library 计算 full-range liquidity
+        // Compute full-range liquidity using PancakeSwap library
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96, MIN_SQRT_RATIO, MAX_SQRT_RATIO, amt0, amt1
         );
 
-        // mint 前记录 nextTokenId
+        // Record nextTokenId before mint
         lpTokenId = ICLPositionManager(clPositionManager).nextTokenId();
 
-        // 编码 mint 操作: CL_MINT_POSITION(0x02) + SETTLE_PAIR(0x0d)
+        // Encode mint action: CL_MINT_POSITION(0x02) + SETTLE_PAIR(0x0d)
         PoolKey memory poolKey = _buildPoolKey(c0, c1);
         bytes memory actions = abi.encodePacked(uint8(0x02), uint8(0x0d));
         bytes[] memory params = new bytes[](2);
@@ -93,7 +93,7 @@ contract LPManager is LPManagerBase {
         ICLPositionManager(clPositionManager).modifyLiquidities(abi.encode(actions, params), block.timestamp);
     }
 
-    /// @dev 计算 PancakeSwap V4 pool ID: keccak256(PoolKey)
+    /// @dev Compute PancakeSwap V4 pool ID: keccak256(PoolKey)
     function _computePoolId(address c0, address c1) internal view override returns (bytes32) {
         PoolKey memory poolKey = _buildPoolKey(c0, c1);
         return keccak256(abi.encode(poolKey));
@@ -147,7 +147,7 @@ contract LPManager is LPManagerBase {
         ICLPositionManager(clPositionManager).modifyLiquidities(abi.encode(actions, params), block.timestamp);
     }
 
-    /// @dev 构建 PancakeSwap V4 PoolKey
+    /// @dev Build PancakeSwap V4 PoolKey
     function _buildPoolKey(address c0, address c1) internal view returns (PoolKey memory) {
         return PoolKey({
             currency0: c0,

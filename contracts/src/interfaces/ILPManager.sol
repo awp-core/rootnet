@@ -4,7 +4,7 @@ pragma solidity ^0.8.20;
 /// @title ILPManager — Liquidity management interface
 /// @notice Wraps PancakeSwap V4 LP creation; LP is permanently locked
 interface ILPManager {
-    /// @notice Create an LP pool and add full-range liquidity (called once during subnet registration)
+    /// @notice Create an LP pool and add full-range liquidity (called once during worknet registration)
     /// @param alphaToken Alpha token address
     /// @param awpAmount AWP amount
     /// @param alphaAmount Alpha amount

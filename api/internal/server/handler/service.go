@@ -16,9 +16,9 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// ── 服务层错误类型 ──
+// ── Service layer error types ──
 
-// svcErrKind 区分业务错误类别（映射到 HTTP 状态码或 RPC 错误码）
+// svcErrKind distinguishes business error categories (mapped to HTTP status codes or RPC error codes)
 type svcErrKind int
 
 const (
@@ -28,7 +28,7 @@ const (
 	errUnavailable                   // 503 / rpcInternalError (service unavailable)
 )
 
-// svcError 是服务层统一错误
+// svcError is the unified service layer error
 type svcError struct {
 	Kind    svcErrKind
 	Message string
@@ -40,15 +40,15 @@ func newSvcErr(kind svcErrKind, msg string) *svcError {
 	return &svcError{Kind: kind, Message: msg}
 }
 
-// ── 分页常量与共享函数 ──
+// ── Pagination constants and shared functions ──
 
-// validSubnetStatuses 子网状态有效值
+// validSubnetStatuses valid subnet status values
 var validSubnetStatuses = map[string]bool{"Pending": true, "Active": true, "Paused": true, "Banned": true}
 
-// validProposalStatuses 提案状态有效值
+// validProposalStatuses valid proposal status values
 var validProposalStatuses = map[string]bool{"Active": true, "Canceled": true, "Defeated": true, "Succeeded": true, "Queued": true, "Expired": true, "Executed": true}
 
-// computePageLimits 统一分页参数计算：page >= 1, limit 1..100, 默认 limit=20
+// computePageLimits unified pagination parameter calculation: page >= 1, limit 1..100, default limit=20
 func computePageLimits(page, limit int) (int32, int32) {
 	if limit <= 0 {
 		limit = 20
@@ -63,9 +63,9 @@ func computePageLimits(page, limit int) (int32, int32) {
 	return int32(limit), int32(offset)
 }
 
-// ── Chain ID 解析 ──
+// ── Chain ID resolution ──
 
-// resolveChainID 从 HTTP 请求中提取 chainId 查询参数，回退到默认链
+// resolveChainID extracts the chainId query parameter from an HTTP request, falling back to the default chain
 func (h *Handler) resolveChainID(r *http.Request) int64 {
 	if v := r.URL.Query().Get("chainId"); v != "" {
 		if id, err := strconv.ParseInt(v, 10, 64); err == nil && id > 0 {
@@ -75,7 +75,7 @@ func (h *Handler) resolveChainID(r *http.Request) int64 {
 	return h.defaultChainID()
 }
 
-// resolveRPCChainID 从 RPC 参数中提取 chainId，回退到默认链
+// resolveRPCChainID extracts chainId from RPC parameters, falling back to the default chain
 func (h *Handler) resolveRPCChainID(chainID int64) int64 {
 	if chainID > 0 {
 		return chainID
@@ -83,7 +83,7 @@ func (h *Handler) resolveRPCChainID(chainID int64) int64 {
 	return h.defaultChainID()
 }
 
-// defaultChainID 返回默认链 ID：优先从已加载的 chains 列表取第一个，否则用 cfg.ChainID
+// defaultChainID returns the default chain ID: first from loaded chains list if available, otherwise cfg.ChainID
 func (h *Handler) defaultChainID() int64 {
 	if h.chains != nil && len(h.chains) > 0 {
 		return h.chains[0].ChainID
@@ -91,7 +91,7 @@ func (h *Handler) defaultChainID() int64 {
 	return h.cfg.ChainID
 }
 
-// getActiveChainIDs 返回已配置的所有链 ID（多链模式从 chains yaml，单链模式回退到 cfg.ChainID）
+// getActiveChainIDs returns all configured chain IDs (multi-chain mode from chains yaml, single-chain mode falls back to cfg.ChainID)
 func (h *Handler) getActiveChainIDs() []int64 {
 	if h.chains != nil && len(h.chains) > 0 {
 		ids := make([]int64, len(h.chains))
@@ -106,17 +106,17 @@ func (h *Handler) getActiveChainIDs() []int64 {
 	return nil
 }
 
-// ── 服务方法 ──
+// ── Service methods ──
 
-// svcGetRegistry 返回合约地址注册信息（按 chainID 查询 DB，回退到 cfg）
+// svcGetRegistry returns contract address registry info (queries DB by chainID, falls back to cfg)
 func (h *Handler) svcGetRegistry(chainID int64) registryResponse {
-	// 尝试从 DB chains 表读取 per-chain 合约地址
+	// Try to read per-chain contract addresses from DB chains table
 	if chainID > 0 {
 		if chain, err := h.queries.GetChain(context.Background(), chainID); err == nil {
 			return h.registryFromChainRow(chain)
 		}
 	}
-	// 回退到 cfg 配置
+	// Fall back to cfg configuration
 	return registryResponse{
 		ChainID:           chainID,
 		AWPRegistry:       h.cfg.AWPRegistryAddress,
@@ -124,7 +124,7 @@ func (h *Handler) svcGetRegistry(chainID int64) registryResponse {
 		AWPEmission:       h.cfg.AWPEmissionAddress,
 		StakingVault:      h.cfg.StakingVaultAddress,
 		StakeNFT:          h.cfg.StakeNFTAddress,
-		SubnetNFT:         h.cfg.SubnetNFTAddress,
+		WorknetNFT:         h.cfg.WorknetNFTAddress,
 		LPManager:         h.cfg.LPManagerAddress,
 		AlphaTokenFactory: h.cfg.AlphaFactoryAddress,
 		DAO:               h.cfg.DAOAddress,
@@ -140,7 +140,7 @@ func (h *Handler) svcGetRegistry(chainID int64) registryResponse {
 	}
 }
 
-// registryFromChainRow 从 DB Chain 记录构建 registryResponse
+// registryFromChainRow builds a registryResponse from a DB Chain record
 func (h *Handler) registryFromChainRow(c gen.Chain) registryResponse {
 	resolve := func(dbVal, cfgVal string) string {
 		v := strings.TrimSpace(dbVal)
@@ -158,7 +158,7 @@ func (h *Handler) registryFromChainRow(c gen.Chain) registryResponse {
 		AWPEmission:       resolve(c.AwpEmission, h.cfg.AWPEmissionAddress),
 		StakingVault:      vault,
 		StakeNFT:          resolve(c.StakeNft, h.cfg.StakeNFTAddress),
-		SubnetNFT:         resolve(c.SubnetNft, h.cfg.SubnetNFTAddress),
+		WorknetNFT:         resolve(c.WorknetNft, h.cfg.WorknetNFTAddress),
 		LPManager:         resolve(c.LpManager, h.cfg.LPManagerAddress),
 		AlphaTokenFactory: h.cfg.AlphaFactoryAddress,
 		DAO:               resolve(c.DaoAddress, h.cfg.DAOAddress),
@@ -174,9 +174,9 @@ func (h *Handler) registryFromChainRow(c gen.Chain) registryResponse {
 	}
 }
 
-// svcGetChains 返回支持的链列表（优先从 DB 读取，回退到 yaml 配置）
+// svcGetChains returns the list of supported chains (reads from DB first, falls back to yaml config)
 func (h *Handler) svcGetChains(ctx context.Context) any {
-	// 尝试从 DB 读取
+	// Try to read from DB
 	if dbChains, err := h.queries.ListChains(ctx); err == nil && len(dbChains) > 0 {
 		return dbChains
 	}
@@ -186,7 +186,7 @@ func (h *Handler) svcGetChains(ctx context.Context) any {
 	return []map[string]interface{}{{"chainId": h.cfg.ChainID, "name": "Default"}}
 }
 
-// svcListUsers 分页获取用户列表
+// svcListUsers fetches a paginated user list
 func (h *Handler) svcListUsers(ctx context.Context, chainID int64, limit, offset int32) (any, error) {
 	users, err := h.queries.ListUsers(ctx, gen.ListUsersParams{
 		ChainID: chainID, Limit: limit, Offset: offset,
@@ -198,7 +198,7 @@ func (h *Handler) svcListUsers(ctx context.Context, chainID int64, limit, offset
 	return users, nil
 }
 
-// svcGetUserCount 获取用户总数
+// svcGetUserCount fetches the total user count
 func (h *Handler) svcGetUserCount(ctx context.Context, chainID int64) (int64, error) {
 	count, err := h.queries.GetUserCount(ctx, chainID)
 	if err != nil {
@@ -208,7 +208,7 @@ func (h *Handler) svcGetUserCount(ctx context.Context, chainID int64) (int64, er
 	return count, nil
 }
 
-// svcGetUser 获取用户详情（含余额和绑定的 agent）
+// svcGetUser fetches user details (including balance and bound agents)
 func (h *Handler) svcGetUser(ctx context.Context, chainID int64, address string) (*userDetailResponse, error) {
 	user, err := h.queries.GetUser(ctx, gen.GetUserParams{Address: address, ChainID: chainID})
 	if err != nil {
@@ -233,7 +233,7 @@ func (h *Handler) svcGetUser(ctx context.Context, chainID int64, address string)
 	return resp, nil
 }
 
-// svcCheckAddress 检查地址注册状态、绑定和收款地址
+// svcCheckAddress checks address registration status, binding, and recipient address
 func (h *Handler) svcCheckAddress(ctx context.Context, chainID int64, address string) (checkAddressResponse, error) {
 	resp := checkAddressResponse{}
 	if user, err := h.queries.GetUser(ctx, gen.GetUserParams{
@@ -249,7 +249,7 @@ func (h *Handler) svcCheckAddress(ctx context.Context, chainID int64, address st
 	return resp, nil
 }
 
-// svcGetBalance 获取用户 AWP 质押余额（总质押/已分配/可用）
+// svcGetBalance fetches the user AWP staking balance (total staked / allocated / available)
 func (h *Handler) svcGetBalance(ctx context.Context, chainID int64, address string) (balanceResponse, error) {
 	totalStakedNum, err := h.queries.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{
 		ChainID: chainID, Owner: address,
@@ -284,7 +284,11 @@ func (h *Handler) svcGetBalance(ctx context.Context, chainID int64, address stri
 		if balance.TotalAllocated.Valid {
 			allocBig.Set(balance.TotalAllocated.Int)
 		}
-		unallocated = new(big.Int).Sub(stakedBig, allocBig).String()
+		diff := new(big.Int).Sub(stakedBig, allocBig)
+		if diff.Sign() < 0 {
+			diff.SetInt64(0)
+		}
+		unallocated = diff.String()
 	}
 
 	return balanceResponse{
@@ -292,7 +296,7 @@ func (h *Handler) svcGetBalance(ctx context.Context, chainID int64, address stri
 	}, nil
 }
 
-// svcGetAllocations 分页获取用户的质押分配列表
+// svcGetAllocations fetches a paginated list of the user's stake allocations
 func (h *Handler) svcGetAllocations(ctx context.Context, chainID int64, address string, limit, offset int32) (any, error) {
 	allocations, err := h.queries.GetAllocationsByUser(ctx, gen.GetAllocationsByUserParams{
 		ChainID: chainID, UserAddress: address, Limit: limit, Offset: offset,
@@ -304,7 +308,7 @@ func (h *Handler) svcGetAllocations(ctx context.Context, chainID int64, address 
 	return allocations, nil
 }
 
-// svcGetFrozen 获取用户冻结的质押分配
+// svcGetFrozen fetches the user's frozen stake allocations
 func (h *Handler) svcGetFrozen(ctx context.Context, chainID int64, address string) (any, error) {
 	frozen, err := h.queries.GetFrozenByUser(ctx, gen.GetFrozenByUserParams{
 		ChainID: chainID, UserAddress: address,
@@ -316,7 +320,7 @@ func (h *Handler) svcGetFrozen(ctx context.Context, chainID int64, address strin
 	return frozen, nil
 }
 
-// svcGetStakePositions 获取用户的 StakeNFT 持仓列表
+// svcGetStakePositions fetches the user's StakeNFT position list
 func (h *Handler) svcGetStakePositions(ctx context.Context, chainID int64, address string) (any, error) {
 	positions, err := h.queries.GetUserStakePositions(ctx, gen.GetUserStakePositionsParams{
 		ChainID: chainID, Owner: address,
@@ -328,7 +332,7 @@ func (h *Handler) svcGetStakePositions(ctx context.Context, chainID int64, addre
 	return positions, nil
 }
 
-// svcGetAgentSubnetStake 获取 agent 在某子网的质押量（跨链聚合，不需要 chainID）
+// svcGetAgentSubnetStake fetches the agent's stake in a subnet (cross-chain aggregation, chainID not needed)
 func (h *Handler) svcGetAgentSubnetStake(ctx context.Context, agent string, subnetID pgtype.Numeric) (string, error) {
 	stake, err := h.queries.GetAgentSubnetStakeGlobal(ctx, gen.GetAgentSubnetStakeGlobalParams{
 		AgentAddress: agent, SubnetID: subnetID,
@@ -343,7 +347,7 @@ func (h *Handler) svcGetAgentSubnetStake(ctx context.Context, agent string, subn
 	return "0", nil
 }
 
-// svcGetAgentSubnets 获取 agent 参与的所有子网及质押量（跨链聚合）
+// svcGetAgentSubnets fetches all subnets the agent participates in with stake amounts (cross-chain aggregation)
 func (h *Handler) svcGetAgentSubnets(ctx context.Context, agent string) (any, error) {
 	subnets, err := h.queries.GetAgentSubnetsGlobal(ctx, agent)
 	if err != nil {
@@ -353,11 +357,11 @@ func (h *Handler) svcGetAgentSubnets(ctx context.Context, agent string) (any, er
 	return subnets, nil
 }
 
-// svcGetSubnetTotalStake 获取子网总质押量（跨链聚合）
+// svcGetSubnetTotalStake fetches the subnet total stake (cross-chain aggregation)
 func (h *Handler) svcGetSubnetTotalStake(ctx context.Context, subnetID pgtype.Numeric) (string, error) {
 	total, err := h.queries.GetSubnetTotalStake(ctx, subnetID)
 	if err != nil {
-		h.logger.Error("failed to get subnet total stake", "error", err, "subnetId", subnetID)
+		h.logger.Error("failed to get subnet total stake", "error", err, "worknetId", subnetID)
 		return "", newSvcErr(errInternal, "failed to get subnet total stake")
 	}
 	if total.Valid {
@@ -366,8 +370,8 @@ func (h *Handler) svcGetSubnetTotalStake(ctx context.Context, subnetID pgtype.Nu
 	return "0", nil
 }
 
-// svcListSubnets 分页获取子网列表（可按状态筛选）
-// svcListSubnets 获取子网列表。chainID=0 时返回所有链的子网（跨链），否则返回指定链的子网
+// svcListSubnets fetches a paginated subnet list (optionally filtered by status).
+// When chainID=0, returns subnets from all chains (cross-chain); otherwise returns subnets for the specified chain
 func (h *Handler) svcListSubnets(ctx context.Context, chainID int64, status string, limit, offset int32) (any, error) {
 	if status != "" {
 		if !validSubnetStatuses[status] {
@@ -410,58 +414,58 @@ func (h *Handler) svcListSubnets(ctx context.Context, chainID int64, status stri
 	return subnets, nil
 }
 
-// svcGetSubnet 获取子网详情（按 subnetID 查询，不需要 chainID）
+// svcGetSubnet fetches subnet details (queried by subnetID, chainID not needed)
 func (h *Handler) svcGetSubnet(ctx context.Context, subnetID pgtype.Numeric) (any, error) {
 	subnet, err := h.queries.GetSubnet(ctx, subnetID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, newSvcErr(errNotFound, "subnet not found")
 		}
-		h.logger.Error("failed to get subnet", "error", err, "subnetId", subnetID)
+		h.logger.Error("failed to get subnet", "error", err, "worknetId", subnetID)
 		return nil, newSvcErr(errInternal, "failed to get subnet")
 	}
 	return subnet, nil
 }
 
-// svcGetSubnetSkills 获取子网 skills URI
+// svcGetSubnetSkills fetches the subnet skills URI
 func (h *Handler) svcGetSubnetSkills(ctx context.Context, subnetID pgtype.Numeric) (map[string]interface{}, error) {
 	skillsURI, err := h.queries.GetSubnetSkills(ctx, subnetID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, newSvcErr(errNotFound, "subnet not found")
 		}
-		h.logger.Error("failed to get subnet skills", "error", err, "subnetId", subnetID)
+		h.logger.Error("failed to get subnet skills", "error", err, "worknetId", subnetID)
 		return nil, newSvcErr(errInternal, "failed to get subnet skills")
 	}
 	var uri string
 	if skillsURI.Valid {
 		uri = skillsURI.String
 	}
-	return map[string]interface{}{"subnetId": subnetID, "skillsURI": uri}, nil
+	return map[string]interface{}{"worknetId": subnetID, "skillsURI": uri}, nil
 }
 
-// svcGetSubnetEarnings 获取子网 AWP 收益历史（分页）
+// svcGetSubnetEarnings fetches the subnet AWP earnings history (paginated)
 func (h *Handler) svcGetSubnetEarnings(ctx context.Context, subnetID pgtype.Numeric, limit, offset int32) (any, error) {
 	earnings, err := h.queries.GetSubnetEarningsByID(ctx, gen.GetSubnetEarningsByIDParams{
 		SubnetID: subnetID, Limit: limit, Offset: offset,
 	})
 	if err != nil {
-		h.logger.Error("failed to get subnet earnings", "error", err, "subnetId", subnetID)
+		h.logger.Error("failed to get subnet earnings", "error", err, "worknetId", subnetID)
 		return nil, newSvcErr(errInternal, "failed to get subnet earnings")
 	}
 	return earnings, nil
 }
 
-// svcGetSubnetAgentInfo 获取 agent 在子网的质押信息
+// svcGetSubnetAgentInfo fetches the agent's staking info in a subnet
 func (h *Handler) svcGetSubnetAgentInfo(ctx context.Context, agent string, subnetID pgtype.Numeric) (map[string]any, error) {
 	amount, err := h.svcGetAgentSubnetStake(ctx, agent, subnetID)
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"agent": agent, "subnetId": subnetID, "stake": amount}, nil
+	return map[string]any{"agent": agent, "worknetId": subnetID, "stake": amount}, nil
 }
 
-// svcGetEmissionSchedule 获取排放预测（30/90/365 天）
+// svcGetEmissionSchedule fetches emission projections (30/90/365 days)
 func (h *Handler) svcGetEmissionSchedule(ctx context.Context, chainID int64) (map[string]any, error) {
 	currentDaily := new(big.Int).Set(initialDailyEmission)
 	latestEpoch, err := h.queries.GetLatestEpoch(ctx, chainID)
@@ -495,7 +499,7 @@ func (h *Handler) svcGetEmissionSchedule(ctx context.Context, chainID int64) (ma
 	}, nil
 }
 
-// svcListEpochs 分页获取 epoch 列表
+// svcListEpochs fetches a paginated epoch list
 func (h *Handler) svcListEpochs(ctx context.Context, chainID int64, limit, offset int32) (any, error) {
 	epochs, err := h.queries.ListEpochs(ctx, gen.ListEpochsParams{
 		ChainID: chainID, Limit: limit, Offset: offset,
@@ -507,12 +511,12 @@ func (h *Handler) svcListEpochs(ctx context.Context, chainID int64, limit, offse
 	return epochs, nil
 }
 
-// svcReadRedisJSON 读取 Redis 缓存中的 JSON 值
+// svcReadRedisJSON reads a JSON value from Redis cache
 func (h *Handler) svcReadRedisJSON(ctx context.Context, key string) (any, error) {
 	val, err := h.rdb.Get(ctx, key).Result()
 	if err != nil {
 		if err == redis.Nil {
-			return nil, nil // 调用者决定如何处理 nil（空对象 vs 错误）
+			return nil, nil // caller decides how to handle nil (empty object vs error)
 		}
 		h.logger.Error("failed to read Redis key", "error", err, "key", key)
 		return nil, newSvcErr(errInternal, "failed to read cache")
@@ -525,7 +529,7 @@ func (h *Handler) svcReadRedisJSON(ctx context.Context, key string) (any, error)
 	return data, nil
 }
 
-// svcGetAgentsByOwner 获取绑定到指定 owner 的所有 agent
+// svcGetAgentsByOwner fetches all agents bound to the specified owner
 func (h *Handler) svcGetAgentsByOwner(ctx context.Context, chainID int64, owner string) (any, error) {
 	agents, err := h.queries.GetUsersByBoundTo(ctx, gen.GetUsersByBoundToParams{
 		BoundTo: owner, ChainID: chainID,
@@ -537,7 +541,7 @@ func (h *Handler) svcGetAgentsByOwner(ctx context.Context, chainID int64, owner 
 	return agents, nil
 }
 
-// svcGetAgentDetail 获取 agent 详情（user 记录）
+// svcGetAgentDetail fetches agent details (user record)
 func (h *Handler) svcGetAgentDetail(ctx context.Context, chainID int64, agent string) (any, error) {
 	user, err := h.queries.GetUser(ctx, gen.GetUserParams{Address: agent, ChainID: chainID})
 	if err != nil {
@@ -550,7 +554,7 @@ func (h *Handler) svcGetAgentDetail(ctx context.Context, chainID int64, agent st
 	return user, nil
 }
 
-// svcLookupAgent 查找 agent 的 owner（boundTo）
+// svcLookupAgent looks up the agent's owner (boundTo)
 func (h *Handler) svcLookupAgent(ctx context.Context, chainID int64, agent string) (string, error) {
 	user, err := h.queries.GetUser(ctx, gen.GetUserParams{Address: agent, ChainID: chainID})
 	if err != nil {
@@ -566,7 +570,7 @@ func (h *Handler) svcLookupAgent(ctx context.Context, chainID int64, agent strin
 	return user.BoundTo, nil
 }
 
-// svcBatchAgentInfo 批量查询 agent 信息及质押
+// svcBatchAgentInfo batch-queries agent info and stake
 func (h *Handler) svcBatchAgentInfo(ctx context.Context, chainID int64, agents []string, subnetID pgtype.Numeric) ([]agentInfoItem, error) {
 	// Validate and normalize
 	validAddrs := make([]string, 0, len(agents))
@@ -621,9 +625,9 @@ func (h *Handler) svcBatchAgentInfo(ctx context.Context, chainID int64, agents [
 	return results, nil
 }
 
-// ── 跨链聚合服务方法 ──
+// ── Cross-chain aggregation service methods ──
 
-// svcGetGlobalStats 获取全局协议统计（跨链聚合）
+// svcGetGlobalStats fetches global protocol statistics (cross-chain aggregation)
 func (h *Handler) svcGetGlobalStats(ctx context.Context) (map[string]any, error) {
 	totalSubnets, err := h.queries.CountAllSubnets(ctx)
 	if err != nil {
@@ -663,7 +667,7 @@ func (h *Handler) svcGetGlobalStats(ctx context.Context) (map[string]any, error)
 		chainCount = len(h.chains)
 	}
 
-	// Per-chain sync freshness — 各链 indexer 同步状态
+	// Per-chain sync freshness — indexer sync status for each chain
 	chainIDs := h.getActiveChainIDs()
 	syncStates := []map[string]any{}
 	for _, cid := range chainIDs {
@@ -685,7 +689,7 @@ func (h *Handler) svcGetGlobalStats(ctx context.Context) (map[string]any, error)
 	}, nil
 }
 
-// svcGetUserBalanceGlobal 获取用户跨链聚合质押余额
+// svcGetUserBalanceGlobal fetches the user's cross-chain aggregated staking balance
 func (h *Handler) svcGetUserBalanceGlobal(ctx context.Context, address string) (balanceResponse, error) {
 	totalStakedNum, err := h.queries.GetUserTotalStakedGlobal(ctx, address)
 	if err != nil {
@@ -728,7 +732,7 @@ func (h *Handler) svcGetUserBalanceGlobal(ctx context.Context, address string) (
 	}, nil
 }
 
-// svcGetGlobalEmissionSchedule 获取全链排放汇总
+// svcGetGlobalEmissionSchedule fetches global emission schedule aggregated across all chains
 func (h *Handler) svcGetGlobalEmissionSchedule(ctx context.Context) (map[string]any, error) {
 	chainIDs := []int64{h.defaultChainID()}
 	if h.chains != nil && len(h.chains) > 0 {
@@ -748,7 +752,7 @@ func (h *Handler) svcGetGlobalEmissionSchedule(ctx context.Context) (map[string]
 			perChain = append(perChain, map[string]any{"chainId": cid, "dailyEmission": "0", "available": false})
 			continue
 		}
-		// 从 Redis JSON 中提取 dailyEmission
+		// Extract dailyEmission from Redis JSON
 		dataMap, ok := data.(map[string]any)
 		if !ok {
 			perChain = append(perChain, map[string]any{"chainId": cid, "dailyEmission": "0", "available": false})
@@ -766,7 +770,7 @@ func (h *Handler) svcGetGlobalEmissionSchedule(ctx context.Context) (map[string]
 		perChain = append(perChain, map[string]any{"chainId": cid, "dailyEmission": dailyStr, "available": true})
 	}
 
-	// 计算全局预测
+	// Calculate global projections
 	periods := []int{30, 90, 365}
 	projections := make([]emissionProjection, 0, len(periods))
 	for _, days := range periods {
@@ -789,7 +793,7 @@ func (h *Handler) svcGetGlobalEmissionSchedule(ctx context.Context) (map[string]
 	}, nil
 }
 
-// svcListUsersGlobal 跨链去重用户列表
+// svcListUsersGlobal returns a cross-chain deduplicated user list
 func (h *Handler) svcListUsersGlobal(ctx context.Context, limit, offset int32) (map[string]any, error) {
 	users, err := h.queries.ListAllUsers(ctx, gen.ListAllUsersParams{
 		Limit: limit, Offset: offset,
@@ -806,7 +810,7 @@ func (h *Handler) svcListUsersGlobal(ctx context.Context, limit, offset int32) (
 	return map[string]any{"users": users, "total": total}, nil
 }
 
-// svcListAllProposals 跨链提案列表
+// svcListAllProposals returns a cross-chain proposal list
 func (h *Handler) svcListAllProposals(ctx context.Context, status string, limit, offset int32) (any, error) {
 	if status != "" {
 		if !validProposalStatuses[status] {
@@ -832,23 +836,23 @@ func (h *Handler) svcListAllProposals(ctx context.Context, status string, limit,
 	return proposals, nil
 }
 
-// svcGetAlphaInfo 获取子网 Alpha 代币信息
+// svcGetAlphaInfo fetches subnet Alpha token info
 func (h *Handler) svcGetAlphaInfo(ctx context.Context, subnetID pgtype.Numeric) (map[string]any, error) {
 	subnet, err := h.queries.GetSubnet(ctx, subnetID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, newSvcErr(errNotFound, "subnet not found")
 		}
-		h.logger.Error("failed to get subnet info", "error", err, "subnetId", subnetID)
+		h.logger.Error("failed to get subnet info", "error", err, "worknetId", subnetID)
 		return nil, newSvcErr(errInternal, "failed to get subnet info")
 	}
 	return map[string]any{
-		"subnetId": subnet.SubnetID, "name": subnet.Name,
+		"worknetId": subnet.SubnetID, "name": subnet.Name,
 		"symbol": subnet.Symbol, "alphaToken": subnet.AlphaToken,
 	}, nil
 }
 
-// svcGetAlphaPrice 获取子网 Alpha 代币价格
+// svcGetAlphaPrice fetches the subnet Alpha token price
 func (h *Handler) svcGetAlphaPrice(ctx context.Context, subnetIDRaw string) (any, error) {
 	data, err := h.svcReadRedisJSON(ctx, fmt.Sprintf("alpha_price:%s", subnetIDRaw))
 	if err != nil {
@@ -860,7 +864,7 @@ func (h *Handler) svcGetAlphaPrice(ctx context.Context, subnetIDRaw string) (any
 	return data, nil
 }
 
-// svcGetAWPInfo 获取 AWP 代币信息
+// svcGetAWPInfo fetches AWP token info
 func (h *Handler) svcGetAWPInfo(ctx context.Context, chainID int64) (any, error) {
 	data, err := h.svcReadRedisJSON(ctx, fmt.Sprintf("awp_info:%d", chainID))
 	if err != nil {
@@ -872,7 +876,7 @@ func (h *Handler) svcGetAWPInfo(ctx context.Context, chainID int64) (any, error)
 	return data, nil
 }
 
-// svcGetAWPInfoGlobal 跨链聚合 AWP 代币信息（各链独立，无桥接）
+// svcGetAWPInfoGlobal aggregates AWP token info across chains (each chain is independent, no bridge)
 func (h *Handler) svcGetAWPInfoGlobal(ctx context.Context) (map[string]any, error) {
 	chainIDs := h.getActiveChainIDs()
 	perChain := []map[string]any{}
@@ -892,7 +896,7 @@ func (h *Handler) svcGetAWPInfoGlobal(ctx context.Context) (map[string]any, erro
 	}, nil
 }
 
-// svcGetCurrentEmission 获取当前排放数据
+// svcGetCurrentEmission fetches current emission data
 func (h *Handler) svcGetCurrentEmission(ctx context.Context, chainID int64) (any, error) {
 	data, err := h.svcReadRedisJSON(ctx, fmt.Sprintf("emission_current:%d", chainID))
 	if err != nil {
@@ -904,7 +908,7 @@ func (h *Handler) svcGetCurrentEmission(ctx context.Context, chainID int64) (any
 	return data, nil
 }
 
-// svcListProposals 分页获取治理提案（可按状态筛选）
+// svcListProposals fetches a paginated list of governance proposals (optionally filtered by status)
 func (h *Handler) svcListProposals(ctx context.Context, chainID int64, status string, limit, offset int32) (any, error) {
 	if status != "" {
 		if !validProposalStatuses[status] {
@@ -930,7 +934,7 @@ func (h *Handler) svcListProposals(ctx context.Context, chainID int64, status st
 	return proposals, nil
 }
 
-// svcGetProposal 获取单个治理提案详情
+// svcGetProposal fetches a single governance proposal's details
 func (h *Handler) svcGetProposal(ctx context.Context, chainID int64, proposalID string) (any, error) {
 	proposal, err := h.queries.GetProposal(ctx, gen.GetProposalParams{
 		ChainID: chainID, ProposalID: proposalID,

@@ -23,18 +23,18 @@ type ChainConfig struct {
 	SwapRouter      string `yaml:"swapRouter" json:"-"`
 	StateView       string `yaml:"stateView" json:"-"`
 
-	// 可选的 per-chain 合约地址覆盖（为空时使用全局 env 配置）
+	// Optional per-chain contract address overrides (uses global env config when empty)
 	AWPRegistry  string `yaml:"awpRegistry" json:"-"`
 	AWPToken     string `yaml:"awpToken" json:"-"`
 	AWPEmission  string `yaml:"awpEmission" json:"-"`
 	StakingVault string `yaml:"stakingVault" json:"-"`
 	StakeNFT     string `yaml:"stakeNFT" json:"-"`
-	SubnetNFT    string `yaml:"subnetNFT" json:"-"`
+	WorknetNFT    string `yaml:"worknetNFT" json:"-"`
 	DAOAddress   string `yaml:"dao" json:"-"`
 	LPManager    string `yaml:"lpManager" json:"-"`
 }
 
-// ResolveAddress 返回 per-chain 地址覆盖，如果为空则返回全局默认值
+// ResolveAddress returns the per-chain address override, or the global default if empty
 func ResolveAddress(perChain, global string) string {
 	if perChain != "" {
 		return perChain

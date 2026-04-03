@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// ── 通用参数结构 ──
+// ── Common parameter structs ──
 
 type addressParams struct {
 	Address string `json:"address"`
@@ -16,7 +16,7 @@ type addressParams struct {
 }
 
 type subnetParams struct {
-	SubnetID string `json:"subnetId"`
+	SubnetID string `json:"worknetId"`
 	ChainID  int64  `json:"chainId"`
 }
 
@@ -26,12 +26,12 @@ type pageParams struct {
 	ChainID int64 `json:"chainId"`
 }
 
-// parsePage 解析分页参数，返回 (limit, offset)；委托给 computePageLimits
+// parsePage parses pagination parameters and returns (limit, offset); delegates to computePageLimits
 func parsePage(p pageParams) (int32, int32) {
 	return computePageLimits(p.Page, p.Limit)
 }
 
-// parseSubnetNum 将字符串 subnetId 解析为 pgtype.Numeric，返回 RPCErr
+// parseSubnetNum parses a string worknetId into pgtype.Numeric, returns RPCErr on failure
 func parseSubnetNum(s string) (pgtype.Numeric, *RPCErr) {
 	num, err := parseSubnetIDString(s)
 	if err != nil {
@@ -40,7 +40,7 @@ func parseSubnetNum(s string) (pgtype.Numeric, *RPCErr) {
 	return num, nil
 }
 
-// requireAddress 验证并规范化地址
+// requireAddress validates and normalizes an address
 func requireAddress(addr string) (string, *RPCErr) {
 	if !isValidAddress(addr) {
 		return "", &RPCErr{Code: rpcInvalidParams, Message: "invalid address: must be 0x + 40 hex chars"}
@@ -48,12 +48,12 @@ func requireAddress(addr string) (string, *RPCErr) {
 	return normalizeAddr(addr), nil
 }
 
-// internalErr 返回内部错误
+// internalErr returns an internal error
 func internalErr(msg string) *RPCErr {
 	return &RPCErr{Code: rpcInternalError, Message: msg}
 }
 
-// svcToRPC 将 svcError 转为 RPCErr
+// svcToRPC converts a svcError to an RPCErr
 func svcToRPC(err error) *RPCErr {
 	if se, ok := err.(*svcError); ok {
 		switch se.Kind {
@@ -355,7 +355,7 @@ func (h *Handler) rpcAgentsBatchInfo(ctx context.Context, raw json.RawMessage) (
 	}
 	var p struct {
 		Agents   []string `json:"agents"`
-		SubnetID string   `json:"subnetId"`
+		SubnetID string   `json:"worknetId"`
 		ChainID  int64    `json:"chainId"`
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
@@ -460,11 +460,11 @@ func (h *Handler) rpcStakingGetPending(_ context.Context, _ json.RawMessage) (an
 	return []struct{}{}, nil
 }
 
-// 跨链查询：不需要 chainId
+// Cross-chain query: chainId not needed
 func (h *Handler) rpcStakingGetAgentSubnetStake(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
 		Agent    string `json:"agent"`
-		SubnetID string `json:"subnetId"`
+		SubnetID string `json:"worknetId"`
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
 		return nil, &RPCErr{Code: rpcInvalidParams, Message: "invalid params"}
@@ -484,7 +484,7 @@ func (h *Handler) rpcStakingGetAgentSubnetStake(ctx context.Context, raw json.Ra
 	return map[string]string{"amount": amount}, nil
 }
 
-// 跨链查询：不需要 chainId
+// Cross-chain query: chainId not needed
 func (h *Handler) rpcStakingGetAgentSubnets(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
 		Agent string `json:"agent"`
@@ -503,7 +503,7 @@ func (h *Handler) rpcStakingGetAgentSubnets(ctx context.Context, raw json.RawMes
 	return result, nil
 }
 
-// 跨链查询：不需要 chainId
+// Cross-chain query: chainId not needed
 func (h *Handler) rpcStakingGetSubnetTotalStake(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p subnetParams
 	if err := json.Unmarshal(raw, &p); err != nil {
@@ -532,7 +532,7 @@ func (h *Handler) rpcSubnetsList(ctx context.Context, raw json.RawMessage) (any,
 	}
 	_ = json.Unmarshal(raw, &p)
 	limit, offset := parsePage(p.pageParams)
-	// chainId=0（默认）返回所有链的子网
+	// chainId=0 (default) returns subnets from all chains
 	result, err := h.svcListSubnets(ctx, p.ChainID, p.Status, limit, offset)
 	if err != nil {
 		return nil, svcToRPC(err)
@@ -574,7 +574,7 @@ func (h *Handler) rpcSubnetsGetSkills(ctx context.Context, raw json.RawMessage) 
 
 func (h *Handler) rpcSubnetsGetEarnings(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
-		SubnetID string `json:"subnetId"`
+		SubnetID string `json:"worknetId"`
 		pageParams
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {
@@ -594,7 +594,7 @@ func (h *Handler) rpcSubnetsGetEarnings(ctx context.Context, raw json.RawMessage
 
 func (h *Handler) rpcSubnetsGetAgentInfo(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
-		SubnetID string `json:"subnetId"`
+		SubnetID string `json:"worknetId"`
 		Agent    string `json:"agent"`
 	}
 	if err := json.Unmarshal(raw, &p); err != nil {

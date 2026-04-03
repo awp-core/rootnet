@@ -25,12 +25,13 @@ type Config struct {
 	ChainID         int64  `env:"CHAIN_ID" envDefault:"0"`
 	RPCURL          string `env:"RPC_URL" envDefault:""`
 	AWPRegistryAddress string `env:"AWP_REGISTRY_ADDRESS"`
-	SubnetNFTAddress string `env:"SUBNETNFT_ADDRESS"`
+	WorknetNFTAddress string `env:"SUBNETNFT_ADDRESS"`
 	DAOAddress      string `env:"DAO_ADDRESS"`
 	AWPTokenAddress string `env:"AWP_TOKEN_ADDRESS"`
 
 	// Keeper
 	KeeperPrivateKey string `env:"KEEPER_PRIVATE_KEY"`
+	KeeperSkipSettle bool   `env:"KEEPER_SKIP_SETTLE" envDefault:"false"`
 
 	// Relayer (gasless transaction relay)
 	RelayerPrivateKey string `env:"RELAYER_PRIVATE_KEY"`

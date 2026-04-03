@@ -2,18 +2,18 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {SubnetNFT} from "../src/core/SubnetNFT.sol";
+import {WorknetNFT} from "../src/core/WorknetNFT.sol";
 import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 
-contract SubnetNFTTest is Test {
-    SubnetNFT public nft;
+contract WorknetNFTTest is Test {
+    WorknetNFT public nft;
 
     address public awpRegistry = makeAddr("awpRegistry");
     address public alice = makeAddr("alice");
     address public bob = makeAddr("bob");
 
     function setUp() public {
-        nft = new SubnetNFT("AWP Subnet", "SUBNET", awpRegistry);
+        nft = new WorknetNFT("AWP Worknet", "WORKNET", awpRegistry);
     }
 
     // ──────────────────────────────────────────────
@@ -21,8 +21,8 @@ contract SubnetNFTTest is Test {
     // ──────────────────────────────────────────────
 
     function test_constructor() public view {
-        assertEq(nft.name(), "AWP Subnet");
-        assertEq(nft.symbol(), "SUBNET");
+        assertEq(nft.name(), "AWP Worknet");
+        assertEq(nft.symbol(), "WORKNET");
         assertEq(nft.awpRegistry(), awpRegistry);
     }
 
@@ -53,7 +53,7 @@ contract SubnetNFTTest is Test {
 
     function test_mint_onlyAWPRegistry() public {
         vm.prank(alice);
-        vm.expectRevert(SubnetNFT.NotAWPRegistry.selector);
+        vm.expectRevert(WorknetNFT.NotAWPRegistry.selector);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
     }
 
@@ -94,7 +94,7 @@ contract SubnetNFTTest is Test {
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
 
         vm.prank(alice);
-        vm.expectRevert(SubnetNFT.NotAWPRegistry.selector);
+        vm.expectRevert(WorknetNFT.NotAWPRegistry.selector);
         nft.burn(1);
     }
 
@@ -105,10 +105,10 @@ contract SubnetNFTTest is Test {
     function test_setBaseURI_success() public {
         vm.startPrank(awpRegistry);
         nft.mint(alice, 42, "Test", address(0x1), address(0x2), 0, "");
-        nft.setBaseURI("https://api.cortexia.io/subnet/");
+        nft.setBaseURI("https://api.cortexia.io/worknet/");
         vm.stopPrank();
 
-        assertEq(nft.tokenURI(42), "https://api.cortexia.io/subnet/42");
+        assertEq(nft.tokenURI(42), "https://api.cortexia.io/worknet/42");
     }
 
     function test_setBaseURI_updateURI() public {
@@ -125,7 +125,7 @@ contract SubnetNFTTest is Test {
 
     function test_setBaseURI_onlyAWPRegistry() public {
         vm.prank(alice);
-        vm.expectRevert(SubnetNFT.NotAWPRegistry.selector);
+        vm.expectRevert(WorknetNFT.NotAWPRegistry.selector);
         nft.setBaseURI("https://evil.com/");
     }
 
@@ -209,7 +209,7 @@ contract SubnetNFTTest is Test {
         vm.prank(alice);
         nft.setSkillsURI(1, "https://example.com/skills");
 
-        SubnetNFT.SubnetData memory data = nft.getSubnetData(1);
+        WorknetNFT.WorknetData memory data = nft.getWorknetData(1);
         assertEq(data.skillsURI, "https://example.com/skills");
     }
 
@@ -218,7 +218,7 @@ contract SubnetNFTTest is Test {
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
 
         vm.prank(bob);
-        vm.expectRevert(SubnetNFT.NotTokenOwner.selector);
+        vm.expectRevert(WorknetNFT.NotTokenOwner.selector);
         nft.setSkillsURI(1, "https://evil.com");
     }
 
@@ -241,7 +241,7 @@ contract SubnetNFTTest is Test {
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 0, "");
 
         vm.prank(bob);
-        vm.expectRevert(SubnetNFT.NotTokenOwner.selector);
+        vm.expectRevert(WorknetNFT.NotTokenOwner.selector);
         nft.setMinStake(1, 1000);
     }
 
@@ -253,7 +253,7 @@ contract SubnetNFTTest is Test {
         vm.prank(awpRegistry);
         nft.mint(alice, 1, "Test", address(0x1), address(0x2), 500, "https://skills.io");
 
-        SubnetNFT.SubnetData memory data = nft.getSubnetData(1);
+        WorknetNFT.WorknetData memory data = nft.getWorknetData(1);
         assertEq(data.skillsURI, "https://skills.io");
         assertEq(data.minStake, 500);
     }

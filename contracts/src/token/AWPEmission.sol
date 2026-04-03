@@ -4,9 +4,9 @@ pragma solidity ^0.8.20;
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {IAWPToken} from "../interfaces/IAWPToken.sol";
 import {IAWPEmission} from "../interfaces/IAWPEmission.sol";
+import {IERC1363Receiver} from "../interfaces/IERC1363Receiver.sol";
 
 /// @title AWPEmission V3 — UUPS upgradeable emission contract (epoch-versioned weight distribution engine)
 /// @notice Guardian-only weight submission, no Oracle/Timelock dependency.
@@ -15,8 +15,8 @@ import {IAWPEmission} from "../interfaces/IAWPEmission.sol";
 ///      Guardian (cross-chain multisig) submits weights directly — no Oracle signatures or Timelock.
 ///      100% of epoch emission goes to recipients; Guardian includes treasury in recipients for DAO share.
 ///      Anyone can call settleEpoch to trigger settlement.
-///      AWPEmission now owns its own epoch timing (genesisTime + epochDuration).
-contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable, IAWPEmission {
+///      AWPEmission now owns its own epoch timing (baseEpoch + baseTime + epochDuration).
+contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, IAWPEmission {
 
     // ══════════════════════════════════════════════
     //  Storage layout — V3 (fresh proxy deployment, epoch-versioned weights)
@@ -28,17 +28,17 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice AWP token contract reference
     IAWPToken public awpToken;                      // slot 1
 
-    /// @dev Freed slot 2: was treasury address (DAO share now handled by including treasury in recipients)
-    address private __freed_treasury;               // slot 2
+    /// @notice Treasury address — queryable on-chain reference; Guardian includes it in recipient list for DAO share
+    address public treasury;                        // slot 2
 
     /// @notice Epoch duration in seconds (default 1 day = 86400)
     uint256 public epochDuration;                   // slot 3 (reused from freed slot)
 
-    /// @notice Number of epochs that have been settled
+    /// @notice Next epoch to settle (starts at 0; incremented after each settlement)
     uint256 public settledEpoch;                    // slot 4
 
-    /// @notice Genesis timestamp for epoch calculation
-    uint256 public genesisTime;                     // slot 5 (reused from freed slot)
+    /// @notice Base timestamp for epoch calculation (initially = genesisTime, adjusted on epochDuration change)
+    uint256 public baseTime;                        // slot 5
 
     /// @notice Current epoch daily emission amount (AWP wei)
     uint256 public currentDailyEmission;            // slot 6
@@ -46,7 +46,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice Epoch of the currently active (most recently promoted) weights
     uint256 public activeEpoch;                     // slot 7
 
-    /// @notice Epoch => packed allocations array: high 160 bits = address, low 96 bits = weight
+    /// @notice Epoch => packed allocations array: [32-bit reserved | 64-bit weight | 160-bit address]
     mapping(uint256 => uint256[]) internal _epochAllocations;  // slot 8
 
     /// @dev Freed slot (was _epochWeights mapping of mapping)
@@ -76,11 +76,13 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @dev Freed slot 17: was oracles[] array (Guardian replaced Oracle multi-sig)
     address[] private __freed_oracles;               // slot 17
 
-    /// @dev Freed slot 18: was oracleThreshold
-    uint256 private __freed_slot18;                  // slot 18
+    /// @notice Base epoch offset for epoch calculation (adjusted when epochDuration changes)
+    uint256 public baseEpoch;                        // slot 18
 
-    /// @dev Freed slot 19: was allocationNonce
-    uint256 private __freed_slot19;                  // slot 19
+    /// @notice Epoch pause: 0 = not paused; >0 = resume timestamp. Packed with frozenEpoch in slot 19.
+    uint64 public pausedUntil;
+    /// @notice Epoch value frozen at pause time (= settledEpoch when paused)
+    uint64 public frozenEpoch;                       // slot 19 (packed: pausedUntil + frozenEpoch = 16 bytes)
 
     /// @notice Maximum number of recipients allowed
     uint256 public maxRecipients;                   // slot 20
@@ -100,7 +102,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @dev Freed slot 25: was emissionSplitBps (split now fully dynamic via Guardian recipients)
     uint256 private __freed_slot25;                 // slot 25
 
-    /// @notice Guardian address — manages oracle config across chains (cross-chain multisig)
+    /// @notice Guardian address — manages emission config across chains (cross-chain multisig)
     address public guardian;                         // slot 26
 
     /// @dev Reserved storage gap for upgrades
@@ -119,24 +121,33 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
     /// @dev Recipient address is the zero address
     error InvalidRecipient();
-    /// @dev Mint amount is zero
-    error InvalidAmount();
+    /// @dev Weight is zero
+    error ZeroWeight();
     /// @dev All epochs up to the current time-based epoch have already been settled
     error EpochNotReady();
     /// @dev All AWP has been minted
     error MiningComplete();
     /// @dev Settlement is in progress; weights/recipients cannot be modified
     error SettlementInProgress();
-    /// @dev Array lengths do not match
-    error ArrayLengthMismatch();
-    /// @dev Parameter value is invalid
-    error InvalidParameter();
-    /// @dev Duplicate address in recipient list
-    error DuplicateRecipient();
-    /// @dev effectiveEpoch must be a future epoch
+    /// @dev Too many recipients
+    error TooManyRecipients(uint256 count, uint256 max);
+    /// @dev Decay factor out of valid range
+    error InvalidDecayFactor();
+    /// @dev Zero address passed
+    error ZeroAddress();
+    /// @dev Limit parameter is zero
+    error ZeroLimit();
+    /// @dev Epoch duration is zero
+    error ZeroEpochDuration();
+    /// @dev effectiveEpoch must be >= settledEpoch (not already settled)
     error MustBeFutureEpoch();
     /// @dev Caller is not the Guardian
     error NotGuardian();
+    /// @dev Genesis time has not been reached yet
+    error GenesisNotReached();
+    /// @dev Patch index exceeds allocation array length
+    error IndexOutOfBounds(uint256 index, uint256 length);
+
 
     // ══════════════════════════════════════════════
     //  Modifiers
@@ -163,21 +174,25 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @param initialDailyEmission_ Daily emission for the first epoch (wei)
     /// @param genesisTime_ Genesis timestamp for epoch calculation
     /// @param epochDuration_ Epoch duration in seconds (default 86400 = 1 day)
+    /// @param treasury_ Treasury address (fallback for failed recipient mints)
     function initialize(
         address awpToken_,
         address guardian_,
         uint256 initialDailyEmission_,
         uint256 genesisTime_,
-        uint256 epochDuration_
+        uint256 epochDuration_,
+        address treasury_
     ) external initializer {
         __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
-        __EIP712_init("AWPEmission", "2");
 
+        if (epochDuration_ == 0) revert ZeroEpochDuration();
+        if (awpToken_ == address(0) || guardian_ == address(0)) revert ZeroAddress();
         awpToken = IAWPToken(awpToken_);
         guardian = guardian_;
+        treasury = treasury_;
         currentDailyEmission = initialDailyEmission_;
-        genesisTime = genesisTime_;
+        baseTime = genesisTime_;
         epochDuration = epochDuration_;
         maxRecipients = 10000;
         decayFactor = 996844;
@@ -188,9 +203,22 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     //  Epoch calculation (self-contained)
     // ══════════════════════════════════════════════
 
-    /// @notice Current epoch number, derived from genesis time and epoch duration
+    /// @notice Current epoch number, derived from base time and epoch duration.
+    ///         When paused: returns frozenEpoch (= settledEpoch at pause time).
+    ///         When pause expired: resumes from frozenEpoch at pausedUntil timestamp.
     function currentEpoch() public view returns (uint256) {
-        return (block.timestamp - genesisTime) / epochDuration;
+        uint64 pu = pausedUntil;
+        if (pu == 0) {
+            // Normal: not paused
+            if (block.timestamp < baseTime) revert GenesisNotReached();
+            return baseEpoch + (block.timestamp - baseTime) / epochDuration;
+        }
+        if (block.timestamp < pu) {
+            // Paused: epoch frozen
+            return uint256(frozenEpoch);
+        }
+        // Pause expired: resume from frozenEpoch at pausedUntil
+        return uint256(frozenEpoch) + (block.timestamp - uint256(pu)) / epochDuration;
     }
 
     // ══════════════════════════════════════════════
@@ -207,42 +235,104 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     // ══════════════════════════════════════════════
 
     /// @notice Submit recipient weight allocations for a future epoch (Guardian only)
-    /// @dev Guardian is a cross-chain multisig that reads all chains' stake data off-chain,
-    ///      computes weights, and submits identical allocations to every chain's AWPEmission.
-    ///      Recipients MUST be sorted in ascending address order (duplicates rejected).
-    /// @param recipients_ Array of recipient addresses (must be sorted ascending)
-    /// @param weights_ Corresponding weight array (uint96)
+    /// @dev Resets existing allocations for the epoch, then writes packed entries.
+    ///      Each element in packed_: [32-bit zero | 64-bit weight | 160-bit address]
+    ///      Empty array is allowed — means this chain has no emission for this epoch.
+    ///      totalWeight is the cross-chain global total (sum of all chains' weights).
+    ///      Guardian ensures no duplicates and correct encoding off-chain.
+    /// @param packed_ Array of packed (weight, address) values — same encoding as storage
+    /// @param totalWeight_ Cross-chain global total weight
     /// @param effectiveEpoch The future epoch these weights take effect in
     function submitAllocations(
-        address[] calldata recipients_,
-        uint96[] calldata weights_,
+        uint256[] calldata packed_,
+        uint256 totalWeight_,
         uint256 effectiveEpoch
     ) external onlyGuardian {
         if (settleProgress != 0) revert SettlementInProgress();
-        if (effectiveEpoch <= settledEpoch) revert MustBeFutureEpoch();
-        if (recipients_.length != weights_.length) revert ArrayLengthMismatch();
-        if (recipients_.length > maxRecipients) revert InvalidParameter();
+        if (effectiveEpoch < settledEpoch) revert MustBeFutureEpoch();
+        if (packed_.length > maxRecipients) revert TooManyRecipients(packed_.length, maxRecipients);
 
         delete _epochAllocations[effectiveEpoch];
-        _epochTotalWeight[effectiveEpoch] = 0;
+        _pushPacked(effectiveEpoch, packed_);
+        _epochTotalWeight[effectiveEpoch] = totalWeight_;
 
-        uint256 len = recipients_.length;
-        uint256[] memory packed = new uint256[](len);
-        uint256 tw = 0;
+        emit AllocationsSubmitted(effectiveEpoch, packed_, totalWeight_);
+    }
+
+    /// @notice Append additional allocations to an existing epoch (Guardian only)
+    /// @dev totalWeight is NOT updated — it was set in submitAllocations.
+    ///      Same packed encoding as submitAllocations.
+    /// @param packed_ Array of packed (weight, address) values
+    /// @param effectiveEpoch The epoch to append to
+    function appendAllocations(
+        uint256[] calldata packed_,
+        uint256 effectiveEpoch
+    ) external onlyGuardian {
+        if (settleProgress != 0) revert SettlementInProgress();
+        if (effectiveEpoch < settledEpoch) revert MustBeFutureEpoch();
+        if (packed_.length == 0) revert ZeroLimit();
+
+        uint256 existingLen = _epochAllocations[effectiveEpoch].length;
+        if (existingLen + packed_.length > maxRecipients) {
+            revert TooManyRecipients(existingLen + packed_.length, maxRecipients);
+        }
+
+        _pushPacked(effectiveEpoch, packed_);
+
+        emit AllocationsAppended(effectiveEpoch, packed_);
+    }
+
+    /// @notice Modify existing allocations in-place (Guardian only)
+    /// @dev Each element in patches_: [32-bit index | 64-bit weight | 160-bit address]
+    ///      Same layout as storage but top 32 bits = array index instead of reserved zero.
+    ///      weight=0 is allowed (soft-delete, skipped at settle).
+    ///      address(0) keeps existing address unchanged (weight-only update).
+    ///      totalWeight is replaced unconditionally.
+    /// @param patches_ Array of packed (index, weight, address) values
+    /// @param newTotalWeight_ New cross-chain global total weight
+    /// @param effectiveEpoch The epoch to modify
+    function modifyAllocations(
+        uint256[] calldata patches_,
+        uint256 newTotalWeight_,
+        uint256 effectiveEpoch
+    ) external onlyGuardian {
+        if (settleProgress != 0) revert SettlementInProgress();
+        if (effectiveEpoch < settledEpoch) revert MustBeFutureEpoch();
+
+        uint256[] storage arr = _epochAllocations[effectiveEpoch];
+        uint256 arrLen = arr.length;
+        uint256 len = patches_.length;
+
         for (uint256 i = 0; i < len;) {
-            address addr = recipients_[i];
-            uint96 w = weights_[i];
-            if (addr == address(0)) revert InvalidRecipient();
-            if (w == 0) revert InvalidAmount();
-            if (i > 0 && uint160(addr) <= uint160(recipients_[i - 1])) revert DuplicateRecipient();
-            packed[i] = (uint256(uint160(addr)) << 96) | uint256(w);
-            tw += w;
+            uint256 p = patches_[i];
+            uint256 idx = p >> 224;                              // top 32 bits
+            uint64 newWeight = uint64(p >> 160);                 // middle 64 bits
+            address newAddr = address(uint160(p));               // bottom 160 bits
+
+            if (idx >= arrLen) revert IndexOutOfBounds(idx, arrLen);
+
+            if (newAddr == address(0)) {
+                address existingAddr = address(uint160(arr[idx]));
+                arr[idx] = (uint256(newWeight) << 160) | uint256(uint160(existingAddr));
+            } else {
+                arr[idx] = (uint256(newWeight) << 160) | uint256(uint160(newAddr));
+            }
             unchecked { ++i; }
         }
-        _epochAllocations[effectiveEpoch] = packed;
-        _epochTotalWeight[effectiveEpoch] = tw;
 
-        emit AllocationsSubmitted(effectiveEpoch, recipients_, weights_);
+        _epochTotalWeight[effectiveEpoch] = newTotalWeight_;
+
+        emit AllocationsModified(effectiveEpoch, patches_, newTotalWeight_);
+    }
+
+    /// @dev Push packed entries to storage. Guardian (trusted) ensures valid encoding off-chain.
+    function _pushPacked(uint256 effectiveEpoch, uint256[] calldata packed_) internal {
+        uint256[] storage arr = _epochAllocations[effectiveEpoch];
+        uint256 len = packed_.length;
+        for (uint256 i = 0; i < len;) {
+            arr.push(packed_[i]);
+            unchecked { ++i; }
+        }
     }
 
     // ══════════════════════════════════════════════
@@ -252,23 +342,93 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice Minimum decay factor (90% of DECAY_PRECISION = max 10% decay per epoch)
     uint256 public constant MIN_DECAY_FACTOR = 900000;
 
+
+    /// @notice Update the maximum number of recipients per epoch (Guardian only)
+    function setMaxRecipients(uint256 newMax) external onlyGuardian {
+        if (newMax == 0) revert ZeroLimit();
+        maxRecipients = newMax;
+        emit MaxRecipientsUpdated(newMax);
+    }
+
     /// @notice Update the per-epoch decay factor (Guardian only)
     /// @param newDecayFactor Must be >= MIN_DECAY_FACTOR and < DECAY_PRECISION
     function setDecayFactor(uint256 newDecayFactor) external onlyGuardian {
-        if (newDecayFactor < MIN_DECAY_FACTOR || newDecayFactor >= DECAY_PRECISION) revert InvalidParameter();
+        if (newDecayFactor < MIN_DECAY_FACTOR || newDecayFactor >= DECAY_PRECISION) revert InvalidDecayFactor();
         decayFactor = newDecayFactor;
+        emit DecayFactorUpdated(newDecayFactor);
+    }
+
+    /// @notice Update epoch duration (Guardian only)
+    /// @dev Per-epoch emission is NOT adjusted — total cumulative emission stays the same,
+    ///      but the time to exhaust it scales proportionally with epoch length.
+    /// @param newDuration New epoch duration in seconds (must be > 0)
+    function setEpochDuration(uint256 newDuration) external onlyGuardian {
+        _checkResume();
+        if (newDuration == 0) revert ZeroEpochDuration();
+        if (settleProgress != 0) revert SettlementInProgress();
+
+        uint256 oldDuration = epochDuration;
+        // Anchor to settledEpoch so unsettled epoch timing is recalculated under the new duration.
+        // settledEpoch's start time = baseTime + (settledEpoch - baseEpoch) * oldDuration
+        uint256 newBaseTime = baseTime + (settledEpoch - baseEpoch) * oldDuration;
+        baseEpoch = settledEpoch;
+        baseTime = newBaseTime;
+        epochDuration = newDuration;
+
+        emit EpochDurationUpdated(oldDuration, newDuration);
+    }
+
+    // ══════════════════════════════════════════════
+    //  Epoch pause
+    // ══════════════════════════════════════════════
+
+    /// @notice Pause epoch counting until a specified timestamp (Guardian only).
+    ///         During pause, currentEpoch() returns settledEpoch (frozen).
+    ///         Can be called again to update resumeTime. Pass 0 to resume immediately.
+    error InvalidResumeTime();
+
+    function pauseEpochUntil(uint64 resumeTime) external onlyGuardian {
+        _checkResume();
+        // resumeTime must be in the future (or 0 for immediate resume)
+        if (resumeTime != 0 && resumeTime <= uint64(block.timestamp)) revert InvalidResumeTime();
+        if (pausedUntil == 0 && resumeTime != 0) {
+            frozenEpoch = uint64(settledEpoch);
+        } else if (pausedUntil != 0 && resumeTime == 0) {
+            // Immediate resume: rebase to now
+            baseEpoch = uint256(frozenEpoch);
+            baseTime = block.timestamp;
+            frozenEpoch = 0;
+        }
+        pausedUntil = resumeTime;
+        emit EpochPausedUntil(resumeTime, frozenEpoch);
+    }
+
+    /// @dev Clean up expired pause: absorb pause duration into baseTime/baseEpoch
+    function _checkResume() internal {
+        uint64 pu = pausedUntil;
+        if (pu != 0 && block.timestamp >= uint256(pu)) {
+            baseEpoch = uint256(frozenEpoch);
+            baseTime = uint256(pu);
+            pausedUntil = 0;
+            frozenEpoch = 0;
+        }
     }
 
     // ══════════════════════════════════════════════
     //  Guardian self-management
     // ══════════════════════════════════════════════
 
-    event GuardianUpdated(address indexed newGuardian);
+    /// @notice Update the treasury address for failed mint fallback (Guardian only)
+    function setTreasury(address t) external onlyGuardian {
+        if (t == address(0)) revert ZeroAddress();
+        treasury = t;
+        emit TreasuryUpdated(t);
+    }
 
     /// @notice Update the guardian address (only Guardian may call — self-sovereign)
-    /// @dev Guardian manages itself. If Guardian keys are lost, Timelock can recover via UUPS upgrade.
+    /// @dev Guardian manages itself. If Guardian keys are lost, there is no on-chain recovery path.
     function setGuardian(address g) external onlyGuardian {
-        if (g == address(0)) revert InvalidParameter();
+        if (g == address(0)) revert ZeroAddress();
         guardian = g;
         emit GuardianUpdated(g);
     }
@@ -284,16 +444,18 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     //  Emission settlement (3-phase design, callable by anyone)
     // ══════════════════════════════════════════════
 
-    /// @notice Execute epoch settlement: batch-mint recipient AWP emission + DAO share
+    /// @notice Execute epoch settlement: batch-mint recipient AWP emission
     /// @param limit Maximum number of recipients to process in this call
     function settleEpoch(uint256 limit) external nonReentrant {
-        if (limit == 0) revert InvalidParameter();
+        _checkResume();
+        if (limit == 0) revert ZeroLimit();
 
         // ── Phase 1: Initialization (O(1), no loops) ──
         if (settleProgress == 0) {
-            if (settledEpoch >= currentEpoch()) revert EpochNotReady();
+            // settledEpoch = next epoch to settle; can settle if <= currentEpoch
+            if (settledEpoch > currentEpoch()) revert EpochNotReady();
 
-            // Exponential decay: multiply by decay factor every epoch starting from epoch 2
+            // Exponential decay: skip for the very first epoch (settledEpoch == 0)
             if (settledEpoch > 0) {
                 currentDailyEmission = currentDailyEmission * decayFactor / DECAY_PRECISION;
             }
@@ -303,13 +465,14 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             epochEmissionLocked = currentDailyEmission > awpRemaining ? awpRemaining : currentDailyEmission;
             if (epochEmissionLocked == 0) revert MiningComplete();
 
-            // Promote activeEpoch if new weights were submitted for the epoch being settled
-            // Guardian writes to effectiveEpoch > settledEpoch, so check settledEpoch + 1
-            if (_epochTotalWeight[settledEpoch + 1] > 0) {
-                activeEpoch = settledEpoch + 1;
+            // Promote activeEpoch if new weights exist for the epoch being settled.
+            // O(1): activeEpoch persists in storage; if no new weights, the previous
+            // allocation carries forward automatically (supports weekly submissions).
+            if (_epochTotalWeight[settledEpoch] > 0) {
+                activeEpoch = settledEpoch;
             }
 
-            // 100% emission → recipients（Guardian 可将 treasury 加入 recipients 实现 DAO 分成）
+            // 100% emission to recipients (Guardian can include treasury in recipients for DAO share)
             _snapshotPool = epochEmissionLocked;
             _epochMinted = 0;
 
@@ -331,36 +494,31 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         uint256 pool = _snapshotPool;
         uint256 tw = _snapshotWeight;
         uint256 minted = _epochMinted;
-        uint256 epoch = settledEpoch;
+        uint256 epoch = settledEpoch; // epoch being settled (before increment in Phase 3)
         uint256 ae = activeEpoch;
 
-        // Cache remaining AWP supply once — reused in Phase 2 and Phase 3
-        uint256 awpRemaining = _cachedMaxSupply - awpToken.totalSupply();
+        // Use epoch-locked budget minus already-minted as the cap (not live totalSupply)
+        uint256 awpRemaining = epochEmissionLocked - minted;
 
         if (tw > 0) {
+            uint256[] storage allocations = _epochAllocations[ae];
+            IAWPToken token = awpToken;
             for (uint256 i = start; i < end;) {
-                uint256 packed = _epochAllocations[ae][i];
-                address recipient = address(uint160(packed >> 96));
-                uint256 weight = uint96(packed);
+                uint256 packed = allocations[i];
+                uint256 weight = uint64(packed >> 160);
                 if (weight > 0) {
                     uint256 share = pool * weight / tw;
                     if (share > 0 && awpRemaining > 0) {
                         uint256 toMint = share > awpRemaining ? awpRemaining : share;
-                        // mintAndCall triggers ERC1363 callback; fallback to plain mint if callback reverts
-                        // Double try/catch: if both fail (e.g. minter revoked), skip recipient — share goes to DAO
-                        bool mintOk;
-                        try awpToken.mintAndCall(recipient, toMint, "") {
-                            mintOk = true;
-                        } catch {
-                            try awpToken.mint(recipient, toMint) {
-                                mintOk = true;
-                            } catch {}
+                        address recipient = address(uint160(packed));
+                        // mint always succeeds; best-effort ERC1363 callback for contract recipients.
+                        token.mint(recipient, toMint);
+                        if (recipient.code.length > 0) {
+                            try IERC1363Receiver(recipient).onTransferReceived(address(this), address(this), toMint, "") {} catch {}
                         }
-                        if (mintOk) {
-                            minted += toMint;
-                            awpRemaining -= toMint;
-                            emit RecipientAWPDistributed(epoch, recipient, toMint);
-                        }
+                        minted += toMint;
+                        awpRemaining -= toMint;
+                        emit RecipientAWPDistributed(epoch, recipient, toMint);
                     }
                 }
                 unchecked { ++i; }
@@ -392,7 +550,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
     /// @notice Get a recipient address by index from the active epoch (unpacked)
     function getRecipient(uint256 index) external view returns (address) {
-        return address(uint160(_epochAllocations[activeEpoch][index] >> 96));
+        return address(uint160(_epochAllocations[activeEpoch][index]));
     }
 
     /// @notice Get the weight of a recipient in the active epoch (O(n) scan)
@@ -429,8 +587,8 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         uint256 len = allocations.length;
         for (uint256 i = 0; i < len;) {
             uint256 packed = allocations[i];
-            if (address(uint160(packed >> 96)) == addr) {
-                return uint96(packed);
+            if (address(uint160(packed)) == addr) {
+                return uint96(uint64(packed >> 160));
             }
             unchecked { ++i; }
         }

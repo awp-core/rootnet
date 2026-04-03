@@ -63,6 +63,8 @@ abstract contract LPManagerBase {
     error NotAWPRegistry();
     /// @dev A LP pool already exists for this Alpha token
     error PoolAlreadyExists();
+    /// @dev Amount exceeds Permit2 uint160 limit
+    error AmountExceedsPermit2Limit();
 
     /// @dev Only the AWPRegistry contract may call
     modifier onlyAWPRegistry() {
@@ -80,7 +82,7 @@ abstract contract LPManagerBase {
         awpToken = IERC20(awpToken_);
     }
 
-    /// @notice Create an LP pool and add full-range liquidity (called once during subnet registration)
+    /// @notice Create an LP pool and add full-range liquidity (called once during worknet registration)
     /// @dev Full flow:
     ///   1. Check pool doesn't exist
     ///   2. Sort tokens (V4 requires currency0 < currency1)
@@ -99,28 +101,31 @@ abstract contract LPManagerBase {
         onlyAWPRegistry
         returns (bytes32 poolId, uint256 lpTokenId)
     {
-        // 各 Alpha token 只能有一个 LP pool
+        // Each Alpha token can only have one LP pool
         if (alphaTokenToPoolId[alphaToken] != bytes32(0)) revert PoolAlreadyExists();
 
-        // 排序 token: V4 要求 currency0 < currency1
+        // Sort tokens: V4 requires currency0 < currency1
         address awp = address(awpToken);
         (address c0, address c1) = awp < alphaToken ? (awp, alphaToken) : (alphaToken, awp);
         (uint256 amt0, uint256 amt1) = awp < alphaToken ? (awpAmount, alphaAmount) : (alphaAmount, awpAmount);
 
-        // 计算初始价格: sqrtPriceX96 = sqrt(amt1 * 2^192 / amt0)
+        // Compute initial price: sqrtPriceX96 = sqrt(amt1 * 2^192 / amt0)
         uint256 ratioX192 = FullMath.mulDiv(amt1, FixedPoint96.Q96 * FixedPoint96.Q96, amt0);
         uint160 sqrtPriceX96 = uint160(Math.sqrt(ratioX192));
 
-        // DEX-specific: 初始化 pool
+        // Permit2 uses uint160 amounts; verify no truncation
+        if (amt0 > type(uint160).max || amt1 > type(uint160).max) revert AmountExceedsPermit2Limit();
+
+        // DEX-specific: initialize pool
         _initializePool(c0, c1, sqrtPriceX96);
 
         // DEX-specific: approve + mint LP position
         lpTokenId = _approveAndMint(c0, c1, amt0, amt1, sqrtPriceX96);
 
-        // DEX-specific: 计算 pool ID
+        // DEX-specific: compute pool ID
         poolId = _computePoolId(c0, c1);
 
-        // 存储映射
+        // Store mappings
         alphaTokenToPoolId[alphaToken] = poolId;
         alphaTokenToTokenId[alphaToken] = lpTokenId;
     }
@@ -149,6 +154,15 @@ abstract contract LPManagerBase {
         _compoundFees(tokenId, c0, c1, sqrtPriceX96);
 
         emit FeesCompounded(alphaToken, tokenId);
+    }
+
+    /// @notice Check whether a pool has fees worth compounding (keeper query)
+    /// @param alphaToken The Alpha token address
+    /// @return hasPool Whether a pool exists
+    /// @return tokenId The LP NFT token ID (0 if no pool)
+    function needsCompounding(address alphaToken) external view returns (bool hasPool, uint256 tokenId) {
+        tokenId = alphaTokenToTokenId[alphaToken];
+        hasPool = tokenId != 0;
     }
 
     /// @dev DEX-specific: read current pool sqrtPriceX96

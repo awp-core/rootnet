@@ -92,7 +92,7 @@ func startKeepers(lc fx.Lifecycle, rdb *redis.Client, cfg *config.Config, logger
 
 // startSingleChain uses env-configured CHAIN_ID and RPC_URL (backward compatible)
 func startSingleChain(lc fx.Lifecycle, rdb *redis.Client, cfg *config.Config, logger *slog.Logger) error {
-	// 获取链上chain ID
+	// Fetch on-chain chain ID
 	dialCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	client, err := ethclient.DialContext(dialCtx, cfg.RPCURL)
@@ -107,7 +107,7 @@ func startSingleChain(lc fx.Lifecycle, rdb *redis.Client, cfg *config.Config, lo
 		client.Close()
 		return fmt.Errorf("failed to get chain ID: %w", err)
 	}
-	client.Close() // newKeeperForChain会创建自己的连接
+	client.Close() // newKeeperForChain creates its own connection
 
 	addrs := keeperAddrs{
 		AWPEmission: cfg.AWPEmissionAddress,
@@ -119,10 +119,11 @@ func startSingleChain(lc fx.Lifecycle, rdb *redis.Client, cfg *config.Config, lo
 	if err != nil {
 		return fmt.Errorf("keeper: %w", err)
 	}
+	k.SetSkipSettle(cfg.KeeperSkipSettle)
 
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			logger.Info("Keeper starting (single-chain)", "chainId", chainID.Int64())
+			logger.Info("Keeper starting (single-chain)", "chainId", chainID.Int64(), "skipSettle", cfg.KeeperSkipSettle)
 			k.Start(ctx)
 			return nil
 		},
@@ -147,10 +148,10 @@ func startMultiChain(lc fx.Lifecycle, rdb *redis.Client, cfg *config.Config, log
 		name    string
 	}
 
-	// 创建所有keeper（在启动前完成，失败则阻止启动）
+	// Create all keepers (completed before start; failure prevents startup)
 	entries := make([]keeperEntry, 0, len(chains))
 	for _, ch := range chains {
-		// Per-chain 地址覆盖优先于全局 env
+		// Per-chain address overrides take priority over global env
 		addrs := keeperAddrs{
 			AWPEmission: config.ResolveAddress(ch.AWPEmission, cfg.AWPEmissionAddress),
 			AWPToken:    config.ResolveAddress(ch.AWPToken, cfg.AWPTokenAddress),
@@ -161,6 +162,7 @@ func startMultiChain(lc fx.Lifecycle, rdb *redis.Client, cfg *config.Config, log
 		if kerr != nil {
 			return fmt.Errorf("keeper for %s (chainId=%d): %w", ch.Name, ch.ChainID, kerr)
 		}
+		k.SetSkipSettle(cfg.KeeperSkipSettle)
 		entries = append(entries, keeperEntry{keeper: k, chainID: ch.ChainID, name: ch.Name})
 	}
 
@@ -177,7 +179,7 @@ func startMultiChain(lc fx.Lifecycle, rdb *redis.Client, cfg *config.Config, log
 					entry.keeper.Start(ctx)
 				}(e)
 			}
-			// WaitGroup不在OnStart中等待——goroutine在后台运行直到OnStop
+			// WaitGroup is not awaited in OnStart — goroutines run in background until OnStop
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {

@@ -55,7 +55,7 @@ contract LPManagerUni is LPManagerBase {
         positionManager = positionManager_;
     }
 
-    /// @dev 初始化 Uniswap V4 pool
+    /// @dev Initialize Uniswap V4 pool
     function _initializePool(address c0, address c1, uint160 sqrtPriceX96) internal override {
         UniPoolKey memory poolKey = _buildPoolKey(c0, c1);
         IUniPoolManager(poolManager).initialize(poolKey, sqrtPriceX96);
@@ -66,21 +66,21 @@ contract LPManagerUni is LPManagerBase {
         address c0, address c1,
         uint256 amt0, uint256 amt1, uint160 sqrtPriceX96
     ) internal override returns (uint256 lpTokenId) {
-        // 通过 Permit2 approve token 到 PositionManager
+        // Approve tokens to PositionManager via Permit2
         IERC20(c0).forceApprove(permit2, amt0);
         IPermit2(permit2).approve(c0, positionManager, uint160(amt0), uint48(block.timestamp + 600));
         IERC20(c1).forceApprove(permit2, amt1);
         IPermit2(permit2).approve(c1, positionManager, uint160(amt1), uint48(block.timestamp + 600));
 
-        // 计算 full-range liquidity
+        // Compute full-range liquidity
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96, MIN_SQRT_RATIO, MAX_SQRT_RATIO, amt0, amt1
         );
 
-        // mint 前记录 nextTokenId
+        // Record nextTokenId before mint
         lpTokenId = IUniPositionManager(positionManager).nextTokenId();
 
-        // 编码 mint 操作: MINT_POSITION(0x02) + SETTLE_PAIR(0x0d)
+        // Encode mint action: MINT_POSITION(0x02) + SETTLE_PAIR(0x0d)
         UniPoolKey memory poolKey = _buildPoolKey(c0, c1);
         bytes memory actions = abi.encodePacked(uint8(0x02), uint8(0x0d));
         bytes[] memory params = new bytes[](2);
@@ -89,7 +89,7 @@ contract LPManagerUni is LPManagerBase {
         IUniPositionManager(positionManager).modifyLiquidities(abi.encode(actions, params), block.timestamp);
     }
 
-    /// @dev 计算 Uniswap V4 pool ID: keccak256(UniPoolKey)
+    /// @dev Compute Uniswap V4 pool ID: keccak256(UniPoolKey)
     function _computePoolId(address c0, address c1) internal view override returns (bytes32) {
         UniPoolKey memory poolKey = _buildPoolKey(c0, c1);
         return keccak256(abi.encode(poolKey));
@@ -142,7 +142,7 @@ contract LPManagerUni is LPManagerBase {
         IUniPositionManager(positionManager).modifyLiquidities(abi.encode(actions, params), block.timestamp);
     }
 
-    /// @dev 构建 Uniswap V4 UniPoolKey
+    /// @dev Build Uniswap V4 UniPoolKey
     function _buildPoolKey(address c0, address c1) internal view returns (UniPoolKey memory) {
         return UniPoolKey({
             currency0: c0,

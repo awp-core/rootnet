@@ -31,7 +31,7 @@ var (
 
 // LPManagerBaseMetaData contains all meta data concerning the LPManagerBase contract.
 var LPManagerBaseMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"function\",\"name\":\"MAX_SQRT_RATIO\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint160\",\"internalType\":\"uint160\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"MAX_TICK\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"int24\",\"internalType\":\"int24\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"MIN_SQRT_RATIO\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint160\",\"internalType\":\"uint160\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"MIN_TICK\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"int24\",\"internalType\":\"int24\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"POOL_FEE\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint24\",\"internalType\":\"uint24\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"TICK_SPACING\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"int24\",\"internalType\":\"int24\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"alphaTokenToPoolId\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"alphaTokenToTokenId\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"awpRegistry\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"awpToken\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"contractIERC20\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"compoundFees\",\"inputs\":[{\"name\":\"alphaToken\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"createPoolAndAddLiquidity\",\"inputs\":[{\"name\":\"alphaToken\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"awpAmount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"alphaAmount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"poolId\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"lpTokenId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"permit2\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"FeesCompounded\",\"inputs\":[{\"name\":\"alphaToken\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"tokenId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"NoPool\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotAWPRegistry\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"PoolAlreadyExists\",\"inputs\":[]}]",
+	ABI: "[{\"type\":\"function\",\"name\":\"MAX_SQRT_RATIO\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint160\",\"internalType\":\"uint160\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"MAX_TICK\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"int24\",\"internalType\":\"int24\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"MIN_SQRT_RATIO\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint160\",\"internalType\":\"uint160\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"MIN_TICK\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"int24\",\"internalType\":\"int24\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"POOL_FEE\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint24\",\"internalType\":\"uint24\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"TICK_SPACING\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"int24\",\"internalType\":\"int24\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"alphaTokenToPoolId\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"alphaTokenToTokenId\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"awpRegistry\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"awpToken\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"contractIERC20\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"compoundFees\",\"inputs\":[{\"name\":\"alphaToken\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"createPoolAndAddLiquidity\",\"inputs\":[{\"name\":\"alphaToken\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"awpAmount\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"alphaAmount\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"poolId\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"lpTokenId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"needsCompounding\",\"inputs\":[{\"name\":\"alphaToken\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"hasPool\",\"type\":\"bool\",\"internalType\":\"bool\"},{\"name\":\"tokenId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"permit2\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"FeesCompounded\",\"inputs\":[{\"name\":\"alphaToken\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"tokenId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"AmountExceedsPermit2Limit\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NoPool\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotAWPRegistry\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"PoolAlreadyExists\",\"inputs\":[]}]",
 }
 
 // LPManagerBaseABI is the input ABI used to generate the binding from.
@@ -488,6 +488,51 @@ func (_LPManagerBase *LPManagerBaseSession) AwpToken() (common.Address, error) {
 // Solidity: function awpToken() view returns(address)
 func (_LPManagerBase *LPManagerBaseCallerSession) AwpToken() (common.Address, error) {
 	return _LPManagerBase.Contract.AwpToken(&_LPManagerBase.CallOpts)
+}
+
+// NeedsCompounding is a free data retrieval call binding the contract method 0x382c1706.
+//
+// Solidity: function needsCompounding(address alphaToken) view returns(bool hasPool, uint256 tokenId)
+func (_LPManagerBase *LPManagerBaseCaller) NeedsCompounding(opts *bind.CallOpts, alphaToken common.Address) (struct {
+	HasPool bool
+	TokenId *big.Int
+}, error) {
+	var out []interface{}
+	err := _LPManagerBase.contract.Call(opts, &out, "needsCompounding", alphaToken)
+
+	outstruct := new(struct {
+		HasPool bool
+		TokenId *big.Int
+	})
+	if err != nil {
+		return *outstruct, err
+	}
+
+	outstruct.HasPool = *abi.ConvertType(out[0], new(bool)).(*bool)
+	outstruct.TokenId = *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return *outstruct, err
+
+}
+
+// NeedsCompounding is a free data retrieval call binding the contract method 0x382c1706.
+//
+// Solidity: function needsCompounding(address alphaToken) view returns(bool hasPool, uint256 tokenId)
+func (_LPManagerBase *LPManagerBaseSession) NeedsCompounding(alphaToken common.Address) (struct {
+	HasPool bool
+	TokenId *big.Int
+}, error) {
+	return _LPManagerBase.Contract.NeedsCompounding(&_LPManagerBase.CallOpts, alphaToken)
+}
+
+// NeedsCompounding is a free data retrieval call binding the contract method 0x382c1706.
+//
+// Solidity: function needsCompounding(address alphaToken) view returns(bool hasPool, uint256 tokenId)
+func (_LPManagerBase *LPManagerBaseCallerSession) NeedsCompounding(alphaToken common.Address) (struct {
+	HasPool bool
+	TokenId *big.Int
+}, error) {
+	return _LPManagerBase.Contract.NeedsCompounding(&_LPManagerBase.CallOpts, alphaToken)
 }
 
 // Permit2 is a free data retrieval call binding the contract method 0x12261ee7.

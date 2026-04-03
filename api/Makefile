@@ -17,8 +17,8 @@ generate-bindings:
 	$(ABIGEN) --abi /tmp/AWPToken_abi.json --pkg bindings --type AWPToken --out internal/chain/bindings/a_w_p_token.go
 	jq '.abi' $(OUT)/AlphaToken.sol/AlphaToken.json > /tmp/AlphaToken_abi.json
 	$(ABIGEN) --abi /tmp/AlphaToken_abi.json --pkg bindings --type AlphaToken --out internal/chain/bindings/alpha_token.go
-	jq '.abi' $(OUT)/SubnetNFT.sol/SubnetNFT.json > /tmp/SubnetNFT_abi.json
-	$(ABIGEN) --abi /tmp/SubnetNFT_abi.json --pkg bindings --type SubnetNFT --out internal/chain/bindings/subnet_n_f_t.go
+	jq '.abi' $(OUT)/WorknetNFT.sol/WorknetNFT.json > /tmp/WorknetNFT_abi.json
+	$(ABIGEN) --abi /tmp/WorknetNFT_abi.json --pkg bindings --type WorknetNFT --out internal/chain/bindings/worknet_n_f_t.go
 	jq '.abi' $(OUT)/StakingVault.sol/StakingVault.json > /tmp/StakingVault_abi.json
 	$(ABIGEN) --abi /tmp/StakingVault_abi.json --pkg bindings --type StakingVault --out internal/chain/bindings/staking_vault.go
 	jq '.abi' $(OUT)/AWPEmission.sol/AWPEmission.json > /tmp/AWPEmission_abi.json

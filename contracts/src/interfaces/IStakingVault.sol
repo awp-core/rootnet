@@ -10,37 +10,32 @@ interface IStakingVault {
     function setStakeNFT(address stakeNFT_) external;
 
     // ── Write (public with delegate auth) ──
-    function allocate(address staker, address agent, uint256 subnetId, uint256 amount) external;
-    function deallocate(address staker, address agent, uint256 subnetId, uint256 amount) external;
+    function allocate(address staker, address agent, uint256 worknetId, uint256 amount) external;
+    function deallocate(address staker, address agent, uint256 worknetId, uint256 amount) external;
     function reallocate(
-        address staker, address fromAgent, uint256 fromSubnetId,
-        address toAgent, uint256 toSubnetId, uint256 amount
+        address staker, address fromAgent, uint256 fromWorknetId,
+        address toAgent, uint256 toWorknetId, uint256 amount
     ) external;
 
     // ── Gasless (EIP-712) ──
     function allocateFor(
-        address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
+        address staker, address agent, uint256 worknetId, uint256 amount, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) external;
     function deallocateFor(
-        address staker, address agent, uint256 subnetId, uint256 amount, uint256 deadline,
+        address staker, address agent, uint256 worknetId, uint256 amount, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) external;
 
-    // ── Write (AWPRegistry only) ──
-    /// @notice Freeze all allocations of agent — no subnet list needed
-    function freezeAgentAllocations(address user, address agent) external;
-
     // ── Events ──
-    event Allocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator);
-    event Deallocated(address indexed staker, address indexed agent, uint256 subnetId, uint256 amount, address operator);
-    event AgentAllocationsFrozen(address indexed staker, address indexed agent, uint256 totalFrozen);
+    event Allocated(address indexed staker, address indexed agent, uint256 worknetId, uint256 amount, address operator);
+    event Deallocated(address indexed staker, address indexed agent, uint256 worknetId, uint256 amount, address operator);
     event Reallocated(
         address indexed staker,
         address fromAgent,
-        uint256 fromSubnetId,
+        uint256 fromWorknetId,
         address toAgent,
-        uint256 toSubnetId,
+        uint256 toWorknetId,
         uint256 amount,
         address operator
     );
@@ -48,8 +43,8 @@ interface IStakingVault {
     // ── Query ──
     function nonces(address user) external view returns (uint256);
     function userTotalAllocated(address user) external view returns (uint256);
-    function subnetTotalStake(uint256 subnetId) external view returns (uint256);
-    function getAgentStake(address user, address agent, uint256 subnetId) external view returns (uint256);
-    function getAgentSubnets(address user, address agent) external view returns (uint256[] memory);
-    function getSubnetTotalStake(uint256 subnetId) external view returns (uint256);
+    function worknetTotalStake(uint256 worknetId) external view returns (uint256);
+    function getAgentStake(address user, address agent, uint256 worknetId) external view returns (uint256);
+    function getAgentWorknets(address user, address agent) external view returns (uint256[] memory);
+    function getWorknetTotalStake(uint256 worknetId) external view returns (uint256);
 }

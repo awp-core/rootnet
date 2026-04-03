@@ -8,18 +8,18 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-// WSAllocQuerier 实现 ws.AllocationQuerier 接口，供 WebSocket Hub 查询分配余额
+// WSAllocQuerier implements the ws.AllocationQuerier interface for WebSocket Hub allocation balance queries
 type WSAllocQuerier struct {
 	queries *gen.Queries
 }
 
-// NewWSAllocQuerier 创建 WSAllocQuerier
+// NewWSAllocQuerier creates a WSAllocQuerier
 func NewWSAllocQuerier(queries *gen.Queries) *WSAllocQuerier {
 	return &WSAllocQuerier{queries: queries}
 }
 
-// GetAgentSubnetStakeWS 查询 (agent, subnetId) 当前分配量
-// 使用全局查询（无 chain_id 过滤）— subnetId 全局唯一，跨链聚合是正确的
+// GetAgentSubnetStakeWS queries the current allocation for (agent, worknetId)
+// Uses global query (no chain_id filter) — worknetId is globally unique, cross-chain aggregation is correct
 func (q *WSAllocQuerier) GetAgentSubnetStakeWS(ctx context.Context, _ int64, agent string, subnetID string) (string, error) {
 	id, ok := new(big.Int).SetString(subnetID, 10)
 	if !ok || id.Sign() <= 0 {

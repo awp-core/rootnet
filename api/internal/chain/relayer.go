@@ -30,7 +30,7 @@ type Relayer struct {
 	rdb          *redis.Client // for tx status tracking
 }
 
-// RelayTxStatus Redis 中存储的交易状态
+// RelayTxStatus is the transaction status stored in Redis
 type RelayTxStatus struct {
 	Status    string `json:"status"` // "pending", "confirmed", "failed"
 	TxHash   string `json:"txHash"`
@@ -73,7 +73,7 @@ func (r *Relayer) CheckNonce(user common.Address) (*big.Int, error) {
 	return r.awpRegistry.Nonces(nil, user)
 }
 
-// trackTx 异步追踪交易 receipt，结果写入 Redis
+// trackTx asynchronously tracks transaction receipt and writes the result to Redis
 func (r *Relayer) trackTx(txHash string) {
 	if r.rdb == nil {
 		return
@@ -94,7 +94,7 @@ func (r *Relayer) trackTx(txHash string) {
 		for {
 			select {
 			case <-ctx.Done():
-				// 超时，标记失败
+				// Timeout, mark as failed
 				status := RelayTxStatus{Status: "failed", TxHash: txHash}
 				data, _ := json.Marshal(status)
 				r.rdb.Set(context.Background(), key, data, 10*time.Minute)
@@ -102,7 +102,7 @@ func (r *Relayer) trackTx(txHash string) {
 			case <-ticker.C:
 				receipt, err := r.client.TransactionReceipt(ctx, hash)
 				if err != nil {
-					continue // 还在 pending
+					continue // still pending
 				}
 				st := "confirmed"
 				if receipt.Status == 0 {
@@ -117,7 +117,7 @@ func (r *Relayer) trackTx(txHash string) {
 	}()
 }
 
-// GetTxStatus 查询 relay 交易状态
+// GetTxStatus queries the relay transaction status
 func (r *Relayer) GetTxStatus(ctx context.Context, txHash string) (*RelayTxStatus, error) {
 	if r.rdb == nil {
 		return nil, fmt.Errorf("redis not configured")
@@ -191,7 +191,7 @@ func (r *Relayer) RelaySetRecipient(ctx context.Context, user common.Address, re
 }
 
 // RelayAllocate relays an allocateFor transaction (V2: staker instead of user)
-func (r *Relayer) RelayAllocate(ctx context.Context, staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
+func (r *Relayer) RelayAllocate(ctx context.Context, staker common.Address, agent common.Address, worknetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -203,7 +203,7 @@ func (r *Relayer) RelayAllocate(ctx context.Context, staker common.Address, agen
 		return "", err
 	}
 
-	tx, err := r.stakingVault.AllocateFor(auth, staker, agent, subnetId, amount, deadline, v, rs, ss)
+	tx, err := r.stakingVault.AllocateFor(auth, staker, agent, worknetId, amount, deadline, v, rs, ss)
 	if err != nil {
 		return "", fmt.Errorf("AllocateFor tx: %w", err)
 	}
@@ -214,7 +214,7 @@ func (r *Relayer) RelayAllocate(ctx context.Context, staker common.Address, agen
 }
 
 // RelayDeallocate relays a deallocateFor transaction (V2: staker instead of user)
-func (r *Relayer) RelayDeallocate(ctx context.Context, staker common.Address, agent common.Address, subnetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
+func (r *Relayer) RelayDeallocate(ctx context.Context, staker common.Address, agent common.Address, worknetId *big.Int, amount *big.Int, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -226,7 +226,7 @@ func (r *Relayer) RelayDeallocate(ctx context.Context, staker common.Address, ag
 		return "", err
 	}
 
-	tx, err := r.stakingVault.DeallocateFor(auth, staker, agent, subnetId, amount, deadline, v, rs, ss)
+	tx, err := r.stakingVault.DeallocateFor(auth, staker, agent, worknetId, amount, deadline, v, rs, ss)
 	if err != nil {
 		return "", fmt.Errorf("DeallocateFor tx: %w", err)
 	}
@@ -237,7 +237,7 @@ func (r *Relayer) RelayDeallocate(ctx context.Context, staker common.Address, ag
 }
 
 // RelayActivateSubnet relays an activateSubnetFor transaction
-func (r *Relayer) RelayActivateSubnet(ctx context.Context, user common.Address, subnetId *big.Int, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
+func (r *Relayer) RelayActivateSubnet(ctx context.Context, user common.Address, worknetId *big.Int, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -249,12 +249,12 @@ func (r *Relayer) RelayActivateSubnet(ctx context.Context, user common.Address, 
 		return "", err
 	}
 
-	tx, err := r.awpRegistry.ActivateSubnetFor(auth, user, subnetId, deadline, v, rs, ss)
+	tx, err := r.awpRegistry.ActivateWorknetFor(auth, user, worknetId, deadline, v, rs, ss)
 	if err != nil {
-		return "", fmt.Errorf("ActivateSubnetFor tx: %w", err)
+		return "", fmt.Errorf("ActivateWorknetFor tx: %w", err)
 	}
 
-	r.logger.Info("relay activateSubnetFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "subnetId", subnetId.String())
+	r.logger.Info("relay activateSubnetFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "worknetId", worknetId.String())
 	r.trackTx(tx.Hash().Hex())
 	return tx.Hash().Hex(), nil
 }
@@ -264,7 +264,7 @@ func (r *Relayer) RelayActivateSubnet(ctx context.Context, user common.Address, 
 func (r *Relayer) RelayRegisterSubnet(
 	ctx context.Context,
 	user common.Address,
-	params bindings.IAWPRegistrySubnetParams,
+	params bindings.IAWPRegistryWorknetParams,
 	deadline *big.Int,
 	permitV uint8, permitR [32]byte, permitS [32]byte,
 	registerV uint8, registerR [32]byte, registerS [32]byte,
@@ -280,16 +280,85 @@ func (r *Relayer) RelayRegisterSubnet(
 		return "", err
 	}
 
-	tx, err := r.awpRegistry.RegisterSubnetForWithPermit(
+	tx, err := r.awpRegistry.RegisterWorknetForWithPermit(
 		auth, user, params, deadline,
 		permitV, permitR, permitS,
 		registerV, registerR, registerS,
 	)
 	if err != nil {
-		return "", fmt.Errorf("RegisterSubnetForWithPermit tx: %w", err)
+		return "", fmt.Errorf("RegisterWorknetForWithPermit tx: %w", err)
 	}
 
 	r.logger.Info("relay registerSubnetFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "name", params.Name)
+	r.trackTx(tx.Hash().Hex())
+	return tx.Hash().Hex(), nil
+}
+
+// RelayGrantDelegate relays a grantDelegateFor transaction
+func (r *Relayer) RelayGrantDelegate(ctx context.Context, user common.Address, delegate common.Address, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	txCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	auth, err := r.auth(txCtx)
+	if err != nil {
+		return "", err
+	}
+
+	tx, err := r.awpRegistry.GrantDelegateFor(auth, user, delegate, deadline, v, rs, ss)
+	if err != nil {
+		return "", fmt.Errorf("GrantDelegateFor tx: %w", err)
+	}
+
+	r.logger.Info("relay grantDelegateFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "delegate", delegate.Hex())
+	r.trackTx(tx.Hash().Hex())
+	return tx.Hash().Hex(), nil
+}
+
+// RelayRevokeDelegate relays a revokeDelegateFor transaction
+func (r *Relayer) RelayRevokeDelegate(ctx context.Context, user common.Address, delegate common.Address, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	txCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	auth, err := r.auth(txCtx)
+	if err != nil {
+		return "", err
+	}
+
+	tx, err := r.awpRegistry.RevokeDelegateFor(auth, user, delegate, deadline, v, rs, ss)
+	if err != nil {
+		return "", fmt.Errorf("RevokeDelegateFor tx: %w", err)
+	}
+
+	r.logger.Info("relay revokeDelegateFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "delegate", delegate.Hex())
+	r.trackTx(tx.Hash().Hex())
+	return tx.Hash().Hex(), nil
+}
+
+// RelayUnbind relays an unbindFor transaction
+func (r *Relayer) RelayUnbind(ctx context.Context, user common.Address, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	txCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	auth, err := r.auth(txCtx)
+	if err != nil {
+		return "", err
+	}
+
+	tx, err := r.awpRegistry.UnbindFor(auth, user, deadline, v, rs, ss)
+	if err != nil {
+		return "", fmt.Errorf("UnbindFor tx: %w", err)
+	}
+
+	r.logger.Info("relay unbindFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex())
 	r.trackTx(tx.Hash().Hex())
 	return tx.Hash().Hex(), nil
 }

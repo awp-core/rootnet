@@ -43,11 +43,11 @@ func (h *Handler) GetAlphaInfo(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetAlphaPrice retrieves the Alpha token price from the Redis cache.
-// Reads directly from alpha_price:{subnetId} — no DB lookup needed.
+// Reads directly from alpha_price:{worknetId} — no DB lookup needed.
 func (h *Handler) GetAlphaPrice(w http.ResponseWriter, r *http.Request) {
-	subnetIDRaw := chi.URLParam(r, "subnetId")
+	subnetIDRaw := chi.URLParam(r, "worknetId")
 	if subnetIDRaw == "" {
-		h.writeError(w, http.StatusBadRequest, "missing subnetId parameter")
+		h.writeError(w, http.StatusBadRequest, "missing worknetId parameter")
 		return
 	}
 	if _, err := parseSubnetIDString(subnetIDRaw); err != nil {

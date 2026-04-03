@@ -94,7 +94,7 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 	awpAddr := common.HexToAddress(addresses["AWPToken"])
 	svAddr := common.HexToAddress(addresses["StakingVault"])
 	emAddr := common.HexToAddress(addresses["AWPEmission"])
-	nftAddr := common.HexToAddress(addresses["SubnetNFT"])
+	nftAddr := common.HexToAddress(addresses["WorknetNFT"])
 	trsAddr := common.HexToAddress(addresses["Treasury"])
 
 	stakeNFTAddr := common.HexToAddress(addresses["StakeNFT"])
@@ -184,7 +184,7 @@ func readDeployedAddresses(t *testing.T, contractsDir string) map[string]string 
 		}
 	}
 
-	required := []string{"AWPRegistry", "AWPToken", "StakingVault", "AWPEmission", "SubnetNFT", "Treasury", "StakeNFT"}
+	required := []string{"AWPRegistry", "AWPToken", "StakingVault", "AWPEmission", "WorknetNFT", "Treasury", "StakeNFT"}
 	for _, name := range required {
 		if addrs[name] == "" {
 			t.Fatalf("deployment result missing contract: %s (found: %v)", name, addrs)
@@ -214,7 +214,7 @@ func (e *e2eEnv) setupIndexer() {
 		"AWPToken":     e.awpAddr.Hex(),
 		"AWPEmission":  e.emAddr.Hex(),
 		"StakingVault": e.svAddr.Hex(),
-		"SubnetNFT":    e.nftAddr.Hex(),
+		"WorknetNFT":    e.nftAddr.Hex(),
 		"AWPDAO":       common.Address{}.Hex(),
 		"StakeNFT":     e.stakeNFTAddr.Hex(),
 	}
@@ -232,12 +232,12 @@ func (e *e2eEnv) setupRouter() {
 		AWPTokenAddress:     e.awpAddr.Hex(),
 		StakingVaultAddress: e.svAddr.Hex(),
 		AWPEmissionAddress:  e.emAddr.Hex(),
-		SubnetNFTAddress:    e.nftAddr.Hex(),
+		WorknetNFTAddress:    e.nftAddr.Hex(),
 		TreasuryAddress:     e.trsAddr.Hex(),
 		StakeNFTAddress:     e.stakeNFTAddr.Hex(),
 	}
 	limiter := ratelimit.NewLimiter(e.rdb, logger)
-	h := handler.NewHandler(e.queries, e.rdb, cfg, logger, limiter)
+	h := handler.NewHandler(e.queries, e.pool, e.rdb, cfg, logger, limiter)
 	hub := ws.NewHub(e.rdb, logger)
 	e.router = server.NewRouter(server.RouterParams{Handler: h, Hub: hub})
 }
@@ -270,11 +270,7 @@ func TestE2E_Chain_RegisterUser(t *testing.T) {
 	env := newE2EEnv(t)
 	deployer := crypto.PubkeyToAddress(env.deployer.PublicKey)
 
-	// Register on-chain
-	_, err := env.awpRegistry.Register(env.auth())
-	if err != nil {
-		t.Fatalf("register failed: %v", err)
-	}
+	// No explicit registration needed — every address is implicitly a root
 	time.Sleep(500 * time.Millisecond) // wait for auto-mine
 
 	// Indexer processes
@@ -314,8 +310,7 @@ func TestE2E_Chain_DepositAWP(t *testing.T) {
 	deployer := crypto.PubkeyToAddress(env.deployer.PublicKey)
 	addr := strings.ToLower(deployer.Hex())
 
-	// Register
-	_, _ = env.awpRegistry.Register(env.auth())
+	// No explicit registration needed
 	time.Sleep(300 * time.Millisecond)
 
 	// Approve + Deposit via StakeNFT
@@ -348,8 +343,7 @@ func TestE2E_Chain_RegisterAgent(t *testing.T) {
 	env := newE2EEnv(t)
 	deployer := crypto.PubkeyToAddress(env.deployer.PublicKey)
 
-	// Register user
-	_, _ = env.awpRegistry.Register(env.auth())
+	// No explicit registration needed
 	time.Sleep(300 * time.Millisecond)
 
 	// Use Anvil's 2nd account as Agent

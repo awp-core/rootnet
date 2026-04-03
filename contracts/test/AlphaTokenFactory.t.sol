@@ -47,20 +47,20 @@ contract AlphaTokenTest is Test {
     address public admin;
     address public alice;
     address public bob;
-    address public subnetManager;
+    address public worknetManager;
 
     uint256 constant MAX_SUPPLY = 10_000_000_000 * 1e18;
-    uint256 constant SUBNET_ID = 42;
+    uint256 constant WORKNET_ID = 42;
 
     function setUp() public {
         admin = makeAddr("admin");
         alice = makeAddr("alice");
         bob = makeAddr("bob");
-        subnetManager = makeAddr("subnetManager");
+        worknetManager = makeAddr("worknetManager");
 
         // Create and initialize directly (constructor no longer disables initializers)
         token = new AlphaToken();
-        token.initialize("Alpha 42", "ALPHA42", SUBNET_ID, admin);
+        token.initialize("Alpha 42", "ALPHA42", WORKNET_ID, admin);
     }
 
     // ── initialize tests ──
@@ -68,7 +68,7 @@ contract AlphaTokenTest is Test {
     function test_initialize_setsState() public view {
         assertEq(token.name(), "Alpha 42");
         assertEq(token.symbol(), "ALPHA42");
-        assertEq(token.subnetId(), SUBNET_ID);
+        assertEq(token.worknetId(), WORKNET_ID);
         assertEq(token.admin(), admin);
     }
 
@@ -120,79 +120,79 @@ contract AlphaTokenTest is Test {
         token.mint(alice, 100);
     }
 
-    // ── setSubnetMinter tests ──
+    // ── setWorknetMinter tests ──
 
-    function test_setSubnetMinter_locksForever() public {
+    function test_setWorknetMinter_locksForever() public {
         vm.prank(admin);
-        token.setSubnetMinter(subnetManager);
+        token.setWorknetMinter(worknetManager);
 
         assertTrue(token.mintersLocked());
-        assertTrue(token.minters(subnetManager));
+        assertTrue(token.minters(worknetManager));
         assertFalse(token.minters(admin)); // admin loses minting rights
     }
 
-    function test_setSubnetMinter_revertIfNotAdmin() public {
+    function test_setWorknetMinter_revertIfNotAdmin() public {
         vm.prank(alice);
         vm.expectRevert(AlphaToken.NotAdmin.selector);
-        token.setSubnetMinter(subnetManager);
+        token.setWorknetMinter(worknetManager);
     }
 
-    function test_setSubnetMinter_revertIfAlreadyLocked() public {
+    function test_setWorknetMinter_revertIfAlreadyLocked() public {
         vm.prank(admin);
-        token.setSubnetMinter(subnetManager);
+        token.setWorknetMinter(worknetManager);
 
         vm.prank(admin);
         vm.expectRevert(AlphaToken.MintersLocked.selector);
-        token.setSubnetMinter(alice);
+        token.setWorknetMinter(alice);
     }
 
-    function test_setSubnetMinter_adminCannotMintAfterLock() public {
+    function test_setWorknetMinter_adminCannotMintAfterLock() public {
         vm.prank(admin);
-        token.setSubnetMinter(subnetManager);
+        token.setWorknetMinter(worknetManager);
 
         vm.prank(admin);
         vm.expectRevert(AlphaToken.NotMinter.selector);
         token.mint(alice, 100);
     }
 
-    function test_setSubnetMinter_newMinterCanMint() public {
+    function test_setWorknetMinter_newMinterCanMint() public {
         vm.prank(admin);
-        token.setSubnetMinter(subnetManager);
+        token.setWorknetMinter(worknetManager);
 
         vm.warp(block.timestamp + 1 days);
-        vm.prank(subnetManager);
+        vm.prank(worknetManager);
         token.mint(alice, 500 * 1e18);
 
         assertEq(token.balanceOf(alice), 500 * 1e18);
     }
 
-    function test_setSubnetMinter_withZeroAddress_reverts() public {
+    function test_setWorknetMinter_withZeroAddress_reverts() public {
         // address(0) is not allowed as minter, preventing token lock-up
         vm.prank(admin);
-        vm.expectRevert(AlphaToken.NotMinter.selector);
-        token.setSubnetMinter(address(0));
+        vm.expectRevert(AlphaToken.ZeroAddress.selector);
+        token.setWorknetMinter(address(0));
     }
 
     // ── setMinterPaused tests ──
 
     function test_setMinterPaused_pauseAndUnpause() public {
         vm.prank(admin);
-        token.setSubnetMinter(subnetManager);
+        token.setWorknetMinter(worknetManager);
 
         // Pause
         vm.prank(admin);
-        token.setMinterPaused(subnetManager, true);
+        token.setMinterPaused(worknetManager, true);
 
-        vm.prank(subnetManager);
+        vm.prank(worknetManager);
         vm.expectRevert(AlphaToken.MinterPaused.selector);
         token.mint(alice, 100);
 
         // Resume
         vm.prank(admin);
-        token.setMinterPaused(subnetManager, false);
+        token.setMinterPaused(worknetManager, false);
 
         vm.warp(block.timestamp + 1 days);
-        vm.prank(subnetManager);
+        vm.prank(worknetManager);
         token.mint(alice, 100 * 1e18);
         assertEq(token.balanceOf(alice), 100 * 1e18);
     }
@@ -368,14 +368,14 @@ contract AlphaTokenFactoryTest is Test {
         factory.setAddresses(awpRegistry);
 
         vm.prank(awpRegistry);
-        address token = factory.deploy(1, "Subnet Alpha 1", "SA1", awpRegistry, bytes32(0));
+        address token = factory.deploy(1, "Worknet Alpha 1", "SA1", awpRegistry, bytes32(0));
 
         assertTrue(token != address(0));
 
         AlphaToken alphaToken = AlphaToken(token);
-        assertEq(alphaToken.name(), "Subnet Alpha 1");
+        assertEq(alphaToken.name(), "Worknet Alpha 1");
         assertEq(alphaToken.symbol(), "SA1");
-        assertEq(alphaToken.subnetId(), 1);
+        assertEq(alphaToken.worknetId(), 1);
         assertEq(alphaToken.admin(), awpRegistry);
     }
 
@@ -388,7 +388,7 @@ contract AlphaTokenFactoryTest is Test {
         factory.deploy(1, "X", "X", alice, bytes32(0));
     }
 
-    function test_deploy_multipleSubnets() public {
+    function test_deploy_multipleWorknets() public {
         vm.prank(deployer);
         factory.setAddresses(awpRegistry);
 
@@ -401,9 +401,9 @@ contract AlphaTokenFactoryTest is Test {
         assertTrue(token1 != token2);
         assertTrue(token2 != token3);
 
-        assertEq(AlphaToken(token1).subnetId(), 1);
-        assertEq(AlphaToken(token2).subnetId(), 2);
-        assertEq(AlphaToken(token3).subnetId(), 3);
+        assertEq(AlphaToken(token1).worknetId(), 1);
+        assertEq(AlphaToken(token2).worknetId(), 2);
+        assertEq(AlphaToken(token3).worknetId(), 3);
     }
 
     function test_deploy_adminIsMinter() public {
@@ -458,57 +458,57 @@ contract AlphaTokenFactoryTest is Test {
         alphaToken.mint(alice, 1000 * 1e18);
         assertEq(alphaToken.balanceOf(alice), 1000 * 1e18);
 
-        // 4. Set subnet contract as minter, AWPRegistry relinquishes minting rights
-        address subnetManager = makeAddr("subnetManager");
+        // 4. Set worknet contract as minter, AWPRegistry relinquishes minting rights
+        address worknetManager = makeAddr("worknetManager");
         vm.prank(awpRegistry);
-        alphaToken.setSubnetMinter(subnetManager);
+        alphaToken.setWorknetMinter(worknetManager);
 
         // 5. AWPRegistry can no longer mint
         vm.prank(awpRegistry);
         vm.expectRevert(AlphaToken.NotMinter.selector);
         alphaToken.mint(alice, 100);
 
-        // 6. Subnet contract can mint
+        // 6. Worknet contract can mint
         vm.warp(block.timestamp + 1 days);
-        vm.prank(subnetManager);
+        vm.prank(worknetManager);
         alphaToken.mint(alice, 500 * 1e18);
         assertEq(alphaToken.balanceOf(alice), 1500 * 1e18);
 
-        // 7. Ban subnet (pause minter)
+        // 7. Ban worknet (pause minter)
         vm.prank(awpRegistry);
-        alphaToken.setMinterPaused(subnetManager, true);
+        alphaToken.setMinterPaused(worknetManager, true);
 
-        vm.prank(subnetManager);
+        vm.prank(worknetManager);
         vm.expectRevert(AlphaToken.MinterPaused.selector);
         alphaToken.mint(alice, 100);
 
         // 8. Unban
         vm.prank(awpRegistry);
-        alphaToken.setMinterPaused(subnetManager, false);
+        alphaToken.setMinterPaused(worknetManager, false);
 
         vm.warp(block.timestamp + 1 days);
-        vm.prank(subnetManager);
+        vm.prank(worknetManager);
         alphaToken.mint(alice, 200 * 1e18);
         assertEq(alphaToken.balanceOf(alice), 1700 * 1e18);
 
         // 9. Permanently locked; cannot set minter again
         vm.prank(awpRegistry);
         vm.expectRevert(AlphaToken.MintersLocked.selector);
-        alphaToken.setSubnetMinter(alice);
+        alphaToken.setWorknetMinter(alice);
     }
 
     // ── Fuzz tests ──
 
-    function testFuzz_deploy_differentSubnetIds(uint256 subnetId) public {
-        subnetId = bound(subnetId, 0, 10000);
+    function testFuzz_deploy_differentWorknetIds(uint256 worknetId) public {
+        worknetId = bound(worknetId, 0, 10000);
 
         vm.prank(deployer);
         factory.setAddresses(awpRegistry);
 
         vm.prank(awpRegistry);
-        address token = factory.deploy(subnetId, "Alpha", "A", awpRegistry, bytes32(0));
+        address token = factory.deploy(worknetId, "Alpha", "A", awpRegistry, bytes32(0));
 
-        assertEq(AlphaToken(token).subnetId(), subnetId);
+        assertEq(AlphaToken(token).worknetId(), worknetId);
     }
 }
 

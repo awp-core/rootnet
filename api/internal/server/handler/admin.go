@@ -12,10 +12,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// startedAt 记录进程启动时间，用于计算 uptime
+// startedAt records process start time, used for calculating uptime
 var startedAt = time.Now()
 
-// requireAdmin 验证 Bearer token 身份。返回 true 表示鉴权通过，false 表示已写入错误响应。
+// requireAdmin verifies Bearer token identity. Returns true if auth passed, false if error response was written.
 func (h *Handler) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 	if h.cfg.AdminToken == "" {
 		h.writeError(w, http.StatusServiceUnavailable, "admin API not configured")
@@ -30,10 +30,10 @@ func (h *Handler) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 }
 
 // ════════════════════════════════════════════════════════════
-// Chain 管理
+// Chain Management
 // ════════════════════════════════════════════════════════════
 
-// adminChainResponse 包含 rpc_url 的管理端链信息（公开端隐藏了 rpc_url）
+// adminChainResponse is admin chain info including rpc_url (hidden in public endpoint)
 type adminChainResponse struct {
 	ChainID      int64  `json:"chainId"`
 	Name         string `json:"name"`
@@ -46,7 +46,7 @@ type adminChainResponse struct {
 	AwpEmission  string `json:"awpEmission"`
 	StakingVault string `json:"stakingVault"`
 	StakeNft     string `json:"stakeNft"`
-	SubnetNft    string `json:"subnetNft"`
+	WorknetNft    string `json:"subnetNft"`
 	DaoAddress   string `json:"daoAddress"`
 	LpManager    string `json:"lpManager"`
 	PoolManager  string `json:"poolManager"`
@@ -54,7 +54,7 @@ type adminChainResponse struct {
 	CreatedAt    string `json:"createdAt,omitempty"`
 }
 
-// toAdminChainResponse 将 DB Chain 转为管理端响应（包含 rpc_url）
+// toAdminChainResponse converts a DB Chain to admin response (includes rpc_url)
 func toAdminChainResponse(c gen.Chain) adminChainResponse {
 	var createdAt string
 	if c.CreatedAt.Valid {
@@ -72,7 +72,7 @@ func toAdminChainResponse(c gen.Chain) adminChainResponse {
 		AwpEmission:  c.AwpEmission,
 		StakingVault: c.StakingVault,
 		StakeNft:     c.StakeNft,
-		SubnetNft:    c.SubnetNft,
+		WorknetNft:    c.WorknetNft,
 		DaoAddress:   c.DaoAddress,
 		LpManager:    c.LpManager,
 		PoolManager:  c.PoolManager,
@@ -81,7 +81,7 @@ func toAdminChainResponse(c gen.Chain) adminChainResponse {
 	}
 }
 
-// AdminListChains 列出所有链（包括 inactive），rpc_url 可见
+// AdminListChains lists all chains (including inactive), rpc_url visible
 func (h *Handler) AdminListChains(w http.ResponseWriter, r *http.Request) {
 	if !h.requireAdmin(w, r) {
 		return
@@ -99,7 +99,7 @@ func (h *Handler) AdminListChains(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, resp)
 }
 
-// adminAddChainRequest 添加链的请求体
+// adminAddChainRequest is the request body for adding a chain
 type adminAddChainRequest struct {
 	ChainID      int64  `json:"chainId"`
 	Name         string `json:"name"`
@@ -111,14 +111,14 @@ type adminAddChainRequest struct {
 	AwpEmission  string `json:"awpEmission"`
 	StakingVault string `json:"stakingVault"`
 	StakeNft     string `json:"stakeNft"`
-	SubnetNft    string `json:"subnetNft"`
+	WorknetNft    string `json:"subnetNft"`
 	DaoAddress   string `json:"daoAddress"`
 	LpManager    string `json:"lpManager"`
 	PoolManager  string `json:"poolManager"`
 	DeployBlock  int64  `json:"deployBlock"`
 }
 
-// AdminAddChain 添加一条新链
+// AdminAddChain adds a new chain
 func (h *Handler) AdminAddChain(w http.ResponseWriter, r *http.Request) {
 	if !h.requireAdmin(w, r) {
 		return
@@ -149,7 +149,7 @@ func (h *Handler) AdminAddChain(w http.ResponseWriter, r *http.Request) {
 		AwpEmission:  req.AwpEmission,
 		StakingVault: req.StakingVault,
 		StakeNft:     req.StakeNft,
-		SubnetNft:    req.SubnetNft,
+		WorknetNft:    req.WorknetNft,
 		DaoAddress:   req.DaoAddress,
 		LpManager:    req.LpManager,
 		PoolManager:  req.PoolManager,
@@ -167,7 +167,7 @@ func (h *Handler) AdminAddChain(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// AdminDeleteChain 删除一条链
+// AdminDeleteChain deletes a chain
 func (h *Handler) AdminDeleteChain(w http.ResponseWriter, r *http.Request) {
 	if !h.requireAdmin(w, r) {
 		return
@@ -191,17 +191,17 @@ func (h *Handler) AdminDeleteChain(w http.ResponseWriter, r *http.Request) {
 }
 
 // ════════════════════════════════════════════════════════════
-// Rate Limit 管理
+// Rate Limit Management
 // ════════════════════════════════════════════════════════════
 
-// adminRateLimitRequest 更新限流配置请求
+// adminRateLimitRequest is the request for updating rate limit configuration
 type adminRateLimitRequest struct {
 	Key    string `json:"key"`
 	Limit  int    `json:"limit"`
 	Window int    `json:"window"`
 }
 
-// AdminUpdateRateLimit 更新限流配置（写入 Redis HSET ratelimit:config）
+// AdminUpdateRateLimit updates rate limit configuration (writes to Redis HSET ratelimit:config)
 func (h *Handler) AdminUpdateRateLimit(w http.ResponseWriter, r *http.Request) {
 	if !h.requireAdmin(w, r) {
 		return
@@ -230,7 +230,7 @@ func (h *Handler) AdminUpdateRateLimit(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
 }
 
-// AdminGetRateLimit 获取所有限流配置
+// AdminGetRateLimit fetches all rate limit configurations
 func (h *Handler) AdminGetRateLimit(w http.ResponseWriter, r *http.Request) {
 	if !h.requireAdmin(w, r) {
 		return
@@ -245,17 +245,17 @@ func (h *Handler) AdminGetRateLimit(w http.ResponseWriter, r *http.Request) {
 }
 
 // ════════════════════════════════════════════════════════════
-// 系统信息
+// System Info
 // ════════════════════════════════════════════════════════════
 
-// AdminSystemInfo 返回扩展系统信息（Go 版本、uptime、goroutine、内存、Redis、DB 连接池等）
+// AdminSystemInfo returns extended system info (Go version, uptime, goroutines, memory, Redis, DB connection pool, etc.)
 func (h *Handler) AdminSystemInfo(w http.ResponseWriter, r *http.Request) {
 	if !h.requireAdmin(w, r) {
 		return
 	}
 	ctx := r.Context()
 
-	// 内存统计
+	// Memory statistics
 	var mem runtime.MemStats
 	runtime.ReadMemStats(&mem)
 
@@ -271,7 +271,7 @@ func (h *Handler) AdminSystemInfo(w http.ResponseWriter, r *http.Request) {
 		"numGC":          mem.NumGC,
 	}
 
-	// Redis 信息
+	// Redis info
 	redisInfo := map[string]string{}
 	if pong, err := h.rdb.Ping(ctx).Result(); err == nil {
 		redisInfo["status"] = pong
@@ -284,7 +284,7 @@ func (h *Handler) AdminSystemInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	info["redis"] = redisInfo
 
-	// DB 连接池（通过简单的连通性检查）
+	// DB connection pool (via simple connectivity check)
 	dbInfo := map[string]string{}
 	chainID := h.defaultChainID()
 	if cnt, err := h.queries.GetUserCount(ctx, chainID); err == nil {
@@ -296,7 +296,7 @@ func (h *Handler) AdminSystemInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	info["database"] = dbInfo
 
-	// 已连接的链
+	// Connected chains
 	connectedChains := make([]int64, 0, len(h.chainReaders))
 	for cid := range h.chainReaders {
 		connectedChains = append(connectedChains, cid)

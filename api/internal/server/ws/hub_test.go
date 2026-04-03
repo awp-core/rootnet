@@ -14,9 +14,9 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// mockAllocQuerier 模拟分配查询接口
+// mockAllocQuerier mocks the allocation query interface
 type mockAllocQuerier struct {
-	stakeMap map[string]string // "agent:subnetId" -> amount
+	stakeMap map[string]string // "agent:worknetId" -> amount
 }
 
 func (m *mockAllocQuerier) GetAgentSubnetStakeWS(ctx context.Context, chainID int64, agent string, subnetID string) (string, error) {
@@ -347,10 +347,10 @@ func TestHub_AllocationWatch(t *testing.T) {
 	h.clients[normalClient] = true
 	h.mu.Unlock()
 
-	allocMsg := []byte(`{"type":"Allocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xStaker1","agent":"0xAgent1","subnetId":"12345","amount":"1000","operator":"0xOp1"}}`)
+	allocMsg := []byte(`{"type":"Allocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xStaker1","agent":"0xAgent1","worknetId":"12345","amount":"1000","operator":"0xOp1"}}`)
 	h.broadcastToClients(allocMsg)
 
-	// watchClient 应收到 AllocationChanged
+	// watchClient should receive AllocationChanged
 	select {
 	case msg := <-watchClient.send:
 		var evt map[string]interface{}
@@ -370,7 +370,7 @@ func TestHub_AllocationWatch(t *testing.T) {
 		t.Fatal("watchClient should have received AllocationChanged")
 	}
 
-	// normalClient 应收到原始事件
+	// normalClient should receive the original event
 	select {
 	case msg := <-normalClient.send:
 		var evt map[string]interface{}
@@ -415,7 +415,7 @@ func TestHub_AllocationWatch_Reallocated(t *testing.T) {
 func TestHub_SubnetWatch(t *testing.T) {
 	h, _ := newTestHub(t)
 
-	// 仅订阅 subnetId，不指定 agent
+	// Subscribe to worknetId only, without specifying agent
 	client := &Client{
 		hub:           h,
 		send:          make(chan []byte, 256),
@@ -428,8 +428,8 @@ func TestHub_SubnetWatch(t *testing.T) {
 	h.clients[client] = true
 	h.mu.Unlock()
 
-	// 任意 agent 在该 subnet 上分配都应推送
-	msg := []byte(`{"type":"Allocated","blockNumber":200,"txHash":"0xaaa","data":{"staker":"0xS","agent":"0xAnyAgent","subnetId":"12345","amount":"999","operator":"0xO"}}`)
+	// Any agent allocating on this subnet should trigger push
+	msg := []byte(`{"type":"Allocated","blockNumber":200,"txHash":"0xaaa","data":{"staker":"0xS","agent":"0xAnyAgent","worknetId":"12345","amount":"999","operator":"0xO"}}`)
 	h.broadcastToClients(msg)
 
 	select {
@@ -439,22 +439,22 @@ func TestHub_SubnetWatch(t *testing.T) {
 		if evt["type"] != "AllocationChanged" {
 			t.Errorf("expected AllocationChanged, got %v", evt["type"])
 		}
-		if evt["subnetId"] != "12345" {
-			t.Errorf("expected subnetId 12345, got %v", evt["subnetId"])
+		if evt["worknetId"] != "12345" {
+			t.Errorf("expected worknetId 12345, got %v", evt["worknetId"])
 		}
 	case <-time.After(time.Second):
 		t.Fatal("subnet watch should receive AllocationChanged for any agent")
 	}
 
-	// 不同 subnet 不应触发推送（会走普通广播，但客户端无 filter 所以仍收到原始事件）
-	otherMsg := []byte(`{"type":"Allocated","blockNumber":201,"txHash":"0xbbb","data":{"staker":"0xS","agent":"0xOther","subnetId":"99999","amount":"1","operator":"0xO"}}`)
+	// Different subnet should not trigger push (goes through normal broadcast, but client has no filter so still receives original event)
+	otherMsg := []byte(`{"type":"Allocated","blockNumber":201,"txHash":"0xbbb","data":{"staker":"0xS","agent":"0xOther","worknetId":"99999","amount":"1","operator":"0xO"}}`)
 	h.broadcastToClients(otherMsg)
 
 	select {
 	case received := <-client.send:
 		var evt map[string]interface{}
 		_ = json.Unmarshal(received, &evt)
-		// 不匹配的 subnet，应以原始 Allocated 发送
+		// Non-matching subnet, should be sent as original Allocated
 		if evt["type"] != "Allocated" {
 			t.Errorf("expected original Allocated, got %v", evt["type"])
 		}
@@ -464,14 +464,14 @@ func TestHub_SubnetWatch(t *testing.T) {
 }
 
 // ============================================================================
-// 1. extractAllocKeys 单元测试
+// 1. extractAllocKeys unit tests
 // ============================================================================
 
 func TestExtractAllocKeys_Allocated(t *testing.T) {
 	data := map[string]interface{}{
 		"staker":   "0xS",
 		"agent":    "0xAgent1",
-		"subnetId": "12345",
+		"worknetId": "12345",
 		"amount":   "1000",
 	}
 	keys := extractAllocKeys("Allocated", data)
@@ -487,7 +487,7 @@ func TestExtractAllocKeys_Deallocated(t *testing.T) {
 	data := map[string]interface{}{
 		"staker":   "0xS",
 		"agent":    "0xAgent2",
-		"subnetId": "67890",
+		"worknetId": "67890",
 		"amount":   "500",
 	}
 	keys := extractAllocKeys("Deallocated", data)
@@ -503,7 +503,7 @@ func TestExtractAllocKeys_Reallocated(t *testing.T) {
 	data := map[string]interface{}{
 		"staker":    "0xS",
 		"agent":     "0xDirectAgent",
-		"subnetId":  "100",
+		"worknetId":  "100",
 		"fromAgent": "0xFromAgent",
 		"fromSubnet": "200",
 		"toAgent":   "0xToAgent",
@@ -511,7 +511,7 @@ func TestExtractAllocKeys_Reallocated(t *testing.T) {
 		"amount":    "1000",
 	}
 	keys := extractAllocKeys("Reallocated", data)
-	// 应返回 3 个 key: agent:subnetId, fromAgent:fromSubnet, toAgent:toSubnet
+	// Should return 3 keys: agent:worknetId, fromAgent:fromSubnet, toAgent:toSubnet
 	if len(keys) != 3 {
 		t.Fatalf("expected 3 keys, got %d: %v", len(keys), keys)
 	}
@@ -528,25 +528,25 @@ func TestExtractAllocKeys_Reallocated(t *testing.T) {
 }
 
 func TestExtractAllocKeys_MissingFields(t *testing.T) {
-	// 缺少 agent
+	// Missing agent
 	data1 := map[string]interface{}{
-		"subnetId": "12345",
+		"worknetId": "12345",
 	}
 	keys1 := extractAllocKeys("Allocated", data1)
 	if len(keys1) != 0 {
 		t.Errorf("expected 0 keys when agent missing, got %d: %v", len(keys1), keys1)
 	}
 
-	// 缺少 subnetId
+	// Missing worknetId
 	data2 := map[string]interface{}{
 		"agent": "0xAgent1",
 	}
 	keys2 := extractAllocKeys("Allocated", data2)
 	if len(keys2) != 0 {
-		t.Errorf("expected 0 keys when subnetId missing, got %d: %v", len(keys2), keys2)
+		t.Errorf("expected 0 keys when worknetId missing, got %d: %v", len(keys2), keys2)
 	}
 
-	// 两者都缺少
+	// Both missing
 	data3 := map[string]interface{}{
 		"staker": "0xS",
 	}
@@ -559,31 +559,31 @@ func TestExtractAllocKeys_MissingFields(t *testing.T) {
 func TestExtractAllocKeys_CaseInsensitive(t *testing.T) {
 	data := map[string]interface{}{
 		"agent":    "0xABCDEF1234567890abcdef1234567890ABCDEF12",
-		"subnetId": "999",
+		"worknetId": "999",
 	}
 	keys := extractAllocKeys("Allocated", data)
 	if len(keys) != 1 {
 		t.Fatalf("expected 1 key, got %d", len(keys))
 	}
-	// agent 应被转为小写
+	// agent should be converted to lowercase
 	if keys[0] != strings.ToLower("0xABCDEF1234567890abcdef1234567890ABCDEF12")+":999" {
 		t.Errorf("expected lowercased agent, got %s", keys[0])
 	}
 }
 
 // ============================================================================
-// 2. enrichAllocEvent 单元测试
+// 2. enrichAllocEvent unit tests
 // ============================================================================
 
 func TestEnrichAllocEvent_NoQuerier(t *testing.T) {
 	h, _ := newTestHub(t)
-	// 不设置 allocQuery
+	// Do not set allocQuery
 
 	evt := broadcastEvent{
 		Type: "Allocated",
 		Data: map[string]interface{}{
 			"agent":    "0xagent1",
-			"subnetId": "12345",
+			"worknetId": "12345",
 			"amount":   "1000",
 		},
 	}
@@ -610,7 +610,7 @@ func TestEnrichAllocEvent_WithQuerier(t *testing.T) {
 		Type: "Allocated",
 		Data: map[string]interface{}{
 			"agent":    "0xagent1",
-			"subnetId": "12345",
+			"worknetId": "12345",
 			"amount":   "1000",
 		},
 	}
@@ -628,7 +628,7 @@ func TestEnrichAllocEvent_Fields(t *testing.T) {
 	data := map[string]interface{}{
 		"staker":   "0xS",
 		"agent":    "0xagent1",
-		"subnetId": "12345",
+		"worknetId": "12345",
 		"amount":   "1000",
 	}
 	evt := broadcastEvent{
@@ -638,8 +638,8 @@ func TestEnrichAllocEvent_Fields(t *testing.T) {
 
 	result := h.enrichAllocEvent(evt, "0xagent1:12345")
 
-	// 验证所有字段都存在
-	requiredFields := []string{"type", "sourceEvent", "agent", "subnetId", "data"}
+	// Verify all fields exist
+	requiredFields := []string{"type", "sourceEvent", "agent", "worknetId", "data"}
 	for _, field := range requiredFields {
 		if _, ok := result[field]; !ok {
 			t.Errorf("missing required field: %s", field)
@@ -655,10 +655,10 @@ func TestEnrichAllocEvent_Fields(t *testing.T) {
 	if result["agent"] != "0xagent1" {
 		t.Errorf("expected agent 0xagent1, got %v", result["agent"])
 	}
-	if result["subnetId"] != "12345" {
-		t.Errorf("expected subnetId 12345, got %v", result["subnetId"])
+	if result["worknetId"] != "12345" {
+		t.Errorf("expected worknetId 12345, got %v", result["worknetId"])
 	}
-	// data 应为原始事件数据
+	// data should be the original event data
 	resultData, ok := result["data"].(map[string]interface{})
 	if !ok {
 		t.Fatal("data field should be map[string]interface{}")
@@ -669,7 +669,7 @@ func TestEnrichAllocEvent_Fields(t *testing.T) {
 }
 
 // ============================================================================
-// 3. 分配监听广播测试
+// 3. Allocation watch broadcast tests
 // ============================================================================
 
 func TestHub_AllocationWatch_Deallocated(t *testing.T) {
@@ -686,7 +686,7 @@ func TestHub_AllocationWatch_Deallocated(t *testing.T) {
 	h.clients[client] = true
 	h.mu.Unlock()
 
-	msg := []byte(`{"type":"Deallocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xS","agent":"0xAgent1","subnetId":"12345","amount":"500","operator":"0xO"}}`)
+	msg := []byte(`{"type":"Deallocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xS","agent":"0xAgent1","worknetId":"12345","amount":"500","operator":"0xO"}}`)
 	h.broadcastToClients(msg)
 
 	select {
@@ -707,7 +707,7 @@ func TestHub_AllocationWatch_Deallocated(t *testing.T) {
 func TestHub_AllocationWatch_FromSideReallocated(t *testing.T) {
 	h, _ := newTestHub(t)
 
-	// 监听 from-side 的 agent:subnet
+	// Watch the from-side agent:subnet
 	client := &Client{
 		hub:          h,
 		send:         make(chan []byte, 256),
@@ -755,8 +755,8 @@ func TestHub_AllocationWatch_MultipleWatches(t *testing.T) {
 	h.clients[client] = true
 	h.mu.Unlock()
 
-	// 第一个事件匹配第二个 watch
-	msg1 := []byte(`{"type":"Allocated","blockNumber":1,"txHash":"0x1","data":{"staker":"0xS","agent":"0xAgent2","subnetId":"222","amount":"100","operator":"0xO"}}`)
+	// First event matches second watch
+	msg1 := []byte(`{"type":"Allocated","blockNumber":1,"txHash":"0x1","data":{"staker":"0xS","agent":"0xAgent2","worknetId":"222","amount":"100","operator":"0xO"}}`)
 	h.broadcastToClients(msg1)
 
 	select {
@@ -773,8 +773,8 @@ func TestHub_AllocationWatch_MultipleWatches(t *testing.T) {
 		t.Fatal("should receive AllocationChanged for second watch")
 	}
 
-	// 第二个事件匹配第三个 watch
-	msg2 := []byte(`{"type":"Allocated","blockNumber":2,"txHash":"0x2","data":{"staker":"0xS","agent":"0xAgent3","subnetId":"333","amount":"200","operator":"0xO"}}`)
+	// Second event matches third watch
+	msg2 := []byte(`{"type":"Allocated","blockNumber":2,"txHash":"0x2","data":{"staker":"0xS","agent":"0xAgent3","worknetId":"333","amount":"200","operator":"0xO"}}`)
 	h.broadcastToClients(msg2)
 
 	select {
@@ -792,7 +792,7 @@ func TestHub_AllocationWatch_MultipleWatches(t *testing.T) {
 func TestHub_AllocationWatch_ExactTakesPriority(t *testing.T) {
 	h, _ := newTestHub(t)
 
-	// 客户端同时设置精确匹配和子网级匹配
+	// Client sets both exact match and subnet-level match
 	client := &Client{
 		hub:           h,
 		send:          make(chan []byte, 256),
@@ -805,7 +805,7 @@ func TestHub_AllocationWatch_ExactTakesPriority(t *testing.T) {
 	h.clients[client] = true
 	h.mu.Unlock()
 
-	msg := []byte(`{"type":"Allocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xS","agent":"0xAgent1","subnetId":"12345","amount":"1000","operator":"0xO"}}`)
+	msg := []byte(`{"type":"Allocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xS","agent":"0xAgent1","worknetId":"12345","amount":"1000","operator":"0xO"}}`)
 	h.broadcastToClients(msg)
 
 	select {
@@ -815,7 +815,7 @@ func TestHub_AllocationWatch_ExactTakesPriority(t *testing.T) {
 		if evt["type"] != "AllocationChanged" {
 			t.Errorf("expected AllocationChanged, got %v", evt["type"])
 		}
-		// 精确匹配优先，agent 应为精确 watch 的 agent
+		// Exact match takes priority, agent should be the exact watch agent
 		if evt["agent"] != "0xagent1" {
 			t.Errorf("expected agent 0xagent1, got %v", evt["agent"])
 		}
@@ -823,19 +823,19 @@ func TestHub_AllocationWatch_ExactTakesPriority(t *testing.T) {
 		t.Fatal("should receive AllocationChanged")
 	}
 
-	// 应只收到一条消息（精确匹配优先，不重复发送子网级匹配）
+	// Should receive only one message (exact match takes priority, no duplicate subnet-level match)
 	select {
 	case extra := <-client.send:
 		t.Fatalf("should not receive duplicate message, but got: %s", string(extra))
 	case <-time.After(200 * time.Millisecond):
-		// 正确：无多余消息
+		// Correct: no extra messages
 	}
 }
 
 func TestHub_AllocationWatch_WatchPlusTypeFilter(t *testing.T) {
 	h, _ := newTestHub(t)
 
-	// 客户端设置 type filter ["Allocated"] 和 allocWatch
+	// Client sets type filter ["Allocated"] and allocWatch
 	client := &Client{
 		hub:          h,
 		send:         make(chan []byte, 256),
@@ -847,8 +847,8 @@ func TestHub_AllocationWatch_WatchPlusTypeFilter(t *testing.T) {
 	h.clients[client] = true
 	h.mu.Unlock()
 
-	// 匹配 allocWatch 的事件 → 应收到 AllocationChanged
-	allocMsg := []byte(`{"type":"Allocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xS","agent":"0xAgent1","subnetId":"12345","amount":"1000","operator":"0xO"}}`)
+	// Event matching allocWatch -> should receive AllocationChanged
+	allocMsg := []byte(`{"type":"Allocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xS","agent":"0xAgent1","worknetId":"12345","amount":"1000","operator":"0xO"}}`)
 	h.broadcastToClients(allocMsg)
 
 	select {
@@ -862,7 +862,7 @@ func TestHub_AllocationWatch_WatchPlusTypeFilter(t *testing.T) {
 		t.Fatal("should receive AllocationChanged for matching alloc watch")
 	}
 
-	// 不匹配 type filter 的非分配事件 → 不应收到
+	// Non-allocation event not matching type filter -> should not be received
 	nonAllocMsg := []byte(`{"type":"EpochSettled","data":"test"}`)
 	h.broadcastToClients(nonAllocMsg)
 
@@ -870,7 +870,7 @@ func TestHub_AllocationWatch_WatchPlusTypeFilter(t *testing.T) {
 	case extra := <-client.send:
 		t.Fatalf("should not receive non-matching event, but got: %s", string(extra))
 	case <-time.After(200 * time.Millisecond):
-		// 正确：被 type filter 过滤
+		// Correct: filtered by type filter
 	}
 }
 
@@ -888,7 +888,7 @@ func TestHub_AllocationWatch_NonAllocEvent(t *testing.T) {
 	h.clients[client] = true
 	h.mu.Unlock()
 
-	// 非分配事件（EpochSettled）应走普通广播路径
+	// Non-allocation event (EpochSettled) should go through normal broadcast path
 	msg := []byte(`{"type":"EpochSettled","data":{"epoch":"5"}}`)
 	h.broadcastToClients(msg)
 
@@ -907,7 +907,7 @@ func TestHub_AllocationWatch_NonAllocEvent(t *testing.T) {
 func TestHub_AllocationWatch_NoMatchFallsThrough(t *testing.T) {
 	h, _ := newTestHub(t)
 
-	// 监听某个 agent:subnet，但事件是另一个 agent:subnet
+	// Watch a specific agent:subnet, but event is for another agent:subnet
 	client := &Client{
 		hub:          h,
 		send:         make(chan []byte, 256),
@@ -919,8 +919,8 @@ func TestHub_AllocationWatch_NoMatchFallsThrough(t *testing.T) {
 	h.clients[client] = true
 	h.mu.Unlock()
 
-	// 不匹配的分配事件 → 应作为原始事件发送（因为无 type filter）
-	msg := []byte(`{"type":"Allocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xS","agent":"0xOtherAgent","subnetId":"99999","amount":"1000","operator":"0xO"}}`)
+	// Non-matching allocation event -> should be sent as original event (since there is no type filter)
+	msg := []byte(`{"type":"Allocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xS","agent":"0xOtherAgent","worknetId":"99999","amount":"1000","operator":"0xO"}}`)
 	h.broadcastToClients(msg)
 
 	select {
@@ -936,7 +936,7 @@ func TestHub_AllocationWatch_NoMatchFallsThrough(t *testing.T) {
 }
 
 // ============================================================================
-// 4. 子网级监听测试
+// 4. Subnet-level watch tests
 // ============================================================================
 
 func TestHub_SubnetWatch_Deallocated(t *testing.T) {
@@ -954,7 +954,7 @@ func TestHub_SubnetWatch_Deallocated(t *testing.T) {
 	h.clients[client] = true
 	h.mu.Unlock()
 
-	msg := []byte(`{"type":"Deallocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xS","agent":"0xAnyAgent","subnetId":"12345","amount":"500","operator":"0xO"}}`)
+	msg := []byte(`{"type":"Deallocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xS","agent":"0xAnyAgent","worknetId":"12345","amount":"500","operator":"0xO"}}`)
 	h.broadcastToClients(msg)
 
 	select {
@@ -975,7 +975,7 @@ func TestHub_SubnetWatch_Deallocated(t *testing.T) {
 func TestHub_SubnetWatch_Reallocated(t *testing.T) {
 	h, _ := newTestHub(t)
 
-	// 监听 toSubnet
+	// Watch toSubnet
 	client := &Client{
 		hub:           h,
 		send:          make(chan []byte, 256),
@@ -998,8 +998,8 @@ func TestHub_SubnetWatch_Reallocated(t *testing.T) {
 		if evt["type"] != "AllocationChanged" {
 			t.Errorf("expected AllocationChanged, got %v", evt["type"])
 		}
-		if evt["subnetId"] != "200" {
-			t.Errorf("expected subnetId 200, got %v", evt["subnetId"])
+		if evt["worknetId"] != "200" {
+			t.Errorf("expected worknetId 200, got %v", evt["worknetId"])
 		}
 	case <-time.After(time.Second):
 		t.Fatal("subnet watch should trigger for Reallocated to-subnet")
@@ -1021,8 +1021,8 @@ func TestHub_SubnetWatch_MultipleSubnets(t *testing.T) {
 	h.clients[client] = true
 	h.mu.Unlock()
 
-	// 匹配第二个子网
-	msg1 := []byte(`{"type":"Allocated","blockNumber":1,"txHash":"0x1","data":{"staker":"0xS","agent":"0xA","subnetId":"222","amount":"100","operator":"0xO"}}`)
+	// Match second subnet
+	msg1 := []byte(`{"type":"Allocated","blockNumber":1,"txHash":"0x1","data":{"staker":"0xS","agent":"0xA","worknetId":"222","amount":"100","operator":"0xO"}}`)
 	h.broadcastToClients(msg1)
 
 	select {
@@ -1032,23 +1032,23 @@ func TestHub_SubnetWatch_MultipleSubnets(t *testing.T) {
 		if evt["type"] != "AllocationChanged" {
 			t.Errorf("expected AllocationChanged, got %v", evt["type"])
 		}
-		if evt["subnetId"] != "222" {
-			t.Errorf("expected subnetId 222, got %v", evt["subnetId"])
+		if evt["worknetId"] != "222" {
+			t.Errorf("expected worknetId 222, got %v", evt["worknetId"])
 		}
 	case <-time.After(time.Second):
 		t.Fatal("should receive AllocationChanged for subnet 222")
 	}
 
-	// 匹配第三个子网
-	msg2 := []byte(`{"type":"Allocated","blockNumber":2,"txHash":"0x2","data":{"staker":"0xS","agent":"0xB","subnetId":"333","amount":"200","operator":"0xO"}}`)
+	// Match third subnet
+	msg2 := []byte(`{"type":"Allocated","blockNumber":2,"txHash":"0x2","data":{"staker":"0xS","agent":"0xB","worknetId":"333","amount":"200","operator":"0xO"}}`)
 	h.broadcastToClients(msg2)
 
 	select {
 	case received := <-client.send:
 		var evt map[string]interface{}
 		_ = json.Unmarshal(received, &evt)
-		if evt["subnetId"] != "333" {
-			t.Errorf("expected subnetId 333, got %v", evt["subnetId"])
+		if evt["worknetId"] != "333" {
+			t.Errorf("expected worknetId 333, got %v", evt["worknetId"])
 		}
 	case <-time.After(time.Second):
 		t.Fatal("should receive AllocationChanged for subnet 333")
@@ -1058,7 +1058,7 @@ func TestHub_SubnetWatch_MultipleSubnets(t *testing.T) {
 func TestHub_SubnetWatch_CombinedWithExact(t *testing.T) {
 	h, _ := newTestHub(t)
 
-	// 精确监听 subnet 111 上的 agent1，子网级监听 subnet 222
+	// Exact watch agent1 on subnet 111, subnet-level watch on subnet 222
 	client := &Client{
 		hub:           h,
 		send:          make(chan []byte, 256),
@@ -1071,8 +1071,8 @@ func TestHub_SubnetWatch_CombinedWithExact(t *testing.T) {
 	h.clients[client] = true
 	h.mu.Unlock()
 
-	// 精确匹配事件
-	msg1 := []byte(`{"type":"Allocated","blockNumber":1,"txHash":"0x1","data":{"staker":"0xS","agent":"0xAgent1","subnetId":"111","amount":"100","operator":"0xO"}}`)
+	// Exact match event
+	msg1 := []byte(`{"type":"Allocated","blockNumber":1,"txHash":"0x1","data":{"staker":"0xS","agent":"0xAgent1","worknetId":"111","amount":"100","operator":"0xO"}}`)
 	h.broadcastToClients(msg1)
 
 	select {
@@ -1089,8 +1089,8 @@ func TestHub_SubnetWatch_CombinedWithExact(t *testing.T) {
 		t.Fatal("exact watch should trigger")
 	}
 
-	// 子网级匹配事件
-	msg2 := []byte(`{"type":"Allocated","blockNumber":2,"txHash":"0x2","data":{"staker":"0xS","agent":"0xOtherAgent","subnetId":"222","amount":"200","operator":"0xO"}}`)
+	// Subnet-level match event
+	msg2 := []byte(`{"type":"Allocated","blockNumber":2,"txHash":"0x2","data":{"staker":"0xS","agent":"0xOtherAgent","worknetId":"222","amount":"200","operator":"0xO"}}`)
 	h.broadcastToClients(msg2)
 
 	select {
@@ -1100,8 +1100,8 @@ func TestHub_SubnetWatch_CombinedWithExact(t *testing.T) {
 		if evt["type"] != "AllocationChanged" {
 			t.Errorf("expected AllocationChanged, got %v", evt["type"])
 		}
-		if evt["subnetId"] != "222" {
-			t.Errorf("expected subnetId 222, got %v", evt["subnetId"])
+		if evt["worknetId"] != "222" {
+			t.Errorf("expected worknetId 222, got %v", evt["worknetId"])
 		}
 	case <-time.After(time.Second):
 		t.Fatal("subnet watch should trigger")
@@ -1109,7 +1109,7 @@ func TestHub_SubnetWatch_CombinedWithExact(t *testing.T) {
 }
 
 // ============================================================================
-// 5. WebSocket 集成测试
+// 5. WebSocket integration tests
 // ============================================================================
 
 func TestHub_WS_WatchAllocations_Integration(t *testing.T) {
@@ -1134,13 +1134,13 @@ func TestHub_WS_WatchAllocations_Integration(t *testing.T) {
 	}
 	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
 
-	// 等待客户端注册
+	// Wait for client registration
 	count := waitForClients(h, 1, 3*time.Second)
 	if count != 1 {
 		t.Fatalf("expected 1 client, got %d", count)
 	}
 
-	// 发送 watchAllocations 订阅（地址必须 42 字符: 0x + 40 hex）
+	// Send watchAllocations subscription (address must be 42 chars: 0x + 40 hex)
 	watchMsg, _ := json.Marshal(filterMessage{
 		WatchAllocations: []allocationWatch{
 			{Agent: "0xAa11223344556677889900aabbccddeeff112233", SubnetID: "55555"},
@@ -1151,13 +1151,13 @@ func TestHub_WS_WatchAllocations_Integration(t *testing.T) {
 	}
 	time.Sleep(200 * time.Millisecond)
 
-	// 通过 Redis 发布分配事件（agent 大小写不同，extractAllocKeys 会 toLower）
-	allocEvt := `{"type":"Allocated","blockNumber":500,"txHash":"0xtest","data":{"staker":"0xS","agent":"0xAa11223344556677889900aabbccddeeff112233","subnetId":"55555","amount":"2000","operator":"0xO"}}`
+	// Publish allocation event via Redis (agent case differs, extractAllocKeys will toLower)
+	allocEvt := `{"type":"Allocated","blockNumber":500,"txHash":"0xtest","data":{"staker":"0xS","agent":"0xAa11223344556677889900aabbccddeeff112233","worknetId":"55555","amount":"2000","operator":"0xO"}}`
 	if err := rdb.Publish(ctx, "chain_events", allocEvt).Err(); err != nil {
 		t.Fatalf("failed to publish Redis event: %v", err)
 	}
 
-	// 读取 WebSocket 消息
+	// Read WebSocket message
 	_, data, err := conn.Read(ctx)
 	if err != nil {
 		t.Fatalf("failed to read WebSocket message: %v", err)
@@ -1202,7 +1202,7 @@ func TestHub_WS_SubnetWatch_Integration(t *testing.T) {
 		t.Fatalf("expected 1 client, got %d", count)
 	}
 
-	// 发送子网级 watchAllocations（agent 省略）
+	// Send subnet-level watchAllocations (agent omitted)
 	watchMsg, _ := json.Marshal(filterMessage{
 		WatchAllocations: []allocationWatch{
 			{SubnetID: "77777"},
@@ -1213,8 +1213,8 @@ func TestHub_WS_SubnetWatch_Integration(t *testing.T) {
 	}
 	time.Sleep(200 * time.Millisecond)
 
-	// 通过 Redis 发布事件
-	allocEvt := `{"type":"Allocated","blockNumber":600,"txHash":"0xsub","data":{"staker":"0xS","agent":"0xRandomAgent1234567890123456789012345678","subnetId":"77777","amount":"3000","operator":"0xO"}}`
+	// Publish event via Redis
+	allocEvt := `{"type":"Allocated","blockNumber":600,"txHash":"0xsub","data":{"staker":"0xS","agent":"0xRandomAgent1234567890123456789012345678","worknetId":"77777","amount":"3000","operator":"0xO"}}`
 	if err := rdb.Publish(ctx, "chain_events", allocEvt).Err(); err != nil {
 		t.Fatalf("failed to publish Redis event: %v", err)
 	}
@@ -1231,8 +1231,8 @@ func TestHub_WS_SubnetWatch_Integration(t *testing.T) {
 	if evt["type"] != "AllocationChanged" {
 		t.Errorf("expected AllocationChanged, got %v", evt["type"])
 	}
-	if evt["subnetId"] != "77777" {
-		t.Errorf("expected subnetId 77777, got %v", evt["subnetId"])
+	if evt["worknetId"] != "77777" {
+		t.Errorf("expected worknetId 77777, got %v", evt["worknetId"])
 	}
 }
 
@@ -1263,7 +1263,7 @@ func TestHub_WS_UpdateSubscription(t *testing.T) {
 		t.Fatalf("expected 1 client, got %d", count)
 	}
 
-	// 第一次订阅 agent1:11111（地址必须 42 字符: 0x + 40 hex）
+	// First subscription agent1:11111 (address must be 42 chars: 0x + 40 hex)
 	watch1, _ := json.Marshal(filterMessage{
 		WatchAllocations: []allocationWatch{
 			{Agent: "0x1111111111111111111111111111111111111111", SubnetID: "11111"},
@@ -1274,7 +1274,7 @@ func TestHub_WS_UpdateSubscription(t *testing.T) {
 	}
 	time.Sleep(200 * time.Millisecond)
 
-	// 第二次订阅 agent2:22222（应替换第一次）
+	// Second subscription agent2:22222 (should replace the first)
 	watch2, _ := json.Marshal(filterMessage{
 		WatchAllocations: []allocationWatch{
 			{Agent: "0x2222222222222222222222222222222222222222", SubnetID: "22222"},
@@ -1285,8 +1285,8 @@ func TestHub_WS_UpdateSubscription(t *testing.T) {
 	}
 	time.Sleep(200 * time.Millisecond)
 
-	// 发布匹配第一个订阅的事件 → 应作为原始事件发送（不再匹配）
-	evt1 := `{"type":"Allocated","blockNumber":1,"txHash":"0x1","data":{"staker":"0xS","agent":"0x1111111111111111111111111111111111111111","subnetId":"11111","amount":"100","operator":"0xO"}}`
+	// Publish event matching first subscription -> should be sent as original event (no longer matches)
+	evt1 := `{"type":"Allocated","blockNumber":1,"txHash":"0x1","data":{"staker":"0xS","agent":"0x1111111111111111111111111111111111111111","worknetId":"11111","amount":"100","operator":"0xO"}}`
 	if err := rdb.Publish(ctx, "chain_events", evt1).Err(); err != nil {
 		t.Fatalf("failed to publish: %v", err)
 	}
@@ -1297,13 +1297,13 @@ func TestHub_WS_UpdateSubscription(t *testing.T) {
 	}
 	var parsed1 map[string]interface{}
 	_ = json.Unmarshal(data1, &parsed1)
-	// 第一个订阅已被替换，应收到原始 Allocated（不是 AllocationChanged）
+	// First subscription was replaced, should receive original Allocated (not AllocationChanged)
 	if parsed1["type"] != "Allocated" {
 		t.Errorf("expected original Allocated (old watch replaced), got %v", parsed1["type"])
 	}
 
-	// 发布匹配第二个订阅的事件 → 应收到 AllocationChanged
-	evt2 := `{"type":"Allocated","blockNumber":2,"txHash":"0x2","data":{"staker":"0xS","agent":"0x2222222222222222222222222222222222222222","subnetId":"22222","amount":"200","operator":"0xO"}}`
+	// Publish event matching second subscription -> should receive AllocationChanged
+	evt2 := `{"type":"Allocated","blockNumber":2,"txHash":"0x2","data":{"staker":"0xS","agent":"0x2222222222222222222222222222222222222222","worknetId":"22222","amount":"200","operator":"0xO"}}`
 	if err := rdb.Publish(ctx, "chain_events", evt2).Err(); err != nil {
 		t.Fatalf("failed to publish: %v", err)
 	}
@@ -1320,13 +1320,13 @@ func TestHub_WS_UpdateSubscription(t *testing.T) {
 }
 
 // ============================================================================
-// 6. 边缘情况测试
+// 6. Edge case tests
 // ============================================================================
 
 func TestHub_AllocationWatch_SlowClientEviction(t *testing.T) {
 	h, _ := newTestHub(t)
 
-	// buffer 大小为 1，模拟慢客户端（使用非分配事件填满 buffer，然后用分配事件触发驱逐）
+	// buffer size 1, simulating slow client (fill buffer with non-allocation event, then trigger eviction with allocation event)
 	client := &Client{
 		hub:          h,
 		send:         make(chan []byte, 1),
@@ -1338,7 +1338,7 @@ func TestHub_AllocationWatch_SlowClientEviction(t *testing.T) {
 	h.clients[client] = true
 	h.mu.Unlock()
 
-	// 用非分配事件填满 buffer（走普通广播路径）
+	// Fill buffer with non-allocation event (goes through normal broadcast path)
 	msg1 := []byte(`{"type":"EpochSettled","data":{"epoch":"1"}}`)
 	h.broadcastToClients(msg1)
 
@@ -1349,7 +1349,7 @@ func TestHub_AllocationWatch_SlowClientEviction(t *testing.T) {
 		t.Fatal("client should still be tracked after first message")
 	}
 
-	// 再发一条非分配事件：buffer 已满，应被驱逐
+	// Send another non-allocation event: buffer full, should be evicted
 	msg2 := []byte(`{"type":"EpochSettled","data":{"epoch":"2"}}`)
 	h.broadcastToClients(msg2)
 
@@ -1380,11 +1380,11 @@ func TestHub_AllocationWatch_EmptyData(t *testing.T) {
 	h.clients[client] = true
 	h.mu.Unlock()
 
-	// 分配事件缺少 data 字段
+	// Allocation event missing data field
 	msg := []byte(`{"type":"Allocated","blockNumber":100,"txHash":"0xabc"}`)
 	h.broadcastToClients(msg)
 
-	// 因为无法提取 allocKeys，应走普通广播
+	// Since allocKeys cannot be extracted, should go through normal broadcast
 	select {
 	case received := <-client.send:
 		var evt map[string]interface{}
@@ -1424,12 +1424,12 @@ func TestHub_AllocationWatch_InvalidWatchParams(t *testing.T) {
 		t.Fatalf("expected 1 client, got %d", count)
 	}
 
-	// 发送无效的 watchAllocations（地址太短和太长）
+	// Send invalid watchAllocations (address too short and too long)
 	watchMsg, _ := json.Marshal(filterMessage{
 		WatchAllocations: []allocationWatch{
-			{Agent: "0xShort", SubnetID: "12345"},                                          // 地址太短（!= 42 字符）
-			{Agent: "0xTooLongAddress1234567890123456789012345678901234567890", SubnetID: "12345"}, // 地址太长
-			{Agent: "0xValid1234567890123456789012345678901234", SubnetID: ""},              // subnetId 为空
+			{Agent: "0xShort", SubnetID: "12345"},                                          // Address too short (!= 42 chars)
+			{Agent: "0xTooLongAddress1234567890123456789012345678901234567890", SubnetID: "12345"}, // Address too long
+			{Agent: "0xValid1234567890123456789012345678901234", SubnetID: ""},              // worknetId is empty
 		},
 	})
 	if err := conn.Write(ctx, websocket.MessageText, watchMsg); err != nil {
@@ -1437,7 +1437,7 @@ func TestHub_AllocationWatch_InvalidWatchParams(t *testing.T) {
 	}
 	time.Sleep(200 * time.Millisecond)
 
-	// 验证客户端的 watches 为空（所有条目都应被过滤）
+	// Verify client watches are empty (all entries should be filtered out)
 	h.mu.RLock()
 	var allocCount, subnetCount int
 	for c := range h.clients {

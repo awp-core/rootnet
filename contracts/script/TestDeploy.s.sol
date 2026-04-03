@@ -8,7 +8,7 @@ import {AWPEmission} from "../src/token/AWPEmission.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
-import {SubnetNFT} from "../src/core/SubnetNFT.sol";
+import {WorknetNFT} from "../src/core/WorknetNFT.sol";
 import {LPManager} from "../src/core/LPManager.sol";
 import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
@@ -16,7 +16,7 @@ import {Treasury} from "../src/governance/Treasury.sol";
 /// @title TestDeploy — Simplified deployment (used for E2E tests)
 contract TestDeploy is Script {
     function run() external {
-        // NOTE: Minimal deployment for testing. AWPDAO, SubnetManager impl, and defaultSubnetManagerImpl are omitted.
+        // NOTE: Minimal deployment for testing. AWPDAO, WorknetManager impl, and defaultWorknetManagerImpl are omitted.
         address deployer = msg.sender;
         vm.startBroadcast();
 
@@ -34,13 +34,13 @@ contract TestDeploy is Script {
             address(awpRegistryImpl),
             abi.encodeCall(AWPRegistry.initialize, (deployer, address(treasury), address(0x99)))
         )));
-        SubnetNFT nft = new SubnetNFT("AWPSUB", "AWPSUB", address(awpRegistry));
+        WorknetNFT nft = new WorknetNFT("AWPSUB", "AWPSUB", address(awpRegistry));
         LPManager lp = new LPManager(address(awpRegistry), address(0), address(0), address(0), address(awp));
 
         AWPEmission em;
         {
             AWPEmission emImpl = new AWPEmission();
-            bytes memory initData = abi.encodeCall(AWPEmission.initialize, (address(awp), deployer, 15_800_000e18, block.timestamp, 1 days));
+            bytes memory initData = abi.encodeCall(AWPEmission.initialize, (address(awp), deployer, 31_600_000e18, block.timestamp, 1 days, deployer));
             em = AWPEmission(address(new ERC1967Proxy(address(emImpl), initData)));
         }
 
@@ -61,7 +61,7 @@ contract TestDeploy is Script {
         // Output addresses to console
         console.log("AWPToken", address(awp));
         console.log("AWPRegistry", address(awpRegistry));
-        console.log("SubnetNFT", address(nft));
+        console.log("WorknetNFT", address(nft));
         console.log("StakingVault", address(sv));
         console.log("StakeNFT", address(stakeNft));
         console.log("AWPEmission", address(em));

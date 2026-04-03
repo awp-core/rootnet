@@ -1,0 +1,41 @@
+{
+  "safe_address": "0x000002bEfa6A1C99A710862Feb6dB50525dF00A3",
+  "version": "1.4.1",
+  "singleton": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762",
+  "fallback_handler": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
+  "create2_deployer": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+  "safe_proxy_factory": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
+  "salt": "0xdea7ea07cb99eeaffe1c1082f30d8744658c97c20201a1ed915dedde491cb6fb",
+  "init_code_hash": "0xe298282cefe913ab5d282047161268a8222e4bd4ed106300c547894bbefd31ee",
+  "threshold": 3,
+  "owners": [
+    "0x653612B964dEBc7E37702FB97ad80e2e02cC8ba8",
+    "0xBF251B9E89b88B4A57138DAE041b29ba6e2c0D78",
+    "0x3A1A7F8f6037060B57D45ea412d793ca001d2fad",
+    "0x00000000000b00C71BD1ca92B63C5d297a70e048",
+    "0x1111111111172795d0603233B0Dd0D25c6A0a1d1"
+  ],
+  "deployments": {
+    "ethereum": {
+      "chain_id": 1,
+      "deploy_tx": "0x5550be1e8b67dd527f95e8b968aa45de34c9a7dd8ea13ecda0f7fbea0728de4e",
+      "setup_tx": "0xdcb328fe0e4087ad001205643ed6d4facc0834439056bae9f1e11fe457f1d6b1"
+    },
+    "base": {
+      "chain_id": 8453,
+      "deploy_tx": "0x2b85bfbfa6cc33b1e8e4a7d493d01d2fbf03cf73aeb4e30b45a4915c9c7184a9",
+      "setup_tx": "0x58657f8739d0f7e125c9e46ee48da8f16db6508e6f8b7c67f7dfbec932aedd88"
+    },
+    "bsc": {
+      "chain_id": 56,
+      "deploy_tx": "0x4ff734aa82d0fdedbf54f51fa1577a1faadefebb557fcda2a4885e74b6a4dc98",
+      "setup_tx": "0x7eb05fe9a4bf763730e325e80c4f011ae7762f655cf95fece5f95c4addd76a0f"
+    },
+    "arbitrum": {
+      "chain_id": 42161,
+      "deploy_tx": "0x963624802d2023b2538b4e41a2a7c7d2df04ad047dab69b6994dc1d63c2e5355",
+      "setup_tx": "0xac7e6c8f59b3844c231a2358090f204999df3b19dcc93b4acd1b28874b49bafa"
+    }
+  },
+  "deployed_at": "2026-04-02"
+}

@@ -344,7 +344,7 @@ SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_allocations
 WHERE subnet_id = $1 AND frozen = FALSE
 `
 
-// NOTE: No chain_id filter — subnetId is globally unique (chainId<<64|localId),
+// NOTE: No chain_id filter — worknetId is globally unique (chainId<<64|localId),
 // aggregates stake from ALL chains for a given subnet (cross-chain by design).
 func (q *Queries) GetSubnetTotalStake(ctx context.Context, subnetID pgtype.Numeric) (pgtype.Numeric, error) {
 	row := q.db.QueryRow(ctx, getSubnetTotalStake, subnetID)

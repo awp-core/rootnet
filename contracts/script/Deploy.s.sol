@@ -8,15 +8,15 @@ import {AWPEmission} from "../src/token/AWPEmission.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {StakingVault} from "../src/core/StakingVault.sol";
 import {StakeNFT} from "../src/core/StakeNFT.sol";
-import {SubnetNFT} from "../src/core/SubnetNFT.sol";
+import {WorknetNFT} from "../src/core/WorknetNFT.sol";
 import {LPManager} from "../src/core/LPManager.sol";
 import {LPManagerUni} from "../src/core/LPManagerUni.sol";
 import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
-import {SubnetManager} from "../src/subnets/SubnetManager.sol";
-import {SubnetManagerUni} from "../src/subnets/SubnetManagerUni.sol";
+import {WorknetManager} from "../src/worknets/WorknetManager.sol";
+import {WorknetManagerUni} from "../src/worknets/WorknetManagerUni.sol";
 
 /// @title Deploy — Deterministic deployment via CREATE2 factory (0x4e59b44847b379578588920cA78FbF26c0B4956C)
 /// @dev Account System V2: AccessManager removed, binding/delegation/recipient managed in AWPRegistry directly.
@@ -25,7 +25,7 @@ contract Deploy is Script {
     address constant DETERMINISTIC_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
     // ── Protocol constants ──
-    uint256 constant INITIAL_DAILY_EMISSION = 15_800_000 * 1e18;
+    uint256 constant INITIAL_DAILY_EMISSION = 31_600_000 * 1e18;
     uint256 constant EPOCH_DURATION = 1 days;
     uint256 constant TIMELOCK_DELAY = 172800; // 2 days
 
@@ -62,14 +62,14 @@ contract Deploy is Script {
         bytes32 saltTreasury = _readSalt("SALT_TREASURY");
         bytes32 saltAWPRegistryImpl = _readSalt("SALT_AWP_REGISTRY_IMPL");
         bytes32 saltAWPRegistry = _readSalt("SALT_AWP_REGISTRY");
-        bytes32 saltSubnetNFT = _readSalt("SALT_SUBNET_NFT");
+        bytes32 saltWorknetNFT = _readSalt("SALT_WORKNET_NFT");
         bytes32 saltLPManager = _readSalt("SALT_LP_MANAGER");
         bytes32 saltEmissionImpl = _readSalt("SALT_EMISSION_IMPL");
         bytes32 saltEmissionProxy = _readSalt("SALT_EMISSION_PROXY");
         bytes32 saltVault = _readSalt("SALT_STAKING_VAULT");
         bytes32 saltStakeNFT = _readSalt("SALT_STAKE_NFT");
         bytes32 saltDAO = _readSalt("SALT_DAO");
-        bytes32 saltSubnetMgrImpl = _readSalt("SALT_SUBNET_MANAGER_IMPL");
+        bytes32 saltWorknetMgrImpl = _readSalt("SALT_WORKNET_MANAGER_IMPL");
 
         console.log("Deployer:", deployer);
 
@@ -121,12 +121,12 @@ contract Deploy is Script {
         }
         console.log("AWPRegistry proxy:", address(awpRegistry));
 
-        // Step 5: SubnetNFT
-        SubnetNFT nft = SubnetNFT(_create2(
-            saltSubnetNFT,
-            abi.encodePacked(type(SubnetNFT).creationCode, abi.encode("AWP Subnet", "AWPSUB", address(awpRegistry)))
+        // Step 5: WorknetNFT
+        WorknetNFT nft = WorknetNFT(_create2(
+            saltWorknetNFT,
+            abi.encodePacked(type(WorknetNFT).creationCode, abi.encode("AWP Worknet", "AWPSUB", address(awpRegistry)))
         ));
-        console.log("SubnetNFT:", address(nft));
+        console.log("WorknetNFT:", address(nft));
 
         // Step 6: LPManager (auto-select based on chain: BSC → PancakeSwap, other → Uniswap V4)
         address lpAddr;
@@ -153,8 +153,8 @@ contract Deploy is Script {
             ));
             console.log("AWPEmission impl:", address(emissionImpl));
 
-            uint256 genesisTime = vm.envUint("GENESIS_TIME"); // 必须显式设置，否则 CREATE2 地址不一致
-            bytes memory initData = abi.encodeCall(AWPEmission.initialize, (address(awp), guardian, INITIAL_DAILY_EMISSION, genesisTime, EPOCH_DURATION));
+            uint256 genesisTime = vm.envUint("GENESIS_TIME"); // Must be set explicitly; using block.timestamp breaks CREATE2 address consistency
+            bytes memory initData = abi.encodeCall(AWPEmission.initialize, (address(awp), guardian, INITIAL_DAILY_EMISSION, genesisTime, EPOCH_DURATION, address(treasury)));
             emission = AWPEmission(_create2(
                 saltEmissionProxy,
                 abi.encodePacked(type(ERC1967Proxy).creationCode, abi.encode(address(emissionImpl), initData))
@@ -186,21 +186,21 @@ contract Deploy is Script {
         ));
         console.log("StakeNFT:", address(stakeNft));
 
-        // Step 9: SubnetManager implementation (auto-select based on chain)
-        // BSC (56/97) uses PancakeSwap V4 SubnetManager; other chains use Uniswap V4 SubnetManagerUni
-        SubnetManager subnetMgrImpl;
+        // Step 9: WorknetManager implementation (auto-select based on chain)
+        // BSC (56/97) uses PancakeSwap V4 WorknetManager; other chains use Uniswap V4 WorknetManagerUni
+        WorknetManager worknetMgrImpl;
         if (block.chainid == 56 || block.chainid == 97) {
-            subnetMgrImpl = SubnetManager(_create2(
-                saltSubnetMgrImpl,
-                abi.encodePacked(type(SubnetManager).creationCode)
+            worknetMgrImpl = WorknetManager(_create2(
+                saltWorknetMgrImpl,
+                abi.encodePacked(type(WorknetManager).creationCode)
             ));
-            console.log("SubnetManager impl (PancakeSwap):", address(subnetMgrImpl));
+            console.log("WorknetManager impl (PancakeSwap):", address(worknetMgrImpl));
         } else {
-            subnetMgrImpl = SubnetManager(address(SubnetManagerUni(_create2(
-                saltSubnetMgrImpl,
-                abi.encodePacked(type(SubnetManagerUni).creationCode)
+            worknetMgrImpl = WorknetManager(address(WorknetManagerUni(_create2(
+                saltWorknetMgrImpl,
+                abi.encodePacked(type(WorknetManagerUni).creationCode)
             ))));
-            console.log("SubnetManager impl (Uniswap):", address(subnetMgrImpl));
+            console.log("WorknetManager impl (Uniswap):", address(worknetMgrImpl));
         }
 
         // Step 10: AWPDAO
@@ -218,11 +218,14 @@ contract Deploy is Script {
         // Step 11: Roles + Admin
         treasury.grantRole(treasury.PROPOSER_ROLE(), address(dao));
         treasury.grantRole(treasury.CANCELLER_ROLE(), address(dao));
+        // Transfer DEFAULT_ADMIN_ROLE to Guardian (Safe multisig) as emergency backstop.
+        // If AWPDAO is broken, Guardian can grantRole(PROPOSER_ROLE, newDAO) to recover.
+        treasury.grantRole(treasury.DEFAULT_ADMIN_ROLE(), guardian);
         treasury.renounceRole(treasury.DEFAULT_ADMIN_ROLE(), deployer);
         // NOTE: EXECUTOR_ROLE is granted to address(0) (open execution) by design.
         // Anyone can execute queued proposals after the timelock delay.
         // Deployer was never granted EXECUTOR_ROLE, so no renounce needed.
-        console.log("Roles granted + Treasury admin renounced (open executor by design)");
+        console.log("Roles granted + Treasury admin transferred to Guardian");
 
         awp.addMinter(address(emission));
         awp.renounceAdmin();
@@ -245,14 +248,16 @@ contract Deploy is Script {
         awpRegistry.initializeRegistry(
             address(awp), address(nft), address(factory), address(emission),
             lpAddr, address(vault), address(stakeNft),
-            address(subnetMgrImpl), dexCfg
+            address(worknetMgrImpl), dexCfg
         );
         console.log("Registry initialized");
 
-        // Step 13: Token distribution
+        // Step 13: Token distribution (skip if no initial mint)
         uint256 treasuryAmount = vm.envOr("DIST_TREASURY", uint256(90_000_000)) * 1e18;
         uint256 liquidityAmount = vm.envOr("DIST_LIQUIDITY", uint256(10_000_000)) * 1e18;
         uint256 airdropAmount = vm.envOr("DIST_AIRDROP", uint256(100_000_000)) * 1e18;
+        uint256 totalDist = treasuryAmount + liquidityAmount + airdropAmount;
+        require(totalDist <= initialMintAmount, "Distribution exceeds initial mint");
         if (treasuryAmount > 0) awp.transfer(address(treasury), treasuryAmount);
         if (liquidityAmount > 0) awp.transfer(liquidityPool, liquidityAmount);
         if (airdropAmount > 0) awp.transfer(airdropAddr, airdropAmount);
@@ -264,8 +269,10 @@ contract Deploy is Script {
         require(awp.admin() == address(0), "Admin should be renounced");
         require(awp.minters(address(emission)), "Emission should be minter");
         require(awpRegistry.registryInitialized(), "Registry should be initialized");
-        // 验证 treasury 收到正确数量（deployer 可能与其他收款地址相同，跳过 deployer 余额检查）
+        // Verify treasury received correct amount (skip deployer balance check — deployer may overlap with other recipients)
         require(awp.balanceOf(address(treasury)) >= treasuryAmount, "Treasury balance mismatch");
+        require(address(vault.stakeNFT()) == address(stakeNft), "StakeNFT not set on vault");
+        require(factory.owner() == address(0), "Factory ownership not renounced");
 
         console.log("=== Deployment Complete ===");
     }
