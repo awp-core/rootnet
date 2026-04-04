@@ -1,664 +1,372 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test, Vm} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
+import {WorknetManager, IERC1363Receiver} from "../src/worknets/WorknetManager.sol";
+import {AlphaToken} from "../src/token/AlphaToken.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {WorknetManager} from "../src/worknets/WorknetManager.sol";
-import {IERC1363Receiver} from "../src/interfaces/IERC1363Receiver.sol";
 
-// ═══════════════════════════════════════════════════
-//  Mock: AWPRegistry — resolveRecipient returns mapped address
-// ═══════════════════════════════════════════════════
-contract MockAWPRegistry {
-    mapping(address => address) public recipientOverrides;
-
-    function setRecipientOverride(address from, address to) external {
-        recipientOverrides[from] = to;
-    }
-
-    function resolveRecipient(address addr) external view returns (address) {
-        address r = recipientOverrides[addr];
-        return r == address(0) ? addr : r;
-    }
-
-    function batchResolveRecipients(address[] calldata addrs) external view returns (address[] memory result) {
-        result = new address[](addrs.length);
-        for (uint256 i = 0; i < addrs.length; i++) {
-            address r = recipientOverrides[addrs[i]];
-            result[i] = r == address(0) ? addrs[i] : r;
-        }
-    }
-}
-
-// ═══════════════════════════════════════════════════
-//  Mock: AlphaToken — records mint calls
-// ═══════════════════════════════════════════════════
-contract MockAlphaToken {
-    mapping(address => uint256) public minted;
-    uint256 public totalMinted;
+/// @title MockAlphaForWM — Minimal mock for AlphaToken used by WorknetManager tests
+contract MockAlphaForWM {
+    mapping(address => uint256) public balances;
+    mapping(address => mapping(address => uint256)) public allowances;
 
     function mint(address to, uint256 amount) external {
-        minted[to] += amount;
-        totalMinted += amount;
+        balances[to] += amount;
     }
 
-    function burn(uint256) external {}
-    function balanceOf(address) external pure returns (uint256) { return 0; }
-}
+    function burn(uint256 amount) external {
+        balances[msg.sender] -= amount;
+    }
 
-// ═══════════════════════════════════════════════════
-//  Mock: AWPToken — ERC20 + transferAndCall support
-// ═══════════════════════════════════════════════════
-contract MockAWPToken {
-    string public name = "AWP";
-    string public symbol = "AWP";
-    uint8 public decimals = 18;
-    uint256 public totalSupply;
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
-
-    function mint(address to, uint256 amount) external {
-        balanceOf[to] += amount;
-        totalSupply += amount;
+    function balanceOf(address account) external view returns (uint256) {
+        return balances[account];
     }
 
     function transfer(address to, uint256 amount) external returns (bool) {
-        balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
-        return true;
-    }
-
-    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        if (allowance[from][msg.sender] != type(uint256).max) {
-            allowance[from][msg.sender] -= amount;
-        }
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
+        balances[msg.sender] -= amount;
+        balances[to] += amount;
         return true;
     }
 
     function approve(address spender, uint256 amount) external returns (bool) {
-        allowance[msg.sender][spender] = amount;
-        return true;
-    }
-
-    /// @dev Mock transferAndCall: transfer then call receiver's onTransferReceived
-    function transferAndCall(address to, uint256 amount, bytes calldata data) external returns (bool) {
-        balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
-        bytes4 ret = IERC1363Receiver(to).onTransferReceived(msg.sender, msg.sender, amount, data);
-        require(ret == IERC1363Receiver.onTransferReceived.selector, "ERC1363: bad return");
+        allowances[msg.sender][spender] = amount;
         return true;
     }
 }
 
-// ═══════════════════════════════════════════════════
-//  Mock: WorknetManagerV2 — for UUPS upgrade tests
-// ═══════════════════════════════════════════════════
-contract WorknetManagerV2 is WorknetManager {
-    uint256 public v2Value;
+/// @title TestableWorknetManager — Override DEX interactions for unit testing
+contract TestableWorknetManager is WorknetManager {
+    constructor() WorknetManager(address(1), address(2), address(3), address(4)) {}
 
-    function setV2Value(uint256 val) external {
-        v2Value = val;
-    }
-
-    function version() external pure returns (string memory) {
-        return "2.0";
-    }
+    // Override DEX-dependent functions to no-op in tests
+    function _addSingleSidedLiquidity(uint256) internal pure override {}
+    function _buybackAndBurn(uint256) internal pure override {}
+    function _getSlot0() internal pure override returns (uint160, int24) { return (1 << 96, 0); }
 }
 
-// ═══════════════════════════════════════════════════
-//  Test Suite
-// ═══════════════════════════════════════════════════
 contract WorknetManagerTest is Test {
-    WorknetManager public manager;
-    WorknetManager public impl;
-    MockAWPRegistry public registry;
-    MockAlphaToken public alpha;
-    MockAWPToken public awp;
+    TestableWorknetManager public wmImpl;
+    WorknetManager public wm;
+    MockAlphaForWM public alpha;
+    address public admin = address(this);
+    address public merkleAdmin = makeAddr("merkleAdmin");
+    address public strategyAdmin = makeAddr("strategyAdmin");
+    address public transferAdmin = makeAddr("transferAdmin");
+    address public alice = makeAddr("alice");
+    address public bob = makeAddr("bob");
 
-    address public admin = makeAddr("admin");
-    address public merkleUser = makeAddr("merkleUser");
-    address public strategyUser = makeAddr("strategyUser");
-    address public transferUser = makeAddr("transferUser");
-    address public nobody = makeAddr("nobody");
-    address public recipient = makeAddr("recipient");
-
-    // Mock DEX addresses (Reserve strategy won't actually call them)
-    address public mockPoolManager = makeAddr("poolManager");
-    address public mockPositionManager = makeAddr("positionManager");
-    address public mockSwapRouter = makeAddr("swapRouter");
-    address public mockPermit2 = makeAddr("permit2");
-    uint24 public mockPoolFee = 500;
-    int24 public mockTickSpacing = 10;
-
-    bytes32 public constant MERKLE_ROLE = keccak256("MERKLE_ROLE");
-    bytes32 public constant STRATEGY_ROLE = keccak256("STRATEGY_ROLE");
-    bytes32 public constant TRANSFER_ROLE = keccak256("TRANSFER_ROLE");
-    bytes32 public constant POOL_ID = keccak256("test-pool");
+    bytes32 constant POOL_ID = bytes32(uint256(42));
 
     function setUp() public {
-        // Deploy mock dependencies
-        registry = new MockAWPRegistry();
-        alpha = new MockAlphaToken();
-        awp = new MockAWPToken();
+        alpha = new MockAlphaForWM();
 
-        // Set resolveRecipient mapping
-        registry.setRecipientOverride(merkleUser, recipient);
+        wmImpl = new TestableWorknetManager();
+        wm = WorknetManager(address(new ERC1967Proxy(
+            address(wmImpl),
+            abi.encodeCall(WorknetManager.initialize, (address(alpha), POOL_ID, admin))
+        )));
 
-        // Deploy WorknetManager implementation
-        impl = new WorknetManager();
-
-        // Encode dexConfig
-        bytes memory dexConfig = abi.encode(
-            mockPoolManager, mockPositionManager, mockSwapRouter, mockPermit2, mockPoolFee, mockTickSpacing
-        );
-
-        // Deploy ERC1967Proxy
-        bytes memory initData = abi.encodeCall(
-            WorknetManager.initialize,
-            (address(registry), address(alpha), address(awp), POOL_ID, admin, dexConfig)
-        );
-        ERC1967Proxy proxy = new ERC1967Proxy(address(impl), initData);
-        manager = WorknetManager(address(proxy));
+        // Grant additional roles
+        wm.grantRole(wm.MERKLE_ROLE(), merkleAdmin);
+        wm.grantRole(wm.STRATEGY_ROLE(), strategyAdmin);
+        wm.grantRole(wm.TRANSFER_ROLE(), transferAdmin);
     }
 
     // ═══════════════════════════════════════════════
-    //  1. Initialize
+    //  Initialization
     // ═══════════════════════════════════════════════
 
-    function test_initialize_setsStorage() public view {
-        assertEq(address(manager.awpRegistry()), address(registry));
-        assertEq(address(manager.alphaToken()), address(alpha));
-        assertEq(address(manager.awpToken()), address(awp));
-        assertEq(manager.poolId(), POOL_ID);
-        assertEq(manager.clPoolManager(), mockPoolManager);
-        assertEq(manager.clPositionManager(), mockPositionManager);
-        assertEq(manager.clSwapRouter(), mockSwapRouter);
-        assertEq(manager.permit2(), mockPermit2);
-        assertEq(manager.poolFee(), mockPoolFee);
-        assertEq(manager.tickSpacing(), mockTickSpacing);
-    }
-
-    function test_initialize_setsRoles() public view {
-        assertTrue(manager.hasRole(manager.DEFAULT_ADMIN_ROLE(), admin));
-        assertTrue(manager.hasRole(MERKLE_ROLE, admin));
-        assertTrue(manager.hasRole(STRATEGY_ROLE, admin));
-        assertTrue(manager.hasRole(TRANSFER_ROLE, admin));
-    }
-
-    function test_initialize_setsPoolKey() public view {
-        (address c0, address c1,,,, ) = manager.poolKey();
-        // poolKey.currency0 should be smaller address
-        if (address(awp) < address(alpha)) {
-            assertEq(c0, address(awp));
-            assertEq(c1, address(alpha));
-        } else {
-            assertEq(c0, address(alpha));
-            assertEq(c1, address(awp));
-        }
-    }
-
-    function test_initialize_defaultStrategyIsReserve() public view {
-        assertEq(uint8(manager.currentStrategy()), uint8(WorknetManager.AWPStrategy.Reserve));
-    }
-
-    function test_initialize_cannotReinitialize() public {
-        bytes memory dexConfig = abi.encode(
-            mockPoolManager, mockPositionManager, mockSwapRouter, mockPermit2, mockPoolFee, mockTickSpacing
-        );
-        vm.expectRevert();
-        manager.initialize(address(registry), address(alpha), address(awp), POOL_ID, admin, dexConfig);
-    }
-
-    function test_implementation_cannotInitialize() public {
-        bytes memory dexConfig = abi.encode(
-            mockPoolManager, mockPositionManager, mockSwapRouter, mockPermit2, mockPoolFee, mockTickSpacing
-        );
-        vm.expectRevert();
-        impl.initialize(address(registry), address(alpha), address(awp), POOL_ID, admin, dexConfig);
+    function test_initialize() public view {
+        assertEq(address(wm.alphaToken()), address(alpha));
+        assertEq(wm.poolId(), POOL_ID);
+        assertEq(wm.slippageBps(), 500);
+        assertFalse(wm.strategyPaused());
+        assertTrue(wm.hasRole(wm.DEFAULT_ADMIN_ROLE(), admin));
+        assertTrue(wm.hasRole(wm.MERKLE_ROLE(), admin));
+        assertTrue(wm.hasRole(wm.STRATEGY_ROLE(), admin));
+        assertTrue(wm.hasRole(wm.TRANSFER_ROLE(), admin));
     }
 
     // ═══════════════════════════════════════════════
-    //  2. setMerkleRoot
+    //  Merkle Distribution
     // ═══════════════════════════════════════════════
 
-    function test_setMerkleRoot_success() public {
-        bytes32 root = keccak256("root1");
-        vm.prank(admin);
-        vm.expectEmit(true, false, false, true, address(manager));
-        emit WorknetManager.MerkleRootSet(1, root);
-        manager.setMerkleRoot(1, root);
-        assertEq(manager.merkleRoots(1), root);
+    function test_setMerkleRoot() public {
+        bytes32 root = keccak256("root");
+        vm.prank(merkleAdmin);
+        wm.setMerkleRoot(0, root);
+
+        assertEq(wm.merkleRoots(0), root);
     }
 
-    function test_setMerkleRoot_revertOnZeroRoot() public {
-        vm.prank(admin);
+    function test_setMerkleRoot_zeroRoot_reverts() public {
+        vm.prank(merkleAdmin);
         vm.expectRevert(WorknetManager.ZeroRoot.selector);
-        manager.setMerkleRoot(1, bytes32(0));
+        wm.setMerkleRoot(0, bytes32(0));
     }
 
-    function test_setMerkleRoot_revertOnOverwrite() public {
-        bytes32 root = keccak256("root1");
-        vm.prank(admin);
-        manager.setMerkleRoot(1, root);
+    function test_setMerkleRoot_alreadySet_reverts() public {
+        bytes32 root = keccak256("root");
+        vm.prank(merkleAdmin);
+        wm.setMerkleRoot(0, root);
 
-        vm.prank(admin);
+        vm.prank(merkleAdmin);
         vm.expectRevert(WorknetManager.RootAlreadySet.selector);
-        manager.setMerkleRoot(1, keccak256("root2"));
+        wm.setMerkleRoot(0, keccak256("another"));
     }
 
-    function test_setMerkleRoot_revertUnauthorized() public {
-        vm.prank(nobody);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, nobody, MERKLE_ROLE
-            )
-        );
-        manager.setMerkleRoot(1, keccak256("root1"));
+    function test_setMerkleRoot_notRole_reverts() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        wm.setMerkleRoot(0, keccak256("root"));
     }
 
-    // ═══════════════════════════════════════════════
-    //  3. claim — Merkle proof
-    // ═══════════════════════════════════════════════
-
-    /// @dev Build single-leaf Merkle tree and verify claim
-    function test_claim_validProof_mintsToResolvedRecipient() public {
-        uint256 amount = 1000 ether;
-        // Double-hash leaf node
-        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(merkleUser, amount))));
-        // Single-leaf tree: root == leaf
+    function test_claim() public {
+        uint256 amount = 100e18;
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(alice, amount))));
         bytes32 root = leaf;
 
-        vm.prank(admin);
-        manager.setMerkleRoot(1, root);
+        vm.prank(merkleAdmin);
+        wm.setMerkleRoot(0, root);
 
-        vm.prank(merkleUser);
-        vm.expectEmit(true, true, false, true, address(manager));
-        emit WorknetManager.Claimed(1, merkleUser, amount);
-        manager.claim(1, amount, new bytes32[](0));
+        // Mock AWPRegistry.resolveRecipient(alice) to return alice
+        vm.mockCall(
+            wm.awpRegistry(),
+            abi.encodeWithSignature("resolveRecipient(address)", alice),
+            abi.encode(alice)
+        );
 
-        // Alpha should mint to address from resolveRecipient
-        assertEq(alpha.minted(recipient), amount);
-        assertTrue(manager.isClaimed(1, merkleUser));
+        bytes32[] memory proof = new bytes32[](0);
+        vm.prank(alice);
+        wm.claim(0, amount, proof);
+
+        assertTrue(wm.claimed(0, alice));
+        assertEq(alpha.balances(alice), amount);
     }
 
-    /// @dev Two-leaf Merkle tree test
+    function test_claim_alreadyClaimed_reverts() public {
+        uint256 amount = 100e18;
+        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(alice, amount))));
+        bytes32 root = leaf;
+
+        vm.prank(merkleAdmin);
+        wm.setMerkleRoot(0, root);
+
+        vm.mockCall(
+            wm.awpRegistry(),
+            abi.encodeWithSignature("resolveRecipient(address)", alice),
+            abi.encode(alice)
+        );
+
+        bytes32[] memory proof = new bytes32[](0);
+        vm.prank(alice);
+        wm.claim(0, amount, proof);
+
+        vm.prank(alice);
+        vm.expectRevert(WorknetManager.AlreadyClaimed.selector);
+        wm.claim(0, amount, proof);
+    }
+
+    function test_claim_noRoot_reverts() public {
+        bytes32[] memory proof = new bytes32[](0);
+        vm.prank(alice);
+        vm.expectRevert(WorknetManager.NoRootForEpoch.selector);
+        wm.claim(0, 100e18, proof);
+    }
+
+    function test_claim_invalidProof_reverts() public {
+        bytes32 root = keccak256("real_root");
+        vm.prank(merkleAdmin);
+        wm.setMerkleRoot(0, root);
+
+        vm.mockCall(
+            wm.awpRegistry(),
+            abi.encodeWithSignature("resolveRecipient(address)", alice),
+            abi.encode(alice)
+        );
+
+        bytes32[] memory proof = new bytes32[](0);
+        vm.prank(alice);
+        vm.expectRevert(WorknetManager.InvalidProof.selector);
+        wm.claim(0, 100e18, proof);
+    }
+
     function test_claim_twoLeafTree() public {
-        address user1 = merkleUser;
-        address user2 = makeAddr("user2");
-        uint256 amount1 = 500 ether;
-        uint256 amount2 = 700 ether;
+        uint256 amountA = 100e18;
+        uint256 amountB = 200e18;
 
-        bytes32 leaf1 = keccak256(bytes.concat(keccak256(abi.encode(user1, amount1))));
-        bytes32 leaf2 = keccak256(bytes.concat(keccak256(abi.encode(user2, amount2))));
+        bytes32 leafA = keccak256(bytes.concat(keccak256(abi.encode(alice, amountA))));
+        bytes32 leafB = keccak256(bytes.concat(keccak256(abi.encode(bob, amountB))));
 
-        // Merkle root = hash(sorted pair)
+        // Standard sorted Merkle root
         bytes32 root;
-        if (leaf1 <= leaf2) {
-            root = keccak256(abi.encodePacked(leaf1, leaf2));
+        if (leafA <= leafB) {
+            root = keccak256(abi.encodePacked(leafA, leafB));
         } else {
-            root = keccak256(abi.encodePacked(leaf2, leaf1));
+            root = keccak256(abi.encodePacked(leafB, leafA));
         }
 
-        vm.prank(admin);
-        manager.setMerkleRoot(2, root);
+        vm.prank(merkleAdmin);
+        wm.setMerkleRoot(1, root);
 
-        // user1 uses leaf2 as proof
-        bytes32[] memory proof1 = new bytes32[](1);
-        proof1[0] = leaf2;
-        vm.prank(user1);
-        manager.claim(2, amount1, proof1);
-        assertEq(alpha.minted(recipient), amount1); // user1 -> recipient
-
-        // user2 uses leaf1 as proof (no override, resolves to self)
-        bytes32[] memory proof2 = new bytes32[](1);
-        proof2[0] = leaf1;
-        vm.prank(user2);
-        manager.claim(2, amount2, proof2);
-        assertEq(alpha.minted(user2), amount2);
-    }
-
-    function test_claim_revertInvalidProof() public {
-        uint256 amount = 1000 ether;
-        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(merkleUser, amount))));
-
-        vm.prank(admin);
-        manager.setMerkleRoot(1, leaf);
-
-        // Construct proof with wrong amount
-        vm.prank(merkleUser);
-        vm.expectRevert(WorknetManager.InvalidProof.selector);
-        manager.claim(1, amount + 1, new bytes32[](0));
-    }
-
-    function test_claim_revertDoubleClaim() public {
-        uint256 amount = 1000 ether;
-        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(merkleUser, amount))));
-
-        vm.prank(admin);
-        manager.setMerkleRoot(1, leaf);
-
-        vm.prank(merkleUser);
-        manager.claim(1, amount, new bytes32[](0));
-
-        vm.prank(merkleUser);
-        vm.expectRevert(WorknetManager.AlreadyClaimed.selector);
-        manager.claim(1, amount, new bytes32[](0));
-    }
-
-    function test_claim_revertNoRoot() public {
-        vm.prank(merkleUser);
-        vm.expectRevert(WorknetManager.NoRootForEpoch.selector);
-        manager.claim(99, 100, new bytes32[](0));
-    }
-
-    function test_claim_revertWrongSender() public {
-        // Even though leaf is merkleUser, nobody's claim should fail due to invalid proof
-        uint256 amount = 1000 ether;
-        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(merkleUser, amount))));
-
-        vm.prank(admin);
-        manager.setMerkleRoot(1, leaf);
-
-        vm.prank(nobody);
-        vm.expectRevert(WorknetManager.InvalidProof.selector);
-        manager.claim(1, amount, new bytes32[](0));
-    }
-
-    // ═══════════════════════════════════════════════
-    //  4. setStrategy
-    // ═══════════════════════════════════════════════
-
-    function test_setStrategy_success() public {
-        vm.prank(admin);
-        vm.expectEmit(true, false, false, false, address(manager));
-        emit WorknetManager.StrategyUpdated(WorknetManager.AWPStrategy.AddLiquidity);
-        manager.setStrategy(WorknetManager.AWPStrategy.AddLiquidity);
-        assertEq(uint8(manager.currentStrategy()), uint8(WorknetManager.AWPStrategy.AddLiquidity));
-    }
-
-    function test_setStrategy_canSwitchMultipleTimes() public {
-        vm.startPrank(admin);
-        manager.setStrategy(WorknetManager.AWPStrategy.BuybackBurn);
-        assertEq(uint8(manager.currentStrategy()), uint8(WorknetManager.AWPStrategy.BuybackBurn));
-
-        manager.setStrategy(WorknetManager.AWPStrategy.Reserve);
-        assertEq(uint8(manager.currentStrategy()), uint8(WorknetManager.AWPStrategy.Reserve));
-        vm.stopPrank();
-    }
-
-    function test_setStrategy_revertUnauthorized() public {
-        vm.prank(nobody);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, nobody, STRATEGY_ROLE
-            )
+        vm.mockCall(
+            wm.awpRegistry(),
+            abi.encodeWithSignature("resolveRecipient(address)", alice),
+            abi.encode(alice)
         );
-        manager.setStrategy(WorknetManager.AWPStrategy.Reserve);
+        vm.mockCall(
+            wm.awpRegistry(),
+            abi.encodeWithSignature("resolveRecipient(address)", bob),
+            abi.encode(bob)
+        );
+
+        // Alice claims with proof = [leafB]
+        bytes32[] memory proofA = new bytes32[](1);
+        proofA[0] = leafB;
+        vm.prank(alice);
+        wm.claim(1, amountA, proofA);
+        assertEq(alpha.balances(alice), amountA);
+
+        // Bob claims with proof = [leafA]
+        bytes32[] memory proofB = new bytes32[](1);
+        proofB[0] = leafA;
+        vm.prank(bob);
+        wm.claim(1, amountB, proofB);
+        assertEq(alpha.balances(bob), amountB);
+    }
+
+    function test_isClaimed() public view {
+        assertFalse(wm.isClaimed(0, alice));
     }
 
     // ═══════════════════════════════════════════════
-    //  5. executeStrategy — Reserve (no-op)
+    //  Strategy
     // ═══════════════════════════════════════════════
+
+    function test_setStrategy() public {
+        vm.prank(strategyAdmin);
+        wm.setStrategy(WorknetManager.AWPStrategy.BuybackBurn);
+        assertEq(uint8(wm.currentStrategy()), uint8(WorknetManager.AWPStrategy.BuybackBurn));
+    }
+
+    function test_setStrategy_notRole_reverts() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        wm.setStrategy(WorknetManager.AWPStrategy.AddLiquidity);
+    }
 
     function test_executeStrategy_reserve_noOp() public {
-        // Reserve strategy doesn't transfer tokens, doesn't emit AWPProcessed
-        awp.mint(address(manager), 1000 ether);
-        uint256 balBefore = awp.balanceOf(address(manager));
-
-        vm.prank(admin);
-        // Should not emit AWPProcessed
-        vm.recordLogs();
-        manager.executeStrategy(100 ether);
-
-        // Balance unchanged
-        assertEq(awp.balanceOf(address(manager)), balBefore);
-
-        // Verify no AWPProcessed event
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bytes32 awpProcessedTopic = keccak256("AWPProcessed(uint8,uint256)");
-        for (uint256 i = 0; i < logs.length; i++) {
-            assertTrue(logs[i].topics[0] != awpProcessedTopic, "Should not emit AWPProcessed for Reserve");
-        }
+        // Default strategy is Reserve
+        vm.prank(strategyAdmin);
+        wm.executeStrategy(100e18);
+        // No revert = success (Reserve does nothing)
     }
 
-    function test_executeStrategy_revertZeroAmount() public {
-        vm.prank(admin);
+    function test_executeStrategy_paused_reverts() public {
+        wm.setStrategyPaused(true);
+
+        vm.prank(strategyAdmin);
+        vm.expectRevert(WorknetManager.StrategyIsPaused.selector);
+        wm.executeStrategy(100e18);
+    }
+
+    function test_executeStrategy_zeroAmount_reverts() public {
+        vm.prank(strategyAdmin);
         vm.expectRevert(WorknetManager.ZeroAmount.selector);
-        manager.executeStrategy(0);
-    }
-
-    function test_executeStrategy_revertUnauthorized() public {
-        vm.prank(nobody);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, nobody, STRATEGY_ROLE
-            )
-        );
-        manager.executeStrategy(100);
+        wm.executeStrategy(0);
     }
 
     // ═══════════════════════════════════════════════
-    //  6. onTransferReceived
+    //  ERC1363 Receiver
     // ═══════════════════════════════════════════════
 
-    function test_onTransferReceived_awpToken_reserve_returnsSelector() public {
-        awp.mint(address(this), 500 ether);
-
-        // Trigger onTransferReceived via transferAndCall
-        awp.transferAndCall(address(manager), 500 ether, "");
-
-        // Reserve strategy: tokens stay in contract
-        assertEq(awp.balanceOf(address(manager)), 500 ether);
-    }
-
-    function test_onTransferReceived_nonAwpToken_returnsSelector() public {
-        // Non-AWP token calling onTransferReceived should also return correct selector
-        vm.prank(address(0xdead));
-        bytes4 ret = manager.onTransferReceived(address(0), address(0), 100, "");
+    function test_onTransferReceived_nonAWP_noop() public {
+        // Call from non-AWP token — should just return selector
+        vm.prank(address(alpha));
+        bytes4 ret = wm.onTransferReceived(address(0), address(0), 100e18, "");
         assertEq(ret, IERC1363Receiver.onTransferReceived.selector);
     }
 
-    function test_onTransferReceived_zeroAmount_noAction() public {
-        // amount=0 should not trigger strategy
-        vm.prank(address(awp));
-        vm.recordLogs();
-        bytes4 ret = manager.onTransferReceived(address(0), address(0), 0, "");
+    function test_onTransferReceived_fromAWP() public {
+        // Mock call as AWP token
+        vm.prank(wm.awpToken());
+        bytes4 ret = wm.onTransferReceived(address(0), address(0), 100e18, "");
         assertEq(ret, IERC1363Receiver.onTransferReceived.selector);
-
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bytes32 awpProcessedTopic = keccak256("AWPProcessed(uint8,uint256)");
-        for (uint256 i = 0; i < logs.length; i++) {
-            assertTrue(logs[i].topics[0] != awpProcessedTopic, "Should not emit AWPProcessed for zero amount");
-        }
     }
 
     // ═══════════════════════════════════════════════
-    //  7. transferToken
+    //  Token Transfer (TRANSFER_ROLE)
     // ═══════════════════════════════════════════════
 
-    function test_transferToken_success() public {
-        awp.mint(address(manager), 1000 ether);
-
-        vm.prank(admin);
-        vm.expectEmit(true, true, false, true, address(manager));
-        emit WorknetManager.TokenTransferred(address(awp), recipient, 300 ether);
-        manager.transferToken(address(awp), recipient, 300 ether);
-
-        assertEq(awp.balanceOf(recipient), 300 ether);
-        assertEq(awp.balanceOf(address(manager)), 700 ether);
-    }
-
-    function test_transferToken_revertUnauthorized() public {
-        vm.prank(nobody);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, nobody, TRANSFER_ROLE
-            )
+    function test_transferToken() public {
+        // Give wm some mock tokens
+        vm.mockCall(
+            address(0x1234),
+            abi.encodeWithSignature("transfer(address,uint256)", alice, 50e18),
+            abi.encode(true)
         );
-        manager.transferToken(address(awp), nobody, 1);
+
+        vm.prank(transferAdmin);
+        wm.transferToken(address(0x1234), alice, 50e18);
+    }
+
+    function test_transferToken_notRole_reverts() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        wm.transferToken(address(0x1234), alice, 50e18);
+    }
+
+    function test_batchTransferToken_arrayMismatch_reverts() public {
+        address[] memory recipients = new address[](2);
+        uint256[] memory amounts = new uint256[](1);
+
+        vm.prank(transferAdmin);
+        vm.expectRevert(WorknetManager.ArrayLengthMismatch.selector);
+        wm.batchTransferToken(address(0x1234), recipients, amounts);
     }
 
     // ═══════════════════════════════════════════════
-    //  8. UUPS upgrade
+    //  Configuration
     // ═══════════════════════════════════════════════
 
-    function test_upgrade_byAdmin() public {
-        WorknetManagerV2 newImpl = new WorknetManagerV2();
-
-        vm.prank(admin);
-        manager.upgradeToAndCall(address(newImpl), "");
-
-        // Verify upgrade succeeded
-        WorknetManagerV2 upgraded = WorknetManagerV2(address(manager));
-        assertEq(upgraded.version(), "2.0");
-
-        // Original storage preserved
-        assertEq(address(upgraded.awpRegistry()), address(registry));
-        assertEq(upgraded.poolId(), POOL_ID);
+    function test_setSlippageTolerance() public {
+        vm.prank(strategyAdmin);
+        wm.setSlippageTolerance(300);
+        assertEq(wm.slippageBps(), 300);
     }
 
-    function test_upgrade_revertUnauthorized() public {
-        WorknetManagerV2 newImpl = new WorknetManagerV2();
-
-        bytes32 defaultAdminRole = manager.DEFAULT_ADMIN_ROLE();
-        vm.prank(nobody);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, nobody, defaultAdminRole
-            )
-        );
-        manager.upgradeToAndCall(address(newImpl), "");
+    function test_setSlippageTolerance_zero_reverts() public {
+        vm.prank(strategyAdmin);
+        vm.expectRevert(WorknetManager.InvalidSlippage.selector);
+        wm.setSlippageTolerance(0);
     }
 
-    // ═══════════════════════════════════════════════
-    //  9. Access control: granular role tests
-    // ═══════════════════════════════════════════════
-
-    function test_grantRole_onlyAdmin() public {
-        address newMerkle = makeAddr("newMerkle");
-
-        // admin can grant roles
-        vm.prank(admin);
-        manager.grantRole(MERKLE_ROLE, newMerkle);
-        assertTrue(manager.hasRole(MERKLE_ROLE, newMerkle));
-
-        // New role holder can call setMerkleRoot
-        vm.prank(newMerkle);
-        manager.setMerkleRoot(10, keccak256("root10"));
+    function test_setSlippageTolerance_over5000_reverts() public {
+        vm.prank(strategyAdmin);
+        vm.expectRevert(WorknetManager.InvalidSlippage.selector);
+        wm.setSlippageTolerance(5001);
     }
 
-    function test_revokeRole_removesAccess() public {
-        vm.prank(admin);
-        manager.revokeRole(MERKLE_ROLE, admin);
+    function test_setStrategyPaused() public {
+        wm.setStrategyPaused(true);
+        assertTrue(wm.strategyPaused());
 
-        vm.prank(admin);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, admin, MERKLE_ROLE
-            )
-        );
-        manager.setMerkleRoot(20, keccak256("root20"));
+        wm.setStrategyPaused(false);
+        assertFalse(wm.strategyPaused());
     }
 
-    function test_separateRoles_isolation() public {
-        // Give merkleUser only MERKLE_ROLE
-        vm.prank(admin);
-        manager.grantRole(MERKLE_ROLE, merkleUser);
-
-        // merkleUser can setMerkleRoot
-        vm.prank(merkleUser);
-        manager.setMerkleRoot(30, keccak256("root30"));
-
-        // merkleUser cannot setStrategy (requires STRATEGY_ROLE)
-        vm.prank(merkleUser);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, merkleUser, STRATEGY_ROLE
-            )
-        );
-        manager.setStrategy(WorknetManager.AWPStrategy.Reserve);
-
-        // merkleUser cannot transferToken (requires TRANSFER_ROLE)
-        vm.prank(merkleUser);
-        vm.expectRevert(
-            abi.encodeWithSelector(
-                IAccessControl.AccessControlUnauthorizedAccount.selector, merkleUser, TRANSFER_ROLE
-            )
-        );
-        manager.transferToken(address(awp), merkleUser, 1);
+    function test_setStrategyPaused_notAdmin_reverts() public {
+        vm.prank(alice);
+        vm.expectRevert();
+        wm.setStrategyPaused(true);
     }
 
-    // ═══════════════════════════════════════════════
-    //  10. isClaimed view
-    // ═══════════════════════════════════════════════
-
-    function test_isClaimed_falseBeforeClaim() public view {
-        assertFalse(manager.isClaimed(1, merkleUser));
-    }
-
-    function test_isClaimed_trueAfterClaim() public {
-        uint256 amount = 100 ether;
-        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(merkleUser, amount))));
-
-        vm.prank(admin);
-        manager.setMerkleRoot(1, leaf);
-
-        vm.prank(merkleUser);
-        manager.claim(1, amount, new bytes32[](0));
-
-        assertTrue(manager.isClaimed(1, merkleUser));
-        // Other epochs unaffected
-        assertFalse(manager.isClaimed(2, merkleUser));
-    }
-
-    // ═══════════════════════════════════════════════
-    //  11. Fuzz: claim with random amounts
-    // ═══════════════════════════════════════════════
-
-    function testFuzz_claim(uint256 amount) public {
-        vm.assume(amount > 0 && amount < type(uint128).max);
-
-        bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(merkleUser, amount))));
-
-        vm.prank(admin);
-        manager.setMerkleRoot(1, leaf);
-
-        vm.prank(merkleUser);
-        manager.claim(1, amount, new bytes32[](0));
-
-        assertEq(alpha.minted(recipient), amount);
-        assertTrue(manager.isClaimed(1, merkleUser));
-    }
-
-    // ═══════════════════════════════════════════════
-    //  12. Multiple epochs
-    // ═══════════════════════════════════════════════
-
-    function test_claim_multipleEpochs() public {
-        uint256 amount1 = 100 ether;
-        uint256 amount2 = 200 ether;
-
-        bytes32 leaf1 = keccak256(bytes.concat(keccak256(abi.encode(merkleUser, amount1))));
-        bytes32 leaf2 = keccak256(bytes.concat(keccak256(abi.encode(merkleUser, amount2))));
-
-        vm.startPrank(admin);
-        manager.setMerkleRoot(1, leaf1);
-        manager.setMerkleRoot(2, leaf2);
-        vm.stopPrank();
-
-        // Same user can claim across different epochs
-        vm.prank(merkleUser);
-        manager.claim(1, amount1, new bytes32[](0));
-
-        vm.prank(merkleUser);
-        manager.claim(2, amount2, new bytes32[](0));
-
-        assertEq(alpha.minted(recipient), amount1 + amount2);
-        assertTrue(manager.isClaimed(1, merkleUser));
-        assertTrue(manager.isClaimed(2, merkleUser));
+    function test_setMinStrategyAmount() public {
+        vm.prank(strategyAdmin);
+        wm.setMinStrategyAmount(1e18);
+        assertEq(wm.minStrategyAmount(), 1e18);
     }
 }

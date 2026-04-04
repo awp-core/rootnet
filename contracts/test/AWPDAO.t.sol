@@ -1,280 +1,418 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test} from "forge-std/Test.sol";
-import {IGovernor} from "@openzeppelin/contracts/governance/IGovernor.sol";
-import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
+import {DeployHelper} from "./helpers/DeployHelper.sol";
 import {AWPDAO} from "../src/governance/AWPDAO.sol";
-import {Treasury} from "../src/governance/Treasury.sol";
-import {AWPToken} from "../src/token/AWPToken.sol";
-import {StakeNFT} from "../src/core/StakeNFT.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {StakingVault} from "../src/core/StakingVault.sol";
+import {TimelockControllerUpgradeable} from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
+import {IGovernor} from "@openzeppelin/contracts/governance/IGovernor.sol";
 
-contract AWPDAOTest is Test {
-    AWPDAO public dao;
-    Treasury public treasury;
-    AWPToken public awpToken;
-    StakeNFT public stakeNFT;
-    StakingVault public vault;
-
-    address public deployer = makeAddr("deployer");
-    address public guardian = makeAddr("guardian");
-    address public voter = makeAddr("voter");
-
-    uint256 public constant MIN_DELAY = 1 days;
-    uint48 public constant VOTING_DELAY = 1; // 1 block
-    uint32 public constant VOTING_PERIOD = 50400; // ~1 week in blocks
-    uint256 public constant QUORUM_PERCENTAGE = 4; // 4%
+contract AWPDAOTest is DeployHelper {
+    uint256 public tokenIdAlice;
+    uint256 public tokenIdBob;
 
     function setUp() public {
-        vm.startPrank(deployer);
+        _deployAll();
+        _setupDAO();
 
-        // Deploy AWPToken
-        awpToken = new AWPToken("AWP", "AWP", deployer);
-        awpToken.initialMint(200_000_000 * 1e18);
-
-        // Deploy StakingVault + StakeNFT (circular dependency)
-        // This test contract (address(this)) acts as awpRegistry for access control
-        uint64 nonce = vm.getNonce(deployer);
-        address predictedVault = vm.computeCreateAddress(deployer, nonce);
-        address predictedStakeNFT = vm.computeCreateAddress(deployer, nonce + 1);
-
-        vault = StakingVault(address(new ERC1967Proxy(
-            address(new StakingVault()), abi.encodeCall(StakingVault.initialize, (address(this), address(this)))
-        )));
-        stakeNFT = new StakeNFT(address(awpToken), address(vault), address(this));
+        // Alice stakes 5M AWP for 30 days
+        vm.startPrank(alice);
+        awp.approve(address(veAwp), 5_000_000e18);
+        tokenIdAlice = veAwp.deposit(5_000_000e18, 30 days);
         vm.stopPrank();
-        vault.setStakeNFT(address(stakeNFT));
-        vm.startPrank(deployer);
 
-        // Deploy Treasury
-        address[] memory proposers = new address[](0);
+        // Bob stakes 3M AWP for 30 days
+        vm.startPrank(bob);
+        awp.approve(address(veAwp), 3_000_000e18);
+        tokenIdBob = veAwp.deposit(3_000_000e18, 30 days);
+        vm.stopPrank();
+    }
+
+    function _setupDAO() internal {
+        // Deploy Treasury with DAO as proposer
+        address[] memory proposers = new address[](1);
         address[] memory executors = new address[](1);
         executors[0] = address(0); // anyone can execute
-        treasury = new Treasury(MIN_DELAY, proposers, executors, deployer);
 
-        // Deploy AWPDAO (no awpRegistry param)
-        dao = new AWPDAO(
-            address(stakeNFT),
-            address(awpToken),
-            TimelockController(payable(address(treasury))),
-            VOTING_DELAY,
-            VOTING_PERIOD,
-            QUORUM_PERCENTAGE
-        );
+        // We need to predict DAO proxy address for Treasury proposer
+        uint256 nonce = vm.getNonce(address(this));
+        // nonce+0: TimelockControllerUpgradeable impl
+        // nonce+1: TimelockController proxy
+        // nonce+2: AWPDAO impl
+        // nonce+3: AWPDAO proxy
+        address daoProxyAddr = vm.computeCreateAddress(address(this), nonce + 3);
+        proposers[0] = daoProxyAddr;
 
-        // Grant DAO proposer and canceller roles
-        treasury.grantRole(treasury.PROPOSER_ROLE(), address(dao));
-        treasury.grantRole(treasury.CANCELLER_ROLE(), address(dao));
+        // Deploy timelock (upgradeable version via proxy)
+        TimelockControllerUpgradeable timelockImpl = new TimelockControllerUpgradeable(); // nonce+0
+        TimelockControllerUpgradeable timelock = TimelockControllerUpgradeable(payable(address(new ERC1967Proxy( // nonce+1
+            address(timelockImpl),
+            abi.encodeCall(TimelockControllerUpgradeable.initialize, (
+                0, // minDelay=0 for tests
+                proposers,
+                executors,
+                address(this) // admin
+            ))
+        ))));
 
-        // Transfer Treasury admin to guardian, then deployer renounces
-        treasury.grantRole(treasury.DEFAULT_ADMIN_ROLE(), guardian);
-        treasury.renounceRole(treasury.DEFAULT_ADMIN_ROLE(), deployer);
+        // Deploy DAO
+        AWPDAO daoImpl = new AWPDAO(address(veAwp)); // nonce+2
+        dao = AWPDAO(payable(address(new ERC1967Proxy( // nonce+3
+            address(daoImpl),
+            abi.encodeCall(AWPDAO.initialize, (
+                timelock,
+                1,       // votingDelay: 1 block
+                50400,   // votingPeriod: ~7 days in blocks
+                1,       // lateQuorumExtension: 1 block
+                4,       // quorumPercent: 4%
+                guardian
+            ))
+        ))));
 
-        // Transfer tokens to voter and have them stake via StakeNFT
-        uint256 voterAmount = 100_000_000 * 1e18; // 100M AWP
-        awpToken.transfer(voter, voterAmount);
+        require(address(dao) == daoProxyAddr, "DAO proxy address mismatch");
 
-        vm.stopPrank();
-
-        // Voter deposits into StakeNFT to get voting power
-        vm.startPrank(voter);
-        awpToken.approve(address(stakeNFT), voterAmount);
-        stakeNFT.deposit(voterAmount, 52 weeks); // 52 weeks lock
-        vm.stopPrank();
+        // Grant DAO the PROPOSER_ROLE on timelock
+        timelock.grantRole(timelock.PROPOSER_ROLE(), address(dao));
+        // Grant DAO the CANCELLER_ROLE on timelock
+        timelock.grantRole(timelock.CANCELLER_ROLE(), address(dao));
     }
 
-    /// @notice Verify Treasury roles are set correctly
-    function test_treasuryRolesSetup() public view {
-        assertTrue(treasury.hasRole(treasury.PROPOSER_ROLE(), address(dao)), "dao should be proposer");
-        assertTrue(treasury.hasRole(treasury.CANCELLER_ROLE(), address(dao)), "dao should be canceller");
-        assertFalse(treasury.hasRole(treasury.DEFAULT_ADMIN_ROLE(), deployer), "deployer should not be admin");
+    // ═══════════════════════════════════════════════
+    //  Initialization
+    // ═══════════════════════════════════════════════
+
+    function test_initialization() public view {
+        assertEq(dao.name(), "AWPDAO");
+        assertEq(dao.quorumPercent(), 4);
+        assertEq(dao.guardian(), guardian);
+        assertEq(address(dao.veAWP()), address(veAwp));
+        assertEq(dao.votingDelay(), 1);
+        assertEq(dao.votingPeriod(), 50400);
     }
 
-    /// @notice Verify DAO basic configuration
-    function test_daoConfiguration() public view {
-        assertEq(dao.votingDelay(), VOTING_DELAY, "voting delay mismatch");
-        assertEq(dao.votingPeriod(), VOTING_PERIOD, "voting period mismatch");
+    function test_COUNTING_MODE() public view {
+        assertEq(dao.COUNTING_MODE(), "support=bravo&quorum=for,abstain&params=tokenIds");
     }
 
-    /// @notice Full governance flow: propose -> vote (with tokenIds) -> queue -> execute
-    function test_fullGovernanceFlow() public {
-        // Advance some time so position's createdAt < proposalCreatedAt
-        vm.warp(block.timestamp + 1 days);
+    function test_CLOCK_MODE() public view {
+        assertEq(dao.CLOCK_MODE(), "mode=blocknumber&from=default");
+    }
 
-        vm.roll(block.number + 1);
-        vm.warp(block.timestamp + 12);
+    // ═══════════════════════════════════════════════
+    //  propose() blocked
+    // ═══════════════════════════════════════════════
 
-        // Prepare proposal: send ETH from Treasury
-        address payable target = payable(makeAddr("target"));
-        vm.etch(target, ""); // Ensure target is EOA — needed for fork tests
-        uint256 sendAmount = 1 ether;
-        vm.deal(address(treasury), sendAmount);
-
+    function test_propose_blocked() public {
         address[] memory targets = new address[](1);
-        targets[0] = target;
-        uint256[] memory values = new uint256[](1);
-        values[0] = sendAmount;
-        bytes[] memory calldatas = new bytes[](1);
-        calldatas[0] = "";
-        string memory description = "Transfer 1 ETH to target";
-
-        // Create proposal (voter has sufficient voting power via StakeNFT)
-        uint256[] memory proposerTokenIds = new uint256[](1);
-        proposerTokenIds[0] = 1; // First token minted to voter
-        vm.prank(voter);
-        uint256 proposalId = dao.proposeWithTokens(targets, values, calldatas, description, proposerTokenIds);
-
-        assertEq(uint256(dao.state(proposalId)), uint256(IGovernor.ProposalState.Pending), "should be Pending");
-
-        // Advance to voting period
-        vm.roll(block.number + VOTING_DELAY + 1);
-        vm.warp(block.timestamp + (VOTING_DELAY + 1) * 12);
-
-        assertEq(uint256(dao.state(proposalId)), uint256(IGovernor.ProposalState.Active), "should be Active");
-
-        // Vote with tokenIds (NFT-based voting)
-        uint256[] memory tokenIds = new uint256[](1);
-        tokenIds[0] = 1; // First token minted to voter
-        bytes memory params = abi.encode(tokenIds);
-
-        vm.prank(voter);
-        dao.castVoteWithReasonAndParams(proposalId, 1, "", params); // 1 = For
-
-        // Advance past voting period
-        vm.roll(block.number + VOTING_PERIOD + 1);
-        vm.warp(block.timestamp + (VOTING_PERIOD + 1) * 12);
-
-        assertEq(uint256(dao.state(proposalId)), uint256(IGovernor.ProposalState.Succeeded), "should be Succeeded");
-
-        // Queue
-        bytes32 descriptionHash = keccak256(bytes(description));
-        dao.queue(targets, values, calldatas, descriptionHash);
-
-        assertEq(uint256(dao.state(proposalId)), uint256(IGovernor.ProposalState.Queued), "should be Queued");
-
-        // Advance past timelock delay
-        vm.warp(block.timestamp + MIN_DELAY + 1);
-
-        // Execute
-        uint256 targetBalBefore = target.balance;
-        dao.execute(targets, values, calldatas, descriptionHash);
-
-        assertEq(uint256(dao.state(proposalId)), uint256(IGovernor.ProposalState.Executed), "should be Executed");
-        assertEq(target.balance, targetBalBefore + sendAmount, "target should receive ETH");
-    }
-
-    /// @notice Proposal defeated without quorum (insufficient voting power)
-    function test_proposalDefeatedWithoutQuorum() public {
-        // Create a small voter with insufficient voting power for quorum
-        address smallVoter = makeAddr("smallVoter");
-        vm.prank(deployer);
-        awpToken.transfer(smallVoter, 1_000_000 * 1e18);
-
-        vm.startPrank(smallVoter);
-        awpToken.approve(address(stakeNFT), 1_000_000 * 1e18);
-        stakeNFT.deposit(1_000_000 * 1e18, 52 weeks);
-        vm.stopPrank();
-
-        // Advance some time so position's createdAt < proposalCreatedAt
-        vm.warp(block.timestamp + 1 days);
-
-        vm.roll(block.number + 1);
-        vm.warp(block.timestamp + 12);
-
-        // Propose
-        address[] memory targets = new address[](1);
-        targets[0] = address(treasury);
         uint256[] memory values = new uint256[](1);
         bytes[] memory calldatas = new bytes[](1);
-        calldatas[0] = "";
 
-        uint256[] memory smallTokenIds = new uint256[](1);
-        smallTokenIds[0] = 2; // Second token minted (after voter's token 1)
-        vm.prank(smallVoter);
-        uint256 proposalId = dao.proposeWithTokens(targets, values, calldatas, "small proposal", smallTokenIds);
-
-        // Advance to voting period
-        vm.roll(block.number + VOTING_DELAY + 1);
-        vm.warp(block.timestamp + (VOTING_DELAY + 1) * 12);
-
-        // Small voter votes with their token
-        uint256[] memory tokenIds = new uint256[](1);
-        tokenIds[0] = 2; // Second token minted (after voter's token 1)
-        bytes memory params = abi.encode(tokenIds);
-        vm.prank(smallVoter);
-        dao.castVoteWithReasonAndParams(proposalId, 1, "", params);
-
-        // End voting period
-        vm.roll(block.number + VOTING_PERIOD + 1);
-        vm.warp(block.timestamp + (VOTING_PERIOD + 1) * 12);
-
-        // Should be defeated due to insufficient quorum
-        assertEq(uint256(dao.state(proposalId)), uint256(IGovernor.ProposalState.Defeated), "should be Defeated");
+        vm.prank(alice);
+        vm.expectRevert(AWPDAO.UseProposeWithTokens.selector);
+        dao.propose(targets, values, calldatas, "test");
     }
 
-    /// @notice Signal proposal: vote-only, no on-chain execution, skips Timelock
-    function test_signalProposal() public {
-        // Advance some time so position's createdAt < proposalCreatedAt
-        vm.warp(block.timestamp + 1 days);
-        vm.roll(block.number + 1);
-        vm.warp(block.timestamp + 12);
+    // ═══════════════════════════════════════════════
+    //  castVote / castVoteWithReason blocked
+    // ═══════════════════════════════════════════════
 
-        // Create signal proposal
-        uint256[] memory proposerTokenIds = new uint256[](1);
-        proposerTokenIds[0] = 1;
-        vm.prank(voter);
-        uint256 proposalId = dao.signalPropose("Should we adopt proposal XYZ?", proposerTokenIds);
+    function test_castVote_blocked() public {
+        vm.expectRevert(AWPDAO.UseCastVoteWithParams.selector);
+        dao.castVote(0, 1);
+    }
 
-        assertTrue(dao.isSignalProposal(proposalId), "should be signal proposal");
-        assertEq(uint256(dao.state(proposalId)), uint256(IGovernor.ProposalState.Pending), "should be Pending");
+    function test_castVoteWithReason_blocked() public {
+        vm.expectRevert(AWPDAO.UseCastVoteWithParams.selector);
+        dao.castVoteWithReason(0, 1, "reason");
+    }
 
-        // Advance to voting period
-        vm.roll(block.number + VOTING_DELAY + 1);
-        vm.warp(block.timestamp + (VOTING_DELAY + 1) * 12);
-        assertEq(uint256(dao.state(proposalId)), uint256(IGovernor.ProposalState.Active), "should be Active");
+    // ═══════════════════════════════════════════════
+    //  proposeWithTokens
+    // ═══════════════════════════════════════════════
 
-        // Vote
-        uint256[] memory tokenIds = new uint256[](1);
-        tokenIds[0] = 1;
-        vm.prank(voter);
-        dao.castVoteWithReasonAndParams(proposalId, 1, "", abi.encode(tokenIds));
+    function test_proposeWithTokens() public {
+        // Need to advance one block so createdAt < proposalCreatedAt
+        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
 
-        // Advance past voting period
-        vm.roll(block.number + VOTING_PERIOD + 1);
-        vm.warp(block.timestamp + (VOTING_PERIOD + 1) * 12);
-        assertEq(uint256(dao.state(proposalId)), uint256(IGovernor.ProposalState.Succeeded), "should be Succeeded");
-
-        // Execute immediately — no queue/timelock needed
-        // Must match the targets/values/calldatas used in signalPropose (single no-op entry)
         address[] memory targets = new address[](1);
         targets[0] = address(dao);
         uint256[] memory values = new uint256[](1);
         bytes[] memory calldatas = new bytes[](1);
-        bytes32 descriptionHash = keccak256(bytes("Should we adopt proposal XYZ?"));
+        calldatas[0] = abi.encodeCall(AWPDAO.setQuorumPercent, (5));
 
-        dao.execute(targets, values, calldatas, descriptionHash);
-        assertEq(uint256(dao.state(proposalId)), uint256(IGovernor.ProposalState.Executed), "should be Executed");
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = tokenIdAlice;
 
-        // Verify vote tallies
-        (uint256 against, uint256 forVotes, uint256 abstain) = dao.proposalVotes(proposalId);
-        assertGt(forVotes, 0, "forVotes should be > 0");
-        assertEq(against, 0, "againstVotes should be 0");
-        assertEq(abstain, 0, "abstainVotes should be 0");
+        vm.prank(alice);
+        uint256 proposalId = dao.proposeWithTokens(targets, values, calldatas, "set quorum to 5%", tokenIds);
+
+        assertTrue(proposalId != 0);
+        assertTrue(dao.proposalCreatedAt(proposalId) > 0);
+        assertTrue(dao.proposalTotalVotingPower(proposalId) > 0);
     }
 
-    // ══════════════════════════════════════════════
-    // castVoteBySig blocked tests
-    // ══════════════════════════════════════════════
+    function test_proposeWithTokens_insufficientPower_reverts() public {
+        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
 
-    function test_castVoteBySig_reverts() public {
-        vm.expectRevert(AWPDAO.UseCastVoteWithParams.selector);
-        dao.castVoteBySig(0, 1, address(0), "");
+        // Create a tiny stake that won't meet proposalThreshold
+        address charlie = makeAddr("charlie");
+        awp.transfer(charlie, 100e18);
+        vm.startPrank(charlie);
+        awp.approve(address(veAwp), 100e18);
+        uint256 tinyTokenId = veAwp.deposit(100e18, 30 days);
+        vm.stopPrank();
+
+        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
+
+        address[] memory targets = new address[](1);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = tinyTokenId;
+
+        vm.prank(charlie);
+        vm.expectRevert();
+        dao.proposeWithTokens(targets, values, calldatas, "test", tokenIds);
     }
 
-    function test_castVoteWithReasonAndParamsBySig_reverts() public {
-        vm.expectRevert(AWPDAO.UseCastVoteWithParams.selector);
-        dao.castVoteWithReasonAndParamsBySig(0, 1, address(0), "", "", "");
+    // ═══════════════════════════════════════════════
+    //  Voting
+    // ═══════════════════════════════════════════════
+
+    function test_vote_for() public {
+        uint256 proposalId = _createProposal();
+
+        // Advance past voting delay
+        vm.roll(block.number + 2);
+
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = tokenIdBob;
+
+        vm.prank(bob);
+        dao.castVoteWithReasonAndParams(proposalId, 1, "I support", abi.encode(tokenIds));
+
+        assertTrue(dao.hasVotedWithToken(proposalId, tokenIdBob));
+        (, uint256 forVotes,) = dao.proposalVotes(proposalId);
+        assertTrue(forVotes > 0);
+    }
+
+    function test_vote_against() public {
+        uint256 proposalId = _createProposal();
+        vm.roll(block.number + 2);
+
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = tokenIdBob;
+
+        vm.prank(bob);
+        dao.castVoteWithReasonAndParams(proposalId, 0, "", abi.encode(tokenIds));
+
+        (uint256 againstVotes,,) = dao.proposalVotes(proposalId);
+        assertTrue(againstVotes > 0);
+    }
+
+    function test_vote_abstain() public {
+        uint256 proposalId = _createProposal();
+        vm.roll(block.number + 2);
+
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = tokenIdBob;
+
+        vm.prank(bob);
+        dao.castVoteWithReasonAndParams(proposalId, 2, "", abi.encode(tokenIds));
+
+        (,, uint256 abstainVotes) = dao.proposalVotes(proposalId);
+        assertTrue(abstainVotes > 0);
+    }
+
+    function test_vote_notOwner_reverts() public {
+        uint256 proposalId = _createProposal();
+        vm.roll(block.number + 2);
+
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = tokenIdAlice; // alice's token
+
+        vm.prank(bob);
+        vm.expectRevert(AWPDAO.NotTokenOwner.selector);
+        dao.castVoteWithReasonAndParams(proposalId, 1, "", abi.encode(tokenIds));
+    }
+
+    function test_vote_doubleVote_reverts() public {
+        uint256 proposalId = _createProposal();
+        vm.roll(block.number + 2);
+
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = tokenIdBob;
+
+        vm.prank(bob);
+        dao.castVoteWithReasonAndParams(proposalId, 1, "", abi.encode(tokenIds));
+
+        vm.prank(bob);
+        vm.expectRevert(AWPDAO.TokenAlreadyVoted.selector);
+        dao.castVoteWithReasonAndParams(proposalId, 1, "", abi.encode(tokenIds));
+    }
+
+    function test_vote_noTokens_reverts() public {
+        uint256 proposalId = _createProposal();
+        vm.roll(block.number + 2);
+
+        uint256[] memory tokenIds = new uint256[](0);
+
+        vm.prank(bob);
+        vm.expectRevert(AWPDAO.NoTokens.selector);
+        dao.castVoteWithReasonAndParams(proposalId, 1, "", abi.encode(tokenIds));
+    }
+
+    function test_vote_mintedAfterProposal_reverts() public {
+        uint256 proposalId = _createProposal();
+        vm.roll(block.number + 2);
+
+        // Charlie deposits after proposal
+        address charlie = makeAddr("charlie");
+        awp.transfer(charlie, 1_000_000e18);
+        vm.startPrank(charlie);
+        awp.approve(address(veAwp), 1_000_000e18);
+        uint256 charlieToken = veAwp.deposit(1_000_000e18, 30 days);
+        vm.stopPrank();
+
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = charlieToken;
+
+        vm.prank(charlie);
+        vm.expectRevert(AWPDAO.MintedAfterProposal.selector);
+        dao.castVoteWithReasonAndParams(proposalId, 1, "", abi.encode(tokenIds));
+    }
+
+    function test_vote_expiredLock_reverts() public {
+        uint256 proposalId = _createProposal();
+        vm.roll(block.number + 2);
+
+        // Warp past bob's lock
+        vm.warp(block.timestamp + 31 days);
+
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = tokenIdBob;
+
+        vm.prank(bob);
+        vm.expectRevert(AWPDAO.LockExpired.selector);
+        dao.castVoteWithReasonAndParams(proposalId, 1, "", abi.encode(tokenIds));
+    }
+
+    // ═══════════════════════════════════════════════
+    //  hasVoted always false (per-token tracking)
+    // ═══════════════════════════════════════════════
+
+    function test_hasVoted_alwaysFalse() public view {
+        assertFalse(dao.hasVoted(0, alice));
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Signal Proposal
+    // ═══════════════════════════════════════════════
+
+    function test_signalPropose() public {
+        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
+
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = tokenIdAlice;
+
+        vm.prank(alice);
+        uint256 proposalId = dao.signalPropose("This is a signal proposal", tokenIds);
+
+        assertTrue(proposalId != 0);
+        assertTrue(dao.isSignalProposal(proposalId));
+        assertFalse(dao.proposalNeedsQueuing(proposalId));
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Guardian
+    // ═══════════════════════════════════════════════
+
+    function test_setGuardian() public {
+        vm.prank(guardian);
+        dao.setGuardian(alice);
+        assertEq(dao.guardian(), alice);
+    }
+
+    function test_setGuardian_notGuardianOrExecutor_reverts() public {
+        vm.prank(alice);
+        vm.expectRevert(AWPDAO.NotGuardianOrExecutor.selector);
+        dao.setGuardian(alice);
+    }
+
+    function test_guardianCancel() public {
+        uint256 proposalId = _createProposal();
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(dao);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeCall(AWPDAO.setQuorumPercent, (5));
+
+        vm.prank(guardian);
+        dao.guardianCancel(targets, values, calldatas, keccak256("set quorum to 5%"));
+    }
+
+    function test_guardianCancel_notGuardian_reverts() public {
+        address[] memory targets = new address[](1);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+
+        vm.prank(alice);
+        vm.expectRevert(AWPDAO.NotGuardian.selector);
+        dao.guardianCancel(targets, values, calldatas, bytes32(0));
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Quorum
+    // ═══════════════════════════════════════════════
+
+    function test_setQuorumPercent() public {
+        vm.prank(guardian);
+        dao.setQuorumPercent(10);
+        assertEq(dao.quorumPercent(), 10);
+    }
+
+    function test_setQuorumPercent_zero_reverts() public {
+        vm.prank(guardian);
+        vm.expectRevert(AWPDAO.InvalidQuorumPercent.selector);
+        dao.setQuorumPercent(0);
+    }
+
+    function test_setQuorumPercent_over100_reverts() public {
+        vm.prank(guardian);
+        vm.expectRevert(AWPDAO.InvalidQuorumPercent.selector);
+        dao.setQuorumPercent(101);
+    }
+
+    function test_quorum() public view {
+        uint256 totalVP = veAwp.totalVotingPower();
+        uint256 expectedQuorum = totalVP * 4 / 100;
+        // quorum(0) uses live totalVotingPower since no snapshot for proposalId=0
+        assertEq(dao.quorum(0), expectedQuorum);
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Helper
+    // ═══════════════════════════════════════════════
+
+    function _createProposal() internal returns (uint256) {
+        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
+
+        address[] memory targets = new address[](1);
+        targets[0] = address(dao);
+        uint256[] memory values = new uint256[](1);
+        bytes[] memory calldatas = new bytes[](1);
+        calldatas[0] = abi.encodeCall(AWPDAO.setQuorumPercent, (5));
+
+        uint256[] memory tokenIds = new uint256[](1);
+        tokenIds[0] = tokenIdAlice;
+
+        vm.prank(alice);
+        return dao.proposeWithTokens(targets, values, calldatas, "set quorum to 5%", tokenIds);
     }
 }
