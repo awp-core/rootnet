@@ -5,10 +5,10 @@ import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import {WorknetManager, IERC1363Receiver} from "../src/worknets/WorknetManager.sol";
-import {AlphaToken} from "../src/token/AlphaToken.sol";
+import {WorknetToken} from "../src/token/WorknetToken.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-/// @title MockAlphaForWM — Minimal mock for AlphaToken used by WorknetManager tests
+/// @title MockAlphaForWM — Minimal mock for WorknetToken used by WorknetManager tests
 contract MockAlphaForWM {
     mapping(address => uint256) public balances;
     mapping(address => mapping(address => uint256)) public allowances;
@@ -80,7 +80,7 @@ contract WorknetManagerTest is Test {
     // ═══════════════════════════════════════════════
 
     function test_initialize() public view {
-        assertEq(address(wm.alphaToken()), address(alpha));
+        assertEq(address(wm.worknetToken()), address(alpha));
         assertEq(wm.poolId(), POOL_ID);
         assertEq(wm.slippageBps(), 500);
         assertFalse(wm.strategyPaused());

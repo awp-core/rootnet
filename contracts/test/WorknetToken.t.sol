@@ -2,40 +2,37 @@
 pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
-import {AlphaToken} from "../src/token/AlphaToken.sol";
-import {IERC1363Receiver, IERC1363Spender} from "../src/interfaces/IERC1363Receiver.sol";
+import {WorknetToken} from "../src/token/WorknetToken.sol";
+import {MockWorknetTokenFactory} from "./helpers/MockWorknetTokenFactory.sol";
+import {ERC1363Utils} from "@openzeppelin/contracts/token/ERC20/utils/ERC1363Utils.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {IERC1363Receiver} from "@openzeppelin/contracts/interfaces/IERC1363Receiver.sol";
+import {IERC1363Spender} from "@openzeppelin/contracts/interfaces/IERC1363Spender.sol";
 
-/// @title AlphaTokenTest — Unit tests for worknet AlphaToken
-contract AlphaTokenTest is Test {
-    AlphaToken public alpha;
-    address public admin = address(this);
+contract WorknetTokenTest is Test {
+    WorknetToken public alpha;
+    MockWorknetTokenFactory public tokenFactory;
     address public worknetMgr = makeAddr("worknetMgr");
     address public alice = makeAddr("alice");
 
     uint256 constant WORKNET_ID = 845300000001;
 
     function setUp() public {
-        alpha = new AlphaToken();
-        alpha.initialize("Alpha", "ALPHA", WORKNET_ID, admin);
+        tokenFactory = new MockWorknetTokenFactory();
+        alpha = tokenFactory.deploy("Alpha", "ALPHA", WORKNET_ID);
     }
 
     // ═══════════════════════════════════════════════
-    //  Initialization
+    //  Construction
     // ═══════════════════════════════════════════════
 
-    function test_initialize() public view {
+    function test_constructor() public view {
         assertEq(alpha.name(), "Alpha");
         assertEq(alpha.symbol(), "ALPHA");
         assertEq(alpha.worknetId(), WORKNET_ID);
-        assertEq(alpha.admin(), admin);
+        assertEq(alpha.minter(), address(0));
         assertEq(alpha.createdAt(), uint64(block.timestamp));
-        assertTrue(alpha.minters(admin));
-        assertFalse(alpha.mintersLocked());
-    }
-
-    function test_initialize_twice_reverts() public {
-        vm.expectRevert();
-        alpha.initialize("X", "X", 1, admin);
+        assertFalse(alpha.initialized());
     }
 
     function test_MAX_SUPPLY() public view {
@@ -43,69 +40,66 @@ contract AlphaTokenTest is Test {
     }
 
     // ═══════════════════════════════════════════════
-    //  Admin minting (before lock)
+    //  Open minting (before setMinter — atomic with deploy)
     // ═══════════════════════════════════════════════
 
-    function test_mint_asAdmin() public {
+    function test_mint_beforeInit_openAccess() public {
+        // Before init, anyone can mint (deploy + init in same tx, no front-run window)
         alpha.mint(alice, 1000e18);
         assertEq(alpha.balanceOf(alice), 1000e18);
-        assertEq(alpha.totalSupply(), 1000e18);
-    }
 
-    function test_mint_notMinter_reverts() public {
         vm.prank(alice);
-        vm.expectRevert(AlphaToken.NotMinter.selector);
-        alpha.mint(alice, 100e18);
+        alpha.mint(alice, 500e18);
+        assertEq(alpha.balanceOf(alice), 1500e18);
     }
 
     function test_mint_exceedsMaxSupply_reverts() public {
         alpha.mint(alice, alpha.MAX_SUPPLY());
-        vm.expectRevert(AlphaToken.ExceedsMaxSupply.selector);
+        vm.expectRevert(WorknetToken.ExceedsMaxSupply.selector);
         alpha.mint(alice, 1);
     }
 
     // ═══════════════════════════════════════════════
-    //  setWorknetMinter
+    //  setMinter
     // ═══════════════════════════════════════════════
 
-    function test_setWorknetMinter() public {
-        alpha.mint(alice, 1000e18); // pre-mint for LP
+    function test_setMinter() public {
+        alpha.mint(alice, 1000e18);
+        alpha.setMinter(worknetMgr);
 
-        alpha.setWorknetMinter(worknetMgr);
-
-        assertTrue(alpha.mintersLocked());
-        assertTrue(alpha.minters(worknetMgr));
-        assertFalse(alpha.minters(admin));
+        assertTrue(alpha.initialized());
+        assertEq(alpha.minter(), worknetMgr);
         assertEq(alpha.supplyAtLock(), 1000e18);
-        assertEq(alpha.grossMintedSinceLock(), 0);
     }
 
-    function test_setWorknetMinter_notAdmin_reverts() public {
-        vm.prank(alice);
-        vm.expectRevert(AlphaToken.NotAdmin.selector);
-        alpha.setWorknetMinter(worknetMgr);
+    function test_setMinter_zeroAddress_reverts() public {
+        vm.expectRevert(WorknetToken.ZeroAddress.selector);
+        alpha.setMinter(address(0));
     }
 
-    function test_setWorknetMinter_zeroAddress_reverts() public {
-        vm.expectRevert(AlphaToken.ZeroAddress.selector);
-        alpha.setWorknetMinter(address(0));
+    function test_setMinter_twice_reverts() public {
+        alpha.setMinter(worknetMgr);
+        vm.expectRevert(WorknetToken.AlreadyInitialized.selector);
+        alpha.setMinter(address(1));
     }
 
-    function test_setWorknetMinter_twice_reverts() public {
-        alpha.setWorknetMinter(worknetMgr);
+    function test_afterInit_onlyMinterCanMint() public {
+        alpha.setMinter(worknetMgr);
+        vm.expectRevert(WorknetToken.NotMinter.selector);
+        alpha.mint(alice, 100e18);
 
-        vm.expectRevert(AlphaToken.MintersLocked.selector);
-        alpha.setWorknetMinter(address(1));
+        vm.prank(worknetMgr);
+        alpha.mint(alice, 100e18);
+        assertEq(alpha.balanceOf(alice), 100e18);
     }
 
     // ═══════════════════════════════════════════════
-    //  Time-based minting cap (after lock)
+    //  Time-based minting cap
     // ═══════════════════════════════════════════════
 
     function test_timeBasedCap_sameBlock() public {
-        alpha.setWorknetMinter(worknetMgr);
+        alpha.setMinter(worknetMgr);
 
-        // Same block: elapsed=0 → forced to 1 → maxMintable = MAX_SUPPLY * 1 / 365 days
         uint256 maxMintable = alpha.MAX_SUPPLY() * 1 / 365 days;
         vm.prank(worknetMgr);
         alpha.mint(alice, maxMintable);
@@ -113,105 +107,83 @@ contract AlphaTokenTest is Test {
     }
 
     function test_timeBasedCap_afterOneYear() public {
-        alpha.setWorknetMinter(worknetMgr);
-
+        alpha.setMinter(worknetMgr);
         vm.warp(block.timestamp + 365 days);
-        // After 1 year: maxMintable = MAX_SUPPLY (no pre-minted supply at lock)
-        vm.startPrank(worknetMgr);
-        // Mint in batches to stay within per-call limits
-        alpha.mint(alice, alpha.MAX_SUPPLY());
-        vm.stopPrank();
-        assertEq(alpha.balanceOf(alice), alpha.MAX_SUPPLY());
+
+        uint256 maxSupply = alpha.MAX_SUPPLY();
+        vm.prank(worknetMgr);
+        alpha.mint(alice, maxSupply);
+        assertEq(alpha.balanceOf(alice), maxSupply);
     }
 
     function test_timeBasedCap_exceeds_reverts() public {
-        alpha.setWorknetMinter(worknetMgr);
-
+        alpha.setMinter(worknetMgr);
         vm.warp(block.timestamp + 30 days);
-        uint256 maxMintable = alpha.MAX_SUPPLY() * 30 days / 365 days;
 
+        uint256 maxMintable = alpha.MAX_SUPPLY() * 30 days / 365 days;
         vm.prank(worknetMgr);
         alpha.mint(alice, maxMintable);
 
-        // One more should fail
         vm.prank(worknetMgr);
-        vm.expectRevert(AlphaToken.ExceedsMintableLimit.selector);
+        vm.expectRevert(WorknetToken.ExceedsMintableLimit.selector);
         alpha.mint(alice, 1e18);
     }
 
     function test_timeBasedCap_withPreMint() public {
-        // Pre-mint 1B tokens
         uint256 preMint = 1_000_000_000e18;
         alpha.mint(alice, preMint);
-        alpha.setWorknetMinter(worknetMgr);
+        alpha.setMinter(worknetMgr);
 
         assertEq(alpha.supplyAtLock(), preMint);
 
         vm.warp(block.timestamp + 365 days);
-        // Max mintable after lock = (MAX_SUPPLY - supplyAtLock) * elapsed / 365 days
         uint256 remaining = alpha.MAX_SUPPLY() - preMint;
         vm.prank(worknetMgr);
         alpha.mint(alice, remaining);
         assertEq(alpha.totalSupply(), alpha.MAX_SUPPLY());
     }
 
-    function test_currentMintableLimit_beforeLock() public view {
+    function test_timeBasedCap_burnFreesHeadroom() public {
+        alpha.setMinter(worknetMgr);
+        vm.warp(block.timestamp + 30 days);
+
+        uint256 cap = alpha.MAX_SUPPLY() * 30 days / 365 days;
+        vm.prank(worknetMgr);
+        alpha.mint(alice, cap);
+
+        // Burn half
+        vm.prank(alice);
+        alpha.burn(cap / 2);
+
+        // Can mint again (burned tokens freed headroom)
+        vm.prank(worknetMgr);
+        alpha.mint(alice, cap / 2);
+    }
+
+    function test_currentMintableLimit_beforeInit() public view {
         assertEq(alpha.currentMintableLimit(), 0);
     }
 
-    function test_currentMintableLimit_afterLock() public {
-        alpha.setWorknetMinter(worknetMgr);
-
+    function test_currentMintableLimit_afterInit() public {
+        alpha.setMinter(worknetMgr);
         vm.warp(block.timestamp + 30 days);
-        uint256 limit = alpha.currentMintableLimit();
         uint256 expected = alpha.MAX_SUPPLY() * 30 days / 365 days;
-        assertEq(limit, expected);
+        assertEq(alpha.currentMintableLimit(), expected);
     }
 
     // ═══════════════════════════════════════════════
-    //  setMinterPaused
+    //  ERC1363 (OZ)
     // ═══════════════════════════════════════════════
 
-    function test_setMinterPaused() public {
-        alpha.setWorknetMinter(worknetMgr);
-
-        alpha.setMinterPaused(worknetMgr, true);
-
-        vm.prank(worknetMgr);
-        vm.expectRevert(AlphaToken.MinterPaused.selector);
-        alpha.mint(alice, 100e18);
-    }
-
-    function test_setMinterPaused_resume() public {
-        alpha.setWorknetMinter(worknetMgr);
-
-        alpha.setMinterPaused(worknetMgr, true);
-        alpha.setMinterPaused(worknetMgr, false);
-
-        vm.prank(worknetMgr);
-        alpha.mint(alice, 100e18);
-        assertEq(alpha.balanceOf(alice), 100e18);
-    }
-
-    function test_setMinterPaused_notAdmin_reverts() public {
-        vm.prank(alice);
-        vm.expectRevert(AlphaToken.NotAdmin.selector);
-        alpha.setMinterPaused(worknetMgr, true);
-    }
-
-    // ═══════════════════════════════════════════════
-    //  ERC1363 callbacks
-    // ═══════════════════════════════════════════════
-
-    function test_transferAndCall_toEOA() public {
-        alpha.mint(admin, 100e18);
+    function test_transferAndCall_toEOA_reverts() public {
+        alpha.mint(address(this), 100e18);
+        vm.expectRevert(abi.encodeWithSelector(ERC1363Utils.ERC1363InvalidReceiver.selector, alice));
         alpha.transferAndCall(alice, 50e18, "");
-        assertEq(alpha.balanceOf(alice), 50e18);
     }
 
     function test_transferAndCall_toContract() public {
         MockReceiver receiver = new MockReceiver();
-        alpha.mint(admin, 100e18);
+        alpha.mint(address(this), 100e18);
         alpha.transferAndCall(address(receiver), 50e18, "hello");
         assertEq(alpha.balanceOf(address(receiver)), 50e18);
         assertTrue(receiver.called());
@@ -219,30 +191,43 @@ contract AlphaTokenTest is Test {
 
     function test_transferAndCall_badCallback_reverts() public {
         BadReceiver bad = new BadReceiver();
-        alpha.mint(admin, 100e18);
-        vm.expectRevert(AlphaToken.InvalidCallback.selector);
+        alpha.mint(address(this), 100e18);
+        vm.expectRevert(abi.encodeWithSelector(ERC1363Utils.ERC1363InvalidReceiver.selector, address(bad)));
         alpha.transferAndCall(address(bad), 50e18, "");
+    }
+
+    function test_transferFromAndCall() public {
+        MockReceiver receiver = new MockReceiver();
+        alpha.mint(address(this), 100e18);
+        alpha.approve(alice, 50e18);
+        vm.prank(alice);
+        alpha.transferFromAndCall(address(this), address(receiver), 50e18, "");
+        assertEq(alpha.balanceOf(address(receiver)), 50e18);
     }
 
     function test_approveAndCall_toContract() public {
         MockSpender spender = new MockSpender();
         alpha.approveAndCall(address(spender), 100e18, "data");
-        assertEq(alpha.allowance(admin, address(spender)), 100e18);
+        assertEq(alpha.allowance(address(this), address(spender)), 100e18);
         assertTrue(spender.called());
     }
 
     function test_approveAndCall_badCallback_reverts() public {
         BadSpender bad = new BadSpender();
-        vm.expectRevert(AlphaToken.InvalidCallback.selector);
+        vm.expectRevert(abi.encodeWithSelector(ERC1363Utils.ERC1363InvalidSpender.selector, address(bad)));
         alpha.approveAndCall(address(bad), 100e18, "");
     }
 
     // ═══════════════════════════════════════════════
-    //  Burn
+    //  ERC165 + Burn
     // ═══════════════════════════════════════════════
 
+    function test_supportsInterface_ERC165() public view {
+        assertTrue(alpha.supportsInterface(type(IERC165).interfaceId));
+    }
+
     function test_burn() public {
-        alpha.mint(admin, 100e18);
+        alpha.mint(address(this), 100e18);
         alpha.burn(50e18);
         assertEq(alpha.totalSupply(), 50e18);
     }

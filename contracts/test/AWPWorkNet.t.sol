@@ -22,7 +22,7 @@ contract AWPWorkNetTest is DeployHelper {
         AWPWorkNet.WorknetData memory data = awpWorkNet.getWorknetData(worknetId);
         assertEq(data.owner, alice);
         assertTrue(data.worknetManager != address(0));
-        assertTrue(data.alphaToken != address(0));
+        assertTrue(data.worknetToken != address(0));
         assertTrue(data.lpPool != bytes32(0));
     }
 

@@ -26,7 +26,7 @@ contract MockLPManager {
         lpTokenId = uint256(poolId);
     }
 
-    function alphaTokenToPoolId(address) external pure returns (bytes32) { return bytes32(0); }
-    function alphaTokenToTokenId(address) external pure returns (uint256) { return 0; }
+    function worknetTokenToPoolId(address) external pure returns (bytes32) { return bytes32(0); }
+    function worknetTokenToTokenId(address) external pure returns (uint256) { return 0; }
     function needsCompounding(address) external pure returns (bool, uint256) { return (false, 0); }
 }

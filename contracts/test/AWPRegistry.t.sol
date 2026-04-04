@@ -224,7 +224,7 @@ contract AWPRegistryTest is DeployHelper {
         IAWPRegistry.WorknetFullInfo memory full = awpRegistry.getWorknetFull(wid);
 
         assertEq(full.owner, alice);
-        assertEq(full.alphaToken, address(0)); // not deployed yet
+        assertEq(full.worknetToken, address(0)); // not deployed yet
         assertEq(uint8(full.status), uint8(IAWPRegistry.WorknetStatus.Pending));
     }
 
@@ -392,12 +392,12 @@ contract AWPRegistryTest is DeployHelper {
     //  Activate — edge cases
     // ═══════════════════════════════════════════════
 
-    function test_activateWorknet_deploysAlphaToken() public {
+    function test_activateWorknet_deploysWorknetToken() public {
         uint256 wid = _registerWorknet(alice);
         _activateWorknet(wid);
 
         IAWPRegistry.WorknetFullInfo memory full = awpRegistry.getWorknetFull(wid);
-        assertTrue(full.alphaToken != address(0));
+        assertTrue(full.worknetToken != address(0));
     }
 
     function test_activateWorknet_deploysWorknetManagerProxy() public {

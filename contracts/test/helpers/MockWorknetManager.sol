@@ -5,15 +5,15 @@ import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/U
 
 /// @title MockWorknetManager — Minimal UUPS impl for tests
 contract MockWorknetManager is UUPSUpgradeable {
-    address public alphaToken;
+    address public worknetToken;
     bytes32 public poolId;
     address public admin;
 
     constructor() { _disableInitializers(); }
 
-    function initialize(address alphaToken_, bytes32 poolId_, address admin_) external initializer {
+    function initialize(address worknetToken_, bytes32 poolId_, address admin_) external initializer {
         __UUPSUpgradeable_init();
-        alphaToken = alphaToken_;
+        worknetToken = worknetToken_;
         poolId = poolId_;
         admin = admin_;
     }

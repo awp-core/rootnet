@@ -6,9 +6,9 @@ import {AWPDAO} from "../src/governance/AWPDAO.sol";
 import {Treasury} from "../src/governance/Treasury.sol";
 import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {IAWPRegistry} from "../src/interfaces/IAWPRegistry.sol";
-import {IAlphaToken} from "../src/interfaces/IAlphaToken.sol";
+import {IWorknetToken} from "../src/interfaces/IWorknetToken.sol";
 import {AWPWorkNet} from "../src/core/AWPWorkNet.sol";
-import {AlphaToken} from "../src/token/AlphaToken.sol";
+import {WorknetToken} from "../src/token/WorknetToken.sol";
 import {AWPEmission} from "../src/token/AWPEmission.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {TimelockControllerUpgradeable} from "@openzeppelin/contracts-upgradeable/governance/TimelockControllerUpgradeable.sol";
@@ -176,27 +176,26 @@ contract IntegrationTest is DeployHelper {
     }
 
     // ═══════════════════════════════════════════════
-    //  3. AlphaToken lifecycle: activate → setWorknetMinter → Merkle claim
+    //  3. WorknetToken lifecycle: activate → setMinter → time-based cap
     // ═══════════════════════════════════════════════
 
-    function test_alphaToken_fullLifecycle() public {
+    function test_worknetToken_fullLifecycle() public {
         // Register and activate worknet
         uint256 wid = _registerWorknet(alice, "Alpha Lifecycle", "ALC");
         _activateWorknet(wid);
 
         AWPWorkNet.WorknetData memory wd = awpWorkNet.getWorknetData(wid);
-        address alphaAddr = wd.alphaToken;
+        address alphaAddr = wd.worknetToken;
         address wmAddr = wd.worknetManager;
         assertTrue(alphaAddr != address(0));
         assertTrue(wmAddr != address(0));
 
-        AlphaToken alpha = AlphaToken(alphaAddr);
+        WorknetToken alpha = WorknetToken(alphaAddr);
 
-        // Verify AlphaToken state
+        // Verify WorknetToken state
         assertEq(alpha.worknetId(), wid);
-        assertTrue(alpha.mintersLocked()); // setWorknetMinter was called
-        assertTrue(alpha.minters(wmAddr)); // worknetManager is the minter
-        assertFalse(alpha.minters(address(awpRegistry))); // admin minting revoked
+        assertTrue(alpha.initialized()); // setMinter was called
+        assertEq(alpha.minter(), wmAddr); // worknetManager is the sole minter
         assertTrue(alpha.supplyAtLock() > 0); // LP pre-mint amount
 
         // WorknetManager can mint Alpha to users via merkle claim
@@ -208,49 +207,37 @@ contract IntegrationTest is DeployHelper {
         // MockWorknetManager doesn't have setMerkleRoot
         // Real WorknetManager proxy does (if defaultWorknetManagerImpl is real impl)
         // MockWorknetManager doesn't support merkle in tests, skip claim step
-        // Instead verify AlphaToken time-based minting cap
+        // Instead verify WorknetToken time-based minting cap
         vm.warp(block.timestamp + 30 days);
         uint256 mintable = alpha.currentMintableLimit();
         assertTrue(mintable > 0);
     }
 
     // ═══════════════════════════════════════════════
-    //  4. Ban / Unban effect on AlphaToken minting
+    //  4. Ban / Unban worknet status transitions
     // ═══════════════════════════════════════════════
 
-    function test_banUnban_alphaTokenMinting() public {
-        // Register and activate worknet
+    function test_banUnban_worknetStatus() public {
         uint256 wid = _registerWorknet(alice, "BanTest", "BAN");
         _activateWorknet(wid);
 
-        AWPWorkNet.WorknetData memory wd = awpWorkNet.getWorknetData(wid);
-        address alphaAddr = wd.alphaToken;
-        address wmAddr = wd.worknetManager;
-        AlphaToken alpha = AlphaToken(alphaAddr);
-
-        // Confirm worknetManager can currently mint
-        assertTrue(alpha.minters(wmAddr));
-        assertFalse(alpha.minterPaused(wmAddr));
+        assertTrue(awpRegistry.isWorknetActive(wid));
 
         // Guardian ban worknet
         vm.prank(guardian);
         awpRegistry.banWorknet(wid);
 
-        // Verify worknet status is Banned
         IAWPRegistry.WorknetInfo memory info = awpRegistry.getWorknet(wid);
         assertEq(uint8(info.status), uint8(IAWPRegistry.WorknetStatus.Banned));
-
-        // Verify AlphaToken minter is paused
-        assertTrue(alpha.minterPaused(wmAddr));
+        assertFalse(awpRegistry.isWorknetActive(wid));
 
         // Guardian unban worknet
         vm.prank(guardian);
         awpRegistry.unbanWorknet(wid);
 
-        // Verify restored
         info = awpRegistry.getWorknet(wid);
         assertEq(uint8(info.status), uint8(IAWPRegistry.WorknetStatus.Active));
-        assertFalse(alpha.minterPaused(wmAddr));
+        assertTrue(awpRegistry.isWorknetActive(wid));
     }
 
     // ═══════════════════════════════════════════════

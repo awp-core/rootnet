@@ -6,7 +6,7 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 
 // ── Protocol contracts ──
 import {AWPToken} from "../../src/token/AWPToken.sol";
-import {AlphaTokenFactory} from "../../src/token/AlphaTokenFactory.sol";
+import {WorknetTokenFactory} from "../../src/token/WorknetTokenFactory.sol";
 import {AWPEmission} from "../../src/token/AWPEmission.sol";
 import {AWPRegistry} from "../../src/AWPRegistry.sol";
 import {AWPAllocator} from "../../src/core/AWPAllocator.sol";
@@ -48,7 +48,7 @@ abstract contract DeployHelper is Test {
     AWPAllocator public awpAllocator;
     veAWP public veAwp;
     AWPEmission public awpEmission;
-    AlphaTokenFactory public factory;
+    WorknetTokenFactory public factory;
     MockLPManager public lpManager;
     AWPDAO public dao;
 
@@ -84,7 +84,7 @@ abstract contract DeployHelper is Test {
         executors[0] = address(0);
         treasury = new Treasury(0, proposers, executors, deployer);
 
-        factory = new AlphaTokenFactory(deployer, 0);
+        factory = new WorknetTokenFactory(deployer, 0);
 
         // ── Step 2: Predict proxy addresses ──
         // We deploy stubs for contracts that have circular deps.
@@ -174,7 +174,7 @@ abstract contract DeployHelper is Test {
         awp.addMinter(address(awpEmission));
         awp.renounceAdmin();
 
-        // AlphaTokenFactory
+        // WorknetTokenFactory
         factory.setAddresses(address(awpRegistry));
 
         // Fund test accounts

@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -12,11 +11,10 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-import {IAlphaToken} from "./interfaces/IAlphaToken.sol";
-import {IAlphaTokenFactory} from "./interfaces/IAlphaTokenFactory.sol";
-import {IStakingVault} from "./interfaces/IStakingVault.sol";
-import {IStakeNFT} from "./interfaces/IStakeNFT.sol";
-import {IWorknetNFT} from "./interfaces/IWorknetNFT.sol";
+import {IWorknetToken} from "./interfaces/IWorknetToken.sol";
+import {IWorknetTokenFactory} from "./interfaces/IWorknetTokenFactory.sol";
+import {IAWPAllocator} from "./interfaces/IAWPAllocator.sol";
+import {IAWPWorkNet} from "./interfaces/IAWPWorkNet.sol";
 import {ILPManager} from "./interfaces/ILPManager.sol";
 import {IAWPRegistry} from "./interfaces/IAWPRegistry.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -24,50 +22,65 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 /// @title AWPRegistry — Unified entry point for the AWP protocol (worknet management + staking management)
 /// @author AWP Team
 /// @notice Account System V2: tree-based binding, optional registration, explicit staker parameter.
-/// @dev Inheritance: Initializable + UUPSUpgradeable (UUPS proxy pattern), PausableUpgradeable (emergency pause),
+/// @dev Inheritance: UUPSUpgradeable (UUPS proxy pattern), PausableUpgradeable (emergency pause),
 ///      ReentrancyGuardUpgradeable (reentrancy protection), EIP712Upgradeable (EIP-712 signing domain, domain name "AWPRegistry" v1).
-contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable, IAWPRegistry {
+///      8 immutable addresses baked into impl bytecode. Storage-mutable: guardian, defaultWorknetManagerImpl, initialAlphaPrice/Mint.
+contract AWPRegistry is UUPSUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable, IAWPRegistry {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
 
     // ══════════════════════════════════════════════
-    //  Address registry — external module addresses injected via initializeRegistry after deployment
+    //  Immutables (baked into impl bytecode — zero SLOAD cost)
+    //  All proxy addresses are immutable: proxy address never changes, impl changes via UUPS upgrade.
     // ══════════════════════════════════════════════
 
-    /// @notice AWP token contract address (ERC20, 10B MAX_SUPPLY, configurable initialMint, remainder via AWPEmission)
-    address public awpToken;
-    /// @notice WorknetNFT contract address; each worknet corresponds to one NFT (tokenId = worknetId)
-    address public worknetNFT;
-    /// @notice AlphaToken factory contract address, used to deploy an independent Alpha token for each worknet
-    address public alphaTokenFactory;
-    /// @notice AWP emission contract address, the only contract holding AWP minting rights
-    address public awpEmission;
-    /// @notice LP manager contract address, responsible for creating AWP/Alpha trading pairs and managing liquidity
-    address public lpManager;
-    /// @notice Staking vault contract address — manages allocation bookkeeping
-    address public stakingVault;
-    /// @notice StakeNFT contract address — manages AWP staking positions as NFTs
-    address public stakeNFT;
-    /// @notice Treasury (Timelock) address — holds governance operation rights (onlyGuardian)
-    address public treasury;
-    /// @notice Guardian address — holds emergency pause rights (onlyGuardian)
-    address public guardian;
-    /// @notice Default worknet implementation address (for auto-deploying worknet contracts via proxy)
-    address public defaultWorknetManagerImpl;
-    /// @notice ABI-encoded DEX configuration passed to WorknetManager.initialize()
-    ///         (clPoolManager, clPositionManager, clSwapRouter, permit2, poolFee, tickSpacing)
-    bytes public dexConfig;
+    /// @notice AWP token address (same on all chains)
+    address public immutable awpToken;
+    /// @notice AWPWorkNet proxy address (UUPS upgradeable)
+    address public immutable awpWorkNet;
+    /// @notice WorknetToken factory proxy address (UUPS upgradeable)
+    address public immutable worknetTokenFactory;
+    /// @notice AWP emission proxy address (same on all chains)
+    address public immutable awpEmission;
+    /// @notice LP manager proxy address (UUPS upgradeable)
+    address public immutable lpManager;
+    /// @notice AWPAllocator proxy address (same on all chains)
+    address public immutable awpAllocator;
+    /// @notice veAWP proxy address (UUPS upgradeable)
+    address public immutable veAWP;
+    /// @notice Treasury (Timelock) address (same on all chains)
+    address public immutable treasury;
 
-    /// @dev Deployer address; used only for initializeRegistry, zeroed immediately after the call
-    address private _deployer;
-    /// @notice Whether the registry has been initialized (can only be initialized once)
-    bool public registryInitialized;
+    // ══════════════════════════════════════════════
+    //  Storage — (slots 0-11 must match deployed proxy layout)
+    // ══════════════════════════════════════════════
+
+    /// @dev Freed slots 0-7: were module addresses, now all immutable
+    uint256 private __freed_slot0;
+    uint256 private __freed_slot1;
+    uint256 private __freed_slot2;
+    uint256 private __freed_slot3;
+    uint256 private __freed_slot4;
+    uint256 private __freed_slot5;
+    uint256 private __freed_slot6;
+    uint256 private __freed_slot7;
+    /// @notice Guardian address — emergency pause + parameter management
+    address public guardian;
+    /// @notice Default WorknetManager implementation (for auto-deploying worknet proxies)
+    address public defaultWorknetManagerImpl;
+    /// @dev Freed slot 10: was dexConfig
+    bytes private __freed_slot10;
+
+    /// @dev Freed slot 11: was _deployer (packed with registryInitialized)
+    uint256 private __freed_slot11;
 
     // ══════════════════════════════════════════════
     //  Account System V2 — binding, recipient, delegation
     // ══════════════════════════════════════════════
 
-    /// @notice Total number of registered users (incremented by register/registerFor, never decremented)
+    /// @notice Approximate registration count (incremented on first bind/setRecipient, never decremented).
+    /// @dev Not deduplicated: unbind→rebind increments again. Use off-chain indexer for exact unique count.
+    ///      Intentional trade-off: O(1) on-chain vs exact count would require an additional mapping (21k gas per new user).
     uint256 public registeredCount;
 
     /// @notice Tree-based binding: addr → target (address(0) = root / unbound)
@@ -85,7 +98,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     mapping(uint256 => WorknetInfo) public worknets;
 
     /// @dev Next local counter for worknet ID generation, auto-increments from 1.
-    /// Global worknetId = (block.chainid << 64) | _nextLocalId
+    /// Global worknetId = block.chainid * CHAIN_ID_MULTIPLIER + _nextLocalId
     uint256 private _nextLocalId;
 
     /// @dev Active worknet ID set
@@ -94,14 +107,17 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     /// @notice Maximum number of active worknets
     uint128 public constant MAX_ACTIVE_WORKNETS = 10000;
 
-    /// @notice Initial price of the Alpha token when registering a worknet (denominated in AWP), default 0.01 AWP
+    /// @notice Multiplier for worknetId generation: worknetId = chainId * CHAIN_ID_MULTIPLIER + localId
+    uint256 public constant CHAIN_ID_MULTIPLIER = 100_000_000;
+
+    /// @notice Initial price of the Alpha token when registering a worknet (denominated in AWP wei, default 1e15 = 0.001 AWP)
     uint256 public initialAlphaPrice;
 
-    /// @notice Alpha token mint amount per worknet registration (governance-settable, default 100M)
+    /// @notice Alpha token mint amount per worknet registration (governance-settable, default 1B = 1e27 wei)
     uint256 public initialAlphaMint;
 
-    /// @notice Worknet deregistration immunity period; Timelock cannot deregister the worknet during this window
-    uint256 public immunityPeriod;
+    /// @dev Deprecated: was immunity period. Kept for UUPS storage layout compatibility.
+    uint256 private __deprecated_immunityPeriod;
 
     // ══════════════════════════════════════════════
     //  Gasless — EIP-712 signature related
@@ -110,8 +126,33 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     /// @notice Per-signer nonce for replay attack prevention (nonces[signer]++ when validated)
     mapping(address => uint256) public nonces;
 
+    // ══════════════════════════════════════════════
+    //  Worknet escrow (AWP held until activation)
+    // ══════════════════════════════════════════════
+
+    /// @notice Escrowed AWP and Alpha mint amount for pending worknets (locked at registration time)
+    struct EscrowInfo {
+        uint128 lpAWPAmount;   // AWP escrowed (in token units, not wei — fits uint128)
+        uint128 alphaMint;     // Alpha mint amount snapshot (in token units)
+    }
+    /// @notice worknetId => escrow info (only exists for Pending worknets)
+    mapping(uint256 => EscrowInfo) public worknetEscrow;
+
+    /// @notice Pending worknet registration params (stored until activation or cancellation)
+    struct PendingParams {
+        string name;
+        string symbol;
+        address worknetManager;    // address(0) = auto-deploy
+        bytes32 salt;              // CREATE2 salt for Alpha token
+        uint128 minStake;
+        string skillsURI;
+        address owner;
+    }
+    /// @notice worknetId => pending registration params (deleted on activate/cancel/reject)
+    mapping(uint256 => PendingParams) public pendingWorknets;
+
     /// @dev Reserved storage gap for future upgrades (UUPS pattern)
-    uint256[49] private __gap;
+    uint256[47] private __gap;
 
     /// @dev EIP-712 type hash: Bind(address agent, address target, uint256 nonce, uint256 deadline)
     bytes32 private constant BIND_TYPEHASH =
@@ -120,10 +161,6 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     /// @dev EIP-712 type hash: SetRecipient(address user, address recipient, uint256 nonce, uint256 deadline)
     bytes32 private constant SET_RECIPIENT_TYPEHASH =
         keccak256("SetRecipient(address user,address recipient,uint256 nonce,uint256 deadline)");
-
-    /// @dev EIP-712 type hash: ActivateWorknet(address user, uint256 worknetId, uint256 nonce, uint256 deadline)
-    bytes32 private constant ACTIVATE_WORKNET_TYPEHASH =
-        keccak256("ActivateWorknet(address user,uint256 worknetId,uint256 nonce,uint256 deadline)");
 
     /// @dev EIP-712 type hash for WorknetParams nested struct
     bytes32 private constant WORKNET_PARAMS_TYPEHASH =
@@ -145,6 +182,9 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     bytes32 private constant UNBIND_TYPEHASH =
         keccak256("Unbind(address user,uint256 nonce,uint256 deadline)");
 
+    /// @dev Pre-computed selector for WorknetManager.initialize(address,bytes32,address)
+    bytes4 private constant WM_INIT_SELECTOR = bytes4(keccak256("initialize(address,bytes32,address)"));
+
     // ══════════════════════════════════════════════
     //  Permission modifiers
     // ══════════════════════════════════════════════
@@ -159,10 +199,6 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     //  Custom errors
     // ══════════════════════════════════════════════
 
-    /// @dev Non-deployer called initializeRegistry
-    error NotDeployer();
-    /// @dev Registry is already initialized; cannot call again
-    error AlreadyInitialized();
     /// @dev Caller is not the Guardian
     error NotGuardian();
     /// @dev Worknet name is invalid (empty or > 64 bytes)
@@ -173,14 +209,12 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     error ZeroLPAmount();
     /// @dev Mint amount must be > 0
     error InvalidMintAmount();
-    /// @dev Immunity period too short (minimum 7 days)
-    error ImmunityTooShort();
     /// @dev Worknet contract address cannot be the zero address
     error WorknetManagerRequired();
     /// @dev Worknet status does not meet the precondition
     error InvalidWorknetStatus(uint256 worknetId, uint8 currentStatus);
-    /// @dev Worknet is still within its immunity period and cannot be deregistered
-    error ImmunityNotExpired();
+    /// @dev Escrow amount overflows uint128
+    error AmountOverflow();
     /// @dev Caller is not the worknet NFT owner
     error NotOwner();
     /// @dev Initial Alpha price is too low (minimum 1e12)
@@ -205,20 +239,36 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     error CannotRevokeSelf();
     /// @dev Name/symbol contains JSON-unsafe characters (" or \)
     error JsonUnsafeCharacter();
-    /// @dev Address is already registered
 
     // ══════════════════════════════════════════════
     //  Constructor
     // ══════════════════════════════════════════════
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
+    constructor(
+        address awpToken_,
+        address awpWorkNet_,
+        address worknetTokenFactory_,
+        address awpEmission_,
+        address lpManager_,
+        address awpAllocator_,
+        address veAWP_,
+        address treasury_
+    ) {
+        awpToken = awpToken_;
+        awpWorkNet = awpWorkNet_;
+        worknetTokenFactory = worknetTokenFactory_;
+        awpEmission = awpEmission_;
+        lpManager = lpManager_;
+        awpAllocator = awpAllocator_;
+        veAWP = veAWP_;
+        treasury = treasury_;
         _disableInitializers();
     }
 
     /// @notice Initialize the registry (called once via proxy)
-    /// @param deployer_ Deployer address (holds initializeRegistry rights)
-    /// @param treasury_ Treasury (Timelock) address
+    /// @param deployer_ Unused (kept for ABI compatibility with existing proxy)
+    /// @param treasury_ Unused (treasury is now immutable from constructor)
     /// @param guardian_ Guardian address
     function initialize(
         address deployer_,
@@ -230,68 +280,20 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         __ReentrancyGuard_init();
         __EIP712_init("AWPRegistry", "1");
 
-        if (deployer_ == address(0) || treasury_ == address(0) || guardian_ == address(0)) revert ZeroAddress();
-        _deployer = deployer_;
-        treasury = treasury_;
+        if (guardian_ == address(0)) revert ZeroAddress();
         guardian = guardian_;
 
-        // Default values written to proxy storage during initialize()
         _nextLocalId = 1;
-        initialAlphaPrice = 1e15; // 0.001 AWP per Alpha
-        initialAlphaMint = 100_000_000 * 1e18;
-        immunityPeriod = 30 days;
+        initialAlphaPrice = 1e15;
+        initialAlphaMint = 1_000_000_000 * 1e18;
     }
 
     /// @dev UUPS upgrade authorization — only Guardian may upgrade
     function _authorizeUpgrade(address) internal override onlyGuardian {}
 
-    // ═══════════════════════════════════════════════
-    //  Registry — module address registry
-    // ═══════════════════════════════════════════════
-
-    /// @notice One-time initialization of all external module addresses; only callable by deployer, and only once
-    /// @dev After successful call _deployer is zeroed, permanently locked; cannot be called again.
-    function initializeRegistry(
-        address awpToken_,
-        address worknetNFT_,
-        address alphaTokenFactory_,
-        address awpEmission_,
-        address lpManager_,
-        address stakingVault_,
-        address stakeNFT_,
-        address defaultWorknetManagerImpl_,
-        bytes calldata dexConfig_
-    ) external {
-        // Only the deployer may call
-        if (msg.sender != _deployer) revert NotDeployer();
-        // Prevent re-initialization
-        if (registryInitialized) revert AlreadyInitialized();
-        // Validate critical addresses (cannot re-call after deployer is zeroed)
-        if (awpToken_ == address(0) || worknetNFT_ == address(0) || alphaTokenFactory_ == address(0)
-            || awpEmission_ == address(0) || lpManager_ == address(0) || stakingVault_ == address(0)
-            || stakeNFT_ == address(0)) revert ZeroAddress();
-
-        awpToken = awpToken_;
-        worknetNFT = worknetNFT_;
-        alphaTokenFactory = alphaTokenFactory_;
-        awpEmission = awpEmission_;
-        lpManager = lpManager_;
-        stakingVault = stakingVault_;
-        stakeNFT = stakeNFT_;
-        defaultWorknetManagerImpl = defaultWorknetManagerImpl_;
-        dexConfig = dexConfig_;
-
-        // Link StakingVault → StakeNFT (one-time setter, resolves CREATE2 circular dependency)
-        IStakingVault(stakingVault).setStakeNFT(stakeNFT);
-
-        registryInitialized = true;
-        // Permanently destroy deployer rights; this function can no longer be called
-        _deployer = address(0);
-    }
-
     /// @notice Retrieve all module addresses in a single call
-    /// @return In order: awpToken, worknetNFT, alphaTokenFactory, awpEmission,
-    ///         lpManager, stakingVault, stakeNFT, treasury, guardian
+    /// @return In order: awpToken, awpWorkNet, worknetTokenFactory, awpEmission,
+    ///         lpManager, awpAllocator, veAWP, treasury, guardian
     function getRegistry()
         external
         view
@@ -309,64 +311,50 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     {
         return (
             awpToken,
-            worknetNFT,
-            alphaTokenFactory,
+            awpWorkNet,
+            worknetTokenFactory,
             awpEmission,
             lpManager,
-            stakingVault,
-            stakeNFT,
+            awpAllocator,
+            veAWP,
             treasury,
             guardian
         );
     }
 
     // ═══════════════════════════════════════════════
-    //  Account V2: Registration
-    // ═══════════════════════════════════════════════
-
-    /// @notice Self-register: sets recipient to self and increments registeredCount
-
-    // ═══════════════════════════════════════════════
     //  Account V2: Binding (tree structure)
     // ═══════════════════════════════════════════════
 
-    /// @notice Bind msg.sender to target in the tree structure
-    /// @dev Anti-cycle: walk up from target, if we find msg.sender → cycle
-    /// @param target Address to bind to
+    /// @notice Bind msg.sender to target
     function bind(address target) external nonReentrant whenNotPaused {
-        if (target == address(0)) revert ZeroAddress();
-        if (target == msg.sender) revert SelfBind();
-        _checkCycle(msg.sender, target);
-        if (boundTo[msg.sender] == address(0) && recipient[msg.sender] == address(0)) {
-            registeredCount++;
-            emit UserRegistered(msg.sender);
-        }
-        boundTo[msg.sender] = target;
-        emit Bound(msg.sender, target);
+        _bind(msg.sender, target);
+    }
+
+    /// @notice Gasless bind: relayer pays gas, agent signs EIP-712
+    function bindFor(address agent, address target, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external nonReentrant whenNotPaused
+    {
+        _verifyDigest(agent, keccak256(abi.encode(BIND_TYPEHASH, agent, target, nonces[agent]++, deadline)), deadline, v, r, s);
+        _bind(agent, target);
     }
 
     /// @notice Unbind msg.sender from the tree
     function unbind() external nonReentrant whenNotPaused {
-        boundTo[msg.sender] = address(0);
-        emit Unbound(msg.sender);
+        _unbind(msg.sender);
     }
 
-    /// @notice Gasless bind: relayer pays gas, agent signs EIP-712
-    /// @param agent Agent address (signer)
-    /// @param target Address to bind to
-    /// @param deadline Signature expiry time
-    /// @param v EIP-712 signature v value
-    /// @param r EIP-712 signature r value
-    /// @param s EIP-712 signature s value
-    function bindFor(address agent, address target, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
-        external
-        nonReentrant
-        whenNotPaused
+    /// @notice Gasless unbind
+    function unbindFor(address user, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external nonReentrant whenNotPaused
     {
+        _verifyDigest(user, keccak256(abi.encode(UNBIND_TYPEHASH, user, nonces[user]++, deadline)), deadline, v, r, s);
+        _unbind(user);
+    }
+
+    function _bind(address agent, address target) internal {
         if (target == address(0)) revert ZeroAddress();
         if (target == agent) revert SelfBind();
-        _verifyDigest(agent, keccak256(abi.encode(BIND_TYPEHASH, agent, target, nonces[agent]++, deadline)), deadline, v, r, s);
-
         _checkCycle(agent, target);
         if (boundTo[agent] == address(0) && recipient[agent] == address(0)) {
             registeredCount++;
@@ -376,36 +364,41 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         emit Bound(agent, target);
     }
 
+    function _unbind(address user) internal {
+        boundTo[user] = address(0);
+        emit Unbound(user);
+    }
+
     // ═══════════════════════════════════════════════
     //  Account V2: Recipient
     // ═══════════════════════════════════════════════
 
-    /// @notice Set reward recipient for msg.sender
-    /// @param addr Recipient address
+    /// @notice Set reward recipient. Pass address(0) to clear (reverts to self as default).
     function setRecipient(address addr) external nonReentrant whenNotPaused {
-        if (addr == address(0)) revert ZeroAddress();
-        if (recipient[msg.sender] == address(0) && boundTo[msg.sender] == address(0)) {
-            registeredCount++;
-            emit UserRegistered(msg.sender);
-        }
-        recipient[msg.sender] = addr;
-        emit RecipientSet(msg.sender, addr);
+        _setRecipient(msg.sender, addr);
     }
 
-    /// @notice Gasless set recipient: relayer pays gas, user signs EIP-712
+    /// @notice Gasless set recipient. Pass address(0) to clear.
     function setRecipientFor(
         address user, address _recipient, uint256 deadline,
         uint8 v, bytes32 r, bytes32 s
     ) external nonReentrant whenNotPaused {
-        if (_recipient == address(0)) revert ZeroAddress();
         _verifyDigest(user, keccak256(abi.encode(SET_RECIPIENT_TYPEHASH, user, _recipient, nonces[user]++, deadline)), deadline, v, r, s);
+        _setRecipient(user, _recipient);
+    }
 
+    function _setRecipient(address user, address addr) internal {
+        if (addr == address(0)) {
+            recipient[user] = address(0);
+            emit RecipientSet(user, address(0));
+            return;
+        }
         if (recipient[user] == address(0) && boundTo[user] == address(0)) {
             registeredCount++;
             emit UserRegistered(user);
         }
-        recipient[user] = _recipient;
-        emit RecipientSet(user, _recipient);
+        recipient[user] = addr;
+        emit RecipientSet(user, addr);
     }
 
     /// @notice Resolve the reward recipient for an address by walking the binding tree to the root
@@ -449,58 +442,49 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     //  Account V2: Delegation
     // ═══════════════════════════════════════════════
 
-    /// @notice Grant delegate authorization to another address
-    /// @param delegate Address to authorize
+    /// @notice Grant delegate authorization
     function grantDelegate(address delegate) external whenNotPaused {
-        delegates[msg.sender][delegate] = true;
-        emit DelegateGranted(msg.sender, delegate);
+        _grantDelegate(msg.sender, delegate);
+    }
+
+    /// @notice Gasless grant delegate
+    function grantDelegateFor(address user, address delegate, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external whenNotPaused
+    {
+        _verifyDigest(user, keccak256(abi.encode(GRANT_DELEGATE_TYPEHASH, user, delegate, nonces[user]++, deadline)), deadline, v, r, s);
+        _grantDelegate(user, delegate);
     }
 
     /// @notice Revoke delegate authorization
-    /// @param delegate Address to de-authorize
     function revokeDelegate(address delegate) external whenNotPaused {
-        if (delegate == msg.sender) revert CannotRevokeSelf();
-        delegates[msg.sender][delegate] = false;
-        emit DelegateRevoked(msg.sender, delegate);
+        _revokeDelegate(msg.sender, delegate);
     }
 
-    /// @notice Gasless grant delegate: relayer pays gas, user signs EIP-712
-    function grantDelegateFor(
-        address user, address delegate, uint256 deadline,
-        uint8 v, bytes32 r, bytes32 s
-    ) external whenNotPaused {
-        _verifyDigest(user, keccak256(abi.encode(GRANT_DELEGATE_TYPEHASH, user, delegate, nonces[user]++, deadline)), deadline, v, r, s);
+    /// @notice Gasless revoke delegate
+    function revokeDelegateFor(address user, address delegate, uint256 deadline, uint8 v, bytes32 r, bytes32 s)
+        external whenNotPaused
+    {
+        _verifyDigest(user, keccak256(abi.encode(REVOKE_DELEGATE_TYPEHASH, user, delegate, nonces[user]++, deadline)), deadline, v, r, s);
+        _revokeDelegate(user, delegate);
+    }
+
+    function _grantDelegate(address user, address delegate) internal {
         delegates[user][delegate] = true;
         emit DelegateGranted(user, delegate);
     }
 
-    /// @notice Gasless revoke delegate: relayer pays gas, user signs EIP-712
-    function revokeDelegateFor(
-        address user, address delegate, uint256 deadline,
-        uint8 v, bytes32 r, bytes32 s
-    ) external whenNotPaused {
+    function _revokeDelegate(address user, address delegate) internal {
         if (delegate == user) revert CannotRevokeSelf();
-        _verifyDigest(user, keccak256(abi.encode(REVOKE_DELEGATE_TYPEHASH, user, delegate, nonces[user]++, deadline)), deadline, v, r, s);
         delegates[user][delegate] = false;
         emit DelegateRevoked(user, delegate);
-    }
-
-    /// @notice Gasless unbind: relayer pays gas, user signs EIP-712
-    function unbindFor(
-        address user, uint256 deadline,
-        uint8 v, bytes32 r, bytes32 s
-    ) external nonReentrant whenNotPaused {
-        _verifyDigest(user, keccak256(abi.encode(UNBIND_TYPEHASH, user, nonces[user]++, deadline)), deadline, v, r, s);
-        boundTo[user] = address(0);
-        emit Unbound(user);
     }
 
     // ═══════════════════════════════════════════════
     //  Worknet Registration
     // ═══════════════════════════════════════════════
 
-    /// @notice Register a new worknet: deploy Alpha token, create LP, mint NFT
-    /// @param params Worknet parameters (name, symbol, worknetManager, salt, minStake)
+    /// @notice Register a new worknet: escrow AWP and store params (Alpha deploy + NFT mint deferred to activateWorknet)
+    /// @param params Worknet parameters (name, symbol, worknetManager, salt, minStake, skillsURI)
     /// @return worknetId Newly created worknet ID
     function registerWorknet(WorknetParams calldata params) external nonReentrant whenNotPaused returns (uint256) {
         return _registerWorknet(msg.sender, params);
@@ -547,107 +531,110 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         _verifyDigest(user, keccak256(abi.encode(REGISTER_WORKNET_TYPEHASH, user, paramsStructHash, nonces[user]++, deadline)), deadline, v, r, s);
     }
 
-    /// @dev Internal: shared logic for registerWorknet and registerWorknetFor
+    /// @dev Internal: shared logic for registerWorknet and registerWorknetFor.
+    ///      Escrows AWP and stores registration params. No Alpha deploy, no NFT mint — deferred to activateWorknet.
     function _registerWorknet(address user, WorknetParams calldata params) internal returns (uint256) {
         if (bytes(params.name).length == 0 || bytes(params.name).length > 64) revert InvalidWorknetName();
         if (bytes(params.symbol).length == 0 || bytes(params.symbol).length > 16) revert InvalidWorknetSymbol();
-        // Reject characters that break on-chain JSON metadata in WorknetNFT.tokenURI
         _rejectJsonUnsafe(bytes(params.name));
         _rejectJsonUnsafe(bytes(params.symbol));
         if (bytes(params.skillsURI).length > 0) _rejectJsonUnsafe(bytes(params.skillsURI));
-        bool autoDeployWorknet = params.worknetManager == address(0);
-        if (autoDeployWorknet && defaultWorknetManagerImpl == address(0)) revert WorknetManagerRequired();
+        if (params.worknetManager == address(0) && defaultWorknetManagerImpl == address(0)) revert WorknetManagerRequired();
 
-        uint256 lpAWPAmount = initialAlphaMint * initialAlphaPrice / 1e18;
+        // Snapshot current price/mint, validate before external calls
+        uint256 alphaMint = initialAlphaMint;
+        uint256 lpAWPAmount = alphaMint * initialAlphaPrice / 1e18;
         if (lpAWPAmount == 0) revert ZeroLPAmount();
-        IERC20(awpToken).safeTransferFrom(user, lpManager, lpAWPAmount);
+        if (lpAWPAmount > type(uint128).max || alphaMint > type(uint128).max) revert AmountOverflow();
 
-        uint256 worknetId = (block.chainid << 64) | _nextLocalId++;
+        // Escrow AWP
+        IERC20(awpToken).safeTransferFrom(user, address(this), lpAWPAmount);
 
-        (address alphaToken, bytes32 poolId) = _deployAlphaAndLP(
-            worknetId, params.name, params.symbol, lpAWPAmount, params.salt
-        );
+        uint256 worknetId = block.chainid * CHAIN_ID_MULTIPLIER + _nextLocalId++;
 
-        address sc;
-        if (autoDeployWorknet) {
-            bytes memory initData = abi.encodeWithSignature(
-                "initialize(address,address,address,bytes32,address,bytes)",
-                address(this), alphaToken, awpToken, poolId, user, dexConfig
-            );
-            sc = address(new ERC1967Proxy(defaultWorknetManagerImpl, initData));
-        } else {
-            sc = params.worknetManager;
-        }
-
-        IAlphaToken(alphaToken).setWorknetMinter(sc);
-        IWorknetNFT(worknetNFT).mint(user, worknetId, params.name, sc, alphaToken, params.minStake, params.skillsURI);
+        // Store state — no Alpha deploy, no NFT mint (deferred to activateWorknet)
         worknets[worknetId] = WorknetInfo({
-            lpPool: poolId,
+            lpPool: bytes32(0),
             status: WorknetStatus.Pending,
             createdAt: uint64(block.timestamp),
             activatedAt: 0
         });
+        worknetEscrow[worknetId] = EscrowInfo(uint128(lpAWPAmount), uint128(alphaMint));
+        pendingWorknets[worknetId] = PendingParams({
+            name: params.name,
+            symbol: params.symbol,
+            worknetManager: params.worknetManager,
+            salt: params.salt,
+            minStake: params.minStake,
+            skillsURI: params.skillsURI,
+            owner: user
+        });
 
-        _emitWorknetRegistered(worknetId, user, sc, alphaToken, poolId, lpAWPAmount, params);
+        emit WorknetRegistered(worknetId, user, params.name, params.symbol);
         return worknetId;
-    }
-
-    /// @dev Deploy Alpha token + create LP (does NOT set worknet minter — caller must do that)
-    function _deployAlphaAndLP(
-        uint256 worknetId, string calldata name, string calldata symbol,
-        uint256 lpAWPAmount, bytes32 salt
-    ) internal returns (address alphaToken, bytes32 poolId) {
-        alphaToken = IAlphaTokenFactory(alphaTokenFactory).deploy(worknetId, name, symbol, address(this), salt);
-        IAlphaToken(alphaToken).mint(lpManager, initialAlphaMint);
-        (poolId,) = ILPManager(lpManager).createPoolAndAddLiquidity(alphaToken, lpAWPAmount, initialAlphaMint);
-    }
-
-    /// @dev Emit worknet registration events
-    function _emitWorknetRegistered(
-        uint256 worknetId, address user, address sc, address alphaToken, bytes32 poolId, uint256 lpAWPAmount, WorknetParams calldata params
-    ) internal {
-        emit WorknetRegistered(
-            worknetId, user,
-            params.name, params.symbol,
-            sc, alphaToken
-        );
-        emit LPCreated(worknetId, poolId, lpAWPAmount, initialAlphaMint);
     }
 
     // ═══════════════════════════════════════════════
     //  Worknet Lifecycle Management
     // ═══════════════════════════════════════════════
 
-    /// @notice Activate a worknet: Pending → Active (only the NFT Owner may call)
-    function activateWorknet(uint256 worknetId) external nonReentrant whenNotPaused {
-        if (IWorknetNFT(worknetNFT).ownerOf(worknetId) != msg.sender) revert NotOwner();
+    /// @notice Activate a worknet: Pending → Active (Guardian approval required)
+    function activateWorknet(uint256 worknetId) external nonReentrant whenNotPaused onlyGuardian {
         _activateWorknet(worknetId);
     }
 
-    /// @notice Gasless activate worknet: relayer pays gas, NFT owner signs EIP-712
-    function activateWorknetFor(
-        address user, uint256 worknetId, uint256 deadline,
-        uint8 v, bytes32 r, bytes32 s
-    ) external nonReentrant whenNotPaused {
-        _verifyDigest(user, keccak256(abi.encode(ACTIVATE_WORKNET_TYPEHASH, user, worknetId, nonces[user]++, deadline)), deadline, v, r, s);
-        if (IWorknetNFT(worknetNFT).ownerOf(worknetId) != user) revert NotOwner();
-        _activateWorknet(worknetId);
-    }
-
-    /// @dev Shared activation logic
+    /// @dev Shared activation logic: deploy Alpha → create LP → deploy WorknetManager → mint NFT
     function _activateWorknet(uint256 worknetId) internal {
         WorknetInfo storage info = worknets[worknetId];
         if (info.status != WorknetStatus.Pending) revert InvalidWorknetStatus(worknetId, uint8(info.status));
         if (activeWorknetIds.length() >= MAX_ACTIVE_WORKNETS) revert MaxActiveWorknetsReached();
+
+        EscrowInfo memory escrow = worknetEscrow[worknetId];
+        PendingParams memory pp = pendingWorknets[worknetId];
+
+        // 1. Deploy worknet token
+        address worknetToken = IWorknetTokenFactory(worknetTokenFactory).deploy(
+            worknetId, pp.name, pp.symbol, pp.salt
+        );
+
+        // 2. Transfer escrowed AWP to LPManager, mint worknet tokens, create LP pool
+        IERC20(awpToken).safeTransfer(lpManager, escrow.lpAWPAmount);
+        IWorknetToken(worknetToken).mint(lpManager, escrow.alphaMint);
+        (bytes32 poolId,) = ILPManager(lpManager).createPoolAndAddLiquidity(worknetToken, escrow.lpAWPAmount, escrow.alphaMint);
+
+        // 3. Deploy WorknetManager proxy if needed (CREATE2 with worknetId as salt)
+        address sc = pp.worknetManager;
+        if (sc == address(0)) {
+            bytes memory initData = abi.encodeWithSelector(WM_INIT_SELECTOR, worknetToken, poolId, pp.owner);
+            sc = address(new ERC1967Proxy{salt: bytes32(worknetId)}(defaultWorknetManagerImpl, initData));
+        }
+
+        // 4. Lock worknet token minter to WorknetManager
+        IWorknetToken(worknetToken).setMinter(sc);
+
+        // 5. Mint NFT with complete identity (all fields known at this point)
+        IAWPWorkNet(awpWorkNet).mint(
+            pp.owner, worknetId,
+            pp.name, pp.symbol,
+            sc, worknetToken, poolId,
+            pp.minStake, pp.skillsURI
+        );
+
+        // 6. Update state
+        info.lpPool = poolId;
         info.status = WorknetStatus.Active;
         info.activatedAt = uint64(block.timestamp);
         activeWorknetIds.add(worknetId);
+        delete worknetEscrow[worknetId];
+        delete pendingWorknets[worknetId];
+
+        emit LPCreated(worknetId, poolId, escrow.lpAWPAmount, escrow.alphaMint);
         emit WorknetActivated(worknetId);
     }
 
     /// @notice Pause a worknet: Active → Paused (only the NFT Owner may call)
     function pauseWorknet(uint256 worknetId) external nonReentrant whenNotPaused {
-        if (IWorknetNFT(worknetNFT).ownerOf(worknetId) != msg.sender) revert NotOwner();
+        if (IAWPWorkNet(awpWorkNet).ownerOf(worknetId) != msg.sender) revert NotOwner();
         WorknetInfo storage info = worknets[worknetId];
         if (info.status != WorknetStatus.Active) revert InvalidWorknetStatus(worknetId, uint8(info.status));
 
@@ -659,7 +646,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
 
     /// @notice Resume a worknet: Paused → Active (only the NFT Owner may call)
     function resumeWorknet(uint256 worknetId) external nonReentrant whenNotPaused {
-        if (IWorknetNFT(worknetNFT).ownerOf(worknetId) != msg.sender) revert NotOwner();
+        if (IAWPWorkNet(awpWorkNet).ownerOf(worknetId) != msg.sender) revert NotOwner();
         WorknetInfo storage info = worknets[worknetId];
         if (info.status != WorknetStatus.Paused) revert InvalidWorknetStatus(worknetId, uint8(info.status));
 
@@ -670,17 +657,43 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         emit WorknetResumed(worknetId);
     }
 
+    /// @notice Cancel a pending worknet: Pending → deleted (original registrant only, full AWP refund)
+    function cancelWorknet(uint256 worknetId) external nonReentrant whenNotPaused {
+        if (pendingWorknets[worknetId].owner != msg.sender) revert NotOwner();
+        _cancelPending(worknetId, msg.sender);
+        emit WorknetCancelled(worknetId);
+    }
+
+    /// @notice Reject a pending worknet: Pending → deleted (Guardian only, full AWP refund to registrant)
+    function rejectWorknet(uint256 worknetId) external nonReentrant onlyGuardian {
+        address owner = pendingWorknets[worknetId].owner;
+        if (owner == address(0)) revert InvalidWorknetStatus(worknetId, 0);
+        _cancelPending(worknetId, owner);
+        emit WorknetRejected(worknetId);
+    }
+
+    /// @dev Shared cancel/reject logic: refund escrowed AWP, delete state (no NFT to burn — NFT not yet minted)
+    function _cancelPending(uint256 worknetId, address refundTo) internal {
+        WorknetInfo storage info = worknets[worknetId];
+        if (info.status != WorknetStatus.Pending) revert InvalidWorknetStatus(worknetId, uint8(info.status));
+
+        uint256 refund = worknetEscrow[worknetId].lpAWPAmount;
+        delete worknetEscrow[worknetId];
+        delete pendingWorknets[worknetId];
+        delete worknets[worknetId];
+
+        if (refund > 0) {
+            IERC20(awpToken).safeTransfer(refundTo, refund);
+        }
+    }
+
     /// @notice Ban a worknet: Active/Paused → Banned (Guardian only)
-    function banWorknet(uint256 worknetId) external onlyGuardian {
+    function banWorknet(uint256 worknetId) external nonReentrant onlyGuardian {
         WorknetInfo storage info = worknets[worknetId];
         WorknetStatus status = info.status;
-        if (status != WorknetStatus.Active && status != WorknetStatus.Paused && status != WorknetStatus.Pending)
+        if (status != WorknetStatus.Active && status != WorknetStatus.Paused)
             revert InvalidWorknetStatus(worknetId, uint8(status));
 
-        IWorknetNFT.WorknetData memory sd = IWorknetNFT(worknetNFT).getWorknetData(worknetId);
-        if (sd.worknetManager != address(0)) {
-            IAlphaToken(sd.alphaToken).setMinterPaused(sd.worknetManager, true);
-        }
         if (status == WorknetStatus.Active) {
             activeWorknetIds.remove(worknetId);
         }
@@ -690,37 +703,15 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
     }
 
     /// @notice Unban a worknet: Banned → Active (Guardian only)
-    function unbanWorknet(uint256 worknetId) external onlyGuardian {
+    function unbanWorknet(uint256 worknetId) external nonReentrant onlyGuardian {
         WorknetInfo storage info = worknets[worknetId];
         if (info.status != WorknetStatus.Banned) revert InvalidWorknetStatus(worknetId, uint8(info.status));
 
-        IWorknetNFT.WorknetData memory sd = IWorknetNFT(worknetNFT).getWorknetData(worknetId);
-        if (sd.worknetManager != address(0)) {
-            IAlphaToken(sd.alphaToken).setMinterPaused(sd.worknetManager, false);
-        }
         if (activeWorknetIds.length() >= MAX_ACTIVE_WORKNETS) revert MaxActiveWorknetsReached();
         info.status = WorknetStatus.Active;
         activeWorknetIds.add(worknetId);
 
         emit WorknetUnbanned(worknetId);
-    }
-
-    /// @notice Deregister a worknet: permanently delete worknet data (Guardian only; immunity period must have elapsed)
-    /// @dev Accepts Banned or Pending status. Pending worknets can be deregistered directly (never activated).
-    function deregisterWorknet(uint256 worknetId) external onlyGuardian {
-        WorknetInfo storage info = worknets[worknetId];
-        WorknetStatus status = info.status;
-        if (status != WorknetStatus.Banned && status != WorknetStatus.Pending)
-            revert InvalidWorknetStatus(worknetId, uint8(status));
-        uint256 immunityStart = info.activatedAt > 0 ? uint256(info.activatedAt) : uint256(info.createdAt);
-        if (block.timestamp <= immunityStart + immunityPeriod) revert ImmunityNotExpired();
-
-        // Pending worknets were never activated — no minter to pause, no activeWorknetIds entry
-        // Banned worknets already had minter paused and removed from activeWorknetIds by banWorknet
-        delete worknets[worknetId];
-        IWorknetNFT(worknetNFT).burn(worknetId);
-
-        emit WorknetDeregistered(worknetId);
     }
 
     // ═══════════════════════════════════════════════
@@ -750,36 +741,11 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         emit GuardianUpdated(g);
     }
 
-    /// @notice Set the worknet deregistration immunity period (Guardian only)
-    function setImmunityPeriod(uint256 p) external onlyGuardian {
-        if (p < 7 days) revert ImmunityTooShort();
-        immunityPeriod = p;
-        emit ImmunityPeriodUpdated(p);
-    }
-
-    /// @notice Replace the AlphaToken factory (Guardian only)
-    function setAlphaTokenFactory(address factory) external onlyGuardian {
-        if (factory == address(0)) revert ZeroAddress();
-        alphaTokenFactory = factory;
-        emit AlphaTokenFactoryUpdated(factory);
-    }
-
     /// @notice Set the default worknet implementation (Guardian only)
     function setWorknetManagerImpl(address impl) external onlyGuardian {
         if (impl == address(0)) revert ZeroAddress();
         defaultWorknetManagerImpl = impl;
         emit DefaultWorknetManagerImplUpdated(impl);
-    }
-
-    /// @notice Update DEX configuration for future auto-deployed WorknetManagers (Guardian only)
-    function setDexConfig(bytes calldata dexConfig_) external onlyGuardian {
-        dexConfig = dexConfig_;
-        emit DexConfigUpdated();
-    }
-
-    /// @notice Set the base URI for WorknetNFT metadata (Guardian only)
-    function setWorknetBaseURI(string calldata baseURI) external onlyGuardian {
-        IWorknetNFT(worknetNFT).setBaseURI(baseURI);
     }
 
     // ═══════════════════════════════════════════════
@@ -806,7 +772,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         // Walk the binding tree to find the root
         address root = _resolveRoot(agent);
         bool isValid = boundTo[agent] != address(0) || recipient[agent] != address(0);
-        uint256 stake = IStakingVault(stakingVault).getAgentStake(root, agent, worknetId);
+        uint256 stake = IAWPAllocator(awpAllocator).getAgentStake(root, agent, worknetId);
         address recip = recipient[root] != address(0) ? recipient[root] : root;
         return AgentInfo(root, isValid, stake, recip);
     }
@@ -823,7 +789,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
             address root = _resolveRoot(agent);
             bool isValid = boundTo[agent] != address(0) || recipient[agent] != address(0);
             uint256 stake = isValid
-                ? IStakingVault(stakingVault).getAgentStake(root, agent, worknetId)
+                ? IAWPAllocator(awpAllocator).getAgentStake(root, agent, worknetId)
                 : 0;
             address recip = isValid
                 ? (recipient[root] != address(0) ? recipient[root] : root)
@@ -841,7 +807,7 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         if (ECDSA.recover(digest, v, r, s) != expectedSigner) revert InvalidSignature();
     }
 
-    /// @dev Reject strings containing " or \ (breaks on-chain JSON in WorknetNFT.tokenURI)
+    /// @dev Reject strings containing " or \ (breaks on-chain JSON in AWPWorkNet.tokenURI)
     function _rejectJsonUnsafe(bytes memory b) internal pure {
         for (uint256 i = 0; i < b.length;) {
             bytes1 c = b[i];
@@ -882,19 +848,40 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         return worknets[worknetId];
     }
 
-    /// @notice Get complete worknet info combining AWPRegistry state + WorknetNFT identity
+    /// @notice Get complete worknet info. For Pending worknets returns PendingParams; for Active+ returns NFT data.
     function getWorknetFull(uint256 worknetId) external view returns (WorknetFullInfo memory) {
         WorknetInfo storage info = worknets[worknetId];
-        IWorknetNFT.WorknetData memory nftData = IWorknetNFT(worknetNFT).getWorknetData(worknetId);
+        if (info.status == WorknetStatus.None) revert InvalidWorknetStatus(worknetId, 0);
 
+        if (info.status == WorknetStatus.Pending) {
+            // NFT not yet minted — return data from PendingParams
+            PendingParams storage pp = pendingWorknets[worknetId];
+            return WorknetFullInfo({
+                worknetManager: pp.worknetManager,
+                worknetToken: address(0),
+                lpPool: bytes32(0),
+                status: info.status,
+                createdAt: info.createdAt,
+                activatedAt: 0,
+                name: pp.name,
+                symbol: pp.symbol,
+                skillsURI: pp.skillsURI,
+                minStake: pp.minStake,
+                owner: pp.owner
+            });
+        }
+
+        // Active/Paused/Banned — read from NFT
+        IAWPWorkNet.WorknetData memory nftData = IAWPWorkNet(awpWorkNet).getWorknetData(worknetId);
         return WorknetFullInfo({
             worknetManager: nftData.worknetManager,
-            alphaToken: nftData.alphaToken,
+            worknetToken: nftData.worknetToken,
             lpPool: info.lpPool,
             status: info.status,
             createdAt: info.createdAt,
             activatedAt: info.activatedAt,
             name: nftData.name,
+            symbol: nftData.symbol,
             skillsURI: nftData.skillsURI,
             minStake: nftData.minStake,
             owner: nftData.owner
@@ -916,19 +903,19 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         return worknets[worknetId].status == WorknetStatus.Active;
     }
 
-    /// @notice Get the next worknet ID to be assigned (globally unique: chainId << 64 | localCounter)
+    /// @notice Get the next worknet ID to be assigned (globally unique: chainId * 1e8 + localCounter)
     function nextWorknetId() external view returns (uint256) {
-        return (block.chainid << 64) | _nextLocalId;
+        return block.chainid * CHAIN_ID_MULTIPLIER + _nextLocalId;
     }
 
     /// @notice Extract chainId from a global worknetId
     function extractChainId(uint256 worknetId) external pure returns (uint256) {
-        return worknetId >> 64;
+        return worknetId / CHAIN_ID_MULTIPLIER;
     }
 
     /// @notice Extract local counter from a global worknetId
     function extractLocalId(uint256 worknetId) external pure returns (uint256) {
-        return worknetId & ((1 << 64) - 1);
+        return worknetId % CHAIN_ID_MULTIPLIER;
     }
 
     // ═══════════════════════════════════════════════
@@ -945,11 +932,16 @@ contract AWPRegistry is Initializable, UUPSUpgradeable, PausableUpgradeable, Ree
         _unpause();
     }
 
-    /// @notice Update the LP manager address (Guardian only, for DEX migration)
-    function setLPManager(address lpManager_) external onlyGuardian {
-        if (lpManager_ == address(0)) revert ZeroAddress();
-        lpManager = lpManager_;
-        emit LPManagerUpdated(lpManager_);
+    // ═══════════════════════════════════════════════
+    //  Token rescue
+    // ═══════════════════════════════════════════════
+
+    error CannotRescueEscrowedToken();
+
+    /// @notice Rescue accidentally sent ERC20 tokens (Guardian only). Cannot rescue escrowed AWP.
+    function rescueToken(address token, address to, uint256 amount) external onlyGuardian {
+        if (token == awpToken) revert CannotRescueEscrowedToken();
+        IERC20(token).safeTransfer(to, amount);
     }
 
     /// @notice Get active worknet IDs with pagination
