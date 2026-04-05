@@ -5,8 +5,8 @@
 The account system is split across three contracts:
 
 - **AWPRegistry** (UUPS proxy, EIP-712 domain "AWPRegistry") — binding tree, recipient resolution, delegation
-- **StakeNFT** (ERC721, non-upgradeable) — AWP deposit/withdraw as position NFTs
-- **StakingVault** (UUPS proxy, EIP-712 domain "StakingVault") — allocation management
+- **veAWP** (ERC721, non-upgradeable) — AWP deposit/withdraw as position NFTs
+- **AWPAllocator** (UUPS proxy, EIP-712 domain "AWPAllocator") — allocation management
 
 Every address is implicitly a root (`boundTo == address(0)`). No mandatory registration. The first call to `bind()` or `setRecipient()` increments `registeredCount` and emits `UserRegistered`.
 
@@ -22,14 +22,14 @@ nonces[addr]                                    // uint256 — EIP-712 replay pr
 registeredCount                                 // uint256 — total registered users
 ```
 
-## StakeNFT Storage
+## veAWP Storage
 
 ```
 positions[tokenId]                              // Position { uint128 amount, uint64 lockEndTime, uint64 createdAt }
 _userTotalStaked[addr]                          // uint256 — O(1) total staked balance
 ```
 
-## StakingVault Storage
+## AWPAllocator Storage
 
 ```
 _allocations[staker][agent][worknetId]          // uint128 — allocation amount
@@ -85,7 +85,7 @@ resolveRecipient(addr):
 
 ## Delegation (AWPRegistry)
 
-Delegates can act on behalf of a staker for allocation operations on StakingVault. StakingVault reads `AWPRegistry.delegates(staker, caller)` cross-contract.
+Delegates can act on behalf of a staker for allocation operations on AWPAllocator. AWPAllocator reads `AWPRegistry.delegates(staker, caller)` cross-contract.
 
 **grantDelegate(delegate)**: `delegates[msg.sender][delegate] = true`.
 
@@ -98,11 +98,11 @@ Delegates can act on behalf of a staker for allocation operations on StakingVaul
 
 ---
 
-## Staking (StakeNFT)
+## Staking (veAWP)
 
 AWP staking uses position NFTs (ERC721, symbol "sAWP"). Each position has an amount, a lock end time, and a creation timestamp. Positions are transferable.
 
-**deposit(amount, lockDuration)**: Transfer AWP to StakeNFT contract. Mint a new NFT to `msg.sender`. Minimum lock duration: 1 day. Position struct: `{ uint128 amount, uint64 lockEndTime, uint64 createdAt }`. Increments `_userTotalStaked[msg.sender]`.
+**deposit(amount, lockDuration)**: Transfer AWP to veAWP contract. Mint a new NFT to `msg.sender`. Minimum lock duration: 1 day. Position struct: `{ uint128 amount, uint64 lockEndTime, uint64 createdAt }`. Increments `_userTotalStaked[msg.sender]`.
 
 **depositWithPermit(amount, lockDuration, deadline, v, r, s)**: Gasless deposit using ERC-2612 permit (no prior approve tx).
 
@@ -110,11 +110,11 @@ AWP staking uses position NFTs (ERC721, symbol "sAWP"). Each position has an amo
 
 **addToPosition(tokenId, amount, newLockEndTime)**: Add AWP to an existing position and/or extend the lock. Blocked if the position lock has expired (`PositionExpired`). Adding tokens resets `createdAt` to `block.timestamp` (prevents voting power manipulation). Lock can only be extended, never shortened (`LockCannotShorten`).
 
-**withdraw(tokenId)**: Burn NFT and return AWP to owner. Requires lock expired (`LockNotExpired`). Requires remaining `_userTotalStaked` covers `StakingVault.userTotalAllocated` (`InsufficientUnallocated`).
+**withdraw(tokenId)**: Burn NFT and return AWP to owner. Requires lock expired (`LockNotExpired`). Requires remaining `_userTotalStaked` covers `AWPAllocator.userTotalAllocated` (`InsufficientUnallocated`).
 
 ### Transfer Safety
 
-The `_update` hook maintains `_userTotalStaked` on every mint, burn, and transfer. On transfer, it verifies the sender's remaining staked amount still covers their allocations in StakingVault.
+The `_update` hook maintains `_userTotalStaked` on every mint, burn, and transfer. On transfer, it verifies the sender's remaining staked amount still covers their allocations in AWPAllocator.
 
 ### Voting Power
 
@@ -126,11 +126,11 @@ votingPower(tokenId) = amount * sqrt(min(remainingTime, 54 weeks) / 7 days)
 
 ---
 
-## Allocation (StakingVault)
+## Allocation (AWPAllocator)
 
-Allocation functions live on StakingVault (UUPS proxy, EIP-712 domain "StakingVault"). All operations are immediate (no cooldown).
+Allocation functions live on AWPAllocator (UUPS proxy, EIP-712 domain "AWPAllocator"). All operations are immediate (no cooldown).
 
-**allocate(staker, agent, worknetId, amount)**: Caller must be staker or an authorized delegate (reads `AWPRegistry.delegates` cross-contract). Checks available balance via `StakeNFT.getUserTotalStaked(staker) - userTotalAllocated[staker] >= amount`. Allocations stored as `uint128`. `worknetId == 0` is rejected (`ZeroWorknetId`). Cross-chain: worknetId from any chain is accepted (globally unique, no on-chain status check). Updates:
+**allocate(staker, agent, worknetId, amount)**: Caller must be staker or an authorized delegate (reads `AWPRegistry.delegates` cross-contract). Checks available balance via `veAWP.getUserTotalStaked(staker) - userTotalAllocated[staker] >= amount`. Allocations stored as `uint128`. `worknetId == 0` is rejected (`ZeroWorknetId`). Cross-chain: worknetId from any chain is accepted (globally unique, no on-chain status check). Updates:
 - `_allocations[staker][agent][worknetId] += amount`
 - `userTotalAllocated[staker] += amount`
 - `worknetTotalStake[worknetId] += amount`
@@ -168,7 +168,7 @@ DelegateGranted(address indexed staker, address indexed delegate)
 DelegateRevoked(address indexed staker, address indexed delegate)
 ```
 
-### StakeNFT
+### veAWP
 
 ```
 Deposited(address indexed user, uint256 indexed tokenId, uint256 amount, uint64 lockEndTime)
@@ -176,7 +176,7 @@ PositionIncreased(uint256 indexed tokenId, uint256 addedAmount, uint64 newLockEn
 Withdrawn(address indexed user, uint256 indexed tokenId, uint256 amount)
 ```
 
-### StakingVault
+### AWPAllocator
 
 ```
 Allocated(address indexed staker, address indexed agent, uint256 worknetId, uint256 amount, address operator)
@@ -191,6 +191,6 @@ Reallocated(address indexed staker, address fromAgent, uint256 fromWorknetId, ad
 | Contract     | Domain Name    | Version | Nonce Endpoint              |
 |-------------|----------------|---------|----------------------------|
 | AWPRegistry  | "AWPRegistry"  | "1"     | `nonces(address)` on AWPRegistry  |
-| StakingVault | "StakingVault" | "1"     | `nonces(address)` on StakingVault |
+| AWPAllocator | "AWPAllocator" | "1"     | `nonces(address)` on AWPAllocator |
 
 Each contract maintains its own independent nonce counter per signer.

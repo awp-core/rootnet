@@ -220,7 +220,12 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 
 		// ── registry ──
 		"registry.get": {fn: h.rpcRegistryGet, info: methodInfo{
-			Name: "registry.get", Description: "Get all contract addresses and EIP-712 domain info", Params: []paramInfo{},
+			Name: "registry.get", Description: "Get contract addresses and EIP-712 domain info for one chain (default chain if chainId omitted)", Params: []paramInfo{
+				{Name: "chainId", Type: "int64", Description: "Chain ID (optional, defaults to primary chain)"},
+			},
+		}},
+		"registry.list": {fn: h.rpcRegistryList, info: methodInfo{
+			Name: "registry.list", Description: "Get contract addresses for all configured chains (returns array)", Params: []paramInfo{},
 		}},
 
 		// ── health ──

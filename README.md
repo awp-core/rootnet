@@ -8,6 +8,8 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Base-0052FF?style=flat&logo=coinbase&logoColor=white" alt="Base">
+  <img src="https://img.shields.io/badge/Ethereum-3C3C3D?style=flat&logo=ethereum&logoColor=white" alt="Ethereum">
+  <img src="https://img.shields.io/badge/Arbitrum-28A0F0?style=flat&logo=arbitrum&logoColor=white" alt="Arbitrum">
   <img src="https://img.shields.io/badge/BNB_Chain-F0B90B?style=flat&logo=bnbchain&logoColor=white" alt="BNB Chain">
   <img src="https://img.shields.io/badge/Uniswap_V4-FF007A?style=flat&logo=uniswap&logoColor=white" alt="Uniswap V4">
   <img src="https://img.shields.io/badge/PancakeSwap_V4-1FC7D4?style=flat" alt="PancakeSwap V4">
@@ -16,58 +18,59 @@
   <img src="https://img.shields.io/badge/License-MIT-97CA00?style=flat" alt="MIT">
 </p>
 
-> **Testnet.** AWP is currently in testnet on Base mainnet. Multi-chain deployment (Base + BSC) is planned. Protocol parameters may change before the official mainnet launch.
+> **Mainnet.** AWP is deployed on Base, Ethereum, Arbitrum, and BSC. Protocol parameters may change via governance.
 
 ## Abstract
 
-AWP is a decentralized **Agent Working** protocol deployed on Base (Uniswap V4) and BNB Smart Chain (PancakeSwap V4). The protocol establishes a permissionless marketplace where autonomous AI agent networks (*subnets*) compete for protocol-level emission rewards through stake-weighted oracle consensus. Each subnet deploys an independent economy backed by a dedicated ERC-20 token (Alpha), with initial liquidity bootstrapped via Concentrated Liquidity DEX at registration time.
+AWP is a decentralized **Agent Working** protocol deployed on Base (Uniswap V4), Ethereum (Uniswap V4), Arbitrum (Uniswap V4), and BNB Smart Chain (PancakeSwap V4). The protocol establishes a permissionless marketplace where autonomous AI agent networks (*worknets*) compete for protocol-level emission rewards through stake-weighted Guardian consensus. Each worknet deploys an independent economy backed by a dedicated ERC-20 token (WorknetToken), with initial liquidity bootstrapped via Concentrated Liquidity DEX at registration time.
 
-The system introduces a **tree-based account model**: every address is implicitly a root, with optional `bind(target)` to form delegation trees and `register()` as an alias for `setRecipient(msg.sender)`. Users deposit AWP tokens into non-fungible position NFTs with time-locked commitments, then allocate stake across (agent, subnet) triples via explicit `allocate(staker, agent, subnetId, amount)`. An exponentially-decaying emission schedule distributes newly-minted AWP to subnet managers proportional to oracle-assigned governance weights, with a 50/50 split between subnet recipients and a DAO treasury governed by NFT-weighted quadratic voting.
+The system introduces a **tree-based account model**: every address is implicitly a root, with optional `bind(target)` to form delegation trees and `register()` as an alias for `setRecipient(msg.sender)`. Users deposit AWP tokens into non-fungible position NFTs (veAWP) with time-locked commitments, then allocate stake across (agent, worknet) triples via explicit `allocate(staker, agent, worknetId, amount)`. An exponentially-decaying emission schedule distributes newly-minted AWP to worknet managers proportional to Guardian-assigned governance weights, with 100% to recipients; Guardian includes treasury in recipients for DAO share, governed by NFT-weighted quadratic voting.
 
-Key design contributions include: (1) a gasless relay layer enabling device-bound agents to participate without holding native gas tokens; (2) an ERC-1363 `mintAndCall` emission pathway that auto-triggers configurable AWP handling strategies (reserve, single-sided liquidity provision, or buyback-and-burn) at the subnet manager level; (3) a tiered CREATE2 vanity address system with pre-mined salt pools for deterministic cross-chain deployment; and (4) a modular subnet architecture where a default `SubnetManager` proxy contract provides Merkle-based reward distribution, multi-role access control, and DEX integration out of the box, while advanced operators may deploy custom manager contracts.
+Key design contributions include: (1) a gasless relay layer enabling device-bound agents to participate without holding native gas tokens; (2) an ERC-1363 `mintAndCall` emission pathway that auto-triggers configurable AWP handling strategies (reserve, single-sided liquidity provision, or buyback-and-burn) at the worknet manager level; (3) a tiered CREATE2 vanity address system with pre-mined salt pools for deterministic cross-chain deployment; and (4) a modular worknet architecture where a default `WorknetManager` proxy contract provides Merkle-based reward distribution, multi-role access control, and DEX integration out of the box, while advanced operators may deploy custom manager contracts.
 
 The protocol consists of 11 Solidity contracts (Foundry, Solidity 0.8.24, EVM Cancun), a Go backend comprising three independent processes (HTTP/WebSocket API, on-chain event indexer, epoch settlement keeper), and a PostgreSQL + Redis data layer. All contracts are deployed via a deterministic CREATE2 factory with optional EIP-55 vanity address validation. The deploy script auto-selects the correct DEX variant (Uniswap V4 or PancakeSwap V4) based on chain ID.
 
-> **Note:** The AWP Emission mechanism (AWPEmission contract, oracle consensus, epoch settlement) is under active design and has not been finalized. All emission-related descriptions in this document are preliminary and subject to change.
+> **Note:** The AWP Emission mechanism (AWPEmission contract, Guardian consensus, epoch settlement) is under active design and has not been finalized. All emission-related descriptions in this document are preliminary and subject to change.
 
 ## Architecture
 
 ```
 User
- ├── AWPRegistry ─── bind / allocate / subnet lifecycle / delegation
- │    ├── StakeNFT ── ERC721 position NFTs (deposit AWP + lock)
- │    ├── StakingVault ── allocation bookkeeping (auto-enumerates agent subnets)
- │    ├── SubnetNFT ── subnet ownership NFTs
+ ├── AWPRegistry ─── bind / allocate / worknet lifecycle / delegation
+ │    ├── veAWP ── ERC721 position NFTs (deposit AWP + lock)
+ │    ├── AWPAllocator ── allocation bookkeeping (auto-enumerates agent worknets)
+ │    ├── AWPWorkNet ── worknet ownership NFTs
  │    └── LPManager / LPManagerUni ── DEX V4 CL liquidity (PancakeSwap / Uniswap)
  │
  ├── AWPEmission (UUPS proxy) ── epoch settlement + AWP minting
- │    └── Oracle multi-sig → submitAllocations → settleEpoch
+ │    └── Guardian multi-sig → submitAllocations → settleEpoch
  │
  ├── AWPDAO ── NFT-based voting (executable + signal proposals)
  │    └── Treasury (TimelockController) ── governance execution
  │
- └── AlphaTokenFactory ── CREATE2 per-subnet tokens with vanity addresses
+ └── WorknetTokenFactory ── CREATE2 per-worknet tokens with vanity addresses
 ```
 
 **11 contracts**, 3 Go backend processes (API / Indexer / Keeper), PostgreSQL, Redis.
 
 **Chain-agnostic DEX support:**
-- **Base / Ethereum** — Uniswap V4: `LPManagerUni` + `SubnetManagerUni` (auto-selected for chainId != 56/97)
-- **BSC** — PancakeSwap V4: `LPManager` + `SubnetManager` (auto-selected for chainId 56/97)
+- **Base / Ethereum / Arbitrum** — Uniswap V4: `LPManagerUni` + `WorknetManagerUni` (auto-selected for chainId != 56/97)
+- **BSC** — PancakeSwap V4: `LPManager` + `WorknetManager` (auto-selected for chainId 56/97)
 
 **Backend API** provides:
 - Read-only REST API + WebSocket real-time events
-- Gasless relay endpoints (`/api/relay/bind`, `/api/relay/set-recipient`, `/api/relay/register-subnet`, etc.) — EIP-712 signed, relayer pays gas
+- Gasless relay endpoints (`/api/relay/bind`, `/api/relay/set-recipient`, `/api/relay/register-worknet`, etc.) — EIP-712 signed, relayer pays gas
 - Vanity salt mining (`/api/vanity/compute-salt`) — uses Foundry `cast create2` for high-speed parallel mining
+
 
 ## Key Design
 
 - **Account System V2**: No mandatory registration — every address is implicitly a root. `register()` is optional (= `setRecipient(msg.sender)`). Tree-based binding via `bind(target)` with anti-cycle check. No address mutual exclusion. `grantDelegate(delegate)` / `revokeDelegate(delegate)` for delegation. `resolveRecipient(addr)` walks boundTo chain to root.
-- **Staking**: deposit AWP into StakeNFT (ERC721 positions with lock period). `allocate(staker, agent, subnetId, amount)` — staker is explicit parameter. Auto-enumeration of agent subnets — no caller-supplied subnet list needed for freeze.
+- **Staking**: deposit AWP into veAWP (ERC721 positions with lock period). `allocate(staker, agent, worknetId, amount)` — staker is explicit parameter. Auto-enumeration of agent worknets — no caller-supplied worknet list needed for freeze.
 - **Epoch**: time-based on AWPEmission (`(block.timestamp - genesisTime) / epochDuration`, 1 day).
-- **Emission**: exponential decay. 50% to subnets, 50% to DAO. Batch settlement via `settleEpoch(limit)`.
+- **Emission**: exponential decay. 100% to recipients; Guardian includes treasury in recipients for DAO share. Batch settlement via `settleEpoch(limit)`.
 - **Voting**: quadratic voting with time-weighted staking positions. Two proposal types: executable (Timelock) and signal (vote-only).
-- **Subnets**: registration deploys Alpha token (CREATE2 vanity address) + DEX V4 LP. Time-based mint cap on Alpha. Auto-deploys SubnetManager proxy if no custom manager provided.
+- **Worknets**: registration deploys WorknetToken (CREATE2 vanity address) + DEX V4 LP. Time-based mint cap on WorknetToken. Auto-deploys WorknetManager proxy if no custom manager provided.
 - **Chain-agnostic**: Deploy script auto-selects Uniswap V4 or PancakeSwap V4 contracts based on chain ID. PoolKey struct differences (5 fields vs 6 fields) handled transparently.
 
 ## Multi-Chain
@@ -76,14 +79,14 @@ AWP deploys identical contracts on multiple EVM chains using CREATE2 (same deplo
 
 **Supported chains:** Base, Ethereum, Arbitrum, BSC (configured in `chains.yaml`)
 
-**SubnetId encoding:** `(chainId << 64) | localCounter` — globally unique across all chains. Use `extractChainId(subnetId)` / `extractLocalId(subnetId)` to decode.
+**WorknetId encoding:** `(chainId << 64) | localCounter` — globally unique across all chains. Use `extractChainId(worknetId)` / `extractLocalId(worknetId)` to decode.
 
-**Cross-chain allocate:** Users stake AWP on one chain and can allocate to subnets on ANY chain. The StakingVault only checks local balance; subnet validity is verified off-chain by the oracle/indexer.
+**Cross-chain allocate:** Users stake AWP on one chain and can allocate to worknets on ANY chain. The AWPAllocator only checks local balance; worknet validity is verified off-chain by the Guardian/indexer.
 
 **Per-chain independence:**
 - Each chain has its own AWPToken, AWPEmission, AWPDAO, and Treasury
-- Emission quotas are coordinated by the oracle across chains
-- DAO voting power is aggregated off-chain from all chains' StakeNFT positions
+- Emission quotas are coordinated by the Guardian across chains
+- DAO voting power is aggregated off-chain from all chains' veAWP positions
 
 **Deploy to a new chain:**
 ```bash
@@ -97,45 +100,46 @@ AWP deploys identical contracts on multiple EVM chains using CREATE2 (same deplo
 ./scripts/deploy-multichain.sh --all
 ```
 
-## Live Testnet
+## Live Mainnet
 
 | | |
 |---|---|
-| **API** | `https://tapi.awp.sh/api` |
-| **WebSocket** | `wss://tapi.awp.sh/ws/live` |
-| **Chain** | Base Mainnet (chain ID 8453) |
+| **API** | `https://api.awp.sh/api` |
+| **WebSocket** | `wss://api.awp.sh/ws/live` |
+| **Chains** | Base (8453), Ethereum (1), Arbitrum (42161), BSC (56) |
 | **Explorer** | [basescan.org](https://basescan.org) |
 
 ### Deployed Contracts (Base Mainnet)
 
 | Contract | Address |
 |----------|---------|
-| AWPToken | [`0x0000d0e3...00a1`](https://basescan.org/address/0x0000d0e38e9c6ba147b0098bb42007b942ef00a1) |
-| AWPRegistry | [`0x00003a7f...00b1`](https://basescan.org/address/0x00003a7fa04c3af3adba2dc3c6622277501400b1) |
-| Treasury | [`0x9ee82684...d994`](https://basescan.org/address/0x9ee82684e4214edb405d930001e9058d1913d994) |
-| AlphaTokenFactory | [`0x3ebe3168...5164`](https://basescan.org/address/0x3ebe3168c898f4b05ebf0c0d17f4739e111e5164) |
-| SubnetNFT | [`0x0f86ec2f...1cda`](https://basescan.org/address/0x0f86ec2f2fbf234b00b18e66e7c5e00518091cda) |
-| LPManagerUni | [`0x2703d681...ebae`](https://basescan.org/address/0x2703d681ff3f7c4dc9eeed6f3ebaba3e82f8ebae) |
-| AWPEmission (proxy) | [`0xd31b6fed...f1cf`](https://basescan.org/address/0xd31b6fedf7e568091b7fcf3cb5aac86c3a0ef1cf) |
-| StakingVault | [`0x0367e9c2...6fca`](https://basescan.org/address/0x0367e9c2f79ab35dc65e6876405a747882296fca) |
-| StakeNFT | [`0x4f7e8d44...ce39`](https://basescan.org/address/0x4f7e8d4487c0c514b72ed0e35ed707cb8acdce39) |
-| SubnetManagerUni (impl) | [`0x56788237...e574`](https://basescan.org/address/0x567882378dcc11ec0d763fc5ca6c862487bbe574) |
-| AWPDAO | [`0x71712119...939a`](https://basescan.org/address/0x7171211da849a2c569643fb1e8f5399ddd71939a) |
+| AWPToken | [`0x0000A105...00A1`](https://basescan.org/address/0x0000A1050AcF9DEA8af9c2E74f0D7CF43f1000A1) |
+| AWPRegistry | [`0x0000F34E...001A`](https://basescan.org/address/0x0000F34Ed3594F54faABbCb2Ec45738DDD1c001A) |
+| Treasury | [`0x82562023...759e`](https://basescan.org/address/0x82562023a053025F3201785160CaE6051efD759e) |
+| WorknetTokenFactory | [`0x0000D499...FAC7`](https://basescan.org/address/0x0000D4996BDBb99c772e3fA9f0e94AB52AAFFAC7) |
+| AWPWorkNet | [`0x00000bfb...00A7`](https://basescan.org/address/0x00000bfbdEf8533E5F3228c9C846522D906100A7) |
+| LPManager | [`0x00001961...00A2`](https://basescan.org/address/0x00001961b9AcCD86b72DE19Be24FaD6f7c5b00A2) |
+| AWPEmission (proxy) | [`0x3C9cB73f...EaA9`](https://basescan.org/address/0x3C9cB73f8B81083882c5308Cce4F31f93600EaA9) |
+| AWPAllocator | [`0x0000D6BB...00AA`](https://basescan.org/address/0x0000D6BB5e040E35081b3AaF59DD71b21C9800AA) |
+| veAWP | [`0x0000b534...00A8`](https://basescan.org/address/0x0000b534C63D78212f1BDCc315165852793A00A8) |
+| WorknetManager (impl) | [`0x000011EE...00A9`](https://basescan.org/address/0x000011EE4117c52dC0Eb146cBC844cb155B200A9) |
+| AWPDAO | [`0x00006879...0DA0`](https://basescan.org/address/0x00006879f79f3Da189b5D0fF6e58ad0127Cc0DA0) |
+| Guardian | [`0x000002bE...00A3`](https://basescan.org/address/0x000002bEfa6A1C99A710862Feb6dB50525dF00A3) |
 
 ### Quick Start
 
 ```bash
 # Query contract addresses + chain ID
-curl https://tapi.awp.sh/api/registry
+curl https://api.awp.sh/api/registry
 
-# List subnets
-curl https://tapi.awp.sh/api/subnets
+# List worknets
+curl https://api.awp.sh/api/worknets
 
 # Get emission info
-curl https://tapi.awp.sh/api/emission/current
+curl https://api.awp.sh/api/emission/current
 
-# Compute a vanity salt for Alpha token
-curl -X POST https://tapi.awp.sh/api/vanity/compute-salt
+# Compute a vanity salt for WorknetToken
+curl -X POST https://api.awp.sh/api/vanity/compute-salt
 ```
 
 ## Deployment
@@ -190,7 +194,7 @@ The deploy script:
 1. Builds contracts
 2. Mines vanity salts (tiered, based on `VANITY_PREFIX_*` / `VANITY_SUFFIX_*` env vars)
 3. Deploys all 11 contracts via deterministic CREATE2
-4. Auto-selects `LPManagerUni` + `SubnetManagerUni` for non-BSC chains
+4. Auto-selects `LPManagerUni` + `WorknetManagerUni` for non-BSC chains
 5. Generates `api/.env` with all contract addresses
 
 ### Step 3: Verify Contracts (optional)
@@ -257,20 +261,22 @@ contracts/
     token/
       AWPToken.sol              # ERC20, 10B supply
       AWPEmission.sol           # UUPS proxy emission engine
-      AlphaToken.sol            # Per-subnet ERC20 (CREATE2)
-      AlphaTokenFactory.sol     # CREATE2 deployer + vanity rules
+      WorknetToken.sol          # Per-worknet ERC20 (CREATE2)
+      WorknetTokenFactory.sol   # CREATE2 deployer + vanity rules
     core/
-      StakeNFT.sol              # ERC721 staking positions
-      StakingVault.sol          # Allocation bookkeeping
-      SubnetNFT.sol             # Subnet ownership
+      veAWP.sol                 # ERC721 staking positions
+      AWPAllocator.sol          # Allocation bookkeeping
+      AWPWorkNet.sol            # Worknet ownership
       LPManager.sol             # PancakeSwap V4 CL (BSC)
-      LPManagerUni.sol          # Uniswap V4 CL (Base, Ethereum)
+      LPManagerBase.sol         # Shared LP logic
+      LPManagerUni.sol          # Uniswap V4 CL (Base, Ethereum, Arbitrum)
     governance/
       AWPDAO.sol                # NFT-based voting
       Treasury.sol              # TimelockController
-    subnets/
-      SubnetManager.sol         # Default subnet contract — PancakeSwap V4 (BSC)
-      SubnetManagerUni.sol      # Default subnet contract — Uniswap V4 (Base, Ethereum)
+    worknets/
+      WorknetManager.sol        # Default worknet contract — PancakeSwap V4 (BSC)
+      WorknetManagerBase.sol    # Shared worknet manager logic
+      WorknetManagerUni.sol     # Default worknet contract — Uniswap V4 (Base, Ethereum, Arbitrum)
   test/                         # 234 tests
   script/                       # Deploy.s.sol, InitCodeHashes.s.sol
 
@@ -288,7 +294,7 @@ docs/
   architecture.md               # Full technical architecture
   api-reference.md              # Contract + REST + WebSocket API reference
   deployment-guide.md           # Deploy + operations guide
-  subnet-developer-guide.md     # For subnet developers
+  subnet-developer-guide.md     # For worknet developers
 
 skills-dev/
   contract-api.md               # Contract API quick reference
@@ -311,12 +317,12 @@ scripts/
 | System | `GET /api/health`, `/api/registry` | Health check, all contract addresses + chainId |
 | Users | `GET /api/users/*` | User list, detail, count |
 | Address | `GET /api/address/{address}/check` | Registration status (`isRegistered`, `boundTo`, `recipient`) |
-| Staking | `GET /api/staking/*` | Balances, positions, allocations, subnet totals |
-| Subnets | `GET /api/subnets/*` | Subnet list/detail/skills/earnings (includes `subnet_contract` + `alpha_token`) |
+| Staking | `GET /api/staking/*` | Balances, positions, allocations, worknet totals |
+| Worknets | `GET /api/worknets/*` | Worknet list/detail/skills/earnings (includes `worknet_contract` + `worknet_token`) |
 | Emission | `GET /api/emission/*` | Current epoch, schedule, history |
-| Tokens | `GET /api/tokens/*` | AWP info, Alpha token info/price |
+| Tokens | `GET /api/tokens/*` | AWP info, WorknetToken info/price |
 | Governance | `GET /api/governance/*` | Proposals, treasury |
-| Relay | `POST /api/relay/*` | Gasless EIP-712: bind, set-recipient, register, allocate, deallocate, activate-subnet, register-subnet |
+| Relay | `POST /api/relay/*` | Gasless EIP-712: bind, set-recipient, register, allocate, deallocate, activate-worknet, register-worknet |
 | Vanity | `GET/POST /api/vanity/*` | Mining params, salt pool, compute-salt, upload-salts |
 | WebSocket | `WS /ws/live` | Real-time on-chain events |
 
@@ -327,14 +333,14 @@ scripts/
 | Contracts | Solidity 0.8.24, Foundry, OpenZeppelin 5.x |
 | Backend | Go 1.26, Chi v5, sqlc + pgx/v5, PostgreSQL, Redis |
 | Frontend | Next.js 14, Tailwind, wagmi/viem |
-| Chain | Base (Uniswap V4), BSC (PancakeSwap V4) |
+| Chain | Base (Uniswap V4), Ethereum (Uniswap V4), Arbitrum (Uniswap V4), BSC (PancakeSwap V4) |
 
 ## Documentation
 
 - [Architecture](docs/architecture.md) — Full technical design
 - [API Reference](docs/api-reference.md) — Contract + REST + WebSocket
 - [Deployment Guide](docs/deployment-guide.md) — Deploy + operations
-- [Subnet Developer Guide](docs/subnet-developer-guide.md) — For subnet builders
+- [Worknet Developer Guide](docs/subnet-developer-guide.md) — For worknet builders
 - [Agent Skill Guide](skills-dev/agent-skill-guide.md) — Skill discovery + install
 
 ## License

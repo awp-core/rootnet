@@ -21,40 +21,42 @@ awp-registry/
 │   │   ├── AWPRegistry.sol                    # Main contract: unified entry + worknet management + account system (UUPS proxy)
 │   │   ├── token/
 │   │   │   ├── AWPToken.sol                   # ERC20Votes + minter (10B)
-│   │   │   ├── AlphaToken.sol                 # Dual minter (10B/worknet)
-│   │   │   ├── AlphaTokenFactory.sol          # CREATE2 full deployment (no Clones)
+│   │   │   ├── WorknetToken.sol                # Dual minter (10B/worknet)
+│   │   │   ├── WorknetTokenFactory.sol        # CREATE2 full deployment (no Clones)
 │   │   │   └── AWPEmission.sol                # UUPS proxy: Guardian-only emission engine
 │   │   ├── core/
-│   │   │   ├── WorknetNFT.sol                 # ERC721 with on-chain identity storage
-│   │   │   ├── StakingVault.sol               # UUPS proxy + EIP-712 gasless allocation
-│   │   │   ├── StakeNFT.sol                   # ERC721 position NFT (deposit/withdraw AWP)
+│   │   │   ├── AWPWorkNet.sol                 # ERC721 with on-chain identity storage
+│   │   │   ├── AWPAllocator.sol               # UUPS proxy + EIP-712 gasless allocation
+│   │   │   ├── veAWP.sol                      # ERC721 position NFT (deposit/withdraw AWP)
+│   │   │   ├── LPManagerBase.sol              # Base LP manager
 │   │   │   └── LPManager.sol                  # Uniswap V4 / PancakeSwap V4 LP
 │   │   ├── worknets/
+│   │   │   ├── WorknetManagerBase.sol         # Base worknet manager
 │   │   │   └── WorknetManager.sol             # Default worknet contract (UUPS, behind ERC1967Proxy)
 │   │   ├── governance/
-│   │   │   ├── AWPDAO.sol                     # OZ Governor + StakeNFT-based voting
+│   │   │   ├── AWPDAO.sol                     # OZ Governor + veAWP-based voting
 │   │   │   └── Treasury.sol                   # OZ TimelockController
 │   │   └── interfaces/
 │   │       ├── IAWPRegistry.sol
 │   │       ├── IAWPToken.sol
-│   │       ├── IAlphaToken.sol
+│   │       ├── IWorknetToken.sol
 │   │       ├── IAWPEmission.sol
-│   │       ├── IWorknetNFT.sol
-│   │       ├── IStakingVault.sol
-│   │       ├── IStakeNFT.sol
+│   │       ├── IAWPWorkNet.sol
+│   │       ├── IAWPAllocator.sol
+│   │       ├── IveAWP.sol
 │   │       ├── ILPManager.sol
-│   │       └── IAlphaTokenFactory.sol
+│   │       └── IWorknetTokenFactory.sol
 │   ├── test/
 │   │   ├── AWPEmission.t.sol
-│   │   ├── AlphaTokenFactory.t.sol
+│   │   ├── WorknetTokenFactory.t.sol
 │   │   ├── AWPRegistry.t.sol
 │   │   ├── AWPRegistryExtended.t.sol
 │   │   ├── AWPDAOExtended.t.sol
 │   │   ├── AWPDAO.t.sol
-│   │   ├── WorknetNFT.t.sol
+│   │   ├── AWPWorkNet.t.sol
 │   │   ├── WorknetManager.t.sol
-│   │   ├── StakingVault.t.sol
-│   │   ├── StakingVaultExtended.t.sol
+│   │   ├── AWPAllocator.t.sol
+│   │   ├── AWPAllocatorExtended.t.sol
 │   │   ├── Integration.t.sol
 │   │   ├── E2E.t.sol
 │   │   ├── MultiChainE2E.t.sol
@@ -80,7 +82,7 @@ awp-registry/
 │   │   │   │   ├── user.go
 │   │   │   │   ├── agent.go
 │   │   │   │   ├── staking.go
-│   │   │   │   ├── subnet.go
+│   │   │   │   ├── worknet.go
 │   │   │   │   ├── emission.go
 │   │   │   │   ├── token.go
 │   │   │   │   ├── governance.go
@@ -135,27 +137,26 @@ awp-registry/
               ┌─────────────┘  │  │  └──────────┐
               ▼                ▼  ▼              ▼
         ┌────────┐   ┌──────────┐ ┌──────────┐ ┌──────────┐
-        │Worknet │   │ Staking  │ │ LP       │ │ AWP      │
-        │ NFT    │   │ Vault    │ │ Manager  │ │ Emission │
+        │AWP     │   │ AWP      │ │ LP       │ │ AWP      │
+        │WorkNet │   │Allocator │ │ Manager  │ │ Emission │
         └────────┘   │(UUPS+712)│ └──────────┘ │(UUPS)    │
                      └──────────┘       │       └──────────┘
         ┌────────┐        │        V4 DEX          │
         │Worknet │   ┌────▼───┐                mint AWP
-        │Manager │   │ Stake  │
-        │(UUPS)  │   │ NFT    │
-        └────────┘   └────────┘
-                    deposit/withdraw AWP
+        │Manager │   │ veAWP  │
+        │(UUPS)  │   └────────┘
+        └────────┘  deposit/withdraw AWP
 
-Contracts: 11 (AWPRegistry, AWPEmission, StakingVault, WorknetNFT, WorknetManager,
-               StakeNFT, LPManager, AlphaTokenFactory, AWPToken, AlphaToken, AWPDAO+Treasury)
+Contracts: 11 (AWPRegistry, AWPEmission, AWPAllocator, AWPWorkNet, WorknetManager,
+               veAWP, LPManager, WorknetTokenFactory, AWPToken, WorknetToken, AWPDAO+Treasury)
 
 Key design:
   - AWPEmission is a generic address->weight distribution engine (no worknet awareness)
-  - Guardian (Safe multisig) submits weights directly; no Oracle multi-sig, no Timelock dependency for emission
+  - Guardian (Safe multisig) submits weights directly; no Guardian multi-sig signatures, no Guardian dependency for emission
   - 100% of epoch emission goes to Guardian-submitted recipients (Guardian includes treasury for DAO share)
   - settleEpoch() callable by anyone (Keeper calls it); 3-phase batched settlement
-  - All UUPS upgrades controlled by Guardian (not Timelock)
-  - Allocation functions live on StakingVault (not AWPRegistry)
+  - All UUPS upgrades controlled by Guardian
+  - Allocation functions live on AWPAllocator (not AWPRegistry)
   - WorknetId globally unique: (block.chainid << 64) | localCounter
 ```
 
@@ -163,13 +164,13 @@ Key design:
 
 ```
 AWPToken            -> ERC20, ERC20Permit, ERC20Votes, ERC20Burnable, IERC1363
-AlphaToken          -> ERC20, ERC20Permit, ERC20Burnable (standalone CREATE2 deployment)
-AlphaTokenFactory   -> Ownable (CREATE2 full deployment, no Clones)
+WorknetToken        -> ERC20, ERC20Permit, ERC20Burnable (standalone CREATE2 deployment)
+WorknetTokenFactory -> Ownable (CREATE2 full deployment, no Clones)
 AWPEmission         -> Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable (no EIP712)
 AWPRegistry         -> Initializable, UUPSUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable
-WorknetNFT          -> ERC721
-StakingVault        -> Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable, EnumerableSet
-StakeNFT            -> ERC721, ReentrancyGuard
+AWPWorkNet          -> ERC721
+AWPAllocator        -> Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable, EnumerableSet
+veAWP               -> ERC721, ReentrancyGuard
 WorknetManager      -> Initializable, UUPSUpgradeable, AccessControlUpgradeable, ReentrancyGuardUpgradeable, IERC1363Receiver
 AWPDAO              -> Governor, GovernorSettings, GovernorTimelockControl
 Treasury            -> TimelockController
@@ -182,15 +183,14 @@ Account System V2 (no mandatory registration):
   Every address:   Implicitly a root; can bind(target) to form delegation trees
   register():      Removed from AWPRegistry
   Delegates:       grantDelegate(delegate) / revokeDelegate(delegate) for staking operations
-  Staker:          allocate/deallocate/reallocate on StakingVault -- staker is explicit parameter
+  Staker:          allocate/deallocate/reallocate on AWPAllocator -- staker is explicit parameter
 
 Inter-contract Permissions:
-  onlyAWPRegistry   -> WorknetNFT / LPManager
-  onlyGuardian      -> AWPRegistry (pause, setGuardian, UUPS upgrade)
+  onlyAWPRegistry   -> AWPWorkNet / LPManager
+  onlyGuardian      -> AWPRegistry (pause, setGuardian, UUPS upgrade, admin functions: setInitialAlphaPrice, ban/unban/deregister, unpause)
                     -> AWPEmission (submitAllocations, config, setGuardian, UUPS upgrade)
-                    -> StakingVault (UUPS upgrade)
-  onlyTimelock      -> AWPRegistry admin functions (setInitialAlphaPrice, setImmunityPeriod, ban/unban/deregister)
-  staker or delegate -> StakingVault (allocate, deallocate, reallocate)
+                    -> AWPAllocator (UUPS upgrade)
+  staker or delegate -> AWPAllocator (allocate, deallocate, reallocate)
 
 Guardian = Safe multisig 0x000002bEfa6A1C99A710862Feb6dB50525dF00A3 (3/5 threshold)
 ```
@@ -264,7 +264,7 @@ mintAndCall(address to, uint256 amount, bytes data) external
 Deployer is never a minter; only receives INITIAL_MINT in constructor for distribution via transfer.
 ```
 
-### 4.2 AlphaToken.sol -- Dual Minter + Callback + Burnable
+### 4.2 WorknetToken.sol -- Dual Minter + Callback + Burnable
 
 ```
 Inherits: ERC20, ERC20Permit, ERC20Burnable
@@ -293,11 +293,11 @@ Key functions:
     -> require(msg.sender == admin)              // For ban/unban
 ```
 
-### 4.3 AlphaTokenFactory.sol
+### 4.3 WorknetTokenFactory.sol
 
 ```
 Inherits: Ownable
-CREATE2 full deployment (no Clones / EIP-1167 proxy). Each AlphaToken is standalone.
+CREATE2 full deployment (no Clones / EIP-1167 proxy). Each WorknetToken is standalone.
 
 Storage:
   rootNet: address          // set once via setAddresses
@@ -316,7 +316,7 @@ Vanity rule encoding (8 positions packed into uint64):
 
 deploy(worknetId, name, symbol, admin, salt) -> require(msg.sender == awpRegistry)
   -> effectiveSalt = (salt == bytes32(0)) ? bytes32(worknetId) : salt
-  -> new AlphaToken{salt: effectiveSalt}()
+  -> new WorknetToken{salt: effectiveSalt}()
   -> if (vanityRule != 0): _validateVanityAddress(address(token))
 ```
 
@@ -326,7 +326,7 @@ deploy(worknetId, name, symbol, admin, salt) -> require(msg.sender == awpRegistr
 Purpose: UUPS upgradeable proxy. Generic address->weight distribution engine.
          Guardian (cross-chain Safe multisig) submits epoch-versioned packed allocations.
          settleEpoch(limit) batch-mints AWP with exponential decay.
-         No Oracle signatures. No EIP-712 inheritance. No Timelock dependency.
+         No Oracle signatures. No EIP-712 inheritance. No Guardian dependency.
          100% emission to recipients; Guardian includes treasury in recipients for DAO share.
 Inherits: Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
@@ -418,11 +418,11 @@ Events:
   DecayFactorUpdated(uint256 newDecayFactor)
 
 Removed from V2/V1:
-  Oracle multi-sig, EIP-712 signatures, emissionSplitBps, emergencySetWeight, daoShare,
+  Guardian multi-sig signatures, EIP-712 signatures, emissionSplitBps, emergencySetWeight, daoShare,
   setOracleConfig, DAOMatchDistributed, GovernanceWeightUpdated
 ```
 
-### 4.5 WorknetNFT.sol -- ERC721 with On-Chain Identity
+### 4.5 AWPWorkNet.sol -- ERC721 with On-Chain Identity
 
 ```
 Inherits: ERC721
@@ -432,7 +432,7 @@ Storage:
   struct WorknetIdentity {
     string name;              // Worknet / Alpha token name
     address worknetManager;   // Worknet contract address
-    address alphaToken;       // Alpha token address
+    address worknetToken;     // Worknet token address
   }
   struct WorknetMeta {
     string skillsURI;         // Skills file URI
@@ -443,7 +443,7 @@ Storage:
   tokenId = worknetId (globally unique: (block.chainid << 64) | localCounter)
 
 Functions:
-  mint(to, tokenId, name, worknetManager, alphaToken, skillsURI, minStake) onlyAWPRegistry
+  mint(to, tokenId, name, worknetManager, worknetToken, skillsURI, minStake) onlyAWPRegistry
   burn(tokenId) onlyAWPRegistry
   setSkillsURI(tokenId, uri) -> onlyOwner; emit SkillsURIUpdated
   setMinStake(tokenId, minStake) -> onlyOwner; emit MinStakeUpdated
@@ -451,14 +451,14 @@ Functions:
   setBaseURI(string uri) onlyAWPRegistry
 
   tokenURI 3-tier: per-token metadataURI -> global baseURI -> on-chain Base64 JSON
-  Lifecycle status managed by AWPRegistry, not WorknetNFT.
+  Lifecycle status managed by AWPRegistry, not AWPWorkNet.
 ```
 
-### 4.6 StakingVault.sol -- UUPS Proxy with EIP-712 Gasless Support
+### 4.6 AWPAllocator.sol -- UUPS Proxy with EIP-712 Gasless Support
 
 ```
 Inherits: Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable
-EIP-712 domain name: "StakingVault"
+EIP-712 domain name: "AWPAllocator"
 
 Core Design:
   -> UUPS proxy with gasless support (allocateFor, deallocateFor)
@@ -473,7 +473,7 @@ Core Design:
 Storage:
   awpRegistry: address
   guardian: address                                     // upgrade auth
-  stakeNFT: address                                     // for balance checks
+  veAWP: address                                        // for balance checks
   _allocations: mapping(address => mapping(address => mapping(uint256 => uint128)))
   _agentWorknets: mapping(address => mapping(address => EnumerableSet.UintSet))
   userTotalAllocated: mapping(address => uint256)
@@ -486,14 +486,14 @@ Functions:
   reallocate(staker, fromAgent, fromWorknetId, toAgent, toWorknetId, amount)
   allocateFor(staker, agent, worknetId, amount, deadline, v, r, s)    // gasless EIP-712
   deallocateFor(staker, agent, worknetId, amount, deadline, v, r, s)  // gasless EIP-712
-  getUnallocated(user) view -> stakeNFT.totalStakedOf(user) - userTotalAllocated[user]
+  getUnallocated(user) view -> veAWP.totalStakedOf(user) - userTotalAllocated[user]
 
   _authorizeUpgrade(address) -> onlyGuardian
 
 Note: freezeAgentAllocations has been removed.
 ```
 
-### 4.7 StakeNFT.sol -- ERC721 Position NFT
+### 4.7 veAWP.sol -- ERC721 Position NFT
 
 ```
 Inherits: ERC721, ReentrancyGuard
@@ -522,11 +522,11 @@ Functions:
 modifier onlyAWPRegistry()
 
 Functions:
-  createPoolAndAddLiquidity(alphaToken, awpAmount, alphaAmount)
+  createPoolAndAddLiquidity(worknetToken, awpAmount, worknetTokenAmount)
     -> Create V4 pool + initialize price + full-range two-sided LP
     -> LP NFT stays in LPManager (permanently locked)
     -> return (pool, lpTokenId)
-  compoundFees(alphaToken)
+  compoundFees(worknetToken)
     -> Reinvests accumulated LP fees (called by Keeper cron)
 
 No removeLiquidity. LP permanently locked.
@@ -543,8 +543,8 @@ EIP-712 domain name: "AWPRegistry"
 
 Storage:
   // Address registry
-  awpToken, worknetNFT, alphaTokenFactory, awpEmission, lpManager,
-  stakingVault, stakeNFT, treasury, guardian: address
+  awpToken, awpWorkNet, worknetTokenFactory, awpEmission, lpManager,
+  awpAllocator, veAWP, treasury, guardian: address
   defaultWorknetManagerImpl: address
   dexConfig: bytes
 
@@ -604,26 +604,25 @@ Functions:
     -> AWP transferFrom(user -> LPManager)
     -> Alpha mint(LPManager)
     -> LPManager.createPoolAndAddLiquidity()
-    -> AlphaToken.setWorknetMinter(worknetManager)
-    -> WorknetNFT.mint(owner, worknetId, name, worknetManager, alphaToken, skillsURI, minStake)
+    -> WorknetToken.setWorknetMinter(worknetManager)
+    -> AWPWorkNet.mint(owner, worknetId, name, worknetManager, worknetToken, skillsURI, minStake)
     -> Store WorknetInfo (lifecycle state only)
 
   // Worknet Lifecycle
   activateWorknet(worknetId) external          // owner, Pending -> Active
   pauseWorknet(worknetId) external             // owner, Active -> Paused
   resumeWorknet(worknetId) external            // owner, Paused -> Active
-  banWorknet(worknetId) external onlyTimelock  // Active|Paused -> Banned (pauses minter)
-  unbanWorknet(worknetId) external onlyTimelock // Banned -> Active (checks MAX_ACTIVE_WORKNETS)
-  deregisterWorknet(worknetId) external onlyTimelock // After immunity period
+  banWorknet(worknetId) external onlyGuardian   // Active|Paused -> Banned (pauses minter)
+  unbanWorknet(worknetId) external onlyGuardian  // Banned -> Active (checks MAX_ACTIVE_WORKNETS)
+  deregisterWorknet(worknetId) external onlyGuardian
 
-  // Admin (onlyTimelock)
-  setInitialAlphaPrice(uint256) external onlyTimelock
-  setImmunityPeriod(uint256) external onlyTimelock
+  // Admin (onlyGuardian)
+  setInitialAlphaPrice(uint256) external onlyGuardian
 
   // Guardian
   setGuardian(address g) external onlyGuardian
   pause() external onlyGuardian
-  unpause() external onlyTimelock
+  unpause() external onlyGuardian
 
   _authorizeUpgrade(address) -> onlyGuardian
 
@@ -657,9 +656,9 @@ Merkle claim: users prove inclusion -> Alpha minted to user
 
 ```
 AWPDAO: OZ Governor + GovernorSettings + GovernorTimelockControl
-  Overrides _getVotes and _countVote for StakeNFT-based voting.
+  Overrides _getVotes and _countVote for veAWP-based voting.
   No awpRegistry dependency. No delegate/checkpoint mechanism.
-  -> Voters submit tokenId[] arrays (StakeNFT position NFTs)
+  -> Voters submit tokenId[] arrays (veAWP position NFTs)
   -> Voting power = amount * sqrt(min(remainingTime, 54 weeks) / 7 days)
   -> Anti-manipulation: only NFTs with createdAt < proposalCreatedAt (strict: >= blocks same-block)
   -> Per-tokenId double-vote prevention
@@ -702,21 +701,21 @@ Vanity addresses: contracts/.env defines VANITY_PREFIX_*/VANITY_SUFFIX_* for key
 
 ```
 1.  AWPToken(name, symbol, deployer, initialMint)
-2.  AlphaTokenFactory(deployer, vanityRule)
+2.  WorknetTokenFactory(deployer, vanityRule)
 3.  Treasury(delay, [], [address(0)], deployer)
 4.  AWPRegistry impl -> ERC1967Proxy(impl, initialize(deployer, treasury, guardian))
-5.  WorknetNFT("AWP Worknet", "AWPWN", awpRegistry)
+5.  AWPWorkNet("AWP Worknet", "AWPWN", awpRegistry)
 6.  LPManager(awpRegistry, poolManager, positionManager, awpToken)
 7.  AWPEmission impl -> ERC1967Proxy(impl, initialize(awpToken, guardian, initialDailyEmission, genesisTime, epochDuration, treasury))
-8.  StakingVault impl -> ERC1967Proxy(impl, initialize(awpRegistry, treasury))
-9.  StakeNFT(awpToken, stakingVault, awpRegistry)
+8.  AWPAllocator impl -> ERC1967Proxy(impl, initialize(awpRegistry, treasury))
+9.  veAWP(awpToken, awpAllocator, awpRegistry)
 10. WorknetManager impl
-11. AWPDAO(stakeNFT, treasury, ...) -- 6 params, no awpRegistry
+11. AWPDAO(veAWP, treasury, ...) -- 6 params, no awpRegistry
 12. Treasury.grantRole(PROPOSER+CANCELLER, awpDAO)
 13. Treasury.renounceRole(ADMIN, deployer)
 14. AWPToken.addMinter(awpEmissionProxy)
 15. AWPToken.renounceAdmin()                    // Permanently lock minter list
-16. AlphaTokenFactory.setAddresses(awpRegistry)
+16. WorknetTokenFactory.setAddresses(awpRegistry)
 17. AWPRegistry.initializeRegistry(9 params: 8 addresses + dexConfig bytes)
 18. AWP transfer distribution (treasury, liquidity, airdrop)
 
@@ -822,7 +821,7 @@ Inter-process communication:
   GET  /address/{address}/resolve-recipient
   POST /address/batch-resolve-recipients
   GET  /nonce/{address}                 # AWPRegistry EIP-712 nonce
-  GET  /staking-nonce/{address}         # StakingVault EIP-712 nonce
+  GET  /staking-nonce/{address}         # AWPAllocator EIP-712 nonce
 
   /agents
     GET  /by-owner/{owner}
@@ -838,11 +837,11 @@ Inter-process communication:
     GET  /user/{address}/allocations
     GET  /user/{address}/pending
     GET  /user/{address}/frozen
-    GET  /agent/{agent}/subnet/{worknetId}
-    GET  /agent/{agent}/subnets
-    GET  /subnet/{worknetId}/total
+    GET  /agent/{agent}/worknet/{worknetId}
+    GET  /agent/{agent}/worknets
+    GET  /worknet/{worknetId}/total
 
-  /subnets
+  /worknets
     GET  /                              # List worknets
     GET  /ranked                        # Worknets by total stake
     GET  /search                        # Search worknets
@@ -886,8 +885,8 @@ Inter-process communication:
   POST /set-recipient
   POST /allocate
   POST /deallocate
-  POST /activate-subnet
-  POST /register-subnet
+  POST /activate-worknet
+  POST /register-worknet
   POST /grant-delegate
   POST /revoke-delegate
   POST /unbind
@@ -1005,10 +1004,10 @@ Contracts:
   - Tree-based binding with anti-cycle check (no address mutual exclusion)
   - bind(target) walks chain to detect cycles before binding
   - resolveRecipient(addr) walks boundTo chain to root for reward distribution
-  - StakeNFT: only NFTs with createdAt < proposalCreatedAt can vote (strict)
-  - StakeNFT: addToPosition blocked on expired locks (PositionExpired)
-  - StakingVault: allocate/deallocate/reallocate all reject worknetId=0
-  - WorknetNFT.minStake stored on-chain but NOT enforced by allocate (off-chain reference)
+  - veAWP: only NFTs with createdAt < proposalCreatedAt can vote (strict)
+  - veAWP: addToPosition blocked on expired locks (PositionExpired)
+  - AWPAllocator: allocate/deallocate/reallocate all reject worknetId=0
+  - AWPWorkNet.minStake stored on-chain but NOT enforced by allocate (off-chain reference)
   - AWPDAO: totalVotingPower > 0 required for proposals
   - deregisterWorknet: users must manually deallocate (frontend should alert)
   - worknetManager==address(0) auto-deploys WorknetManager proxy if defaultWorknetManagerImpl set

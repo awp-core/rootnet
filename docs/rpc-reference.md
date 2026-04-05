@@ -90,11 +90,11 @@ Get all contract addresses and EIP-712 domain info for a chain.
   "awpRegistry": "0x0000F34Ed3594F54faABbCb2Ec45738DDD1c001A",
   "awpToken": "0x0000A1050AcF9DEA8af9c2E74f0D7CF43f1000A1",
   "awpEmission": "0x3C9cB73f8B81083882c5308Cce4F31f93600EaA9",
-  "stakingVault": "0xE8A204fD9c94C7E28bE11Af02fc4A4AC294Df29b",
-  "stakeNFT": "0x4E119560632698Bab67cFAB5d8EC0A373363ba2d",
-  "worknetNFT": "0xB9F03539BE496d09c4d7964921d674B8763f5233",
+  "awpAllocator": "0xE8A204fD9c94C7E28bE11Af02fc4A4AC294Df29b",
+  "veAWP": "0x4E119560632698Bab67cFAB5d8EC0A373363ba2d",
+  "awpWorkNet": "0xB9F03539BE496d09c4d7964921d674B8763f5233",
   "lpManager": "0x3034E029e61e8c2fc525A7bC5E267Ad3837D72e3",
-  "alphaTokenFactory": "0xB2e4897eD77d0f5BFa3140B9989594de09a8037c",
+  "worknetTokenFactory": "0xB2e4897eD77d0f5BFa3140B9989594de09a8037c",
   "dao": "0x6a074aC9823c47f86EE4Fc7F62e4217Bc9C76004",
   "treasury": "0x82562023a053025F3201785160CaE6051efD759e",
   "eip712Domain": {
@@ -247,7 +247,7 @@ Get AWPRegistry EIP-712 nonce (for bind, setRecipient, registerWorknet, grantDel
 **Response**: `{"nonce": 42}`
 
 #### `nonce.getStaking`
-Get StakingVault EIP-712 nonce (for allocateFor, deallocateFor).
+Get AWPAllocator EIP-712 nonce (for allocateFor, deallocateFor).
 
 **Params**:
 | Name | Type | Required | Description |
@@ -315,12 +315,12 @@ Get user staking balance aggregated across all chains.
 **Params**: `address` (required)
 
 #### `staking.getPositions`
-Get user StakeNFT positions (per-chain).
+Get user veAWP positions (per-chain).
 
 **Params**: `address` (required), `chainId` (optional)
 
 #### `staking.getPositionsGlobal`
-Get user StakeNFT positions across all chains.
+Get user veAWP positions across all chains.
 
 **Params**: `address` (required)
 
@@ -471,12 +471,12 @@ Get AWP token info aggregated across all chains.
 **Params**: none
 
 #### `tokens.getAlphaInfo`
-Get worknet Alpha token info (name, symbol, totalSupply, worknetManager).
+Get worknet WorknetToken info (name, symbol, totalSupply, worknetManager).
 
 **Params**: `worknetId` (required)
 
 #### `tokens.getAlphaPrice`
-Get worknet Alpha token price (from LP pool, cached in Redis).
+Get worknet WorknetToken price (from LP pool, cached in Redis).
 
 **Params**: `worknetId` (required)
 
@@ -554,10 +554,10 @@ Events pushed: `UserRegistered`, `Bound`, `Unbound`, `RecipientSet`, `Deposited`
 | AWPToken | `0x0000A1050AcF9DEA8af9c2E74f0D7CF43f1000A1` |
 | AWPRegistry (proxy) | `0x0000F34Ed3594F54faABbCb2Ec45738DDD1c001A` |
 | AWPEmission (proxy) | `0x3C9cB73f8B81083882c5308Cce4F31f93600EaA9` |
-| StakingVault (proxy) | `0xE8A204fD9c94C7E28bE11Af02fc4A4AC294Df29b` |
-| StakeNFT | `0x4E119560632698Bab67cFAB5d8EC0A373363ba2d` |
-| WorknetNFT | `0xB9F03539BE496d09c4d7964921d674B8763f5233` |
-| AlphaTokenFactory | `0xB2e4897eD77d0f5BFa3140B9989594de09a8037c` |
+| AWPAllocator (proxy) | `0xE8A204fD9c94C7E28bE11Af02fc4A4AC294Df29b` |
+| veAWP | `0x4E119560632698Bab67cFAB5d8EC0A373363ba2d` |
+| AWPWorkNet | `0xB9F03539BE496d09c4d7964921d674B8763f5233` |
+| WorknetTokenFactory | `0xB2e4897eD77d0f5BFa3140B9989594de09a8037c` |
 | Treasury | `0x82562023a053025F3201785160CaE6051efD759e` |
 | AWPDAO | `0x6a074aC9823c47f86EE4Fc7F62e4217Bc9C76004` |
 | Guardian (Safe 3/5) | `0x000002bEfa6A1C99A710862Feb6dB50525dF00A3` |

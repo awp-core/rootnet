@@ -26,57 +26,52 @@ resolveRecipient(address addr) view                           // Walks boundTo c
 isRegistered(address addr) view                               // boundTo[addr] != 0 || recipient[addr] != 0
 ```
 
-### Staking (Allocation Only — deposit/withdraw via StakeNFT)
+### Staking
+> **Note:** Allocation functions (allocate, deallocate, reallocate) have moved to **AWPAllocator**. Deposit/withdraw via **veAWP**.
+
+### Worknet Lifecycle
 ```
-allocate(address staker, address agent, uint256 subnetId, uint256 amount)      // Staker or delegate
-deallocate(address staker, address agent, uint256 subnetId, uint256 amount)    // Staker or delegate
-reallocate(address staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) // Staker or delegate, immediate
+registerWorknet(WorknetParams params) → uint256 worknetId         // Anyone (costs AWP). worknetManager=0 auto-deploys WorknetManager proxy.
+registerWorknetFor(address user, WorknetParams params, uint256 deadline, uint8 v, bytes32 r, bytes32 s) // Gasless (requires prior AWP approve)
+registerWorknetForWithPermit(user, params, deadline, permitV, permitR, permitS, registerV, registerR, registerS) // Fully gasless (ERC-2612 permit + EIP-712)
+activateWorknet(uint256 worknetId)                               // NFT Owner: Pending → Active
+pauseWorknet(uint256 worknetId)                                  // NFT Owner: Active → Paused
+resumeWorknet(uint256 worknetId)                                 // NFT Owner: Paused → Active
 ```
 
-### Subnet Lifecycle
+### Governance (Guardian only)
 ```
-registerSubnet(SubnetParams params) → uint256 subnetId         // Anyone (costs AWP). subnetManager=0 auto-deploys SubnetManager proxy.
-registerSubnetFor(address user, SubnetParams params, uint256 deadline, uint8 v, bytes32 r, bytes32 s) // Gasless (requires prior AWP approve)
-registerSubnetForWithPermit(user, params, deadline, permitV, permitR, permitS, registerV, registerR, registerS) // Fully gasless (ERC-2612 permit + EIP-712)
-activateSubnet(uint256 subnetId)                               // NFT Owner: Pending → Active
-pauseSubnet(uint256 subnetId)                                  // NFT Owner: Active → Paused
-resumeSubnet(uint256 subnetId)                                 // NFT Owner: Paused → Active
-```
-
-### Governance (Timelock only)
-```
-banSubnet(uint256 subnetId)                                    // Active/Paused → Banned
-unbanSubnet(uint256 subnetId)                                  // Banned → Active
-deregisterSubnet(uint256 subnetId)                             // Delete (after 30-day immunity)
+banWorknet(uint256 worknetId)                                    // Active/Paused → Banned
+unbanWorknet(uint256 worknetId)                                  // Banned → Active
+deregisterWorknet(uint256 worknetId)                             // Delete
 setInitialAlphaPrice(uint256 price)
 setGuardian(address g)
-setImmunityPeriod(uint256 p)                                   // Minimum 7 days
-setAlphaTokenFactory(address factory)                          // Replace factory for new subnets
-setSubnetManagerImpl(address impl)                              // Set/update auto-deploy impl
+setWorknetTokenFactory(address factory)                          // Replace factory for new worknets
+setWorknetManagerImpl(address impl)                              // Set/update auto-deploy impl
 ```
 
 ### View Functions
 ```
-getSubnet(uint256 subnetId) → SubnetInfo                       // Lifecycle state only (lpPool, status, timestamps)
-getSubnetFull(uint256 subnetId) → SubnetFullInfo               // Combined: AWPRegistry state + SubnetNFT identity
-getActiveSubnetCount() → uint256
-getActiveSubnetIdAt(uint256 index) → uint256
-isSubnetActive(uint256 subnetId) → bool
-nextSubnetId() → uint256
-getAgentInfo(address agent, uint256 subnetId) → AgentInfo
-getAgentsInfo(address[] agents, uint256 subnetId) → AgentInfo[]
-getRegistry() → (awpToken, subnetNFT, alphaTokenFactory, awpEmission, lpManager, stakingVault, stakeNFT, treasury, guardian)
+getWorknet(uint256 worknetId) → WorknetInfo                       // Lifecycle state only (lpPool, status, timestamps)
+getWorknetFull(uint256 worknetId) → WorknetFullInfo               // Combined: AWPRegistry state + AWPWorkNet identity
+getActiveWorknetCount() → uint256
+getActiveWorknetIdAt(uint256 index) → uint256
+isWorknetActive(uint256 worknetId) → bool
+nextWorknetId() → uint256
+getAgentInfo(address agent, uint256 worknetId) → AgentInfo
+getAgentsInfo(address[] agents, uint256 worknetId) → AgentInfo[]
+getRegistry() → (awpToken, awpWorkNet, worknetTokenFactory, awpEmission, lpManager, awpAllocator, veAWP, treasury, guardian)
 resolveRecipient(address addr) → address                       // Walks boundTo chain to root
 isRegistered(address addr) → bool                              // boundTo[addr] != 0 || recipient[addr] != 0
 boundTo(address addr) → address
 recipient(address addr) → address
 delegates(address user, address delegate) → bool
 nonces(address) → uint256
-extractChainId(uint256 subnetId) pure → uint256       // Extract chainId from global subnetId
-extractLocalId(uint256 subnetId) pure → uint256       // Extract local counter from global subnetId
+extractChainId(uint256 worknetId) pure → uint256       // Extract chainId from global worknetId
+extractLocalId(uint256 worknetId) pure → uint256       // Extract local counter from global worknetId
 ```
 
-> **SubnetId encoding**: SubnetId is now globally unique across chains: `(block.chainid << 64) | localCounter`. Use `extractChainId()` and `extractLocalId()` to decode.
+> **WorknetId encoding**: WorknetId is now globally unique across chains: `(block.chainid << 64) | localCounter`. Use `extractChainId()` and `extractLocalId()` to decode.
 
 ### Emergency
 ```
@@ -86,32 +81,29 @@ unpause()   // Timelock only
 
 ---
 
-## AWPEmission — Emission Engine (UUPS Proxy) [DRAFT]
+## AWPEmission — Emission Engine (UUPS Proxy)
 
-> **This section describes a preliminary design. The emission mechanism has not been finalized.**
-
-### Oracle Submission
+### Guardian Submission
 ```
-submitAllocations(address[] recipients, uint96[] weights, bytes[] signatures, uint256 effectiveEpoch)
-// Requires >= oracleThreshold valid EIP-712 oracle signatures
-// effectiveEpoch must be > settledEpoch (future epoch)
+submitAllocations(address[] recipients, uint96[] weights, uint256 effectiveEpoch)
+// onlyGuardian (cross-chain multisig)
+// effectiveEpoch must be >= settledEpoch
 // Full replacement: clears old allocations for that epoch, writes new ones
 // Allowed during settlement (epoch-versioned design)
+// 100% emission to recipients; Guardian includes treasury in recipients for DAO share
 ```
 
 ### Epoch Settlement
 ```
 settleEpoch(uint256 limit)
 // Anyone can call. Processes up to `limit` recipients per call.
-// Phase 1 (first call): initialize epoch, snapshot weights, check settledEpoch < currentEpoch()
-// Phase 2 (each call): mint AWP to recipients proportionally
-// Phase 3 (final call): mint DAO share, advance settledEpoch
+// Phase 1 (first call): initialize epoch, snapshot weights, check settledEpoch <= currentEpoch()
+// Phase 2 (each call): mint AWP to recipients proportionally via mintAndCall
+// Phase 3 (final call): advance settledEpoch
 ```
 
-### Governance (Timelock only)
+### Governance (Guardian only)
 ```
-emergencySetWeight(uint256 epoch, uint256 index, address addr, uint96 weight)  // Overwrite entry at index; addr must not be address(0)
-setOracleConfig(address[] oracles, uint256 threshold)
 upgradeToAndCall(address newImpl, bytes data)                   // UUPS upgrade
 ```
 
@@ -120,16 +112,13 @@ upgradeToAndCall(address newImpl, bytes data)                   // UUPS upgrade
 currentEpoch() → uint256                                       // Time-based: (block.timestamp - genesisTime) / epochDuration (1 day)
 genesisTime() → uint256                                        // Immutable, set at initialization
 epochDuration() → uint256                                      // Immutable, 86400 (1 day)
-settledEpoch() → uint256                                       // Number of epochs settled so far
-activeEpoch() → uint256                                        // Most recently promoted weight epoch
+settledEpoch() → uint256                                       // Next epoch to settle (starts at 0)
 currentDailyEmission() → uint256                               // Current epoch emission (wei)
 settleProgress() → uint256                                     // 0=idle, >0=in progress
 epochEmissionLocked() → uint256
-oracleThreshold() → uint256
 allocationNonce() → uint256
 maxRecipients() → uint256
 awpRegistry() → address
-getOracleCount() → uint256
 getRecipientCount() → uint256
 getRecipient(uint256 index) → address
 getWeight(address addr) → uint96                               // Active epoch weight (O(n) scan)
@@ -137,7 +126,6 @@ getTotalWeight() → uint256                                     // Active epoch
 getEpochRecipientCount(uint256 epoch) → uint256
 getEpochWeight(uint256 epoch, address addr) → uint96
 getEpochTotalWeight(uint256 epoch) → uint256
-oracles(uint256 index) → address
 ```
 
 ---
@@ -145,22 +133,22 @@ oracles(uint256 index) → address
 ## Data Structures
 
 ```solidity
-enum SubnetStatus { Pending, Active, Paused, Banned }
+enum WorknetStatus { Pending, Active, Paused, Banned }
 
-// AWPRegistry lifecycle state only — identity data in SubnetNFT
-struct SubnetInfo {
+// AWPRegistry lifecycle state only — identity data in AWPWorkNet
+struct WorknetInfo {
     bytes32 lpPool;            // DEX V4 PoolId (Uniswap or PancakeSwap)
-    SubnetStatus status;
+    WorknetStatus status;
     uint64 createdAt;
     uint64 activatedAt;
 }
 
-// Combined: AWPRegistry state + SubnetNFT identity
-struct SubnetFullInfo {
-    address subnetManager;     // Subnet manager contract (Alpha minter)
-    address alphaToken;        // Alpha token address
+// Combined: AWPRegistry state + AWPWorkNet identity
+struct WorknetFullInfo {
+    address worknetManager;     // Worknet manager contract (WorknetToken minter)
+    address worknetToken;      // WorknetToken address
     bytes32 lpPool;
-    SubnetStatus status;
+    WorknetStatus status;
     uint64 createdAt;
     uint64 activatedAt;
     string name;
@@ -169,11 +157,11 @@ struct SubnetFullInfo {
     address owner;
 }
 
-struct SubnetParams {
-    string name;               // Alpha token name (1-64 bytes)
-    string symbol;             // Alpha token symbol (1-16 bytes)
-    address subnetManager;     // address(0) = auto-deploy SubnetManager proxy
-    bytes32 salt;              // CREATE2 salt; bytes32(0) = use subnetId as salt
+struct WorknetParams {
+    string name;               // WorknetToken name (1-64 bytes)
+    string symbol;             // WorknetToken symbol (1-16 bytes)
+    address worknetManager;     // address(0) = auto-deploy WorknetManager proxy
+    bytes32 salt;              // CREATE2 salt; bytes32(0) = use worknetId as salt
     uint128 minStake;          // Minimum stake for agents (0 = no minimum)
     string skillsURI;          // Skills file URI (IPFS/HTTPS)
 }
@@ -188,7 +176,7 @@ struct AgentInfo {
 
 ---
 
-## StakeNFT — ERC721 Position NFT
+## veAWP — ERC721 Position NFT
 
 ```
 deposit(uint256 amount, uint64 lockDuration) → uint256 tokenId   // Deposit AWP + mint position NFT; lockDuration in seconds
@@ -210,32 +198,34 @@ remainingTime(uint256 tokenId) → uint64                          // Remaining 
 
 ---
 
-## StakingVault — Pure Allocation Logic
+## AWPAllocator — Allocation Logic (UUPS Proxy)
+
+> EIP-712 domain name: "StakingVault"
 
 ```
-setStakeNFT(address stakeNFT_)                                            // onlyAWPRegistry, one-time (called by initializeRegistry)
-allocate(address staker, address agent, uint256 subnetId, uint256 amount)    // onlyAWPRegistry
-deallocate(address staker, address agent, uint256 subnetId, uint256 amount)  // onlyAWPRegistry
-reallocate(address staker, address fromAgent, uint256 fromSubnetId, address toAgent, uint256 toSubnetId, uint256 amount) // onlyAWPRegistry
-freezeAgentAllocations(address staker, address agent)                        // onlyAWPRegistry; auto-enumerates subnets
+allocate(address staker, address agent, uint256 worknetId, uint256 amount)    // Staker or delegate (reads AWPRegistry.delegates)
+deallocate(address staker, address agent, uint256 worknetId, uint256 amount)  // Staker or delegate
+reallocate(address staker, address fromAgent, uint256 fromWorknetId, address toAgent, uint256 toWorknetId, uint256 amount) // Staker or delegate
+allocateFor(address staker, address agent, uint256 worknetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) // Gasless EIP-712
+deallocateFor(address staker, address agent, uint256 worknetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) // Gasless EIP-712
 ```
 
 ### View Functions
 ```
 userTotalAllocated(address staker) → uint256
-getAgentStake(address staker, address agent, uint256 subnetId) → uint256
-subnetTotalStake(uint256 subnetId) → uint256
-getSubnetTotalStake(uint256 subnetId) → uint256
-getAgentSubnets(address staker, address agent) → uint256[]
+getAgentStake(address staker, address agent, uint256 worknetId) → uint256
+worknetTotalStake(uint256 worknetId) → uint256
+getWorknetTotalStake(uint256 worknetId) → uint256
+getAgentWorknets(address staker, address agent) → uint256[]
 ```
 
 ---
 
-## SubnetNFT — ERC721 with On-Chain Identity
+## AWPWorkNet — ERC721 with On-Chain Identity
 
 ```
 // AWPRegistry-only writes
-mint(address to, uint256 tokenId, string name_, address subnetManager_, address alphaToken_, uint128 minStake_, string skillsURI_) // onlyAWPRegistry
+mint(address to, uint256 tokenId, string name_, address worknetManager_, address worknetToken_, uint128 minStake_, string skillsURI_) // onlyAWPRegistry
 burn(uint256 tokenId)                                          // onlyAWPRegistry
 setBaseURI(string uri)                                         // onlyAWPRegistry
 
@@ -246,9 +236,9 @@ setMinStake(uint256 tokenId, uint128 minStake_)                // NFT owner only
 
 ### View Functions
 ```
-getSubnetData(uint256 tokenId) → SubnetData                    // Full identity + metadata
-getSubnetManager(uint256 tokenId) → address
-getAlphaToken(uint256 tokenId) → address
+getWorknetData(uint256 tokenId) → WorknetData                    // Full identity + metadata
+getWorknetManager(uint256 tokenId) → address
+getWorknetToken(uint256 tokenId) → address
 getMinStake(uint256 tokenId) → uint128
 ownerOf(uint256 tokenId) → address                             // Standard ERC721
 tokenURI(uint256 tokenId) → string                             // baseURI + tokenId
@@ -274,13 +264,13 @@ burn(uint256 amount)
 
 ---
 
-## SubnetManager — Default Subnet Contract (Proxy)
+## WorknetManager — Default Worknet Contract (Proxy)
 
-> Auto-deployed by AWPRegistry when `subnetManager = address(0)`. Uses AccessControl (OZ).
+> Auto-deployed by AWPRegistry when `worknetManager = address(0)`. Uses AccessControl (OZ).
 
 ### Roles
 ```
-DEFAULT_ADMIN_ROLE = 0x00                       // Grant/revoke roles; assigned to subnet registrant
+DEFAULT_ADMIN_ROLE = 0x00                       // Grant/revoke roles; assigned to worknet registrant
 MERKLE_ROLE = keccak256("MERKLE_ROLE")          // Submit Merkle roots
 STRATEGY_ROLE = keccak256("STRATEGY_ROLE")      // Set/execute AWP strategy
 TRANSFER_ROLE = keccak256("TRANSFER_ROLE")      // Transfer tokens out
@@ -289,7 +279,7 @@ TRANSFER_ROLE = keccak256("TRANSFER_ROLE")      // Transfer tokens out
 ### Merkle Distribution (MERKLE_ROLE)
 ```
 setMerkleRoot(uint32 epoch, bytes32 root)                      // Submit Merkle root for an epoch
-claim(uint32 epoch, uint256 amount, bytes32[] proof)           // Public; mints Alpha to msg.sender
+claim(uint32 epoch, uint256 amount, bytes32[] proof)           // Public; mints WorknetToken to msg.sender
 isClaimed(uint32 epoch, address account) → bool
 ```
 > Leaf = `keccak256(keccak256(abi.encode(account, amount)))`
@@ -312,7 +302,7 @@ transferToken(address token, address to, uint256 amount)
 
 ### View Functions
 ```
-alphaToken() → address
+worknetToken() → address
 awpToken() → address
 poolId() → bytes32
 currentStrategy() → AWPStrategy
@@ -353,12 +343,11 @@ proposalThreshold() → uint256                                   // 1,000,000 A
 | Constant | Value |
 |----------|-------|
 | AWP MAX_SUPPLY | 10,000,000,000 × 10^18 |
-| Alpha MAX_SUPPLY | 10,000,000,000 × 10^18 (per subnet) |
+| WorknetToken MAX_SUPPLY | 10,000,000,000 × 10^18 (per worknet) |
 | INITIAL_DAILY_EMISSION | 15,800,000 × 10^18 |
 | EPOCH_DURATION | 86,400 (1 day), immutable on AWPEmission |
 | DECAY_FACTOR | 996844 / 1000000 per epoch |
-| EMISSION_SPLIT | 50% recipients / 50% DAO |
-| MAX_ACTIVE_SUBNETS | 10,000 |
+| EMISSION_SPLIT | 100% to recipients (Guardian includes treasury) |
+| MAX_ACTIVE_WORKNETS | 10,000 |
 | maxRecipients | 10,000 |
 | MAX_WEIGHT_SECONDS | 54 weeks (32,659,200s) |
-| Default immunity | 30 days |
