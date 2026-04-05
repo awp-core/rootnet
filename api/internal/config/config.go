@@ -54,6 +54,9 @@ type Config struct {
 	// Indexer start block (deploy block); used only on first run when sync_states is empty
 	DeployBlock int64 `env:"DEPLOY_BLOCK" envDefault:"0"`
 
+	// Guardian (informational — cross-chain multisig address for AWPEmission)
+	GuardianAddress string `env:"GUARDIAN_ADDRESS" envDefault:""`
+
 	// Admin API
 	AdminToken string `env:"ADMIN_TOKEN" envDefault:""`
 }

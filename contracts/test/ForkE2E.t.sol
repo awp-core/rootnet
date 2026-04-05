@@ -1181,10 +1181,10 @@ contract ForkE2E is Test {
 
         // allocateFor
         bytes32 ALLOCATE_TYPEHASH = keccak256("Allocate(address staker,address agent,uint256 worknetId,uint256 amount,uint256 nonce,uint256 deadline)");
-        // Note: allocator was stub-initialized, EIP712 name/version are empty on-chain
+        // EIP-712 domain fixed via MigrateAllocatorEIP712 (reinitializer(2))
         bytes32 allocDomain = keccak256(abi.encode(
             keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
-            keccak256(""), keccak256(""), block.chainid, address(allocator)
+            keccak256("AWPAllocator"), keccak256("1"), block.chainid, address(allocator)
         ));
 
         uint256 nonce = allocator.nonces(signer);

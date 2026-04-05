@@ -445,3 +445,18 @@ func (q *Queries) UpsertUserRecipient(ctx context.Context, arg UpsertUserRecipie
 	_, err := q.db.Exec(ctx, upsertUserRecipient, arg.ChainID, arg.Address, arg.Recipient)
 	return err
 }
+
+const touchUserBalance = `-- name: TouchUserBalance :exec
+UPDATE user_balances SET updated_block = $3 WHERE user_address = $2 AND chain_id = $1 AND updated_block < $3
+`
+
+type TouchUserBalanceParams struct {
+	ChainID      int64  `json:"chain_id"`
+	Address      string `json:"user_address"`
+	UpdatedBlock int64  `json:"updated_block"`
+}
+
+func (q *Queries) TouchUserBalance(ctx context.Context, arg TouchUserBalanceParams) error {
+	_, err := q.db.Exec(ctx, touchUserBalance, arg.ChainID, arg.Address, arg.UpdatedBlock)
+	return err
+}

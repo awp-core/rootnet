@@ -69,3 +69,7 @@ SELECT COALESCE(SUM(total_allocated), 0)::NUMERIC(78,0) AS total_allocated FROM 
 -- name: GetUsersBatch :many
 SELECT address, chain_id, bound_to, recipient, registered_at FROM users
 WHERE chain_id = $1 AND address = ANY($2::CHAR(42)[]);
+
+
+-- name: TouchUserBalance :exec
+UPDATE user_balances SET updated_block = $3 WHERE user_address = $2 AND chain_id = $1 AND updated_block < $3;

@@ -1515,3 +1515,191 @@ func TestIntegration_AgentRemovalAndReallocation(t *testing.T) {
 	}
 	assertNumericEqual(t, "final total_allocated", bal.TotalAllocated, 0)
 }
+
+func TestIndexerScenario_VeAWPPositionDecreased(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+	userAddr := "0xdede000000000000000000000000000000000001"
+
+	// Setup: create a stake position with 5000
+	err := db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
+		TokenID: 50, Owner: userAddr, Amount: numericFromInt64(5000),
+		LockEndTime: 100, CreatedAt: 10,
+	})
+	if err != nil {
+		t.Fatalf("InsertStakePosition failed: %v", err)
+	}
+
+	// Verify initial state
+	total, err := db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: userAddr})
+	if err != nil {
+		t.Fatalf("GetUserTotalStaked failed: %v", err)
+	}
+	assertNumericEqual(t, "staked before decrease", total, 5000)
+
+	// Simulate PositionDecreased: partial withdrawal reduces amount to 3000
+	// (indexer calls UpdateStakePosition with remainingAmount and unchanged lockEndTime)
+	err = db.q.UpdateStakePosition(ctx, gen.UpdateStakePositionParams{ChainID: testChainID,
+		TokenID:     50,
+		Amount:      numericFromInt64(3000),
+		LockEndTime: 100, // unchanged by partialWithdraw
+	})
+	if err != nil {
+		t.Fatalf("UpdateStakePosition (PositionDecreased) failed: %v", err)
+	}
+
+	// Verify amount decreased
+	pos, err := db.q.GetStakePosition(ctx, gen.GetStakePositionParams{ChainID: testChainID, TokenID: 50})
+	if err != nil {
+		t.Fatalf("GetStakePosition failed: %v", err)
+	}
+	assertNumericEqual(t, "amount after decrease", pos.Amount, 3000)
+	if pos.LockEndTime != 100 {
+		t.Fatalf("lockEndTime should remain unchanged, got %d", pos.LockEndTime)
+	}
+	if pos.Burned {
+		t.Fatal("position should NOT be burned after partial withdrawal")
+	}
+
+	// Verify total staked reflects the decrease
+	total, err = db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: userAddr})
+	if err != nil {
+		t.Fatalf("GetUserTotalStaked failed: %v", err)
+	}
+	assertNumericEqual(t, "staked after decrease", total, 3000)
+
+	// Decrease again to 1000
+	err = db.q.UpdateStakePosition(ctx, gen.UpdateStakePositionParams{ChainID: testChainID,
+		TokenID:     50,
+		Amount:      numericFromInt64(1000),
+		LockEndTime: 100,
+	})
+	if err != nil {
+		t.Fatalf("UpdateStakePosition (second decrease) failed: %v", err)
+	}
+
+	total, err = db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: userAddr})
+	if err != nil {
+		t.Fatalf("GetUserTotalStaked (second decrease) failed: %v", err)
+	}
+	assertNumericEqual(t, "staked after second decrease", total, 1000)
+}
+
+func TestIndexerScenario_Reallocated(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+	userAddr := "0xrea100c000000000000000000000000000000001"
+	fromAgent := "0xrea100c000000000000000000000000000000002"
+	toAgent := "0xrea100c000000000000000000000000000000003"
+	fromSubnet := numericFromInt64(10)
+	toSubnet := numericFromInt64(20)
+
+	// Setup: register user + balance
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: userAddr, BoundTo: ""})
+	_ = db.q.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: testChainID, UserAddress: userAddr})
+
+	// Setup: allocate 5000 to (fromAgent, fromSubnet)
+	err := db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{ChainID: testChainID,
+		UserAddress:  userAddr,
+		AgentAddress: fromAgent,
+		SubnetID:     fromSubnet,
+		Amount:       numericFromInt64(5000),
+	})
+	if err != nil {
+		t.Fatalf("initial UpsertStakeAllocation failed: %v", err)
+	}
+	_ = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{ChainID: testChainID,
+		UserAddress:    userAddr,
+		TotalAllocated: numericFromInt64(5000),
+	})
+
+	// Simulate Reallocated event: move 2000 from (fromAgent, fromSubnet) to (toAgent, toSubnet)
+	// Step 1: Subtract from source
+	err = db.q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{ChainID: testChainID,
+		UserAddress:  userAddr,
+		AgentAddress: fromAgent,
+		SubnetID:     fromSubnet,
+		Amount:       numericFromInt64(2000),
+	})
+	if err != nil {
+		t.Fatalf("SubtractStakeAllocation (Reallocated source) failed: %v", err)
+	}
+
+	// Step 2: Add to destination
+	err = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{ChainID: testChainID,
+		UserAddress:  userAddr,
+		AgentAddress: toAgent,
+		SubnetID:     toSubnet,
+		Amount:       numericFromInt64(2000),
+	})
+	if err != nil {
+		t.Fatalf("UpsertStakeAllocation (Reallocated dest) failed: %v", err)
+	}
+
+	// Verify source decreased: 5000 - 2000 = 3000
+	sourceStake, err := db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{ChainID: testChainID,
+		AgentAddress: fromAgent,
+		SubnetID:     fromSubnet,
+	})
+	if err != nil {
+		t.Fatalf("GetAgentSubnetStake (source) failed: %v", err)
+	}
+	assertNumericEqual(t, "source stake after reallocation", sourceStake, 3000)
+
+	// Verify destination received: 2000
+	destStake, err := db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{ChainID: testChainID,
+		AgentAddress: toAgent,
+		SubnetID:     toSubnet,
+	})
+	if err != nil {
+		t.Fatalf("GetAgentSubnetStake (dest) failed: %v", err)
+	}
+	assertNumericEqual(t, "dest stake after reallocation", destStake, 2000)
+
+	// Verify total_allocated unchanged (reallocation does not change user's total allocation)
+	bal, err := db.q.GetUserBalance(ctx, gen.GetUserBalanceParams{ChainID: testChainID, UserAddress: userAddr})
+	if err != nil {
+		t.Fatalf("GetUserBalance failed: %v", err)
+	}
+	assertNumericEqual(t, "total_allocated after reallocation", bal.TotalAllocated, 5000)
+
+	// Reallocate remaining 3000 from source to same destination
+	err = db.q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{ChainID: testChainID,
+		UserAddress:  userAddr,
+		AgentAddress: fromAgent,
+		SubnetID:     fromSubnet,
+		Amount:       numericFromInt64(3000),
+	})
+	if err != nil {
+		t.Fatalf("SubtractStakeAllocation (full move) failed: %v", err)
+	}
+	err = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{ChainID: testChainID,
+		UserAddress:  userAddr,
+		AgentAddress: toAgent,
+		SubnetID:     toSubnet,
+		Amount:       numericFromInt64(3000),
+	})
+	if err != nil {
+		t.Fatalf("UpsertStakeAllocation (full move) failed: %v", err)
+	}
+
+	// Source should be 0
+	sourceStake, err = db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{ChainID: testChainID,
+		AgentAddress: fromAgent,
+		SubnetID:     fromSubnet,
+	})
+	if err != nil {
+		t.Fatalf("GetAgentSubnetStake (source depleted) failed: %v", err)
+	}
+	assertNumericEqual(t, "source stake fully moved", sourceStake, 0)
+
+	// Destination should be 2000 + 3000 = 5000
+	destStake, err = db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{ChainID: testChainID,
+		AgentAddress: toAgent,
+		SubnetID:     toSubnet,
+	})
+	if err != nil {
+		t.Fatalf("GetAgentSubnetStake (dest final) failed: %v", err)
+	}
+	assertNumericEqual(t, "dest stake final", destStake, 5000)
+}

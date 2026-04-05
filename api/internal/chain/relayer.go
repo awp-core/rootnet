@@ -236,28 +236,8 @@ func (r *Relayer) RelayDeallocate(ctx context.Context, staker common.Address, ag
 	return tx.Hash().Hex(), nil
 }
 
-// RelayActivateSubnet relays an activateSubnetFor transaction
-func (r *Relayer) RelayActivateSubnet(ctx context.Context, user common.Address, worknetId *big.Int, deadline *big.Int, v uint8, rs [32]byte, ss [32]byte) (string, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	txCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
-
-	auth, err := r.auth(txCtx)
-	if err != nil {
-		return "", err
-	}
-
-	tx, err := r.awpRegistry.ActivateWorknet(auth, worknetId)
-	if err != nil {
-		return "", fmt.Errorf("ActivateWorknet tx: %w", err)
-	}
-
-	r.logger.Info("relay activateWorknet sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "worknetId", worknetId.String())
-	r.trackTx(tx.Hash().Hex())
-	return tx.Hash().Hex(), nil
-}
+// NOTE: activateWorknet is Guardian-only (onlyGuardian modifier) — not relayable.
+// There is no gasless activateWorknetFor variant in the contract.
 
 // RelayRegisterSubnet relays a fully gasless registerSubnetForWithPermit transaction
 // User signs two off-chain messages: (1) ERC-2612 permit for AWP, (2) EIP-712 registerSubnet

@@ -444,16 +444,16 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 		"tokens.getAWPGlobal": {fn: h.rpcTokensGetAWPGlobal, info: methodInfo{
 			Name: "tokens.getAWPGlobal", Description: "Get AWP token info aggregated across all chains", Params: []paramInfo{},
 		}},
-		"tokens.getAlphaInfo": {fn: h.rpcTokensGetAlphaInfo, info: methodInfo{
-			Name: "tokens.getAlphaInfo", Description: "Get subnet Alpha token info",
+		"tokens.getWorknetTokenInfo": {fn: h.rpcTokensGetAlphaInfo, info: methodInfo{
+			Name: "tokens.getWorknetTokenInfo", Description: "Get worknet token info",
 			Params: []paramInfo{
-				{Name: "worknetId", Type: "string", Required: true, Description: "Subnet ID"},
+				{Name: "worknetId", Type: "string", Required: true, Description: "Worknet ID"},
 			},
 		}},
-		"tokens.getAlphaPrice": {fn: h.rpcTokensGetAlphaPrice, info: methodInfo{
-			Name: "tokens.getAlphaPrice", Description: "Get subnet Alpha token price",
+		"tokens.getWorknetTokenPrice": {fn: h.rpcTokensGetAlphaPrice, info: methodInfo{
+			Name: "tokens.getWorknetTokenPrice", Description: "Get worknet token price",
 			Params: []paramInfo{
-				{Name: "worknetId", Type: "string", Required: true, Description: "Subnet ID"},
+				{Name: "worknetId", Type: "string", Required: true, Description: "Worknet ID"},
 			},
 		}},
 

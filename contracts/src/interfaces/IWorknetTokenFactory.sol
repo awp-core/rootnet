@@ -12,6 +12,7 @@ interface IWorknetTokenFactory {
     function deploy(uint256 worknetId, string memory name, string memory symbol, bytes32 salt)
         external returns (address);
     function predictDeployAddress(bytes32 salt) external view returns (address);
+    function validateSalt(bytes32 salt) external view returns (address predicted);
 
     // Pending deploy params (read by WorknetToken constructor during CREATE2)
     function pendingName() external view returns (string memory);

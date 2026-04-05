@@ -109,10 +109,10 @@ func (h *Handler) getActiveChainIDs() []int64 {
 // ── Service methods ──
 
 // svcGetRegistry returns contract address registry info (queries DB by chainID, falls back to cfg)
-func (h *Handler) svcGetRegistry(chainID int64) registryResponse {
+func (h *Handler) svcGetRegistry(ctx context.Context, chainID int64) registryResponse {
 	// Try to read per-chain contract addresses from DB chains table
 	if chainID > 0 {
-		if chain, err := h.queries.GetChain(context.Background(), chainID); err == nil {
+		if chain, err := h.queries.GetChain(ctx, chainID); err == nil {
 			return h.registryFromChainRow(chain)
 		}
 	}
@@ -142,16 +142,18 @@ func (h *Handler) svcGetRegistry(chainID int64) registryResponse {
 }
 
 // svcGetRegistryAll returns registry info for all configured chains
-func (h *Handler) svcGetRegistryAll() []registryResponse {
+func (h *Handler) svcGetRegistryAll(ctx context.Context) []registryResponse {
 	chainIDs := h.getActiveChainIDs()
 	results := make([]registryResponse, 0, len(chainIDs))
 	for _, id := range chainIDs {
-		results = append(results, h.svcGetRegistry(id))
+		results = append(results, h.svcGetRegistry(ctx, id))
 	}
 	return results
 }
 
-// registryFromChainRow builds a registryResponse from a DB Chain record
+// registryFromChainRow builds a registryResponse from a DB Chain record.
+// Note: WorknetTokenFactory and Treasury always come from global config (h.cfg), not from the
+// per-chain DB row. This is by design — these contracts share the same CREATE2 address on all chains.
 func (h *Handler) registryFromChainRow(c gen.Chain) registryResponse {
 	resolve := func(dbVal, cfgVal string) string {
 		v := strings.TrimSpace(dbVal)

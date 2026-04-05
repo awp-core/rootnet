@@ -157,34 +157,41 @@ func TestHealth(t *testing.T) {
 
 func TestGetRegistry(t *testing.T) {
 	env := newTestEnv(t)
-	rr := env.request("GET", "/api/registry", "")
+	rr := env.request("GET", "/api/registry?chainId=31337", "")
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
-	var resp map[string]string
+	var resp map[string]any
 	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
 
+	str := func(key string) string {
+		if v, ok := resp[key].(string); ok {
+			return v
+		}
+		return ""
+	}
+
 	// Verify all contract addresses are returned from config
-	if resp["awpRegistry"] != "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
-		t.Errorf("unexpected awpRegistry: %s", resp["awpRegistry"])
+	if str("awpRegistry") != "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+		t.Errorf("unexpected awpRegistry: %v", resp["awpRegistry"])
 	}
-	if resp["worknetNFT"] != "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
-		t.Errorf("unexpected worknetNFT: %s", resp["worknetNFT"])
+	if str("awpWorkNet") != "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
+		t.Errorf("unexpected awpWorkNet: %v", resp["awpWorkNet"])
 	}
-	if resp["dao"] != "0xcccccccccccccccccccccccccccccccccccccccc" {
-		t.Errorf("unexpected dao: %s", resp["dao"])
+	if str("dao") != "0xcccccccccccccccccccccccccccccccccccccccc" {
+		t.Errorf("unexpected dao: %v", resp["dao"])
 	}
-	if resp["awpToken"] != "0xdddddddddddddddddddddddddddddddddddddd" {
-		t.Errorf("unexpected awpToken: %s", resp["awpToken"])
+	if str("awpToken") != "0xdddddddddddddddddddddddddddddddddddddd" {
+		t.Errorf("unexpected awpToken: %v", resp["awpToken"])
 	}
-	if resp["awpAllocator"] != "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" {
-		t.Errorf("unexpected awpAllocator: %s", resp["awpAllocator"])
+	if str("awpAllocator") != "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" {
+		t.Errorf("unexpected awpAllocator: %v", resp["awpAllocator"])
 	}
-	if resp["awpEmission"] != "0xffffffffffffffffffffffffffffffffffffffff" {
-		t.Errorf("unexpected awpEmission: %s", resp["awpEmission"])
+	if str("awpEmission") != "0xffffffffffffffffffffffffffffffffffffffff" {
+		t.Errorf("unexpected awpEmission: %v", resp["awpEmission"])
 	}
-	if resp["treasury"] != "0x1234567890abcdef1234567890abcdef12345678" {
-		t.Errorf("unexpected treasury: %s", resp["treasury"])
+	if str("treasury") != "0x1234567890abcdef1234567890abcdef12345678" {
+		t.Errorf("unexpected treasury: %v", resp["treasury"])
 	}
 }
 
@@ -372,11 +379,11 @@ func TestCheckAddressUnknown(t *testing.T) {
 	if resp["isRegistered"] != false {
 		t.Error("expected isRegistered=false")
 	}
-	if resp["boundTo"] != "" {
-		t.Errorf("expected empty boundTo, got %v", resp["boundTo"])
+	if resp["boundTo"] != nil && resp["boundTo"] != "" {
+		t.Errorf("expected empty/nil boundTo, got %v", resp["boundTo"])
 	}
-	if resp["recipient"] != "" {
-		t.Errorf("expected empty recipient, got %v", resp["recipient"])
+	if resp["recipient"] != nil && resp["recipient"] != "" {
+		t.Errorf("expected empty/nil recipient, got %v", resp["recipient"])
 	}
 }
 
@@ -1661,7 +1668,7 @@ func TestJSONRPC_HealthCheck(t *testing.T) {
 func TestJSONRPC_RegistryGet(t *testing.T) {
 	env := newTestEnv(t)
 
-	body := `{"jsonrpc":"2.0","method":"registry.get","id":3}`
+	body := `{"jsonrpc":"2.0","method":"registry.get","params":{"chainId":31337},"id":3}`
 	rr := env.request("POST", "/v2", body)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rr.Code)
@@ -2236,7 +2243,7 @@ func TestJSONRPC_AddressCheck(t *testing.T) {
 		`INSERT INTO users (chain_id, address, bound_to, recipient, registered_at)
 		 VALUES (31337, $1, '0x0000000000000000000000000000000000owner1', '0x0000000000000000000000000000000000recip1', 100)`, addr)
 
-	body := fmt.Sprintf(`{"jsonrpc":"2.0","method":"address.check","params":{"address":"%s"},"id":1}`, addr)
+	body := fmt.Sprintf(`{"jsonrpc":"2.0","method":"address.check","params":{"address":"%s","chainId":31337},"id":1}`, addr)
 	rr := env.request("POST", "/v2", body)
 
 	var resp map[string]any
@@ -2256,7 +2263,7 @@ func TestJSONRPC_AddressCheck(t *testing.T) {
 	}
 
 	// Unregistered address should return isRegistered=false
-	body2 := `{"jsonrpc":"2.0","method":"address.check","params":{"address":"0x0000000000000000000000000000000000ff0000"},"id":2}`
+	body2 := `{"jsonrpc":"2.0","method":"address.check","params":{"address":"0x0000000000000000000000000000000000ff0000","chainId":31337},"id":2}`
 	rr2 := env.request("POST", "/v2", body2)
 	var resp2 map[string]any
 	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)

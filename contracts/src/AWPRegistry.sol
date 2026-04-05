@@ -151,8 +151,11 @@ contract AWPRegistry is UUPSUpgradeable, PausableUpgradeable, ReentrancyGuardTra
     /// @notice worknetId => pending registration params (deleted on activate/cancel/reject)
     mapping(uint256 => PendingParams) public pendingWorknets;
 
+    /// @notice Tracks reserved CREATE2 salts (pending + activated). Prevents duplicate salt usage.
+    mapping(bytes32 => bool) public reservedSalts;
+
     /// @dev Reserved storage gap for future upgrades (UUPS pattern)
-    uint256[47] private __gap;
+    uint256[46] private __gap;
 
     /// @dev EIP-712 type hash: Bind(address agent, address target, uint256 nonce, uint256 deadline)
     bytes32 private constant BIND_TYPEHASH =
@@ -239,6 +242,8 @@ contract AWPRegistry is UUPSUpgradeable, PausableUpgradeable, ReentrancyGuardTra
     error CannotRevokeSelf();
     /// @dev Name/symbol contains JSON-unsafe characters (" or \)
     error JsonUnsafeCharacter();
+    /// @dev CREATE2 salt already reserved (pending or activated worknet)
+    error SaltAlreadyUsed();
 
     // ══════════════════════════════════════════════
     //  Constructor
@@ -540,6 +545,16 @@ contract AWPRegistry is UUPSUpgradeable, PausableUpgradeable, ReentrancyGuardTra
         if (bytes(params.skillsURI).length > 0) _rejectJsonUnsafe(bytes(params.skillsURI));
         if (params.worknetManager == address(0) && defaultWorknetManagerImpl == address(0)) revert WorknetManagerRequired();
 
+        // Validate salt: check reservation + vanity rule (fail fast at registration, not activation)
+        {
+            bytes32 effectiveSalt = params.salt == bytes32(0)
+                ? bytes32(block.chainid * CHAIN_ID_MULTIPLIER + _nextLocalId) // preview worknetId
+                : params.salt;
+            if (reservedSalts[effectiveSalt]) revert SaltAlreadyUsed();
+            IWorknetTokenFactory(worknetTokenFactory).validateSalt(effectiveSalt);
+            reservedSalts[effectiveSalt] = true;
+        }
+
         // Snapshot current price/mint, validate before external calls
         uint256 alphaMint = initialAlphaMint;
         uint256 lpAWPAmount = alphaMint * initialAlphaPrice / 1e18;
@@ -675,6 +690,11 @@ contract AWPRegistry is UUPSUpgradeable, PausableUpgradeable, ReentrancyGuardTra
     function _cancelPending(uint256 worknetId, address refundTo) internal {
         WorknetInfo storage info = worknets[worknetId];
         if (info.status != WorknetStatus.Pending) revert InvalidWorknetStatus(worknetId, uint8(info.status));
+
+        // Release reserved salt
+        bytes32 salt = pendingWorknets[worknetId].salt;
+        bytes32 effectiveSalt = salt == bytes32(0) ? bytes32(worknetId) : salt;
+        delete reservedSalts[effectiveSalt];
 
         uint256 refund = worknetEscrow[worknetId].lpAWPAmount;
         delete worknetEscrow[worknetId];

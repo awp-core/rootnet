@@ -149,8 +149,8 @@ func NewRouter(p RouterParams) chi.Router {
 			r.Post("/set-recipient", p.RelayHandler.RelaySetRecipient)
 			r.Post("/allocate", p.RelayHandler.RelayAllocate)
 			r.Post("/deallocate", p.RelayHandler.RelayDeallocate)
-			// activate-subnet removed — activation is now Guardian-only
-			r.Post("/register-subnet", p.RelayHandler.RelayRegisterSubnet)
+			// activate-worknet removed — activation is now Guardian-only
+			r.Post("/register-worknet", p.RelayHandler.RelayRegisterSubnet)
 			r.Post("/grant-delegate", p.RelayHandler.RelayGrantDelegate)
 			r.Post("/revoke-delegate", p.RelayHandler.RelayRevokeDelegate)
 			r.Post("/unbind", p.RelayHandler.RelayUnbind)

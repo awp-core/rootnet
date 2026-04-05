@@ -36,6 +36,7 @@ contract WorknetTokenFactory is Ownable {
 
     error NotAWPRegistry();
     error InvalidVanityAddress();
+    error SaltAlreadyUsed();
 
     constructor(address deployer_, uint64 vanityRule_) Ownable(deployer_) {
         vanityRule = vanityRule_;
@@ -88,6 +89,19 @@ contract WorknetTokenFactory is Ownable {
         return address(uint160(uint256(keccak256(
             abi.encodePacked(bytes1(0xff), address(this), salt_, WORKNET_TOKEN_BYTECODE_HASH)
         ))));
+    }
+
+    /// @notice Check if a salt is valid: no address collision + vanity rule compliance
+    /// @param salt_ The effective salt (after bytes32(0) → worknetId substitution)
+    /// @return predicted The address that would be deployed
+    function validateSalt(bytes32 salt_) external view returns (address predicted) {
+        predicted = address(uint160(uint256(keccak256(
+            abi.encodePacked(bytes1(0xff), address(this), salt_, WORKNET_TOKEN_BYTECODE_HASH)
+        ))));
+        if (predicted.code.length > 0) revert SaltAlreadyUsed();
+        if (vanityRule != 0) {
+            _validateVanityAddress(predicted);
+        }
     }
 
     /// @notice Validate that an address satisfies the configured vanity rule with EIP-55 case checking

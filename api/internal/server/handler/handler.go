@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cortexia/rootnet/api/internal/config"
 	"github.com/cortexia/rootnet/api/internal/db/gen"
@@ -208,7 +209,9 @@ func (h *Handler) buildDetailedHealth(ctx context.Context) map[string]interface{
 		}
 
 		emissionKey := fmt.Sprintf("emission_current:%d", cid)
-		if ttl, err := h.rdb.TTL(ctx, emissionKey).Result(); err == nil && ttl > 0 {
+		// go-redis TTL returns: -2s = key doesn't exist, -1s = no expiry (persistent), >0 = TTL remaining.
+		// A persistent key (ttl == -1s) is still alive, so we check ttl >= -1s (i.e., not -2s).
+		if ttl, err := h.rdb.TTL(ctx, emissionKey).Result(); err == nil && ttl >= -1*time.Second {
 			ch["keeperCacheAlive"] = true
 		} else {
 			ch["keeperCacheAlive"] = false
@@ -277,12 +280,12 @@ type registryResponse struct {
 func (h *Handler) GetRegistry(w http.ResponseWriter, r *http.Request) {
 	if v := r.URL.Query().Get("chainId"); v != "" {
 		if id, err := strconv.ParseInt(v, 10, 64); err == nil && id > 0 {
-			h.writeJSON(w, http.StatusOK, h.svcGetRegistry(id))
+			h.writeJSON(w, http.StatusOK, h.svcGetRegistry(r.Context(), id))
 			return
 		}
 	}
 	// No chainId — return all chains
-	h.writeJSON(w, http.StatusOK, h.svcGetRegistryAll())
+	h.writeJSON(w, http.StatusOK, h.svcGetRegistryAll(r.Context()))
 }
 
 // chainRegistration represents registration info on a single chain

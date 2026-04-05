@@ -355,8 +355,11 @@ func (h *Handler) svcGetPositionsGlobal(ctx context.Context, address string) (ma
 
 // ── CRITICAL #3: users.getDelegates (DB-based, from users table bound_to) ──
 
-// svcGetDelegates fetches delegates bound to the user (queried from the bound_to field in users table)
-// Note: the actual on-chain delegates mapping is not indexed in DB; this method returns bound agents as an approximation
+// svcGetDelegates returns addresses that have bound_to = address (i.e., users who bound themselves
+// to this address via bind()). This is NOT the same as on-chain delegates (grantDelegate/revokeDelegate).
+// The indexer publishes DelegateGranted/DelegateRevoked events to Redis Pub/Sub for real-time
+// WebSocket notifications, but delegate state is NOT persisted to the DB.
+// TODO: persist DelegateGranted/DelegateRevoked events to a delegates table for accurate on-chain delegate queries.
 func (h *Handler) svcGetDelegates(ctx context.Context, chainID int64, address string) (any, error) {
 	agents, err := h.queries.GetUsersByBoundTo(ctx, gen.GetUsersByBoundToParams{
 		BoundTo: address, ChainID: chainID,

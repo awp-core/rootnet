@@ -24,6 +24,10 @@ interface IUniPositionManager {
     function nextTokenId() external view returns (uint256);
 }
 
+interface IStateView {
+    function getSlot0(bytes32 id) external view returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee);
+}
+
 /// @title LPManagerUni — UUPS upgradeable Uniswap V4 CL liquidity management
 /// @dev DEX addresses are immutable in the impl bytecode. Proxy upgrades to chain-specific impl.
 contract LPManagerUni is LPManagerBase {
@@ -31,15 +35,18 @@ contract LPManagerUni is LPManagerBase {
 
     address public immutable poolManager;
     address public immutable positionManager;
+    address public immutable stateView;
 
     /// @param permit2_ Permit2 address
     /// @param poolManager_ Uniswap V4 PoolManager
     /// @param positionManager_ Uniswap V4 PositionManager
-    constructor(address permit2_, address poolManager_, address positionManager_)
+    /// @param stateView_ Uniswap V4 StateView (for reading pool slot0)
+    constructor(address permit2_, address poolManager_, address positionManager_, address stateView_)
         LPManagerBase(permit2_)
     {
         poolManager = poolManager_;
         positionManager = positionManager_;
+        stateView = stateView_;
     }
 
     function _initializePool(address c0, address c1, uint160 sqrtPriceX96) internal override {
@@ -78,7 +85,7 @@ contract LPManagerUni is LPManagerBase {
 
     function _getCurrentSqrtPrice(address c0, address c1) internal view override returns (uint160) {
         bytes32 pid = keccak256(abi.encode(_buildPoolKey(c0, c1)));
-        (uint160 sqrtPriceX96,,,) = IUniPoolManager(poolManager).getSlot0(pid);
+        (uint160 sqrtPriceX96,,,) = IStateView(stateView).getSlot0(pid);
         return sqrtPriceX96;
     }
 

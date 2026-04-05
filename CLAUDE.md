@@ -98,11 +98,13 @@ AWPToken(constructor: name, symbol, deployer, initialMint) → AlphaTokenFactory
 - WebSocket: WS /ws/live
 
 ## Redis Key Spec
-- alpha_price:{worknetId} → JSON, TTL=10m
+- worknet_token_price:{worknetId} → JSON, TTL=10m
 - awp_info:{chainId} → JSON, TTL=1m
 - emission_current:{chainId} → JSON, TTL=30s
+- relayer_balance:{chainId} → string, TTL=25s (native token balance for gasless relay)
 - ratelimit:config → hash, persistent, hot-updatable rate limit configs (admin.sh)
 - rl:relay:{ip} → counter, TTL=1h (atomic Lua INCR+EXPIRE)
+- rl:nonce:{ip} → counter, TTL=1h (nonce lookup rate limit)
 - rl:upload_salts:{ip} → counter, TTL=1h (5 uploads/hr/IP)
 - rl:compute_salt:{ip} → counter, TTL=1h (20 compute/hr/IP)
 - channel: chain_events → Pub/Sub

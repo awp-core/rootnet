@@ -27,16 +27,14 @@ var revertErrors = map[string]string{
 	"0xf48904b2": "self-bind not allowed",
 	"0x8b906c97": "caller is not the deployer",
 	"0x0dc149f0": "already initialized",
-	"0xcad4da2a": "caller is not the Timelock",
 	"0xef6d0f02": "caller is not the Guardian",
 	"0x33b4f8bf": "invalid worknet name (1-64 bytes)",
 	"0xa581811c": "invalid worknet symbol (1-16 bytes)",
 	"0xfdc63ea7": "computed LP AWP amount is zero",
 	"0xccfad018": "mint amount must be > 0",
-	"0x158dc889": "immunity period too short (min 7 days)",
 	"0x4ff2aff2": "worknet manager address required (auto-deploy not available)",
 	"0x6baa309b": "invalid worknet status for this operation",
-	"0x84e3b93f": "immunity period not expired",
+	"0x0ced3043": "salt already used",
 	"0x30cd7471": "not the worknet owner",
 	"0xdbbbe822": "price too low",
 	"0x24fe1192": "price too high",
@@ -251,17 +249,16 @@ func NewRelayHandler(relayers map[int64]*chain.Relayer, limiter *ratelimit.Limit
 
 // resolveRelayer returns the relayer for the given chainId, or the single relayer if only one exists
 func (rh *RelayHandler) resolveRelayer(chainID int64) (*chain.Relayer, error) {
-	// Single-chain mode: directly return the only relayer
-	if len(rh.relayers) == 1 && chainID == 0 {
+	if r, ok := rh.relayers[chainID]; ok {
+		return r, nil
+	}
+	// Single-chain mode: fall back to the only relayer regardless of requested chainId
+	if len(rh.relayers) == 1 {
 		for _, r := range rh.relayers {
 			return r, nil
 		}
 	}
-	r, ok := rh.relayers[chainID]
-	if !ok {
-		return nil, fmt.Errorf("unsupported chainId: %d", chainID)
-	}
-	return r, nil
+	return nil, fmt.Errorf("unsupported chainId: %d", chainID)
 }
 
 // checkRateLimit atomically checks and increments the relay IP rate limit.
@@ -329,7 +326,7 @@ type relayAllocateRequest struct {
 	ChainID   int64  `json:"chainId"`
 	Staker    string `json:"staker"`
 	Agent     string `json:"agent"`
-	SubnetID  string `json:"worknetId"`
+	WorknetID string `json:"worknetId"`
 	Amount    string `json:"amount"` // wei string
 	Deadline  uint64 `json:"deadline"`
 	Signature string `json:"signature"`
@@ -339,19 +336,13 @@ type relayDeallocateRequest struct {
 	ChainID   int64  `json:"chainId"`
 	Staker    string `json:"staker"`
 	Agent     string `json:"agent"`
-	SubnetID  string `json:"worknetId"`
+	WorknetID string `json:"worknetId"`
 	Amount    string `json:"amount"` // wei string
 	Deadline  uint64 `json:"deadline"`
 	Signature string `json:"signature"`
 }
 
-type relayActivateSubnetRequest struct {
-	ChainID   int64  `json:"chainId"`
-	User      string `json:"user"`
-	SubnetID  string `json:"worknetId"`
-	Deadline  uint64 `json:"deadline"`
-	Signature string `json:"signature"`
-}
+// NOTE: relayActivateSubnetRequest removed — activateWorknet is Guardian-only, not relayable.
 
 type relayRegisterSubnetRequest struct {
 	ChainID   int64  `json:"chainId"`
@@ -567,7 +558,7 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 	}
 	if !common.IsHexAddress(req.Staker) { rh.writeError(w, http.StatusBadRequest, "invalid staker address"); return }
 	if !common.IsHexAddress(req.Agent) { rh.writeError(w, http.StatusBadRequest, "invalid agent address"); return }
-	if req.SubnetID == "" { rh.writeError(w, http.StatusBadRequest, "worknetId is required"); return }
+	if req.WorknetID == "" { rh.writeError(w, http.StatusBadRequest, "worknetId is required"); return }
 	if req.Amount == "" { rh.writeError(w, http.StatusBadRequest, "amount is required"); return }
 	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() { rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired"); return }
 	if req.Signature == "" { rh.writeError(w, http.StatusBadRequest, "missing signature"); return }
@@ -579,7 +570,7 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 	if rateLimitErr != nil { rh.writeError(w, http.StatusInternalServerError, "rate limit check failed"); return }
 	if exceeded { rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay")); return }
 
-	worknetId, ok := new(big.Int).SetString(req.SubnetID, 10)
+	worknetId, ok := new(big.Int).SetString(req.WorknetID, 10)
 	if !ok || worknetId.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid worknetId"); return }
 
 	amount, amtOk := new(big.Int).SetString(req.Amount, 10)
@@ -613,7 +604,7 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 	}
 	if !common.IsHexAddress(req.Staker) { rh.writeError(w, http.StatusBadRequest, "invalid staker address"); return }
 	if !common.IsHexAddress(req.Agent) { rh.writeError(w, http.StatusBadRequest, "invalid agent address"); return }
-	if req.SubnetID == "" { rh.writeError(w, http.StatusBadRequest, "worknetId is required"); return }
+	if req.WorknetID == "" { rh.writeError(w, http.StatusBadRequest, "worknetId is required"); return }
 	if req.Amount == "" { rh.writeError(w, http.StatusBadRequest, "amount is required"); return }
 	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() { rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired"); return }
 	if req.Signature == "" { rh.writeError(w, http.StatusBadRequest, "missing signature"); return }
@@ -625,7 +616,7 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 	if rateLimitErr != nil { rh.writeError(w, http.StatusInternalServerError, "rate limit check failed"); return }
 	if exceeded { rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay")); return }
 
-	worknetId, ok := new(big.Int).SetString(req.SubnetID, 10)
+	worknetId, ok := new(big.Int).SetString(req.WorknetID, 10)
 	if !ok || worknetId.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid worknetId"); return }
 
 	amount, amtOk := new(big.Int).SetString(req.Amount, 10)
@@ -649,48 +640,8 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
-// RelayActivateSubnet POST /api/relay/activate-subnet — relay activateSubnetFor transaction
-func (rh *RelayHandler) RelayActivateSubnet(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 4096)
-	var req relayActivateSubnetRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		rh.writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if !common.IsHexAddress(req.User) { rh.writeError(w, http.StatusBadRequest, "invalid user address"); return }
-	if req.SubnetID == "" { rh.writeError(w, http.StatusBadRequest, "worknetId is required"); return }
-	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() { rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired"); return }
-	if req.Signature == "" { rh.writeError(w, http.StatusBadRequest, "missing signature"); return }
-
-	v, rs, ss, err := parseSignature(req.Signature)
-	if err != nil { rh.writeError(w, http.StatusBadRequest, err.Error()); return }
-
-	worknetId, ok := new(big.Int).SetString(req.SubnetID, 10)
-	if !ok || worknetId.Sign() <= 0 {
-		rh.writeError(w, http.StatusBadRequest, "invalid worknetId")
-		return
-	}
-
-	exceeded, rateLimitErr := rh.checkRateLimit(r)
-	if rateLimitErr != nil { rh.writeError(w, http.StatusInternalServerError, "rate limit check failed"); return }
-	if exceeded { rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay")); return }
-
-	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
-	if resolveErr != nil {
-		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
-		return
-	}
-
-	txHash, err := relayer.RelayActivateSubnet(r.Context(),
-		common.HexToAddress(req.User), worknetId,
-		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
-	if err != nil {
-		rh.logger.Error("relay activateSubnetFor failed", "error", err, "user", req.User, "worknetId", req.SubnetID)
-		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
-		return
-	}
-	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
-}
+// NOTE: RelayActivateSubnet removed — activateWorknet is Guardian-only (onlyGuardian),
+// and no gasless activateWorknetFor variant exists in the contract.
 
 // RelayRegisterSubnet POST /api/relay/register-subnet — relay registerSubnetFor transaction
 func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Request) {

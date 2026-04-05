@@ -72,16 +72,16 @@ func svcToRPC(err error) *RPCErr {
 // ── registry ──
 // ═══════════════════════════════════════════════
 
-func (h *Handler) rpcRegistryGet(_ context.Context, raw json.RawMessage) (any, *RPCErr) {
+func (h *Handler) rpcRegistryGet(ctx context.Context, raw json.RawMessage) (any, *RPCErr) {
 	var p struct {
 		ChainID int64 `json:"chainId"`
 	}
 	_ = json.Unmarshal(raw, &p)
 	if p.ChainID > 0 {
-		return h.svcGetRegistry(p.ChainID), nil
+		return h.svcGetRegistry(ctx, p.ChainID), nil
 	}
 	// No chainId — return all chains
-	return h.svcGetRegistryAll(), nil
+	return h.svcGetRegistryAll(ctx), nil
 }
 
 // ═══════════════════════════════════════════════
