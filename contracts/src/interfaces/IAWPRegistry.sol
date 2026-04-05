@@ -2,46 +2,48 @@
 pragma solidity ^0.8.20;
 
 /// @title IAWPRegistry — AWPRegistry contract interface
-/// @notice Defines subnet status enums, data structures, and events
+/// @notice Defines worknet status enums, data structures, and events
 interface IAWPRegistry {
-    /// @notice Subnet lifecycle status
-    enum SubnetStatus {
-        Pending,  // Registered, awaiting activation
-        Active,   // Active, participating in emission
-        Paused,   // Paused (Owner-initiated)
-        Banned    // Banned (DAO governance)
+    /// @notice Worknet lifecycle status (None=0 reserved for deleted/nonexistent)
+    enum WorknetStatus {
+        None,     // 0 — default after delete, not a valid state
+        Pending,  // 1 — Registered, awaiting activation
+        Active,   // 2 — Active, participating in emission
+        Paused,   // 3 — Paused (Owner-initiated)
+        Banned    // 4 — Banned (Guardian)
     }
 
-    /// @notice Subnet lifecycle state (stored in AWPRegistry; identity data in SubnetNFT)
-    struct SubnetInfo {
+    /// @notice Worknet lifecycle state (stored in AWPRegistry; identity data in AWPWorkNet)
+    struct WorknetInfo {
         bytes32 lpPool;           // PancakeSwap V4 LP pool ID
-        SubnetStatus status;      // Current lifecycle status
+        WorknetStatus status;      // Current lifecycle status
         uint64 createdAt;         // Creation timestamp (block.timestamp)
         uint64 activatedAt;       // Activation timestamp
     }
 
-    /// @notice Full subnet view (combines AWPRegistry state + SubnetNFT identity)
-    struct SubnetFullInfo {
-        address subnetManager;
-        address alphaToken;
+    /// @notice Full worknet view (combines AWPRegistry state + AWPWorkNet identity)
+    struct WorknetFullInfo {
+        address worknetManager;
+        address worknetToken;
         bytes32 lpPool;
-        SubnetStatus status;
+        WorknetStatus status;
         uint64 createdAt;
         uint64 activatedAt;
         string name;
+        string symbol;
         string skillsURI;
         uint128 minStake;
         address owner;
     }
 
-    /// @notice Subnet registration parameters
-    struct SubnetParams {
+    /// @notice Worknet registration parameters
+    struct WorknetParams {
         string name;           // Alpha Token name
         string symbol;         // Alpha Token symbol
-        address subnetManager; // Subnet contract address (0 = auto-deploy SubnetManager proxy)
-        bytes32 salt;          // CREATE2 salt for vanity Alpha token address (0 = use subnetId)
+        address worknetManager; // Worknet contract address (0 = auto-deploy WorknetManager proxy)
+        bytes32 salt;          // CREATE2 salt for vanity Alpha token address (0 = use worknetId)
         uint128 minStake;      // Minimum stake requirement for agents (0 = no minimum)
-        string skillsURI;      // Skills file URI (set at registration, updatable later via SubnetNFT)
+        string skillsURI;      // Skills file URI (set at registration, updatable later via AWPWorkNet)
     }
 
     // ── Account V2 events ──
@@ -52,45 +54,31 @@ interface IAWPRegistry {
     event DelegateGranted(address indexed staker, address indexed delegate);
     event DelegateRevoked(address indexed staker, address indexed delegate);
 
-    // ── Staking events ──
-    event Allocated(
-        address indexed staker, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator
-    );
-    event Deallocated(
-        address indexed staker, address indexed agent, uint256 indexed subnetId, uint256 amount, address operator
-    );
-    event Reallocated(
-        address indexed staker,
-        address fromAgent,
-        uint256 fromSubnet,
-        address toAgent,
-        uint256 toSubnet,
-        uint256 amount,
-        address operator
-    );
-
-    // ── Subnet events ──
-    event SubnetRegistered(
-        uint256 indexed subnetId,
+    // ── Worknet events ──
+    event WorknetRegistered(
+        uint256 indexed worknetId,
         address indexed owner,
         string name,
-        string symbol,
-        address subnetManager,
-        address alphaToken
+        string symbol
     );
-    event LPCreated(uint256 indexed subnetId, bytes32 poolId, uint256 awpAmount, uint256 alphaAmount);
-    event SubnetActivated(uint256 indexed subnetId);
-    event SubnetPaused(uint256 indexed subnetId);
-    event SubnetResumed(uint256 indexed subnetId);
-    event SubnetBanned(uint256 indexed subnetId);
-    event SubnetUnbanned(uint256 indexed subnetId);
-    event SubnetDeregistered(uint256 indexed subnetId);
+    event LPCreated(uint256 indexed worknetId, bytes32 poolId, uint256 awpAmount, uint256 worknetTokenAmount);
+    event WorknetActivated(uint256 indexed worknetId);
+    event WorknetPaused(uint256 indexed worknetId);
+    event WorknetResumed(uint256 indexed worknetId);
+    event WorknetCancelled(uint256 indexed worknetId);
+    event WorknetRejected(uint256 indexed worknetId);
+    event WorknetBanned(uint256 indexed worknetId);
+    event WorknetUnbanned(uint256 indexed worknetId);
 
     // ── Governance parameter events ──
     event GuardianUpdated(address indexed newGuardian);
     event InitialAlphaPriceUpdated(uint256 newPrice);
-    event ImmunityPeriodUpdated(uint256 newPeriod);
-    event AlphaTokenFactoryUpdated(address indexed newFactory);
-    event DefaultSubnetManagerImplUpdated(address indexed newImpl);
-    event DexConfigUpdated();
+    event InitialAlphaMintUpdated(uint256 amount);
+    event WorknetTokenFactoryUpdated(address indexed newFactory);
+    event DefaultWorknetManagerImplUpdated(address indexed newImpl);
+    // DexConfigUpdated, LPManagerUpdated, veAWPUpdated, AWPWorkNetUpdated removed — all immutable proxies
+
+    // ── View functions ──
+    function resolveRecipient(address addr) external view returns (address);
+    function batchResolveRecipients(address[] calldata addrs) external view returns (address[] memory);
 }

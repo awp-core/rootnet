@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -14,73 +15,192 @@ import (
 	"github.com/cortexia/rootnet/api/internal/chain/bindings"
 	"github.com/cortexia/rootnet/api/internal/ratelimit"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/go-chi/chi/v5"
 )
 
-// revertErrors maps 4-byte Solidity error selectors to user-friendly messages
+// revertErrors maps 4-byte Solidity error selectors to user-friendly messages.
+// Selectors verified against contract source via cast sig on 2026-04-02.
 var revertErrors = map[string]string{
-	"0x8baa579f": "invalid signature",
-	"0x3a81d6fc": "user already registered",
-	"0xaba47339": "user not registered",
-	"0x682a9065": "agent already bound",
-	"0x179435b3": "agent not bound",
-	"0xdf4cc36d": "signature expired",
-	"0x7991d6f7": "subnet manager address required (auto-deploy not available)",
-	"0x6a6a9712": "invalid subnet params (name 1-64 bytes, symbol 1-16 bytes)",
-	"0x00476ad8": "subnet not found",
-	"0x2783bd34": "not subnet owner",
-	"0x6ce3ac0e": "invalid subnet status for this operation",
-	"0x72b5dd4b": "subnet immunity period still active",
-	"0xab59c60f": "max active subnets reached",
-	"0x0f38cabd": "allocation below subnet minimum stake",
-	"0x9e87fac8": "contract is paused",
-	// OpenZeppelin ECDSA errors
-	"0xf645eedf": "invalid signature",
+	// ── AWPRegistry errors ──
+	"0xd92e233d": "zero address",
+	"0xf48904b2": "self-bind not allowed",
+	"0x8b906c97": "caller is not the deployer",
+	"0x0dc149f0": "already initialized",
+	"0xef6d0f02": "caller is not the Guardian",
+	"0x33b4f8bf": "invalid worknet name (1-64 bytes)",
+	"0xa581811c": "invalid worknet symbol (1-16 bytes)",
+	"0xfdc63ea7": "computed LP AWP amount is zero",
+	"0xccfad018": "mint amount must be > 0",
+	"0x4ff2aff2": "worknet manager address required (auto-deploy not available)",
+	"0x6baa309b": "invalid worknet status for this operation",
+	"0x0ced3043": "salt already used",
+	"0x30cd7471": "not the worknet owner",
+	"0xdbbbe822": "price too low",
+	"0x24fe1192": "price too high",
+	"0xdf4cc36d": "signature deadline expired",
+	"0x8baa579f": "invalid EIP-712 signature",
+	"0xfb92bbfa": "max active worknets reached (10000)",
+	"0x9146c723": "cycle detected in binding tree",
+	"0xd93ed101": "binding chain too deep (max 256)",
+	"0xa18bfb23": "name or symbol contains invalid characters (\" or \\)",
+	"0xea8e4eb5": "not authorized (not staker or delegate)",
+	"0x373d7529": "cannot revoke own delegation",
+
+	// ── OZ ERC20 errors ──
+	"0xe450d38c": "insufficient AWP balance",
+	"0xfb8f41b2": "insufficient AWP allowance",
+
+	// ── OZ ECDSA errors ──
+	"0xf645eedf": "invalid ECDSA signature",
 	"0xfce698f7": "invalid signature length",
 	"0xd78bce0c": "invalid signature S value",
-	// ERC20 errors
-	"0xfb8f41b2": "insufficient AWP allowance",
-	"0xe450d38c": "insufficient AWP balance",
-	// Account system V2 errors
-	"0xf48904b2": "cannot bind to self",
-	"0x9cba1f30": "already bound",
-	"0xcd69fa68": "cannot bind to yourself",
-	"0x390772fc": "not the owner",
-	"0x373d7529": "cannot revoke own delegation",
-	"0x9c8d2cd2": "invalid recipient",
-	// StakeNFT errors
+
+	// ── OZ common errors ──
+	"0xd93c0665": "contract is paused",
+	"0x8dfc202b": "contract is not paused",
+	"0x3ee5aeb5": "reentrancy guard: reentrant call",
+	"0xf92ee8a9": "contract already initialized",
+	"0xd7e6bcf8": "contract not initializing",
+	"0x5274afe7": "SafeERC20: token operation failed",
+
+	// ── UUPS errors ──
+	"0xe07c8dba": "unauthorized UUPS upgrade caller",
+	"0xaa1d49a4": "unsupported proxiable UUID",
+
+	// ── veAWP errors ──
+	"0x2c5211c6": "invalid amount",
+	"0xd4005715": "lock duration too short",
+	"0x59dc379f": "not the token owner",
 	"0x6855a802": "lock not expired",
-	"0x2bff29a6": "position expired",
+	"0x2bff29a6": "position lock expired (cannot add to expired position)",
 	"0xd247d121": "insufficient unallocated stake",
-	// Staking errors
-	"0xc18316bf": "subnet not active",
-	"0x0baf7432": "invalid allocation",
-	"0x78838d16": "subnet ID cannot be zero",
-	// Subnet lifecycle errors
-	"0x84e3b93f": "immunity period not expired",
-	"0x0dc149f0": "already initialized",
-	// AlphaToken / Factory errors
+	"0x2995fef1": "nothing to update",
+	"0x401640ae": "lock duration cannot be shortened",
+	"0x481ffa6a": "lock must exceed current time",
+	"0xd0bfc8d2": "not authorized (onlyAWPRegistry)",
+	"0xa13bdd4f": "cannot rescue staked AWP token",
+
+	// ── AWPAllocator errors ──
+	"0xdf2d4774": "insufficient allocation",
+	"0x1f2a2005": "amount cannot be zero",
+	"0x54ada055": "amount exceeds uint128 max",
+	"0xd76d9a3d": "worknet ID cannot be zero",
+	"0x2fe6f8a8": "allocation would overflow uint128",
+	"0xa741a045": "already set",
+
+	// ── WorknetToken errors ──
 	"0xc30436e9": "exceeds AWP max supply",
-	"0x1c04203f": "exceeds mintable limit",
+	"0x1c04203f": "exceeds worknet token mintable limit",
+	"0x7bfa4b9f": "not admin",
+	"0xf8d2906c": "not minter",
+	"0x69b757d8": "minter paused",
+	"0x815eb757": "minters locked",
+	"0xf7a632f5": "invalid callback",
+	"0xddefae28": "initial mint already called",
+
+	// ── WorknetTokenFactory errors ──
 	"0x16a1ae75": "invalid vanity address (EIP-55 mismatch)",
-	"0x00af5596": "not authorized (onlyAWPRegistry)",
+
+	// ── LPManager errors ──
 	"0x03119322": "LP pool already exists",
-	// AWPEmission errors
-	"0xc2cf00fc": "emission mining complete",
+	"0xf591b277": "no LP pool exists for this token",
+	"0x5a916d92": "amount exceeds Permit2 uint160 limit",
+
+	// ── AWPEmission errors ──
+	"0x9c8d2cd2": "invalid recipient",
+	"0xac4258ee": "epoch not ready for settlement",
+	"0xc2cf00fc": "emission mining complete (MAX_SUPPLY reached)",
 	"0xc7d141a8": "settlement in progress",
+	"0x19a2a9bd": "zero weight not allowed",
+	"0x3971ddf8": "too many recipients",
+	"0x5ae6162f": "invalid decay factor",
+	"0x96cb8a7f": "limit cannot be zero",
+	"0x8b8a8a93": "genesis time not reached yet",
+	"0x66128a97": "epoch duration cannot be zero",
 	"0x11631a24": "must be future epoch",
+
+	"0xb7c39e25": "invalid resume time (must be in the future)",
+
+	// ── WorknetManager errors ──
+	"0x334ee9a1": "invalid slippage tolerance (1-5000 bps)",
+	"0xf4742923": "strategy is paused",
+	"0x646cf558": "already claimed",
+	"0x09bde339": "invalid Merkle proof",
+	"0xb466ddbf": "Merkle root already set for this epoch",
+	"0x8da6b984": "no Merkle root for this epoch",
+	"0xb263ae73": "zero Merkle root",
+
+	// ── WorknetManagerUni errors ──
+	"0xae18210a": "not the pool manager",
+	"0x8199f5f3": "slippage exceeded",
+
+	// ── AWPDAO errors ──
+	"0xdf957883": "no tokens provided",
+	"0xa1f0d74b": "token already voted in this proposal",
+	"0xf6fafba0": "lock expired",
+	"0x467b1124": "NFT minted after proposal creation",
+	"0x376ef12e": "use proposeWithTokens instead",
+	"0xc10b42c7": "use castVoteWithParams instead",
+	"0xbf5bbc9c": "invalid quorum percent",
+	"0x2721b57b": "zero total voting power",
+
+	// ── AWPWorkNet errors ──
+	"0x44943622": "token does not exist",
 }
 
 // decodeRelayError extracts a user-friendly message from an on-chain revert error
 func decodeRelayError(err error) string {
+	// First, try to extract revert data from go-ethereum's rpc.DataError interface.
+	// In go-ethereum v1.17+, EstimateGas returns jsonError where ErrorData()
+	// contains the actual revert data (e.g. "0x8baa579f") while Error() only
+	// has the message ("execution reverted").
+	var dataErr rpc.DataError
+	if errors.As(err, &dataErr) {
+		if data, ok := dataErr.ErrorData().(string); ok && strings.HasPrefix(data, "0x") && len(data) >= 10 {
+			selector := data[:10]
+			if msg, ok := revertErrors[selector]; ok {
+				return msg
+			}
+			return "on-chain revert: " + selector
+		}
+	}
+
 	s := err.Error()
-	// go-ethereum wraps revert data as "execution reverted: 0x{selector}"
+
+	// Fallback: try to extract 4-byte error selector from error string formats:
+	// - "execution reverted: 0x{selector}{args...}"
+	// - "error code 3: execution reverted, data: \"0x{selector}{args...}\""
+	// - "VM Exception: revert 0x{selector}"
+	for _, prefix := range []string{"data: \"0x", "data: 0x", "reverted: 0x", "revert 0x"} {
+		if idx := strings.Index(s, prefix); idx >= 0 {
+			hexStart := idx + len(prefix) - 2 // point to "0x"
+			if len(s) >= hexStart+10 {
+				selector := s[hexStart : hexStart+10]
+				if msg, ok := revertErrors[selector]; ok {
+					return msg
+				}
+				return "on-chain revert: " + selector
+			}
+		}
+	}
+	// Fallback: find a valid 4-byte selector (0x + exactly 8 hex chars)
 	if idx := strings.Index(s, "0x"); idx >= 0 && len(s) >= idx+10 {
 		selector := s[idx : idx+10]
-		if msg, ok := revertErrors[selector]; ok {
-			return msg
+		// Validate it's a proper hex selector
+		isHex := true
+		for _, c := range selector[2:] {
+			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+				isHex = false
+				break
+			}
 		}
-		// Unknown selector — return it so the caller can debug
-		return "on-chain revert: " + selector
+		if isHex {
+			if msg, ok := revertErrors[selector]; ok {
+				return msg
+			}
+			return "on-chain revert: " + selector
+		}
 	}
 	// Non-revert errors — match common patterns without leaking internal details
 	if strings.Contains(s, "nonce") {
@@ -105,26 +225,40 @@ func decodeRelayError(err error) string {
 		return "relay nonce conflict (replacement tx), please retry"
 	}
 	if strings.Contains(s, "execution reverted") {
-		return "on-chain execution reverted (unknown error)"
+		return "on-chain execution reverted (unrecognized error selector)"
 	}
 	// Final fallback — include a sanitized hint from the error type
 	return "relay failed: internal error, please try again"
 }
 
-// RelayHandler handles gasless relay transaction requests
+// RelayHandler handles gasless relay transaction requests (multi-chain)
 type RelayHandler struct {
-	relayer *chain.Relayer
-	limiter *ratelimit.Limiter
-	logger  *slog.Logger
+	relayers map[int64]*chain.Relayer // chainId → relayer
+	limiter  *ratelimit.Limiter
+	logger   *slog.Logger
 }
 
-// NewRelayHandler creates a RelayHandler
-func NewRelayHandler(relayer *chain.Relayer, limiter *ratelimit.Limiter, logger *slog.Logger) *RelayHandler {
+// NewRelayHandler creates a multi-chain RelayHandler
+func NewRelayHandler(relayers map[int64]*chain.Relayer, limiter *ratelimit.Limiter, logger *slog.Logger) *RelayHandler {
 	return &RelayHandler{
-		relayer: relayer,
-		limiter: limiter,
-		logger:  logger,
+		relayers: relayers,
+		limiter:  limiter,
+		logger:   logger,
 	}
+}
+
+// resolveRelayer returns the relayer for the given chainId, or the single relayer if only one exists
+func (rh *RelayHandler) resolveRelayer(chainID int64) (*chain.Relayer, error) {
+	if r, ok := rh.relayers[chainID]; ok {
+		return r, nil
+	}
+	// Single-chain mode: fall back to the only relayer regardless of requested chainId
+	if len(rh.relayers) == 1 {
+		for _, r := range rh.relayers {
+			return r, nil
+		}
+	}
+	return nil, fmt.Errorf("unsupported chainId: %d", chainID)
 }
 
 // checkRateLimit atomically checks and increments the relay IP rate limit.
@@ -166,12 +300,14 @@ func parseSignature(sigHex string) (v uint8, r [32]byte, s [32]byte, err error) 
 // ── Request types ──
 
 type relayRegisterRequest struct {
+	ChainID   int64  `json:"chainId"`
 	User      string `json:"user"`
 	Deadline  uint64 `json:"deadline"`
 	Signature string `json:"signature"`
 }
 
 type relaySetRecipientRequest struct {
+	ChainID   int64  `json:"chainId"`
 	User      string `json:"user"`
 	Recipient string `json:"recipient"`
 	Deadline  uint64 `json:"deadline"`
@@ -179,6 +315,7 @@ type relaySetRecipientRequest struct {
 }
 
 type relayBindRequest struct {
+	ChainID   int64  `json:"chainId"`
 	Agent     string `json:"agent"`
 	Target    string `json:"target"`
 	Deadline  uint64 `json:"deadline"`
@@ -186,36 +323,34 @@ type relayBindRequest struct {
 }
 
 type relayAllocateRequest struct {
+	ChainID   int64  `json:"chainId"`
 	Staker    string `json:"staker"`
 	Agent     string `json:"agent"`
-	SubnetID  uint64 `json:"subnetId"`
+	WorknetID string `json:"worknetId"`
 	Amount    string `json:"amount"` // wei string
 	Deadline  uint64 `json:"deadline"`
 	Signature string `json:"signature"`
 }
 
 type relayDeallocateRequest struct {
+	ChainID   int64  `json:"chainId"`
 	Staker    string `json:"staker"`
 	Agent     string `json:"agent"`
-	SubnetID  uint64 `json:"subnetId"`
+	WorknetID string `json:"worknetId"`
 	Amount    string `json:"amount"` // wei string
 	Deadline  uint64 `json:"deadline"`
 	Signature string `json:"signature"`
 }
 
-type relayActivateSubnetRequest struct {
-	User      string `json:"user"`
-	SubnetID  uint64 `json:"subnetId"`
-	Deadline  uint64 `json:"deadline"`
-	Signature string `json:"signature"`
-}
+// NOTE: relayActivateSubnetRequest removed — activateWorknet is Guardian-only, not relayable.
 
 type relayRegisterSubnetRequest struct {
+	ChainID   int64  `json:"chainId"`
 	User              string `json:"user"`
 	Name              string `json:"name"`
 	Symbol            string `json:"symbol"`
-	SubnetManager     string `json:"subnetManager"`    // "0x0...0" or "" = auto-deploy SubnetManager
-	Salt              string `json:"salt"`              // bytes32 hex, "0x00...00" = use subnetId
+	WorknetManager     string `json:"worknetManager"`    // "0x0...0" or "" = auto-deploy WorknetManager
+	Salt              string `json:"salt"`              // bytes32 hex, "0x00...00" = use worknetId
 	MinStake          string `json:"minStake"`          // minimum stake wei string (0 = no minimum)
 	SkillsURI         string `json:"skillsUri"`         // skills description URI
 	Deadline          uint64 `json:"deadline"`
@@ -265,11 +400,17 @@ func (rh *RelayHandler) RelayRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
 	user := common.HexToAddress(req.User)
 	deadline := new(big.Int).SetUint64(req.Deadline)
 
 	// register = setRecipientFor(user, user, ...) — sets recipient to self
-	txHash, err := rh.relayer.RelaySetRecipient(r.Context(), user, user, deadline, v, rs, ss)
+	txHash, err := relayer.RelaySetRecipient(r.Context(), user, user, deadline, v, rs, ss)
 	if err != nil {
 		rh.logger.Error("relay register failed", "error", err, "user", req.User)
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
@@ -323,11 +464,17 @@ func (rh *RelayHandler) RelayBind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
 	agent := common.HexToAddress(req.Agent)
 	target := common.HexToAddress(req.Target)
 	deadline := new(big.Int).SetUint64(req.Deadline)
 
-	txHash, err := rh.relayer.RelayBind(r.Context(), agent, target, deadline, v, rs, ss)
+	txHash, err := relayer.RelayBind(r.Context(), agent, target, deadline, v, rs, ss)
 	if err != nil {
 		rh.logger.Error("relay bindFor failed", "error", err, "agent", req.Agent, "target", req.Target)
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
@@ -381,11 +528,17 @@ func (rh *RelayHandler) RelaySetRecipient(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
 	user := common.HexToAddress(req.User)
 	recipient := common.HexToAddress(req.Recipient)
 	deadline := new(big.Int).SetUint64(req.Deadline)
 
-	txHash, err := rh.relayer.RelaySetRecipient(r.Context(), user, recipient, deadline, v, rs, ss)
+	txHash, err := relayer.RelaySetRecipient(r.Context(), user, recipient, deadline, v, rs, ss)
 	if err != nil {
 		rh.logger.Error("relay setRecipientFor failed", "error", err, "user", req.User, "recipient", req.Recipient)
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
@@ -405,7 +558,7 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 	}
 	if !common.IsHexAddress(req.Staker) { rh.writeError(w, http.StatusBadRequest, "invalid staker address"); return }
 	if !common.IsHexAddress(req.Agent) { rh.writeError(w, http.StatusBadRequest, "invalid agent address"); return }
-	if req.SubnetID == 0 { rh.writeError(w, http.StatusBadRequest, "subnetId is required"); return }
+	if req.WorknetID == "" { rh.writeError(w, http.StatusBadRequest, "worknetId is required"); return }
 	if req.Amount == "" { rh.writeError(w, http.StatusBadRequest, "amount is required"); return }
 	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() { rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired"); return }
 	if req.Signature == "" { rh.writeError(w, http.StatusBadRequest, "missing signature"); return }
@@ -417,12 +570,21 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 	if rateLimitErr != nil { rh.writeError(w, http.StatusInternalServerError, "rate limit check failed"); return }
 	if exceeded { rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay")); return }
 
-	amount, ok := new(big.Int).SetString(req.Amount, 10)
-	if !ok || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
+	worknetId, ok := new(big.Int).SetString(req.WorknetID, 10)
+	if !ok || worknetId.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid worknetId"); return }
 
-	txHash, err := rh.relayer.RelayAllocate(r.Context(),
+	amount, amtOk := new(big.Int).SetString(req.Amount, 10)
+	if !amtOk || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
+
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
+	txHash, err := relayer.RelayAllocate(r.Context(),
 		common.HexToAddress(req.Staker), common.HexToAddress(req.Agent),
-		new(big.Int).SetUint64(req.SubnetID), amount,
+		worknetId, amount,
 		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
 	if err != nil {
 		rh.logger.Error("relay allocateFor failed", "error", err, "staker", req.Staker)
@@ -442,7 +604,7 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 	}
 	if !common.IsHexAddress(req.Staker) { rh.writeError(w, http.StatusBadRequest, "invalid staker address"); return }
 	if !common.IsHexAddress(req.Agent) { rh.writeError(w, http.StatusBadRequest, "invalid agent address"); return }
-	if req.SubnetID == 0 { rh.writeError(w, http.StatusBadRequest, "subnetId is required"); return }
+	if req.WorknetID == "" { rh.writeError(w, http.StatusBadRequest, "worknetId is required"); return }
 	if req.Amount == "" { rh.writeError(w, http.StatusBadRequest, "amount is required"); return }
 	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() { rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired"); return }
 	if req.Signature == "" { rh.writeError(w, http.StatusBadRequest, "missing signature"); return }
@@ -454,12 +616,21 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 	if rateLimitErr != nil { rh.writeError(w, http.StatusInternalServerError, "rate limit check failed"); return }
 	if exceeded { rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay")); return }
 
-	amount, ok := new(big.Int).SetString(req.Amount, 10)
-	if !ok || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
+	worknetId, ok := new(big.Int).SetString(req.WorknetID, 10)
+	if !ok || worknetId.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid worknetId"); return }
 
-	txHash, err := rh.relayer.RelayDeallocate(r.Context(),
+	amount, amtOk := new(big.Int).SetString(req.Amount, 10)
+	if !amtOk || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
+
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
+	txHash, err := relayer.RelayDeallocate(r.Context(),
 		common.HexToAddress(req.Staker), common.HexToAddress(req.Agent),
-		new(big.Int).SetUint64(req.SubnetID), amount,
+		worknetId, amount,
 		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
 	if err != nil {
 		rh.logger.Error("relay deallocateFor failed", "error", err, "staker", req.Staker)
@@ -469,36 +640,8 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
-// RelayActivateSubnet POST /api/relay/activate-subnet — relay activateSubnetFor transaction
-func (rh *RelayHandler) RelayActivateSubnet(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 4096)
-	var req relayActivateSubnetRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		rh.writeError(w, http.StatusBadRequest, "invalid request body")
-		return
-	}
-	if !common.IsHexAddress(req.User) { rh.writeError(w, http.StatusBadRequest, "invalid user address"); return }
-	if req.SubnetID == 0 { rh.writeError(w, http.StatusBadRequest, "subnetId is required"); return }
-	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() { rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired"); return }
-	if req.Signature == "" { rh.writeError(w, http.StatusBadRequest, "missing signature"); return }
-
-	v, rs, ss, err := parseSignature(req.Signature)
-	if err != nil { rh.writeError(w, http.StatusBadRequest, err.Error()); return }
-
-	exceeded, rateLimitErr := rh.checkRateLimit(r)
-	if rateLimitErr != nil { rh.writeError(w, http.StatusInternalServerError, "rate limit check failed"); return }
-	if exceeded { rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay")); return }
-
-	txHash, err := rh.relayer.RelayActivateSubnet(r.Context(),
-		common.HexToAddress(req.User), new(big.Int).SetUint64(req.SubnetID),
-		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
-	if err != nil {
-		rh.logger.Error("relay activateSubnetFor failed", "error", err, "user", req.User, "subnetId", req.SubnetID)
-		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
-		return
-	}
-	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
-}
+// NOTE: RelayActivateSubnet removed — activateWorknet is Guardian-only (onlyGuardian),
+// and no gasless activateWorknetFor variant exists in the contract.
 
 // RelayRegisterSubnet POST /api/relay/register-subnet — relay registerSubnetFor transaction
 func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Request) {
@@ -571,8 +714,8 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 	}
 
 	var subnetMgr common.Address
-	if req.SubnetManager != "" && common.IsHexAddress(req.SubnetManager) {
-		subnetMgr = common.HexToAddress(req.SubnetManager)
+	if req.WorknetManager != "" && common.IsHexAddress(req.WorknetManager) {
+		subnetMgr = common.HexToAddress(req.WorknetManager)
 	}
 
 	minStake, _ := new(big.Int).SetString(req.MinStake, 10)
@@ -580,25 +723,237 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 		minStake = big.NewInt(0)
 	}
 
-	params := bindings.IAWPRegistrySubnetParams{
+	params := bindings.IAWPRegistryWorknetParams{
 		Name:          req.Name,
 		Symbol:        req.Symbol,
-		SubnetManager: subnetMgr,
+		WorknetManager: subnetMgr,
 		Salt:          salt,
 		MinStake:      minStake,
 		SkillsURI:     req.SkillsURI,
 	}
 
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
 	user := common.HexToAddress(req.User)
 	deadline := new(big.Int).SetUint64(req.Deadline)
 
-	txHash, err := rh.relayer.RelayRegisterSubnet(
+	txHash, err := relayer.RelayRegisterSubnet(
 		r.Context(), user, params, deadline,
 		permitV, permitR, permitS,
 		registerV, registerR, registerS,
 	)
 	if err != nil {
 		rh.logger.Error("relay registerSubnetFor failed", "error", err, "user", req.User, "name", req.Name)
+		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
+		return
+	}
+
+	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
+}
+
+// GetRelayStatus GET /api/relay/status/{txHash} — query on-chain confirmation status of a relay transaction
+func (rh *RelayHandler) GetRelayStatus(w http.ResponseWriter, r *http.Request) {
+	txHash := chi.URLParam(r, "txHash")
+	if txHash == "" || len(txHash) != 66 {
+		rh.writeError(w, http.StatusBadRequest, "invalid txHash")
+		return
+	}
+
+	// Tx status is in Redis (shared) — use any relayer
+	var anyRelayer *chain.Relayer
+	for _, rl := range rh.relayers {
+		anyRelayer = rl
+		break
+	}
+	if anyRelayer == nil {
+		rh.writeError(w, http.StatusServiceUnavailable, "no relayer configured")
+		return
+	}
+	status, err := anyRelayer.GetTxStatus(r.Context(), txHash)
+	if err != nil {
+		rh.writeJSON(w, http.StatusOK, map[string]string{"status": "unknown", "txHash": txHash})
+		return
+	}
+
+	rh.writeJSON(w, http.StatusOK, status)
+}
+
+// ── Grant/Revoke Delegate + Unbind relay endpoints ──
+
+type relayDelegateRequest struct {
+	ChainID   int64  `json:"chainId"`
+	User      string `json:"user"`
+	Delegate  string `json:"delegate"`
+	Deadline  uint64 `json:"deadline"`
+	Signature string `json:"signature"`
+}
+
+type relayUnbindRequest struct {
+	ChainID   int64  `json:"chainId"`
+	User      string `json:"user"`
+	Deadline  uint64 `json:"deadline"`
+	Signature string `json:"signature"`
+}
+
+// RelayGrantDelegate POST /api/relay/grant-delegate
+func (rh *RelayHandler) RelayGrantDelegate(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+
+	var req relayDelegateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		rh.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if !common.IsHexAddress(req.User) || !common.IsHexAddress(req.Delegate) {
+		rh.writeError(w, http.StatusBadRequest, "invalid address")
+		return
+	}
+	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() {
+		rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired")
+		return
+	}
+	if req.Signature == "" {
+		rh.writeError(w, http.StatusBadRequest, "missing signature")
+		return
+	}
+
+	v, rs, ss, err := parseSignature(req.Signature)
+	if err != nil {
+		rh.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	exceeded, rateLimitErr := rh.checkRateLimit(r)
+	if rateLimitErr != nil {
+		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
+		return
+	}
+	if exceeded {
+		rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay"))
+		return
+	}
+
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
+	txHash, err := relayer.RelayGrantDelegate(r.Context(), common.HexToAddress(req.User), common.HexToAddress(req.Delegate), new(big.Int).SetUint64(req.Deadline), v, rs, ss)
+	if err != nil {
+		rh.logger.Error("relay grantDelegateFor failed", "error", err, "user", req.User)
+		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
+		return
+	}
+
+	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
+}
+
+// RelayRevokeDelegate POST /api/relay/revoke-delegate
+func (rh *RelayHandler) RelayRevokeDelegate(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+
+	var req relayDelegateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		rh.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if !common.IsHexAddress(req.User) || !common.IsHexAddress(req.Delegate) {
+		rh.writeError(w, http.StatusBadRequest, "invalid address")
+		return
+	}
+	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() {
+		rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired")
+		return
+	}
+	if req.Signature == "" {
+		rh.writeError(w, http.StatusBadRequest, "missing signature")
+		return
+	}
+
+	v, rs, ss, err := parseSignature(req.Signature)
+	if err != nil {
+		rh.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	exceeded, rateLimitErr := rh.checkRateLimit(r)
+	if rateLimitErr != nil {
+		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
+		return
+	}
+	if exceeded {
+		rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay"))
+		return
+	}
+
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
+	txHash, err := relayer.RelayRevokeDelegate(r.Context(), common.HexToAddress(req.User), common.HexToAddress(req.Delegate), new(big.Int).SetUint64(req.Deadline), v, rs, ss)
+	if err != nil {
+		rh.logger.Error("relay revokeDelegateFor failed", "error", err, "user", req.User)
+		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
+		return
+	}
+
+	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
+}
+
+// RelayUnbind POST /api/relay/unbind
+func (rh *RelayHandler) RelayUnbind(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+
+	var req relayUnbindRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		rh.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if !common.IsHexAddress(req.User) {
+		rh.writeError(w, http.StatusBadRequest, "invalid user address")
+		return
+	}
+	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() {
+		rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired")
+		return
+	}
+	if req.Signature == "" {
+		rh.writeError(w, http.StatusBadRequest, "missing signature")
+		return
+	}
+
+	v, rs, ss, err := parseSignature(req.Signature)
+	if err != nil {
+		rh.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	exceeded, rateLimitErr := rh.checkRateLimit(r)
+	if rateLimitErr != nil {
+		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
+		return
+	}
+	if exceeded {
+		rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay"))
+		return
+	}
+
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
+		return
+	}
+
+	txHash, err := relayer.RelayUnbind(r.Context(), common.HexToAddress(req.User), new(big.Int).SetUint64(req.Deadline), v, rs, ss)
+	if err != nil {
+		rh.logger.Error("relay unbindFor failed", "error", err, "user", req.User)
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
 		return
 	}

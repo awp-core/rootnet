@@ -29,16 +29,16 @@ type saltCountResponse struct {
 }
 
 type miningParamsResponse struct {
-	FactoryAddress string `json:"factoryAddress"` // AlphaTokenFactory contract address
-	InitCodeHash   string `json:"initCodeHash"`   // keccak256(AlphaToken.creationCode)
+	FactoryAddress string `json:"factoryAddress"` // WorknetTokenFactory contract address
+	InitCodeHash   string `json:"initCodeHash"`   // keccak256(WorknetToken.creationCode)
 	VanityRule     string `json:"vanityRule"`      // uint64 hex-encoded vanity rule
 }
 
 // GetMiningParams GET /api/vanity/mining-params — returns params needed for offline salt mining
 func (h *Handler) GetMiningParams(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, miningParamsResponse{
-		FactoryAddress: h.cfg.AlphaFactoryAddress,
-		InitCodeHash:   h.cfg.AlphaInitCodeHash,
+		FactoryAddress: h.cfg.WorknetTokenFactoryAddress,
+		InitCodeHash:   h.cfg.WorknetTokenBytecodeHash,
 		VanityRule:     h.cfg.VanityRule,
 	})
 }
@@ -70,7 +70,7 @@ func (h *Handler) UploadSalts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.cfg.AlphaFactoryAddress == "" || h.cfg.AlphaInitCodeHash == "" {
+	if h.cfg.WorknetTokenFactoryAddress == "" || h.cfg.WorknetTokenBytecodeHash == "" {
 		h.writeError(w, http.StatusInternalServerError, "vanity mining not configured")
 		return
 	}
@@ -82,6 +82,7 @@ func (h *Handler) UploadSalts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
+	chainID := h.resolveChainID(r)
 	inserted := 0
 	rejected := 0
 	for _, s := range req.Salts {
@@ -91,7 +92,7 @@ func (h *Handler) UploadSalts(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Verify CREATE2 address correctness (using go-ethereum crypto.CreateAddress2)
-		expectedAddr := computeCreate2Address(h.cfg.AlphaFactoryAddress, s.Salt, h.cfg.AlphaInitCodeHash)
+		expectedAddr := computeCreate2Address(h.cfg.WorknetTokenFactoryAddress, s.Salt, h.cfg.WorknetTokenBytecodeHash)
 		if !strings.EqualFold(expectedAddr, s.Address) {
 			rejected++
 			continue
@@ -107,6 +108,7 @@ func (h *Handler) UploadSalts(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if err := h.queries.InsertVanitySalt(ctx, gen.InsertVanitySaltParams{
+			ChainID: chainID,
 			Salt:    s.Salt,
 			Address: strings.ToLower(s.Address),
 		}); err != nil {
@@ -122,8 +124,12 @@ func (h *Handler) UploadSalts(w http.ResponseWriter, r *http.Request) {
 // ListAvailableSalts GET /api/vanity/salts — list available salts
 func (h *Handler) ListAvailableSalts(w http.ResponseWriter, r *http.Request) {
 	limit, _ := h.parsePageParams(r)
+	chainID := h.resolveChainID(r)
 
-	salts, err := h.queries.ListAvailableSalts(r.Context(), int32(limit))
+	salts, err := h.queries.ListAvailableSalts(r.Context(), gen.ListAvailableSaltsParams{
+		ChainID: chainID,
+		Limit:   int32(limit),
+	})
 	if err != nil {
 		h.logger.Error("list available salts failed", "error", err)
 		h.writeError(w, http.StatusInternalServerError, "failed to list salts")
@@ -139,7 +145,8 @@ func (h *Handler) ListAvailableSalts(w http.ResponseWriter, r *http.Request) {
 
 // CountAvailableSalts GET /api/vanity/salts/count — count available salts
 func (h *Handler) CountAvailableSalts(w http.ResponseWriter, r *http.Request) {
-	count, err := h.queries.CountAvailableSalts(r.Context())
+	chainID := h.resolveChainID(r)
+	count, err := h.queries.CountAvailableSalts(r.Context(), chainID)
 	if err != nil {
 		h.logger.Error("count available salts failed", "error", err)
 		h.writeError(w, http.StatusInternalServerError, "failed to count salts")

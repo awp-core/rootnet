@@ -12,59 +12,93 @@ import (
 )
 
 const deleteFrozenAllocations = `-- name: DeleteFrozenAllocations :exec
-DELETE FROM stake_allocations WHERE user_address = $1 AND frozen = TRUE
+DELETE FROM stake_allocations WHERE chain_id = $1 AND user_address = $2 AND frozen = TRUE
 `
 
-func (q *Queries) DeleteFrozenAllocations(ctx context.Context, userAddress string) error {
-	_, err := q.db.Exec(ctx, deleteFrozenAllocations, userAddress)
+type DeleteFrozenAllocationsParams struct {
+	ChainID     int64  `json:"chain_id"`
+	UserAddress string `json:"user_address"`
+}
+
+func (q *Queries) DeleteFrozenAllocations(ctx context.Context, arg DeleteFrozenAllocationsParams) error {
+	_, err := q.db.Exec(ctx, deleteFrozenAllocations, arg.ChainID, arg.UserAddress)
 	return err
 }
 
 const deleteStakeAllocationsAfterBlock = `-- name: DeleteStakeAllocationsAfterBlock :exec
-DELETE FROM stake_allocations WHERE updated_block > $1
+DELETE FROM stake_allocations WHERE updated_block > $1 AND chain_id = $2
 `
 
-func (q *Queries) DeleteStakeAllocationsAfterBlock(ctx context.Context, updatedBlock int64) error {
-	_, err := q.db.Exec(ctx, deleteStakeAllocationsAfterBlock, updatedBlock)
+type DeleteStakeAllocationsAfterBlockParams struct {
+	UpdatedBlock int64 `json:"updated_block"`
+	ChainID      int64 `json:"chain_id"`
+}
+
+func (q *Queries) DeleteStakeAllocationsAfterBlock(ctx context.Context, arg DeleteStakeAllocationsAfterBlockParams) error {
+	_, err := q.db.Exec(ctx, deleteStakeAllocationsAfterBlock, arg.UpdatedBlock, arg.ChainID)
 	return err
 }
 
 const deleteUserBalancesAfterBlock = `-- name: DeleteUserBalancesAfterBlock :exec
-DELETE FROM user_balances WHERE updated_block > $1
+DELETE FROM user_balances WHERE updated_block > $1 AND chain_id = $2
 `
 
-func (q *Queries) DeleteUserBalancesAfterBlock(ctx context.Context, updatedBlock int64) error {
-	_, err := q.db.Exec(ctx, deleteUserBalancesAfterBlock, updatedBlock)
+type DeleteUserBalancesAfterBlockParams struct {
+	UpdatedBlock int64 `json:"updated_block"`
+	ChainID      int64 `json:"chain_id"`
+}
+
+func (q *Queries) DeleteUserBalancesAfterBlock(ctx context.Context, arg DeleteUserBalancesAfterBlockParams) error {
+	_, err := q.db.Exec(ctx, deleteUserBalancesAfterBlock, arg.UpdatedBlock, arg.ChainID)
 	return err
 }
 
 const freezeAgentAllocations = `-- name: FreezeAgentAllocations :exec
 UPDATE stake_allocations SET frozen = TRUE
-WHERE user_address = $1 AND agent_address = $2
+WHERE chain_id = $1 AND user_address = $2 AND agent_address = $3
 `
 
 type FreezeAgentAllocationsParams struct {
+	ChainID      int64  `json:"chain_id"`
 	UserAddress  string `json:"user_address"`
 	AgentAddress string `json:"agent_address"`
 }
 
 func (q *Queries) FreezeAgentAllocations(ctx context.Context, arg FreezeAgentAllocationsParams) error {
-	_, err := q.db.Exec(ctx, freezeAgentAllocations, arg.UserAddress, arg.AgentAddress)
+	_, err := q.db.Exec(ctx, freezeAgentAllocations, arg.ChainID, arg.UserAddress, arg.AgentAddress)
 	return err
 }
 
 const getAgentSubnetStake = `-- name: GetAgentSubnetStake :one
 SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_allocations
-WHERE agent_address = $1 AND subnet_id = $2 AND frozen = FALSE
+WHERE chain_id = $1 AND agent_address = $2 AND subnet_id = $3 AND frozen = FALSE
 `
 
 type GetAgentSubnetStakeParams struct {
-	AgentAddress string `json:"agent_address"`
-	SubnetID     int64  `json:"subnet_id"`
+	ChainID      int64          `json:"chain_id"`
+	AgentAddress string         `json:"agent_address"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 }
 
 func (q *Queries) GetAgentSubnetStake(ctx context.Context, arg GetAgentSubnetStakeParams) (pgtype.Numeric, error) {
-	row := q.db.QueryRow(ctx, getAgentSubnetStake, arg.AgentAddress, arg.SubnetID)
+	row := q.db.QueryRow(ctx, getAgentSubnetStake, arg.ChainID, arg.AgentAddress, arg.SubnetID)
+	var total pgtype.Numeric
+	err := row.Scan(&total)
+	return total, err
+}
+
+const getAgentSubnetStakeGlobal = `-- name: GetAgentSubnetStakeGlobal :one
+SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_allocations
+WHERE agent_address = $1 AND subnet_id = $2 AND frozen = FALSE
+`
+
+type GetAgentSubnetStakeGlobalParams struct {
+	AgentAddress string         `json:"agent_address"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
+}
+
+func (q *Queries) GetAgentSubnetStakeGlobal(ctx context.Context, arg GetAgentSubnetStakeGlobalParams) (pgtype.Numeric, error) {
+	row := q.db.QueryRow(ctx, getAgentSubnetStakeGlobal, arg.AgentAddress, arg.SubnetID)
 	var total pgtype.Numeric
 	err := row.Scan(&total)
 	return total, err
@@ -72,16 +106,46 @@ func (q *Queries) GetAgentSubnetStake(ctx context.Context, arg GetAgentSubnetSta
 
 const getAgentSubnets = `-- name: GetAgentSubnets :many
 SELECT subnet_id, amount FROM stake_allocations
-WHERE agent_address = $1 AND amount > 0 AND frozen = FALSE ORDER BY subnet_id LIMIT 500
+WHERE chain_id = $1 AND agent_address = $2 AND amount > 0 AND frozen = FALSE ORDER BY subnet_id LIMIT 500
 `
 
+type GetAgentSubnetsParams struct {
+	ChainID      int64  `json:"chain_id"`
+	AgentAddress string `json:"agent_address"`
+}
+
 type GetAgentSubnetsRow struct {
-	SubnetID int64          `json:"subnet_id"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
 	Amount   pgtype.Numeric `json:"amount"`
 }
 
-func (q *Queries) GetAgentSubnets(ctx context.Context, agentAddress string) ([]GetAgentSubnetsRow, error) {
-	rows, err := q.db.Query(ctx, getAgentSubnets, agentAddress)
+func (q *Queries) GetAgentSubnets(ctx context.Context, arg GetAgentSubnetsParams) ([]GetAgentSubnetsRow, error) {
+	rows, err := q.db.Query(ctx, getAgentSubnets, arg.ChainID, arg.AgentAddress)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetAgentSubnetsRow{}
+	for rows.Next() {
+		var i GetAgentSubnetsRow
+		if err := rows.Scan(&i.SubnetID, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAgentSubnetsGlobal = `-- name: GetAgentSubnetsGlobal :many
+SELECT subnet_id, COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS amount FROM stake_allocations
+WHERE agent_address = $1 AND amount > 0 AND frozen = FALSE GROUP BY subnet_id ORDER BY subnet_id LIMIT 500
+`
+
+func (q *Queries) GetAgentSubnetsGlobal(ctx context.Context, agentAddress string) ([]GetAgentSubnetsRow, error) {
+	rows, err := q.db.Query(ctx, getAgentSubnetsGlobal, agentAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -102,19 +166,24 @@ func (q *Queries) GetAgentSubnets(ctx context.Context, agentAddress string) ([]G
 
 const getAllocationsByAgent = `-- name: GetAllocationsByAgent :many
 SELECT user_address, agent_address, subnet_id, amount, frozen FROM stake_allocations
-WHERE agent_address = $1 AND amount > 0 ORDER BY subnet_id
+WHERE chain_id = $1 AND agent_address = $2 AND amount > 0 ORDER BY subnet_id
 `
+
+type GetAllocationsByAgentParams struct {
+	ChainID      int64  `json:"chain_id"`
+	AgentAddress string `json:"agent_address"`
+}
 
 type GetAllocationsByAgentRow struct {
 	UserAddress  string         `json:"user_address"`
 	AgentAddress string         `json:"agent_address"`
-	SubnetID     int64          `json:"subnet_id"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 	Amount       pgtype.Numeric `json:"amount"`
 	Frozen       bool           `json:"frozen"`
 }
 
-func (q *Queries) GetAllocationsByAgent(ctx context.Context, agentAddress string) ([]GetAllocationsByAgentRow, error) {
-	rows, err := q.db.Query(ctx, getAllocationsByAgent, agentAddress)
+func (q *Queries) GetAllocationsByAgent(ctx context.Context, arg GetAllocationsByAgentParams) ([]GetAllocationsByAgentRow, error) {
+	rows, err := q.db.Query(ctx, getAllocationsByAgent, arg.ChainID, arg.AgentAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -141,10 +210,11 @@ func (q *Queries) GetAllocationsByAgent(ctx context.Context, agentAddress string
 
 const getAllocationsByUser = `-- name: GetAllocationsByUser :many
 SELECT user_address, agent_address, subnet_id, amount, frozen FROM stake_allocations
-WHERE user_address = $1 AND amount > 0 ORDER BY subnet_id LIMIT $2 OFFSET $3
+WHERE chain_id = $1 AND user_address = $2 AND amount > 0 ORDER BY subnet_id LIMIT $3 OFFSET $4
 `
 
 type GetAllocationsByUserParams struct {
+	ChainID     int64  `json:"chain_id"`
 	UserAddress string `json:"user_address"`
 	Limit       int32  `json:"limit"`
 	Offset      int32  `json:"offset"`
@@ -153,13 +223,18 @@ type GetAllocationsByUserParams struct {
 type GetAllocationsByUserRow struct {
 	UserAddress  string         `json:"user_address"`
 	AgentAddress string         `json:"agent_address"`
-	SubnetID     int64          `json:"subnet_id"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 	Amount       pgtype.Numeric `json:"amount"`
 	Frozen       bool           `json:"frozen"`
 }
 
 func (q *Queries) GetAllocationsByUser(ctx context.Context, arg GetAllocationsByUserParams) ([]GetAllocationsByUserRow, error) {
-	rows, err := q.db.Query(ctx, getAllocationsByUser, arg.UserAddress, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, getAllocationsByUser,
+		arg.ChainID,
+		arg.UserAddress,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -186,18 +261,23 @@ func (q *Queries) GetAllocationsByUser(ctx context.Context, arg GetAllocationsBy
 
 const getFrozenByUser = `-- name: GetFrozenByUser :many
 SELECT user_address, agent_address, subnet_id, amount FROM stake_allocations
-WHERE user_address = $1 AND frozen = TRUE AND amount > 0 LIMIT 500
+WHERE chain_id = $1 AND user_address = $2 AND frozen = TRUE AND amount > 0 LIMIT 500
 `
+
+type GetFrozenByUserParams struct {
+	ChainID     int64  `json:"chain_id"`
+	UserAddress string `json:"user_address"`
+}
 
 type GetFrozenByUserRow struct {
 	UserAddress  string         `json:"user_address"`
 	AgentAddress string         `json:"agent_address"`
-	SubnetID     int64          `json:"subnet_id"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 	Amount       pgtype.Numeric `json:"amount"`
 }
 
-func (q *Queries) GetFrozenByUser(ctx context.Context, userAddress string) ([]GetFrozenByUserRow, error) {
-	rows, err := q.db.Query(ctx, getFrozenByUser, userAddress)
+func (q *Queries) GetFrozenByUser(ctx context.Context, arg GetFrozenByUserParams) ([]GetFrozenByUserRow, error) {
+	rows, err := q.db.Query(ctx, getFrozenByUser, arg.ChainID, arg.UserAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -223,25 +303,31 @@ func (q *Queries) GetFrozenByUser(ctx context.Context, userAddress string) ([]Ge
 
 const getStakeAllocation = `-- name: GetStakeAllocation :one
 SELECT user_address, agent_address, subnet_id, amount, frozen FROM stake_allocations
-WHERE user_address = $1 AND agent_address = $2 AND subnet_id = $3
+WHERE chain_id = $1 AND user_address = $2 AND agent_address = $3 AND subnet_id = $4
 `
 
 type GetStakeAllocationParams struct {
-	UserAddress  string `json:"user_address"`
-	AgentAddress string `json:"agent_address"`
-	SubnetID     int64  `json:"subnet_id"`
+	ChainID      int64          `json:"chain_id"`
+	UserAddress  string         `json:"user_address"`
+	AgentAddress string         `json:"agent_address"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 }
 
 type GetStakeAllocationRow struct {
 	UserAddress  string         `json:"user_address"`
 	AgentAddress string         `json:"agent_address"`
-	SubnetID     int64          `json:"subnet_id"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 	Amount       pgtype.Numeric `json:"amount"`
 	Frozen       bool           `json:"frozen"`
 }
 
 func (q *Queries) GetStakeAllocation(ctx context.Context, arg GetStakeAllocationParams) (GetStakeAllocationRow, error) {
-	row := q.db.QueryRow(ctx, getStakeAllocation, arg.UserAddress, arg.AgentAddress, arg.SubnetID)
+	row := q.db.QueryRow(ctx, getStakeAllocation,
+		arg.ChainID,
+		arg.UserAddress,
+		arg.AgentAddress,
+		arg.SubnetID,
+	)
 	var i GetStakeAllocationRow
 	err := row.Scan(
 		&i.UserAddress,
@@ -258,7 +344,9 @@ SELECT COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total FROM stake_allocations
 WHERE subnet_id = $1 AND frozen = FALSE
 `
 
-func (q *Queries) GetSubnetTotalStake(ctx context.Context, subnetID int64) (pgtype.Numeric, error) {
+// NOTE: No chain_id filter — worknetId is globally unique (chainId<<64|localId),
+// aggregates stake from ALL chains for a given subnet (cross-chain by design).
+func (q *Queries) GetSubnetTotalStake(ctx context.Context, subnetID pgtype.Numeric) (pgtype.Numeric, error) {
 	row := q.db.QueryRow(ctx, getSubnetTotalStake, subnetID)
 	var total pgtype.Numeric
 	err := row.Scan(&total)
@@ -266,11 +354,11 @@ func (q *Queries) GetSubnetTotalStake(ctx context.Context, subnetID int64) (pgty
 }
 
 const getUsersWithFrozenAllocations = `-- name: GetUsersWithFrozenAllocations :many
-SELECT DISTINCT user_address FROM stake_allocations WHERE frozen = TRUE
+SELECT DISTINCT user_address FROM stake_allocations WHERE chain_id = $1 AND frozen = TRUE
 `
 
-func (q *Queries) GetUsersWithFrozenAllocations(ctx context.Context) ([]string, error) {
-	rows, err := q.db.Query(ctx, getUsersWithFrozenAllocations)
+func (q *Queries) GetUsersWithFrozenAllocations(ctx context.Context, chainID int64) ([]string, error) {
+	rows, err := q.db.Query(ctx, getUsersWithFrozenAllocations, chainID)
 	if err != nil {
 		return nil, err
 	}
@@ -290,19 +378,21 @@ func (q *Queries) GetUsersWithFrozenAllocations(ctx context.Context) ([]string, 
 }
 
 const setStakeAllocationFrozen = `-- name: SetStakeAllocationFrozen :exec
-UPDATE stake_allocations SET frozen = $4
-WHERE user_address = $1 AND agent_address = $2 AND subnet_id = $3
+UPDATE stake_allocations SET frozen = $5
+WHERE chain_id = $1 AND user_address = $2 AND agent_address = $3 AND subnet_id = $4
 `
 
 type SetStakeAllocationFrozenParams struct {
-	UserAddress  string `json:"user_address"`
-	AgentAddress string `json:"agent_address"`
-	SubnetID     int64  `json:"subnet_id"`
-	Frozen       bool   `json:"frozen"`
+	ChainID      int64          `json:"chain_id"`
+	UserAddress  string         `json:"user_address"`
+	AgentAddress string         `json:"agent_address"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
+	Frozen       bool           `json:"frozen"`
 }
 
 func (q *Queries) SetStakeAllocationFrozen(ctx context.Context, arg SetStakeAllocationFrozenParams) error {
 	_, err := q.db.Exec(ctx, setStakeAllocationFrozen,
+		arg.ChainID,
 		arg.UserAddress,
 		arg.AgentAddress,
 		arg.SubnetID,
@@ -312,20 +402,22 @@ func (q *Queries) SetStakeAllocationFrozen(ctx context.Context, arg SetStakeAllo
 }
 
 const subtractStakeAllocation = `-- name: SubtractStakeAllocation :exec
-UPDATE stake_allocations SET amount = GREATEST(amount - $4, 0), updated_block = $5
-WHERE user_address = $1 AND agent_address = $2 AND subnet_id = $3
+UPDATE stake_allocations SET amount = GREATEST(amount - $5, 0), updated_block = $6
+WHERE chain_id = $1 AND user_address = $2 AND agent_address = $3 AND subnet_id = $4
 `
 
 type SubtractStakeAllocationParams struct {
+	ChainID      int64          `json:"chain_id"`
 	UserAddress  string         `json:"user_address"`
 	AgentAddress string         `json:"agent_address"`
-	SubnetID     int64          `json:"subnet_id"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 	Amount       pgtype.Numeric `json:"amount"`
 	UpdatedBlock int64          `json:"updated_block"`
 }
 
 func (q *Queries) SubtractStakeAllocation(ctx context.Context, arg SubtractStakeAllocationParams) error {
 	_, err := q.db.Exec(ctx, subtractStakeAllocation,
+		arg.ChainID,
 		arg.UserAddress,
 		arg.AgentAddress,
 		arg.SubnetID,
@@ -335,24 +427,64 @@ func (q *Queries) SubtractStakeAllocation(ctx context.Context, arg SubtractStake
 	return err
 }
 
+const getAgentSubnetStakesBatch = `-- name: GetAgentSubnetStakesBatch :many
+SELECT agent_address, COALESCE(SUM(amount), 0)::NUMERIC(78,0) AS total
+FROM stake_allocations
+WHERE chain_id = $1 AND agent_address = ANY($2::CHAR(42)[]) AND subnet_id = $3 AND frozen = FALSE
+GROUP BY agent_address
+`
+
+type GetAgentSubnetStakesBatchParams struct {
+	ChainID  int64          `json:"chain_id"`
+	Agents   []string       `json:"agents"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
+}
+
+type GetAgentSubnetStakesBatchRow struct {
+	AgentAddress string         `json:"agent_address"`
+	Total        pgtype.Numeric `json:"total"`
+}
+
+func (q *Queries) GetAgentSubnetStakesBatch(ctx context.Context, arg GetAgentSubnetStakesBatchParams) ([]GetAgentSubnetStakesBatchRow, error) {
+	rows, err := q.db.Query(ctx, getAgentSubnetStakesBatch, arg.ChainID, arg.Agents, arg.SubnetID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetAgentSubnetStakesBatchRow{}
+	for rows.Next() {
+		var i GetAgentSubnetStakesBatchRow
+		if err := rows.Scan(&i.AgentAddress, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertStakeAllocation = `-- name: UpsertStakeAllocation :exec
-INSERT INTO stake_allocations (user_address, agent_address, subnet_id, amount, frozen, updated_block)
-VALUES ($1, $2, $3, $4, FALSE, $5)
-ON CONFLICT (user_address, agent_address, subnet_id) DO UPDATE SET
+INSERT INTO stake_allocations (chain_id, user_address, agent_address, subnet_id, amount, frozen, updated_block)
+VALUES ($1, $2, $3, $4, $5, FALSE, $6)
+ON CONFLICT (chain_id, user_address, agent_address, subnet_id) DO UPDATE SET
   amount = stake_allocations.amount + EXCLUDED.amount,
   updated_block = EXCLUDED.updated_block
 `
 
 type UpsertStakeAllocationParams struct {
+	ChainID      int64          `json:"chain_id"`
 	UserAddress  string         `json:"user_address"`
 	AgentAddress string         `json:"agent_address"`
-	SubnetID     int64          `json:"subnet_id"`
+	SubnetID     pgtype.Numeric `json:"subnet_id"`
 	Amount       pgtype.Numeric `json:"amount"`
 	UpdatedBlock int64          `json:"updated_block"`
 }
 
 func (q *Queries) UpsertStakeAllocation(ctx context.Context, arg UpsertStakeAllocationParams) error {
 	_, err := q.db.Exec(ctx, upsertStakeAllocation,
+		arg.ChainID,
 		arg.UserAddress,
 		arg.AgentAddress,
 		arg.SubnetID,

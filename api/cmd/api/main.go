@@ -34,6 +34,7 @@ func main() {
 			newDBPool,
 			newRedis,
 			newQueries,
+			newDBTX,
 			newLimiter,
 			handler.NewHandler,
 			ws.NewHub,
@@ -88,13 +89,16 @@ func newQueries(pool *pgxpool.Pool) *gen.Queries {
 	return gen.New(pool)
 }
 
+func newDBTX(pool *pgxpool.Pool) gen.DBTX {
+	return pool
+}
+
 func newLimiter(rdb *redis.Client, logger *slog.Logger) *ratelimit.Limiter {
 	return ratelimit.NewLimiter(rdb, logger)
 }
 
-// newRelayHandler creates RelayHandler (optional: returns nil if RELAYER_PRIVATE_KEY not set)
-// If key is configured but invalid, returns error to fail fast
-func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, limiter *ratelimit.Limiter, logger *slog.Logger) (*handler.RelayHandler, error) {
+// newRelayHandler creates a multi-chain RelayHandler (optional: returns nil if RELAYER_PRIVATE_KEY not set)
+func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, rdb *redis.Client, limiter *ratelimit.Limiter, logger *slog.Logger) (*handler.RelayHandler, error) {
 	if cfg.RelayerPrivateKey == "" {
 		logger.Info("RELAYER_PRIVATE_KEY not set, relay endpoints disabled")
 		return nil, nil
@@ -105,49 +109,97 @@ func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, limiter *ratelimit.Lim
 		return nil, fmt.Errorf("invalid RELAYER_PRIVATE_KEY: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	relayers := make(map[int64]*chain.Relayer)
+	var clients []*ethclient.Client
 
-	client, err := ethclient.DialContext(ctx, cfg.RPCURL)
-	if err != nil {
-		return nil, fmt.Errorf("relay ethclient dial: %w", err)
+	// Collect list of RPC URLs to connect to (single-chain or multi-chain)
+	type chainRPC struct {
+		rpcURL       string
+		awpRegistry  string
+		awpAllocator string
+	}
+	var rpcs []chainRPC
+
+	if cfg.ChainsFile != "" {
+		chains, err := config.LoadChains(cfg.ChainsFile)
+		if err != nil {
+			return nil, fmt.Errorf("load chains for relay: %w", err)
+		}
+		for _, ch := range chains {
+			rpcs = append(rpcs, chainRPC{
+				rpcURL:       ch.RPCURL,
+				awpRegistry:  config.ResolveAddress(ch.AWPRegistry, cfg.AWPRegistryAddress),
+				awpAllocator: config.ResolveAddress(ch.AWPAllocator, cfg.AWPAllocatorAddress),
+			})
+		}
+	} else if cfg.RPCURL != "" {
+		rpcs = append(rpcs, chainRPC{
+			rpcURL:       cfg.RPCURL,
+			awpRegistry:  cfg.AWPRegistryAddress,
+			awpAllocator: cfg.AWPAllocatorAddress,
+		})
 	}
 
-	chainID, err := client.ChainID(ctx)
-	if err != nil {
-		client.Close()
-		return nil, fmt.Errorf("relay get chainID: %w", err)
+	for _, rpc := range rpcs {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		client, dialErr := ethclient.DialContext(ctx, rpc.rpcURL)
+		cancel()
+		if dialErr != nil {
+			logger.Warn("relay: failed to dial RPC, skipping", "rpc", rpc.rpcURL, "error", dialErr)
+			continue
+		}
+
+		ctx2, cancel2 := context.WithTimeout(context.Background(), 10*time.Second)
+		chainID, cidErr := client.ChainID(ctx2)
+		cancel2()
+		if cidErr != nil {
+			client.Close()
+			logger.Warn("relay: failed to get chainID, skipping", "error", cidErr)
+			continue
+		}
+
+		awpRegistryAddr := common.HexToAddress(rpc.awpRegistry)
+		awpAllocatorAddr := common.HexToAddress(rpc.awpAllocator)
+		rl, rlErr := chain.NewRelayer(client, awpRegistryAddr, awpAllocatorAddr, key, chainID, rdb, logger)
+		if rlErr != nil {
+			client.Close()
+			logger.Warn("relay: failed to create relayer, skipping", "chainId", chainID, "error", rlErr)
+			continue
+		}
+
+		relayers[chainID.Int64()] = rl
+		clients = append(clients, client)
+		logger.Info("relay enabled for chain", "chainId", chainID.Int64())
 	}
 
-	awpRegistryAddr := common.HexToAddress(cfg.AWPRegistryAddress)
-	relayer, err := chain.NewRelayer(client, awpRegistryAddr, key, chainID, logger)
-	if err != nil {
-		client.Close()
-		return nil, fmt.Errorf("create relayer: %w", err)
+	if len(relayers) == 0 {
+		logger.Warn("no relay chains configured")
+		return nil, nil
 	}
 
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
-			client.Close()
+			for _, c := range clients {
+				c.Close()
+			}
 			return nil
 		},
 	})
 
-	logger.Info("relay endpoints enabled", "chainID", chainID.String())
-	return handler.NewRelayHandler(relayer, limiter, logger), nil
+	return handler.NewRelayHandler(relayers, limiter, logger), nil
 }
 
 // newVanityHandler creates VanityHandler (optional: returns nil if not configured)
 func newVanityHandler(cfg *config.Config, queries *gen.Queries, limiter *ratelimit.Limiter, logger *slog.Logger) *handler.VanityHandler {
-	if cfg.AlphaFactoryAddress == "" || cfg.AlphaInitCodeHash == "" || cfg.VanityRule == "" {
-		logger.Info("ALPHA_FACTORY_ADDRESS, ALPHA_INITCODE_HASH or VANITY_RULE not set, vanity endpoint disabled")
+	if cfg.WorknetTokenFactoryAddress == "" || cfg.WorknetTokenBytecodeHash == "" || cfg.VanityRule == "" {
+		logger.Info("WORKNET_TOKEN_FACTORY_ADDRESS, WORKNET_TOKEN_BYTECODE_HASH or VANITY_RULE not set, vanity endpoint disabled")
 		return nil
 	}
 
-	// Validate initCodeHash format
-	hashHex := strings.TrimPrefix(cfg.AlphaInitCodeHash, "0x")
+	// Validate bytecodeHash format
+	hashHex := strings.TrimPrefix(cfg.WorknetTokenBytecodeHash, "0x")
 	if _, err := hex.DecodeString(hashHex); err != nil || len(hashHex) != 64 {
-		logger.Error("invalid ALPHA_INITCODE_HASH", "value", cfg.AlphaInitCodeHash)
+		logger.Error("invalid WORKNET_TOKEN_BYTECODE_HASH", "value", cfg.WorknetTokenBytecodeHash)
 		return nil
 	}
 
@@ -162,36 +214,90 @@ func newVanityHandler(cfg *config.Config, queries *gen.Queries, limiter *ratelim
 		return nil
 	}
 
-	logger.Info("vanity compute-salt endpoint enabled", "factory", cfg.AlphaFactoryAddress, "vanityRule", cfg.VanityRule)
-	return handler.NewVanityHandler(cfg.AlphaFactoryAddress, cfg.AlphaInitCodeHash, rule, queries, limiter, logger)
+	logger.Info("vanity compute-salt endpoint enabled", "factory", cfg.WorknetTokenFactoryAddress, "vanityRule", cfg.VanityRule)
+	// Default chainID: use first chain in multi-chain mode, cfg.ChainID in single-chain mode
+	vanityChainID := cfg.ChainID
+	if cfg.ChainsFile != "" {
+		if chains, err := config.LoadChains(cfg.ChainsFile); err == nil && len(chains) > 0 {
+			vanityChainID = chains[0].ChainID
+		}
+	}
+	return handler.NewVanityHandler(cfg.WorknetTokenFactoryAddress, cfg.WorknetTokenBytecodeHash, rule, vanityChainID, queries, limiter, logger)
 }
 
 // wireChainReader creates a lightweight chain client for on-chain reads (nonce, etc.)
-func wireChainReader(lc fx.Lifecycle, h *handler.Handler, cfg *config.Config, logger *slog.Logger) {
-	addrs := map[string]string{
-		"AWPRegistry":  cfg.AWPRegistryAddress,
-		"AWPToken":     cfg.AWPTokenAddress,
-		"AWPEmission":  cfg.AWPEmissionAddress,
-		"StakingVault": cfg.StakingVaultAddress,
-		"SubnetNFT":    cfg.SubnetNFTAddress,
-		"AWPDAO":       cfg.DAOAddress,
-		"StakeNFT":     cfg.StakeNFTAddress,
+func wireChainReader(lc fx.Lifecycle, h *handler.Handler, hub *ws.Hub, queries *gen.Queries, cfg *config.Config, logger *slog.Logger) {
+	// Inject WebSocket allocation query interface (chainID from events, fallback to first configured chain)
+	defaultCID := cfg.ChainID
+	if cfg.ChainsFile != "" {
+		if chains, err := config.LoadChains(cfg.ChainsFile); err == nil && len(chains) > 0 {
+			defaultCID = chains[0].ChainID
+		}
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	client, err := chain.NewClient(ctx, cfg.RPCURL, addrs)
-	if err != nil {
-		logger.Warn("chain reader unavailable, /api/nonce endpoint disabled", "error", err)
-		return
+	hub.SetAllocationQuerier(handler.NewWSAllocQuerier(queries), defaultCID)
+
+	var clients []*chain.Client
+
+	// Multi-chain mode: create independent chain reader for each chain
+	if cfg.ChainsFile != "" {
+		chains, loadErr := config.LoadChains(cfg.ChainsFile)
+		if loadErr == nil && len(chains) > 0 {
+			h.SetChains(chains)
+			for _, ch := range chains {
+				addrs := map[string]string{
+					"AWPRegistry":  config.ResolveAddress(ch.AWPRegistry, cfg.AWPRegistryAddress),
+					"AWPToken":     config.ResolveAddress(ch.AWPToken, cfg.AWPTokenAddress),
+					"AWPEmission":  config.ResolveAddress(ch.AWPEmission, cfg.AWPEmissionAddress),
+					"AWPAllocator": config.ResolveAddress(ch.AWPAllocator, cfg.AWPAllocatorAddress),
+					"AWPWorkNet":   config.ResolveAddress(ch.AWPWorkNet, cfg.AWPWorkNetAddress),
+					"AWPDAO":       config.ResolveAddress(ch.DAOAddress, cfg.DAOAddress),
+					"VeAWP":        config.ResolveAddress(ch.VeAWP, cfg.VeAWPAddress),
+				}
+				dialCtx, dialCancel := context.WithTimeout(context.Background(), 10*time.Second)
+				client, dialErr := chain.NewClient(dialCtx, ch.RPCURL, addrs)
+				dialCancel()
+				if dialErr != nil {
+					logger.Warn("chain reader unavailable for chain", "chainId", ch.ChainID, "error", dialErr)
+					continue
+				}
+				h.SetChainReader(ch.ChainID, client)
+				clients = append(clients, client)
+				logger.Info("chain reader connected", "chainId", ch.ChainID)
+			}
+		} else if loadErr != nil {
+			logger.Warn("failed to load chains config", "error", loadErr)
+		}
+	} else if cfg.RPCURL != "" {
+		// Single-chain mode
+		addrs := map[string]string{
+			"AWPRegistry":  cfg.AWPRegistryAddress,
+			"AWPToken":     cfg.AWPTokenAddress,
+			"AWPEmission":  cfg.AWPEmissionAddress,
+			"AWPAllocator": cfg.AWPAllocatorAddress,
+			"AWPWorkNet":   cfg.AWPWorkNetAddress,
+			"AWPDAO":       cfg.DAOAddress,
+			"VeAWP":        cfg.VeAWPAddress,
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		client, err := chain.NewClient(ctx, cfg.RPCURL, addrs)
+		if err != nil {
+			logger.Warn("chain reader unavailable, /api/nonce endpoint disabled", "error", err)
+			return
+		}
+		h.SetChainReader(cfg.ChainID, client)
+		clients = append(clients, client)
+		logger.Info("chain reader connected (single-chain)", "chainId", cfg.ChainID)
 	}
-	h.SetChainReader(client)
+
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {
-			client.Close()
+			for _, c := range clients {
+				c.Close()
+			}
 			return nil
 		},
 	})
-	logger.Info("chain reader connected for on-chain queries")
 }
 
 // newRouterParams assembles RouterParams

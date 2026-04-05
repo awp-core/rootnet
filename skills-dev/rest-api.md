@@ -35,6 +35,17 @@ Returns all protocol contract addresses + chainId:
 
 > **Note:** Per-subnet addresses (`subnet_contract`, `alpha_token`, `lp_pool`) are returned by `GET /subnets/{subnetId}`, not by `/registry`.
 
+### `GET /chains`
+Returns all supported chains:
+```json
+[
+  {"chainId": 8453, "name": "Base", "dex": "uniswap_v4", "explorer": "https://basescan.org"},
+  {"chainId": 1, "name": "Ethereum", "dex": "uniswap_v4", "explorer": "https://etherscan.io"},
+  {"chainId": 42161, "name": "Arbitrum One", "dex": "uniswap_v4", "explorer": "https://arbiscan.io"},
+  {"chainId": 56, "name": "BNB Smart Chain", "dex": "pancakeswap_v4", "explorer": "https://bscscan.com"}
+]
+```
+
 ---
 
 ## Users
@@ -123,6 +134,7 @@ Returns pending operations (currently always empty):
 [
   {
     "subnet_id": 1,
+    "chain_id": 8453,
     "owner": "0x...",
     "name": "My Subnet",
     "symbol": "MSUB",
@@ -139,6 +151,7 @@ Returns pending operations (currently always empty):
   }
 ]
 ```
+> Subnet responses now include `chain_id` indicating which chain the subnet is deployed on.
 > `status` filter is optional. Values: `Pending`, `Active`, `Paused`, `Banned`.
 
 ### `GET /subnets/{subnetId}`

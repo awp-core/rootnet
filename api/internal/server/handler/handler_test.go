@@ -3,6 +3,7 @@ package handler_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"math/big"
@@ -67,17 +68,18 @@ func newTestEnv(t *testing.T) *testEnv {
 	queries := gen.New(pool)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	cfg := &config.Config{
+		ChainID:             31337,
 		TreasuryAddress:     "0x1234567890abcdef1234567890abcdef12345678",
 		AWPRegistryAddress:  "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		SubnetNFTAddress:    "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		AWPWorkNetAddress:   "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		DAOAddress:          "0xcccccccccccccccccccccccccccccccccccccccc",
 		AWPTokenAddress:     "0xdddddddddddddddddddddddddddddddddddddd",
-		StakingVaultAddress: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+		AWPAllocatorAddress: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 		AWPEmissionAddress:  "0xffffffffffffffffffffffffffffffffffffffff",
 	}
 
 	limiter := ratelimit.NewLimiter(rdb, logger)
-	h := handler.NewHandler(queries, rdb, cfg, logger, limiter)
+	h := handler.NewHandler(queries, pool, rdb, cfg, logger, limiter)
 	hub := ws.NewHub(rdb, logger)
 	router := server.NewRouter(server.RouterParams{Handler: h, Hub: hub})
 
@@ -109,7 +111,7 @@ func (e *testEnv) cleanDB() {
 	_, err := e.pool.Exec(ctx, `TRUNCATE TABLE
 		recipient_awp_distributions, stake_positions, stake_allocations,
 		user_balances, epochs,
-		subnets, proposals, users, sync_states`)
+		subnets, proposals, users, sync_states, indexed_blocks, vanity_salts`)
 	if err != nil {
 		e.t.Logf("cleanDB TRUNCATE failed: %v", err)
 	}
@@ -155,34 +157,41 @@ func TestHealth(t *testing.T) {
 
 func TestGetRegistry(t *testing.T) {
 	env := newTestEnv(t)
-	rr := env.request("GET", "/api/registry", "")
+	rr := env.request("GET", "/api/registry?chainId=31337", "")
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
 	}
-	var resp map[string]string
+	var resp map[string]any
 	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
 
+	str := func(key string) string {
+		if v, ok := resp[key].(string); ok {
+			return v
+		}
+		return ""
+	}
+
 	// Verify all contract addresses are returned from config
-	if resp["awpRegistry"] != "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
-		t.Errorf("unexpected awpRegistry: %s", resp["awpRegistry"])
+	if str("awpRegistry") != "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+		t.Errorf("unexpected awpRegistry: %v", resp["awpRegistry"])
 	}
-	if resp["subnetNFT"] != "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
-		t.Errorf("unexpected subnetNFT: %s", resp["subnetNFT"])
+	if str("awpWorkNet") != "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" {
+		t.Errorf("unexpected awpWorkNet: %v", resp["awpWorkNet"])
 	}
-	if resp["dao"] != "0xcccccccccccccccccccccccccccccccccccccccc" {
-		t.Errorf("unexpected dao: %s", resp["dao"])
+	if str("dao") != "0xcccccccccccccccccccccccccccccccccccccccc" {
+		t.Errorf("unexpected dao: %v", resp["dao"])
 	}
-	if resp["awpToken"] != "0xdddddddddddddddddddddddddddddddddddddd" {
-		t.Errorf("unexpected awpToken: %s", resp["awpToken"])
+	if str("awpToken") != "0xdddddddddddddddddddddddddddddddddddddd" {
+		t.Errorf("unexpected awpToken: %v", resp["awpToken"])
 	}
-	if resp["stakingVault"] != "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" {
-		t.Errorf("unexpected stakingVault: %s", resp["stakingVault"])
+	if str("awpAllocator") != "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" {
+		t.Errorf("unexpected awpAllocator: %v", resp["awpAllocator"])
 	}
-	if resp["awpEmission"] != "0xffffffffffffffffffffffffffffffffffffffff" {
-		t.Errorf("unexpected awpEmission: %s", resp["awpEmission"])
+	if str("awpEmission") != "0xffffffffffffffffffffffffffffffffffffffff" {
+		t.Errorf("unexpected awpEmission: %v", resp["awpEmission"])
 	}
-	if resp["treasury"] != "0x1234567890abcdef1234567890abcdef12345678" {
-		t.Errorf("unexpected treasury: %s", resp["treasury"])
+	if str("treasury") != "0x1234567890abcdef1234567890abcdef12345678" {
+		t.Errorf("unexpected treasury: %v", resp["treasury"])
 	}
 }
 
@@ -211,6 +220,7 @@ func TestListUsersWithData(t *testing.T) {
 	for i := range []int{0, 1, 2} {
 		addr := strings.Replace("0x0000000000000000000000000000000000000001", "1", string(rune('1'+i)), 1)
 		_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
+			ChainID: 31337,
 			Address: addr,
 			BoundTo: "",
 		})
@@ -247,11 +257,13 @@ func TestGetUserCount(t *testing.T) {
 
 	// Insert 2 users
 	_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
-		Address:      "0x0000000000000000000000000000000000000001",
+		ChainID: 31337,
+		Address: "0x0000000000000000000000000000000000000001",
 		BoundTo: "",
 	})
 	_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
-		Address:      "0x0000000000000000000000000000000000000002",
+		ChainID: 31337,
+		Address: "0x0000000000000000000000000000000000000002",
 		BoundTo: "",
 	})
 
@@ -275,20 +287,21 @@ func TestGetUser(t *testing.T) {
 
 	// Insert user
 	_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
-		Address:      addr,
+		ChainID: 31337,
+		Address: addr,
 		BoundTo: "",
 	})
 
 	// Initialize balance and create stake position
-	_ = env.queries.InitUserBalance(ctx, addr)
+	_ = env.queries.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: 31337, UserAddress: addr})
 	_ = env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
-		TokenID: 1, Owner: addr, Amount: numericFromInt64(5000),
+		ChainID: 31337, TokenID: 1, Owner: addr, Amount: numericFromInt64(5000),
 		LockEndTime: 50, CreatedAt: 1000,
 	})
 
 	// Insert agent
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		"0x00000000000000000000000000000000000000a1", addr,
 	)
 
@@ -339,7 +352,8 @@ func TestGetUserCaseInsensitive(t *testing.T) {
 	// Insert lowercase address
 	addr := "0x000000000000000000000000000000000000abcd"
 	_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
-		Address:      addr,
+		ChainID: 31337,
+		Address: addr,
 		BoundTo: "",
 	})
 
@@ -365,11 +379,11 @@ func TestCheckAddressUnknown(t *testing.T) {
 	if resp["isRegistered"] != false {
 		t.Error("expected isRegistered=false")
 	}
-	if resp["boundTo"] != "" {
-		t.Errorf("expected empty boundTo, got %v", resp["boundTo"])
+	if resp["boundTo"] != nil && resp["boundTo"] != "" {
+		t.Errorf("expected empty/nil boundTo, got %v", resp["boundTo"])
 	}
-	if resp["recipient"] != "" {
-		t.Errorf("expected empty recipient, got %v", resp["recipient"])
+	if resp["recipient"] != nil && resp["recipient"] != "" {
+		t.Errorf("expected empty/nil recipient, got %v", resp["recipient"])
 	}
 }
 
@@ -378,6 +392,7 @@ func TestCheckAddressUnbound(t *testing.T) {
 	ctx := context.Background()
 	addr := "0x0000000000000000000000000000000000000001"
 	_ = env.queries.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
+		ChainID: 31337,
 		Address: addr,
 		BoundTo: "",
 	})
@@ -401,7 +416,7 @@ func TestCheckAddressBound(t *testing.T) {
 	agentAddr := "0x00000000000000000000000000000000000000a1"
 	ownerAddr := "0x0000000000000000000000000000000000000001"
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agentAddr, ownerAddr,
 	)
 
@@ -426,6 +441,7 @@ func TestCheckAddressWithRecipient(t *testing.T) {
 	userAddr := "0x00000000000000000000000000000000000000a2"
 	recipientAddr := "0x0000000000000000000000000000000000000002"
 	_ = env.queries.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+		ChainID: 31337,
 		Address:   userAddr,
 		Recipient: recipientAddr,
 	})
@@ -470,11 +486,11 @@ func TestGetAgentsByOwnerWithData(t *testing.T) {
 	agent2 := "0x00000000000000000000000000000000000000a2"
 
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agent1, ownerAddr,
 	)
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agent2, ownerAddr,
 	)
 
@@ -497,7 +513,7 @@ func TestGetAgentDetail(t *testing.T) {
 	agentAddr := "0x00000000000000000000000000000000000000a1"
 
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agentAddr, ownerAddr,
 	)
 
@@ -523,7 +539,7 @@ func TestLookupAgent(t *testing.T) {
 	ownerAddr := "0x0000000000000000000000000000000000000001"
 	agentAddr := "0x00000000000000000000000000000000000000a1"
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agentAddr, ownerAddr,
 	)
 
@@ -555,15 +571,15 @@ func TestBatchAgentInfo(t *testing.T) {
 	ownerAddr := "0x0000000000000000000000000000000000000001"
 
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agent1, ownerAddr,
 	)
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agent2, ownerAddr,
 	)
 
-	body := `{"agents":["` + agent1 + `","` + agent2 + `"],"subnetId":1}`
+	body := `{"agents":["` + agent1 + `","` + agent2 + `"],"worknetId":1}`
 	rr := env.request("POST", "/api/agents/batch-info", body)
 	if rr.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
@@ -584,7 +600,7 @@ func TestBatchAgentInfoTooMany(t *testing.T) {
 	for i := range agents {
 		agents[i] = "\"0x0000000000000000000000000000000000000001\""
 	}
-	body := `{"agents":[` + strings.Join(agents, ",") + `],"subnetId":1}`
+	body := `{"agents":[` + strings.Join(agents, ",") + `],"worknetId":1}`
 
 	rr := env.request("POST", "/api/agents/batch-info", body)
 	if rr.Code != http.StatusBadRequest {
@@ -621,13 +637,13 @@ func TestGetBalanceWithData(t *testing.T) {
 	ctx := context.Background()
 
 	addr := "0x0000000000000000000000000000000000000001"
-	_ = env.queries.InitUserBalance(ctx, addr)
+	_ = env.queries.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: 31337, UserAddress: addr})
 	_ = env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
-		TokenID: 1, Owner: addr, Amount: numericFromInt64(10001),
+		ChainID: 31337, TokenID: 1, Owner: addr, Amount: numericFromInt64(10001),
 		LockEndTime: 50, CreatedAt: 100,
 	})
 	_ = env.queries.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
-		UserAddress:    addr,
+		ChainID: 31337, UserAddress:    addr,
 		TotalAllocated: numericFromInt64(3001),
 	})
 
@@ -654,11 +670,11 @@ func TestGetStakePositions(t *testing.T) {
 
 	addr := "0x0000000000000000000000000000000000000001"
 	_ = env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
-		TokenID: 1, Owner: addr, Amount: numericFromInt64(5000),
+		ChainID: 31337, TokenID: 1, Owner: addr, Amount: numericFromInt64(5000),
 		LockEndTime: 50, CreatedAt: 100,
 	})
 	_ = env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
-		TokenID: 2, Owner: addr, Amount: numericFromInt64(3000),
+		ChainID: 31337, TokenID: 2, Owner: addr, Amount: numericFromInt64(3000),
 		LockEndTime: 100, CreatedAt: 200,
 	})
 
@@ -696,9 +712,9 @@ func TestGetAllocationsWithData(t *testing.T) {
 	// Insert 3 allocation records
 	for i := int64(1); i <= 3; i++ {
 		_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
-			UserAddress:  userAddr,
+			ChainID: 31337, UserAddress:  userAddr,
 			AgentAddress: agentAddr,
-			SubnetID:     i,
+			SubnetID:     numericFromInt64(i),
 			Amount:       numericFromInt64(1000 * i),
 		})
 	}
@@ -762,9 +778,10 @@ func TestGetAgentSubnetStake(t *testing.T) {
 	userAddr := "0x0000000000000000000000000000000000000001"
 
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID:      31337,
 		UserAddress:  userAddr,
 		AgentAddress: agentAddr,
-		SubnetID:     1,
+		SubnetID:     numericFromInt64(1),
 		Amount:       numericFromInt64(5001),
 	})
 
@@ -790,15 +807,17 @@ func TestGetSubnetTotalStake(t *testing.T) {
 
 	// Two allocation records for the same subnet
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID:      31337,
 		UserAddress:  user1,
 		AgentAddress: agent1,
-		SubnetID:     1,
+		SubnetID:     numericFromInt64(1),
 		Amount:       numericFromInt64(3001),
 	})
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID:      31337,
 		UserAddress:  user2,
 		AgentAddress: agent2,
-		SubnetID:     1,
+		SubnetID:     numericFromInt64(1),
 		Amount:       numericFromInt64(7002),
 	})
 
@@ -822,8 +841,8 @@ func insertSubnet(t *testing.T, pool *pgxpool.Pool, id int64, owner, name, symbo
 	t.Helper()
 	ctx := context.Background()
 	_, err := pool.Exec(ctx,
-		`INSERT INTO subnets (subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at)
+		 VALUES (31337, $1, $2, $3, $4, $5, $6, $7, $8)`,
 		id, owner, name, symbol,
 		"0x00000000000000000000000000000000000000c1",
 		"0x00000000000000000000000000000000000000d1",
@@ -938,18 +957,18 @@ func TestGetSubnetEarnings(t *testing.T) {
 
 	// Insert epoch
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO epochs (epoch_id, start_time, daily_emission) VALUES ($1, $2, $3)",
+		"INSERT INTO epochs (chain_id, epoch_id, start_time, daily_emission) VALUES (31337, $1, $2, $3)",
 		1, 1000, 15800000,
 	)
 
 	// Insert distribution records (keyed by subnet_contract address matching insertSubnet)
 	subnetContract := "0x00000000000000000000000000000000000000c1"
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO recipient_awp_distributions (epoch_id, recipient, awp_amount) VALUES ($1, $2, $3)",
+		"INSERT INTO recipient_awp_distributions (chain_id, epoch_id, recipient, awp_amount) VALUES (31337, $1, $2, $3)",
 		1, subnetContract, 7900000,
 	)
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO recipient_awp_distributions (epoch_id, recipient, awp_amount) VALUES ($1, $2, $3)",
+		"INSERT INTO recipient_awp_distributions (chain_id, epoch_id, recipient, awp_amount) VALUES (31337, $1, $2, $3)",
 		2, subnetContract, 3000000,
 	)
 
@@ -970,15 +989,16 @@ func TestGetSubnetAgentInfo(t *testing.T) {
 
 	// Insert subnet
 	_, _ = env.pool.Exec(ctx,
-		`INSERT INTO subnets (subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at)
+		 VALUES (31337, $1, $2, $3, $4, $5, $6, $7, $8)`,
 		1, "0xowner", "Sub1", "S1", "0xsc1", "0xalpha1", "Active", 1000)
 
 	// Insert allocation
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID:      31337,
 		UserAddress:  "0xuser1",
 		AgentAddress: "0x1111111111111111111111111111111111111111",
-		SubnetID:     1,
+		SubnetID:     numericFromInt64(1),
 		Amount:       numericFromInt64(5001),
 	})
 
@@ -1030,7 +1050,7 @@ func TestGetCurrentEmissionWithCache(t *testing.T) {
 	ctx := context.Background()
 
 	data := `{"epoch":"5","dailyEmission":"15000000","totalWeight":"1000"}`
-	env.rdb.Set(ctx, "emission_current", data, 0)
+	env.rdb.Set(ctx, "emission_current:31337", data, 0)
 
 	rr := env.request("GET", "/api/emission/current", "")
 	if rr.Code != http.StatusOK {
@@ -1097,7 +1117,7 @@ func TestListEpochsWithData(t *testing.T) {
 	// Insert 3 epochs
 	for i := int64(1); i <= 3; i++ {
 		_, _ = env.pool.Exec(ctx,
-			"INSERT INTO epochs (epoch_id, start_time, daily_emission) VALUES ($1, $2, $3)",
+			"INSERT INTO epochs (chain_id, epoch_id, start_time, daily_emission) VALUES (31337, $1, $2, $3)",
 			i, i*86400, 15800000-i*100000,
 		)
 	}
@@ -1139,7 +1159,7 @@ func TestGetAWPInfoWithCache(t *testing.T) {
 	ctx := context.Background()
 
 	data := `{"totalSupply":"5000000000","maxSupply":"10000000000"}`
-	env.rdb.Set(ctx, "awp_info", data, 0)
+	env.rdb.Set(ctx, "awp_info:31337", data, 0)
 
 	rr := env.request("GET", "/api/tokens/awp", "")
 	if rr.Code != http.StatusOK {
@@ -1166,8 +1186,8 @@ func TestGetAlphaInfo(t *testing.T) {
 	}
 	var resp map[string]any
 	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
-	if resp["subnetId"] != float64(5) {
-		t.Errorf("expected subnetId=5, got %v", resp["subnetId"])
+	if resp["worknetId"] != float64(5) {
+		t.Errorf("expected worknetId=5, got %v", resp["worknetId"])
 	}
 	if resp["name"] != "AlphaNet" {
 		t.Errorf("expected name=AlphaNet, got %v", resp["name"])
@@ -1175,8 +1195,8 @@ func TestGetAlphaInfo(t *testing.T) {
 	if resp["symbol"] != "AN" {
 		t.Errorf("expected symbol=AN, got %v", resp["symbol"])
 	}
-	if resp["alphaToken"] == nil {
-		t.Error("expected alphaToken in response")
+	if resp["worknetToken"] == nil {
+		t.Error("expected worknetToken in response")
 	}
 }
 
@@ -1216,19 +1236,19 @@ func TestListProposalsWithStatusFilter(t *testing.T) {
 
 	// Insert proposals with different statuses
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO proposals (proposal_id, proposer, description, status, votes_for, votes_against) VALUES ($1, $2, $3, $4, $5, $6)",
+		"INSERT INTO proposals (chain_id, proposal_id, proposer, description, status, votes_for, votes_against) VALUES (31337, $1, $2, $3, $4, $5, $6)",
 		"0x0000000000000000000000000000000000000000000000000000000000000001",
 		"0x0000000000000000000000000000000000000001",
 		"Proposal 1", "Active", 0, 0,
 	)
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO proposals (proposal_id, proposer, description, status, votes_for, votes_against) VALUES ($1, $2, $3, $4, $5, $6)",
+		"INSERT INTO proposals (chain_id, proposal_id, proposer, description, status, votes_for, votes_against) VALUES (31337, $1, $2, $3, $4, $5, $6)",
 		"0x0000000000000000000000000000000000000000000000000000000000000002",
 		"0x0000000000000000000000000000000000000001",
 		"Proposal 2", "Executed", 0, 0,
 	)
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO proposals (proposal_id, proposer, description, status, votes_for, votes_against) VALUES ($1, $2, $3, $4, $5, $6)",
+		"INSERT INTO proposals (chain_id, proposal_id, proposer, description, status, votes_for, votes_against) VALUES (31337, $1, $2, $3, $4, $5, $6)",
 		"0x0000000000000000000000000000000000000000000000000000000000000003",
 		"0x0000000000000000000000000000000000000002",
 		"Proposal 3", "Active", 0, 0,
@@ -1270,7 +1290,7 @@ func TestGetProposal(t *testing.T) {
 
 	proposalID := "0x0000000000000000000000000000000000000000000000000000000000000042"
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO proposals (proposal_id, proposer, description, status, votes_for, votes_against) VALUES ($1, $2, $3, $4, $5, $6)",
+		"INSERT INTO proposals (chain_id, proposal_id, proposer, description, status, votes_for, votes_against) VALUES (31337, $1, $2, $3, $4, $5, $6)",
 		proposalID,
 		"0x0000000000000000000000000000000000000001",
 		"Test Proposal", "Active", 100, 50,
@@ -1316,6 +1336,7 @@ func TestE2E_UserRegistrationToStaking(t *testing.T) {
 
 	// Step 1: Register user with recipient (so address check shows isRegistered=true)
 	err := env.queries.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+		ChainID: 31337,
 		Address:   userAddr,
 		Recipient: userAddr, // self-recipient
 	})
@@ -1324,14 +1345,14 @@ func TestE2E_UserRegistrationToStaking(t *testing.T) {
 	}
 
 	// Step 2: Initialize balance
-	err = env.queries.InitUserBalance(ctx, userAddr)
+	err = env.queries.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: 31337, UserAddress: userAddr})
 	if err != nil {
 		t.Fatalf("InitUserBalance failed: %v", err)
 	}
 
 	// Step 3: Create stake position
 	err = env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
-		TokenID: 1, Owner: userAddr, Amount: numericFromInt64(100001),
+		ChainID: 31337, TokenID: 1, Owner: userAddr, Amount: numericFromInt64(100001),
 		LockEndTime: 50, CreatedAt: 1000,
 	})
 	if err != nil {
@@ -1340,27 +1361,27 @@ func TestE2E_UserRegistrationToStaking(t *testing.T) {
 
 	// Step 4: Insert agent
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agentAddr, userAddr,
 	)
 
 	// Step 5: Insert stake allocations
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
-		UserAddress:  userAddr,
+		ChainID: 31337, UserAddress: userAddr,
 		AgentAddress: agentAddr,
-		SubnetID:     1,
+		SubnetID:     numericFromInt64(1),
 		Amount:       numericFromInt64(30000),
 	})
 	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
-		UserAddress:  userAddr,
+		ChainID: 31337, UserAddress: userAddr,
 		AgentAddress: agentAddr,
-		SubnetID:     2,
+		SubnetID:     numericFromInt64(2),
 		Amount:       numericFromInt64(20000),
 	})
 
 	// Update total_allocated
 	err = env.queries.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
-		UserAddress:    userAddr,
+		ChainID: 31337, UserAddress:    userAddr,
 		TotalAllocated: numericFromInt64(50001),
 	})
 	if err != nil {
@@ -1447,13 +1468,13 @@ func TestE2E_SubnetRegistrationToEmission(t *testing.T) {
 
 	// Step 3: Insert epoch
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO epochs (epoch_id, start_time, daily_emission) VALUES ($1, $2, $3)",
+		"INSERT INTO epochs (chain_id, epoch_id, start_time, daily_emission) VALUES (31337, $1, $2, $3)",
 		1, 3000, 15800000,
 	)
 
 	// Step 4: Insert distribution record (by subnet_contract address, matching the address set in insertSubnet)
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO recipient_awp_distributions (epoch_id, recipient, awp_amount) VALUES ($1, $2, $3)",
+		"INSERT INTO recipient_awp_distributions (chain_id, epoch_id, recipient, awp_amount) VALUES (31337, $1, $2, $3)",
 		1, "0x00000000000000000000000000000000000000c1", 7900000,
 	)
 
@@ -1521,13 +1542,14 @@ func TestE2E_AddressCaseNormalization(t *testing.T) {
 
 	// User has a recipient set (makes isRegistered=true)
 	_ = env.queries.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+		ChainID: 31337,
 		Address:   userAddr,
 		Recipient: recipientAddr,
 	})
-	_ = env.queries.InitUserBalance(ctx, userAddr)
+	_ = env.queries.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: 31337, UserAddress: userAddr})
 	// Agent is bound to user
 	_, _ = env.pool.Exec(ctx,
-		"INSERT INTO users (address, bound_to) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
+		"INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2) ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to",
 		agentAddr, userAddr,
 	)
 
@@ -1579,4 +1601,1093 @@ func TestE2E_AddressCaseNormalization(t *testing.T) {
 			t.Errorf("expected 1 agent via case-insensitive owner lookup, got %d", len(agents))
 		}
 	})
+}
+
+// ════════════════════════════════════════════════════════════
+// JSON-RPC 2.0 — /v2
+// ════════════════════════════════════════════════════════════
+
+func TestJSONRPC_Discover(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"rpc.discover","id":1}`
+	rr := env.request("POST", "/v2", body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+
+	if resp["jsonrpc"] != "2.0" {
+		t.Error("expected jsonrpc 2.0")
+	}
+	result, ok := resp["result"].(map[string]any)
+	if !ok {
+		t.Fatal("expected result object")
+	}
+	methods, ok := result["methods"].([]any)
+	if !ok || len(methods) == 0 {
+		t.Fatal("expected non-empty methods array")
+	}
+
+	// Verify at least key methods are included
+	methodNames := make(map[string]bool)
+	for _, m := range methods {
+		if mm, ok := m.(map[string]any); ok {
+			methodNames[mm["name"].(string)] = true
+		}
+	}
+	for _, expected := range []string{
+		"registry.get", "staking.getBalance", "subnets.list",
+		"emission.getCurrent", "tokens.getAWP", "governance.listProposals",
+	} {
+		if !methodNames[expected] {
+			t.Errorf("missing method in discover: %s", expected)
+		}
+	}
+}
+
+func TestJSONRPC_HealthCheck(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"health.check","id":2}`
+	rr := env.request("POST", "/v2", body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	result := resp["result"].(map[string]any)
+	if result["status"] != "ok" {
+		t.Errorf("expected status ok, got %v", result["status"])
+	}
+}
+
+func TestJSONRPC_RegistryGet(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"registry.get","params":{"chainId":31337},"id":3}`
+	rr := env.request("POST", "/v2", body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	result := resp["result"].(map[string]any)
+	if result["awpRegistry"] != "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+		t.Errorf("unexpected awpRegistry: %v", result["awpRegistry"])
+	}
+	if result["chainId"].(float64) != 31337 {
+		t.Errorf("unexpected chainId: %v", result["chainId"])
+	}
+}
+
+func TestJSONRPC_MethodNotFound(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"nonexistent.method","id":4}`
+	rr := env.request("POST", "/v2", body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32601 {
+		t.Errorf("expected method not found error (-32601), got %v", errObj["code"])
+	}
+}
+
+func TestJSONRPC_InvalidParams(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Invalid address
+	body := `{"jsonrpc":"2.0","method":"users.get","params":{"address":"invalid"},"id":5}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32602 {
+		t.Errorf("expected invalid params error (-32602), got %v", errObj["code"])
+	}
+}
+
+func TestJSONRPC_BatchRequest(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `[
+		{"jsonrpc":"2.0","method":"health.check","id":1},
+		{"jsonrpc":"2.0","method":"registry.get","id":2},
+		{"jsonrpc":"2.0","method":"users.count","id":3}
+	]`
+	rr := env.request("POST", "/v2", body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	var responses []map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &responses)
+	if len(responses) != 3 {
+		t.Fatalf("expected 3 responses in batch, got %d", len(responses))
+	}
+
+	// Each response should have result (no error)
+	for i, resp := range responses {
+		if resp["error"] != nil {
+			t.Errorf("batch response %d has error: %v", i, resp["error"])
+		}
+		if resp["result"] == nil {
+			t.Errorf("batch response %d missing result", i)
+		}
+	}
+}
+
+func TestJSONRPC_UsersGet(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	addr := "0x0000000000000000000000000000000000001234"
+	_, _ = env.pool.Exec(ctx,
+		"INSERT INTO users (chain_id, address, registered_at) VALUES (31337, $1, 100)", addr)
+
+	body := `{"jsonrpc":"2.0","method":"users.get","params":{"address":"0x0000000000000000000000000000000000001234"},"id":6}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	user := result["user"].(map[string]any)
+	if user["address"] != addr {
+		t.Errorf("expected address %s, got %v", addr, user["address"])
+	}
+}
+
+func TestJSONRPC_SubnetsGet(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at)
+		 VALUES (31337, 1, '0xowner', 'TestSubnet', 'TS', '0xsc', '0xat', 'Active', 100)`)
+
+	body := `{"jsonrpc":"2.0","method":"subnets.get","params":{"worknetId":"1"},"id":7}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["name"] != "TestSubnet" {
+		t.Errorf("expected name TestSubnet, got %v", result["name"])
+	}
+}
+
+// ════════════════════════════════════════════════════════════
+// JSON-RPC 2.0 — Protocol-level tests
+// ════════════════════════════════════════════════════════════
+
+func TestJSONRPC_GETReturnsDiscover(t *testing.T) {
+	env := newTestEnv(t)
+	rr := env.request("GET", "/v2", "")
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	result := resp["result"].(map[string]any)
+	methods := result["methods"].([]any)
+	if len(methods) == 0 {
+		t.Fatal("GET /v2 should return rpc.discover with methods")
+	}
+}
+
+func TestJSONRPC_InvalidJSON(t *testing.T) {
+	env := newTestEnv(t)
+	rr := env.request("POST", "/v2", `{invalid json!!!`)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32700 {
+		t.Errorf("expected parse error (-32700), got %v", errObj["code"])
+	}
+}
+
+func TestJSONRPC_MissingVersion(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Missing jsonrpc field
+	body := `{"method":"health.check","id":1}`
+	rr := env.request("POST", "/v2", body)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32600 {
+		t.Errorf("expected invalid request error (-32600), got %v", errObj["code"])
+	}
+
+	// Incorrect jsonrpc field value
+	body2 := `{"jsonrpc":"1.0","method":"health.check","id":2}`
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	errObj2 := resp2["error"].(map[string]any)
+	if errObj2["code"].(float64) != -32600 {
+		t.Errorf("expected invalid request error (-32600) for wrong version, got %v", errObj2["code"])
+	}
+}
+
+func TestJSONRPC_EmptyBatch(t *testing.T) {
+	env := newTestEnv(t)
+	rr := env.request("POST", "/v2", `[]`)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32600 {
+		t.Errorf("expected invalid request error (-32600), got %v", errObj["code"])
+	}
+	if msg, ok := errObj["message"].(string); !ok || msg != "empty batch" {
+		t.Errorf("expected 'empty batch' message, got %v", errObj["message"])
+	}
+}
+
+func TestJSONRPC_BatchSizeExceeded(t *testing.T) {
+	env := newTestEnv(t)
+
+	// Build batch array of 21 requests
+	batch := "["
+	for i := 1; i <= 21; i++ {
+		if i > 1 {
+			batch += ","
+		}
+		batch += fmt.Sprintf(`{"jsonrpc":"2.0","method":"health.check","id":%d}`, i)
+	}
+	batch += "]"
+
+	rr := env.request("POST", "/v2", batch)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32600 {
+		t.Errorf("expected invalid request error (-32600), got %v", errObj["code"])
+	}
+}
+
+func TestJSONRPC_NullParams(t *testing.T) {
+	env := newTestEnv(t)
+
+	// null params — should work for parameterless methods
+	body := `{"jsonrpc":"2.0","method":"health.check","params":null,"id":1}`
+	rr := env.request("POST", "/v2", body)
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error with null params: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["status"] != "ok" {
+		t.Errorf("expected status ok, got %v", result["status"])
+	}
+
+	// Missing params field — should also work
+	body2 := `{"jsonrpc":"2.0","method":"health.check","id":2}`
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	if resp2["error"] != nil {
+		t.Fatalf("unexpected error with missing params: %v", resp2["error"])
+	}
+}
+
+func TestJSONRPC_IDPreservation(t *testing.T) {
+	env := newTestEnv(t)
+
+	// String ID
+	body1 := `{"jsonrpc":"2.0","method":"health.check","id":"my-string-id"}`
+	rr1 := env.request("POST", "/v2", body1)
+	var resp1 map[string]any
+	_ = json.Unmarshal(rr1.Body.Bytes(), &resp1)
+	if resp1["id"] != "my-string-id" {
+		t.Errorf("expected string id 'my-string-id', got %v", resp1["id"])
+	}
+
+	// Numeric ID
+	body2 := `{"jsonrpc":"2.0","method":"health.check","id":42}`
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	if resp2["id"].(float64) != 42 {
+		t.Errorf("expected numeric id 42, got %v", resp2["id"])
+	}
+
+	// null ID
+	body3 := `{"jsonrpc":"2.0","method":"health.check","id":null}`
+	rr3 := env.request("POST", "/v2", body3)
+	var resp3 map[string]any
+	_ = json.Unmarshal(rr3.Body.Bytes(), &resp3)
+	if resp3["id"] != nil {
+		t.Errorf("expected null id, got %v", resp3["id"])
+	}
+}
+
+// ════════════════════════════════════════════════════════════
+// JSON-RPC 2.0 — Staking method tests
+// ════════════════════════════════════════════════════════════
+
+func TestJSONRPC_StakingGetBalance(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	addr := "0x0000000000000000000000000000000000aabb01"
+
+	// Insert stake position (total staked = 10001) — using numericFromInt64 to ensure Exp=0
+	if err := env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+		ChainID: 31337, TokenID: 1, Owner: addr, Amount: numericFromInt64(7001),
+		LockEndTime: 99999, CreatedAt: 100,
+	}); err != nil {
+		t.Fatalf("InsertStakePosition 1 failed: %v", err)
+	}
+	if err := env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+		ChainID: 31337, TokenID: 2, Owner: addr, Amount: numericFromInt64(3000),
+		LockEndTime: 99999, CreatedAt: 200,
+	}); err != nil {
+		t.Fatalf("InsertStakePosition 2 failed: %v", err)
+	}
+
+	// Insert user_balances (allocated = 4001)
+	if err := env.queries.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: 31337, UserAddress: addr}); err != nil {
+		t.Fatalf("InitUserBalance failed: %v", err)
+	}
+	if err := env.queries.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
+		ChainID: 31337, UserAddress: addr, TotalAllocated: numericFromInt64(4001),
+	}); err != nil {
+		t.Fatalf("AddUserAllocated failed: %v", err)
+	}
+
+	body := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getBalance","params":{"address":"%s"},"id":1}`, addr)
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["totalStaked"] != "10001" {
+		t.Errorf("expected totalStaked=10001, got %v", result["totalStaked"])
+	}
+	if result["totalAllocated"] != "4001" {
+		t.Errorf("expected totalAllocated=4001, got %v", result["totalAllocated"])
+	}
+	if result["unallocated"] != "6000" {
+		t.Errorf("expected unallocated=6000, got %v", result["unallocated"])
+	}
+}
+
+func TestJSONRPC_StakingGetAllocations(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	addr := "0x0000000000000000000000000000000000aabb02"
+
+	// Insert 3 allocations (using raw SQL to avoid sqlc parameter issues)
+	for i := int64(1); i <= 3; i++ {
+		agent := fmt.Sprintf("0x00000000000000000000000000000000000000a%d", i)
+		if _, err := env.pool.Exec(ctx,
+			`INSERT INTO stake_allocations (chain_id, user_address, agent_address, subnet_id, amount) VALUES ($1, $2, $3, $4, $5)`,
+			int64(31337), addr, agent, i*100, i*1000,
+		); err != nil {
+			t.Fatalf("insert allocation %d: %v", i, err)
+		}
+	}
+
+	body := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getAllocations","params":{"address":"%s","page":1,"limit":2},"id":1}`, addr)
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result, ok := resp["result"].([]any)
+	if !ok {
+		t.Fatal("expected result to be array")
+	}
+	if len(result) != 2 {
+		t.Errorf("expected 2 allocations (limit=2), got %d; body=%s", len(result), rr.Body.String())
+	}
+
+	// Second page should have 1 entry
+	body2 := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getAllocations","params":{"address":"%s","page":2,"limit":2},"id":2}`, addr)
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	result2 := resp2["result"].([]any)
+	if len(result2) != 1 {
+		t.Errorf("expected 1 allocation on page 2, got %d; body=%s", len(result2), rr2.Body.String())
+	}
+}
+
+func TestJSONRPC_StakingGetAgentSubnetStake(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	agent := "0x00000000000000000000000000000000000000a1"
+	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID: 31337, UserAddress: "0x0000000000000000000000000000000000user01",
+		AgentAddress: agent, SubnetID: numericFromInt64(500), Amount: numericFromInt64(7777),
+	})
+
+	body := `{"jsonrpc":"2.0","method":"staking.getAgentSubnetStake","params":{"agent":"0x00000000000000000000000000000000000000a1","worknetId":"500"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["amount"] != "7777" {
+		t.Errorf("expected amount=7777, got %v", result["amount"])
+	}
+}
+
+func TestJSONRPC_StakingGetAgentSubnets(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	agent := "0x00000000000000000000000000000000000000b1"
+	// Insert allocation for same agent in different subnets
+	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID: 31337, UserAddress: "0x0000000000000000000000000000000000user01",
+		AgentAddress: agent, SubnetID: numericFromInt64(100), Amount: numericFromInt64(5000),
+	})
+	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID: 31337, UserAddress: "0x0000000000000000000000000000000000user01",
+		AgentAddress: agent, SubnetID: numericFromInt64(200), Amount: numericFromInt64(3000),
+	})
+
+	body := `{"jsonrpc":"2.0","method":"staking.getAgentSubnets","params":{"agent":"0x00000000000000000000000000000000000000b1"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result, ok := resp["result"].([]any)
+	if !ok {
+		t.Fatal("expected result to be array")
+	}
+	if len(result) != 2 {
+		t.Errorf("expected 2 subnets, got %d", len(result))
+	}
+}
+
+func TestJSONRPC_StakingGetSubnetTotalStake(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	// Insert allocation for multiple agents in same subnet — use values not divisible by 10 to avoid pgx NUMERIC Exp>0
+	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID: 31337, UserAddress: "0x0000000000000000000000000000000000user01",
+		AgentAddress: "0x00000000000000000000000000000000000000c1",
+		SubnetID: numericFromInt64(999), Amount: numericFromInt64(5001),
+	})
+	_ = env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID: 31337, UserAddress: "0x0000000000000000000000000000000000user02",
+		AgentAddress: "0x00000000000000000000000000000000000000c2",
+		SubnetID: numericFromInt64(999), Amount: numericFromInt64(3002),
+	})
+
+	body := `{"jsonrpc":"2.0","method":"staking.getSubnetTotalStake","params":{"worknetId":"999"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["total"] != "8003" {
+		t.Errorf("expected total=8003, got %v", result["total"])
+	}
+}
+
+// ════════════════════════════════════════════════════════════
+// JSON-RPC 2.0 — Subnet method tests
+// ════════════════════════════════════════════════════════════
+
+func TestJSONRPC_SubnetsList(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	// Insert subnets with different statuses
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at)
+		 VALUES (31337, 1001, '0xowner1', 'Sub1', 'S1', '0xsc1', '0xat1', 'Active', 100)`)
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at)
+		 VALUES (31337, 1002, '0xowner2', 'Sub2', 'S2', '0xsc2', '0xat2', 'Pending', 200)`)
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at)
+		 VALUES (31337, 1003, '0xowner3', 'Sub3', 'S3', '0xsc3', '0xat3', 'Active', 300)`)
+
+	// Test without filter
+	body := `{"jsonrpc":"2.0","method":"subnets.list","params":{},"id":1}`
+	rr := env.request("POST", "/v2", body)
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].([]any)
+	if len(result) != 3 {
+		t.Errorf("expected 3 subnets, got %d", len(result))
+	}
+
+	// Test with status filter
+	body2 := `{"jsonrpc":"2.0","method":"subnets.list","params":{"status":"Active"},"id":2}`
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	if resp2["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp2["error"])
+	}
+	result2 := resp2["result"].([]any)
+	if len(result2) != 2 {
+		t.Errorf("expected 2 Active subnets, got %d", len(result2))
+	}
+}
+
+func TestJSONRPC_SubnetsGetSkills(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at, skills_uri)
+		 VALUES (31337, 2001, '0xowner', 'SkillSub', 'SK', '0xsc', '0xat', 'Active', 100, 'ipfs://QmSkillsHash')`)
+
+	body := `{"jsonrpc":"2.0","method":"subnets.getSkills","params":{"worknetId":"2001"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["skillsURI"] != "ipfs://QmSkillsHash" {
+		t.Errorf("expected skillsURI=ipfs://QmSkillsHash, got %v", result["skillsURI"])
+	}
+	// worknetId returned as pgtype.Numeric, serialized as number in JSON
+	if fmt.Sprintf("%v", result["worknetId"]) != "2001" {
+		t.Errorf("expected worknetId=2001, got %v", result["worknetId"])
+	}
+}
+
+func TestJSONRPC_SubnetsGetEarnings(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at)
+		 VALUES (31337, 3001, '0xowner', 'EarnSub', 'ES', '0xsc', '0xat', 'Active', 100)`)
+
+	// Verify empty result (no epoch data)
+	body := `{"jsonrpc":"2.0","method":"subnets.getEarnings","params":{"worknetId":"3001"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].([]any)
+	if len(result) != 0 {
+		t.Errorf("expected 0 earnings, got %d", len(result))
+	}
+}
+
+// ════════════════════════════════════════════════════════════
+// JSON-RPC 2.0 — Other method tests
+// ════════════════════════════════════════════════════════════
+
+func TestJSONRPC_AddressCheck(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	addr := "0x0000000000000000000000000000000000aabb03"
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO users (chain_id, address, bound_to, recipient, registered_at)
+		 VALUES (31337, $1, '0x0000000000000000000000000000000000owner1', '0x0000000000000000000000000000000000recip1', 100)`, addr)
+
+	body := fmt.Sprintf(`{"jsonrpc":"2.0","method":"address.check","params":{"address":"%s","chainId":31337},"id":1}`, addr)
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["isRegistered"] != true {
+		t.Errorf("expected isRegistered=true, got %v", result["isRegistered"])
+	}
+	if result["boundTo"] != "0x0000000000000000000000000000000000owner1" {
+		t.Errorf("expected boundTo, got %v", result["boundTo"])
+	}
+	if result["recipient"] != "0x0000000000000000000000000000000000recip1" {
+		t.Errorf("expected recipient, got %v", result["recipient"])
+	}
+
+	// Unregistered address should return isRegistered=false
+	body2 := `{"jsonrpc":"2.0","method":"address.check","params":{"address":"0x0000000000000000000000000000000000ff0000","chainId":31337},"id":2}`
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	result2 := resp2["result"].(map[string]any)
+	if result2["isRegistered"] != false {
+		t.Errorf("expected isRegistered=false for unknown address, got %v", result2["isRegistered"])
+	}
+}
+
+func TestJSONRPC_AgentsGetByOwner(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	owner := "0x0000000000000000000000000000000000000b01"
+	agent1 := "0x0000000000000000000000000000000000000b02"
+	agent2 := "0x0000000000000000000000000000000000000b03"
+
+	// Insert owner
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, '')`, owner)
+	// Insert agent bound to owner
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2)`, agent1, owner)
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2)`, agent2, owner)
+
+	body := fmt.Sprintf(`{"jsonrpc":"2.0","method":"agents.getByOwner","params":{"owner":"%s"},"id":1}`, owner)
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].([]any)
+	if len(result) != 2 {
+		t.Errorf("expected 2 agents, got %d", len(result))
+	}
+}
+
+func TestJSONRPC_AgentsLookup(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	agent := "0x0000000000000000000000000000000000000c01"
+	owner := "0x0000000000000000000000000000000000000c02"
+
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO users (chain_id, address, bound_to) VALUES (31337, $1, $2)`, agent, owner)
+
+	body := fmt.Sprintf(`{"jsonrpc":"2.0","method":"agents.lookup","params":{"agent":"%s"},"id":1}`, agent)
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["ownerAddress"] != owner {
+		t.Errorf("expected ownerAddress=%s, got %v", owner, result["ownerAddress"])
+	}
+}
+
+func TestJSONRPC_ChainsList(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"chains.list","id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result, ok := resp["result"].([]any)
+	if !ok || len(result) == 0 {
+		t.Fatal("expected non-empty chains list")
+	}
+	chain := result[0].(map[string]any)
+	if chain["chainId"].(float64) != 31337 {
+		t.Errorf("expected chainId=31337, got %v", chain["chainId"])
+	}
+}
+
+func TestJSONRPC_GovernanceListProposals(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	_ = env.queries.InsertProposal(ctx, gen.InsertProposalParams{
+		ChainID: 31337, ProposalID: "1001",
+		Proposer: "0x0000000000000000000000000000000000prop01",
+		Description: pgtype.Text{String: "Test proposal 1", Valid: true},
+		Status: "Active",
+	})
+	_ = env.queries.InsertProposal(ctx, gen.InsertProposalParams{
+		ChainID: 31337, ProposalID: "1002",
+		Proposer: "0x0000000000000000000000000000000000prop02",
+		Description: pgtype.Text{String: "Test proposal 2", Valid: true},
+		Status: "Executed",
+	})
+
+	// Without filter
+	body := `{"jsonrpc":"2.0","method":"governance.listProposals","params":{},"id":1}`
+	rr := env.request("POST", "/v2", body)
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].([]any)
+	if len(result) != 2 {
+		t.Errorf("expected 2 proposals, got %d", len(result))
+	}
+
+	// With status filter
+	body2 := `{"jsonrpc":"2.0","method":"governance.listProposals","params":{"status":"Active"},"id":2}`
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	result2 := resp2["result"].([]any)
+	if len(result2) != 1 {
+		t.Errorf("expected 1 Active proposal, got %d", len(result2))
+	}
+}
+
+func TestJSONRPC_GovernanceGetProposal(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	_ = env.queries.InsertProposal(ctx, gen.InsertProposalParams{
+		ChainID: 31337, ProposalID: "2001",
+		Proposer: "0x0000000000000000000000000000000000prop01",
+		Description: pgtype.Text{String: "Single proposal", Valid: true},
+		Status: "Succeeded",
+	})
+
+	body := `{"jsonrpc":"2.0","method":"governance.getProposal","params":{"proposalId":"2001"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["description"] != "Single proposal" {
+		t.Errorf("expected description='Single proposal', got %v", result["description"])
+	}
+}
+
+func TestJSONRPC_GovernanceTreasury(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"governance.getTreasury","id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+	if result["treasuryAddress"] != "0x1234567890abcdef1234567890abcdef12345678" {
+		t.Errorf("unexpected treasury address: %v", result["treasuryAddress"])
+	}
+}
+
+func TestJSONRPC_EmissionSchedule(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"emission.getSchedule","id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].(map[string]any)
+
+	// Should have currentDailyEmission field
+	if result["currentDailyEmission"] == nil {
+		t.Error("expected currentDailyEmission field")
+	}
+
+	// Should have projections array with 3 entries (30/90/365 days)
+	projections, ok := result["projections"].([]any)
+	if !ok || len(projections) != 3 {
+		t.Fatalf("expected 3 projections, got %v", result["projections"])
+	}
+
+	// Verify each projection structure
+	for _, p := range projections {
+		proj := p.(map[string]any)
+		if proj["days"] == nil || proj["totalEmission"] == nil || proj["finalDailyRate"] == nil {
+			t.Errorf("projection missing fields: %v", proj)
+		}
+	}
+}
+
+func TestJSONRPC_EmissionListEpochs(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	// Empty result
+	body := `{"jsonrpc":"2.0","method":"emission.listEpochs","params":{},"id":1}`
+	rr := env.request("POST", "/v2", body)
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	if resp["error"] != nil {
+		t.Fatalf("unexpected error: %v", resp["error"])
+	}
+	result := resp["result"].([]any)
+	if len(result) != 0 {
+		t.Errorf("expected 0 epochs, got %d", len(result))
+	}
+
+	// Insert epoch data
+	_, _ = env.pool.Exec(ctx,
+		"INSERT INTO epochs (chain_id, epoch_id, start_time, daily_emission) VALUES (31337, $1, $2, $3)",
+		0, 86400, 15800000)
+	_, _ = env.pool.Exec(ctx,
+		"INSERT INTO epochs (chain_id, epoch_id, start_time, daily_emission) VALUES (31337, $1, $2, $3)",
+		1, 172800, 15750000)
+
+	body2 := `{"jsonrpc":"2.0","method":"emission.listEpochs","params":{},"id":2}`
+	rr2 := env.request("POST", "/v2", body2)
+	var resp2 map[string]any
+	_ = json.Unmarshal(rr2.Body.Bytes(), &resp2)
+	result2 := resp2["result"].([]any)
+	if len(result2) != 2 {
+		t.Errorf("expected 2 epochs, got %d", len(result2))
+	}
+}
+
+// ════════════════════════════════════════════════════════════
+// JSON-RPC 2.0 — Error case tests
+// ════════════════════════════════════════════════════════════
+
+func TestJSONRPC_UsersGetNotFound(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"users.get","params":{"address":"0x0000000000000000000000000000000000099999"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32001 {
+		t.Errorf("expected -32001 (not found), got %v", errObj["code"])
+	}
+	if errObj["message"] != "user not found" {
+		t.Errorf("expected 'user not found', got %v", errObj["message"])
+	}
+}
+
+func TestJSONRPC_SubnetsGetNotFound(t *testing.T) {
+	env := newTestEnv(t)
+
+	body := `{"jsonrpc":"2.0","method":"subnets.get","params":{"worknetId":"999999"},"id":1}`
+	rr := env.request("POST", "/v2", body)
+
+	var resp map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+	errObj := resp["error"].(map[string]any)
+	if errObj["code"].(float64) != -32001 {
+		t.Errorf("expected -32001 (not found), got %v", errObj["code"])
+	}
+	if errObj["message"] != "subnet not found" {
+		t.Errorf("expected 'subnet not found', got %v", errObj["message"])
+	}
+}
+
+func TestJSONRPC_InvalidSubnetID(t *testing.T) {
+	env := newTestEnv(t)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"zero", `{"jsonrpc":"2.0","method":"subnets.get","params":{"worknetId":"0"},"id":1}`},
+		{"negative", `{"jsonrpc":"2.0","method":"subnets.get","params":{"worknetId":"-1"},"id":2}`},
+		{"non-numeric", `{"jsonrpc":"2.0","method":"subnets.get","params":{"worknetId":"abc"},"id":3}`},
+		{"empty", `{"jsonrpc":"2.0","method":"subnets.get","params":{"worknetId":""},"id":4}`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := env.request("POST", "/v2", tc.body)
+			var resp map[string]any
+			_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+			errObj, ok := resp["error"].(map[string]any)
+			if !ok {
+				t.Fatal("expected error response")
+			}
+			if errObj["code"].(float64) != -32602 {
+				t.Errorf("expected -32602, got %v", errObj["code"])
+			}
+		})
+	}
+}
+
+func TestJSONRPC_MissingRequiredAddress(t *testing.T) {
+	env := newTestEnv(t)
+
+	tests := []struct {
+		name string
+		body string
+	}{
+		{"empty-params", `{"jsonrpc":"2.0","method":"users.get","params":{},"id":1}`},
+		{"missing-address", `{"jsonrpc":"2.0","method":"staking.getBalance","params":{},"id":2}`},
+		{"invalid-address", `{"jsonrpc":"2.0","method":"users.get","params":{"address":"not-an-address"},"id":3}`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := env.request("POST", "/v2", tc.body)
+			var resp map[string]any
+			_ = json.Unmarshal(rr.Body.Bytes(), &resp)
+			errObj, ok := resp["error"].(map[string]any)
+			if !ok {
+				t.Fatal("expected error response")
+			}
+			if errObj["code"].(float64) != -32602 {
+				t.Errorf("expected -32602, got %v", errObj["code"])
+			}
+		})
+	}
+}
+
+// ════════════════════════════════════════════════════════════
+// JSON-RPC 2.0 — E2E flow test
+// ════════════════════════════════════════════════════════════
+
+func TestJSONRPC_E2E_StakingFlow(t *testing.T) {
+	env := newTestEnv(t)
+	ctx := context.Background()
+
+	userAddr := "0x0000000000000000000000000000000000e2e001"
+	agentAddr := "0x0000000000000000000000000000000000e2e002"
+
+	// Step 1: Create user
+	_, _ = env.pool.Exec(ctx,
+		`INSERT INTO users (chain_id, address, bound_to, registered_at) VALUES (31337, $1, '', 100)`, userAddr)
+
+	// Verify user exists
+	body := fmt.Sprintf(`{"jsonrpc":"2.0","method":"users.get","params":{"address":"%s"},"id":1}`, userAddr)
+	rr := env.request("POST", "/v2", body)
+	var resp1 map[string]any
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp1)
+	if resp1["error"] != nil {
+		t.Fatalf("Step 1 failed: %v", resp1["error"])
+	}
+
+	// Step 2: Insert stake positions (total staked = 15001)
+	if err := env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+		ChainID: 31337, TokenID: 101, Owner: userAddr, Amount: numericFromInt64(10001),
+		LockEndTime: 99999, CreatedAt: 100,
+	}); err != nil {
+		t.Fatalf("InsertStakePosition 1: %v", err)
+	}
+	if err := env.queries.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+		ChainID: 31337, TokenID: 102, Owner: userAddr, Amount: numericFromInt64(5000),
+		LockEndTime: 99999, CreatedAt: 200,
+	}); err != nil {
+		t.Fatalf("InsertStakePosition 2: %v", err)
+	}
+
+	// Step 3: Insert allocations
+	if err := env.queries.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+		ChainID: 31337, UserAddress: userAddr, AgentAddress: agentAddr,
+		SubnetID: numericFromInt64(500), Amount: numericFromInt64(8001), UpdatedBlock: 100,
+	}); err != nil {
+		t.Fatalf("UpsertStakeAllocation: %v", err)
+	}
+	if err := env.queries.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: 31337, UserAddress: userAddr}); err != nil {
+		t.Fatalf("InitUserBalance: %v", err)
+	}
+	if err := env.queries.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
+		ChainID: 31337, UserAddress: userAddr, TotalAllocated: numericFromInt64(8001), UpdatedBlock: 100,
+	}); err != nil {
+		t.Fatalf("AddUserAllocated: %v", err)
+	}
+
+	// Step 4: Query balance
+	body4 := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getBalance","params":{"address":"%s"},"id":4}`, userAddr)
+	rr4 := env.request("POST", "/v2", body4)
+	var resp4 map[string]any
+	_ = json.Unmarshal(rr4.Body.Bytes(), &resp4)
+	if resp4["error"] != nil {
+		t.Fatalf("Step 4 failed: %v", resp4["error"])
+	}
+	balance := resp4["result"].(map[string]any)
+	if balance["totalStaked"] != "15001" {
+		t.Errorf("expected totalStaked=15001, got %v", balance["totalStaked"])
+	}
+	if balance["totalAllocated"] != "8001" {
+		t.Errorf("expected totalAllocated=8001, got %v", balance["totalAllocated"])
+	}
+	if balance["unallocated"] != "7000" {
+		t.Errorf("expected unallocated=7000, got %v", balance["unallocated"])
+	}
+
+	// Step 5: Query allocations
+	body5 := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getAllocations","params":{"address":"%s"},"id":5}`, userAddr)
+	rr5 := env.request("POST", "/v2", body5)
+	var resp5 map[string]any
+	_ = json.Unmarshal(rr5.Body.Bytes(), &resp5)
+	allocs := resp5["result"].([]any)
+	if len(allocs) != 1 {
+		t.Fatalf("expected 1 allocation, got %d", len(allocs))
+	}
+
+	// Step 6: Query agent subnet stake
+	body6 := fmt.Sprintf(`{"jsonrpc":"2.0","method":"staking.getAgentSubnetStake","params":{"agent":"%s","worknetId":"500"},"id":6}`, agentAddr)
+	rr6 := env.request("POST", "/v2", body6)
+	var resp6 map[string]any
+	_ = json.Unmarshal(rr6.Body.Bytes(), &resp6)
+	if resp6["error"] != nil {
+		t.Fatalf("Step 6 failed: %v", resp6["error"])
+	}
+	stakeResult := resp6["result"].(map[string]any)
+	if stakeResult["amount"] != "8001" {
+		t.Errorf("expected agent subnet stake=8001, got %v", stakeResult["amount"])
+	}
 }

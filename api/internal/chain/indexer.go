@@ -13,6 +13,7 @@ import (
 
 	"github.com/cortexia/rootnet/api/internal/db/gen"
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/jackc/pgx/v5"
@@ -35,16 +36,18 @@ type Indexer struct {
 	chain         *Client
 	pool          *pgxpool.Pool
 	rds           *redis.Client
+	chainID       int64 // chain_id for multi-chain DB partitioning
 	deployBlock   int64
 	genesisTime   int64 // AWPEmission genesisTime (unix seconds)
 	epochDuration int64 // AWPEmission epochDuration (seconds)
 }
 
 // NewIndexer creates an event indexer instance
+// chainID identifies the chain for multi-chain DB partitioning.
 // deployBlock is used as the start block on first run when sync_states is empty.
-func NewIndexer(chain *Client, pool *pgxpool.Pool, rds *redis.Client, deployBlock int64) (*Indexer, error) {
+func NewIndexer(chain *Client, pool *pgxpool.Pool, rds *redis.Client, chainID int64, deployBlock int64) (*Indexer, error) {
 	// Cache genesisTime and epochDuration (immutable, read once)
-	gt, err := chain.AWPEmission.GenesisTime(nil)
+	gt, err := chain.AWPEmission.BaseTime(nil)
 	if err != nil || gt == nil {
 		return nil, fmt.Errorf("failed to read AWPEmission.genesisTime: %w", err)
 	}
@@ -56,6 +59,7 @@ func NewIndexer(chain *Client, pool *pgxpool.Pool, rds *redis.Client, deployBloc
 		chain:         chain,
 		pool:          pool,
 		rds:           rds,
+		chainID:       chainID,
 		deployBlock:   deployBlock,
 		genesisTime:   gt.Int64(),
 		epochDuration: ed.Int64(),
@@ -65,22 +69,81 @@ func NewIndexer(chain *Client, pool *pgxpool.Pool, rds *redis.Client, deployBloc
 // redisEvent is the event format published to Redis
 type redisEvent struct {
 	Type        string      `json:"type"`
+	ChainID     int64       `json:"chainId"`
 	BlockNumber uint64      `json:"blockNumber"`
 	TxHash      string      `json:"txHash"`
 	Data        interface{} `json:"data"`
 }
 
-// Run starts the indexer main loop: read sync progress → filter logs → process events → update progress → publish Redis
+// Run starts the indexer main loop. Tries eth_subscribe (WebSocket) for real-time block
+// notifications; falls back to 3s polling if subscription is unavailable or disconnects.
 func (idx *Indexer) Run(ctx context.Context) error {
 	slog.Info("indexer started")
-	ticker := time.NewTicker(pollInterval)
-	defer ticker.Stop()
+
+	for {
+		// Try subscription-based mode first
+		err := idx.runSubscription(ctx)
+		if err == nil || ctx.Err() != nil {
+			return ctx.Err()
+		}
+		slog.Warn("subscription mode unavailable, falling back to polling", "error", err)
+
+		// Fallback: polling mode until context cancelled or subscription retried
+		if err := idx.runPolling(ctx); err != nil {
+			return err
+		}
+	}
+}
+
+// runSubscription uses eth_subscribe("newHeads") for real-time block notifications.
+// Returns error if subscription cannot be established (caller falls back to polling).
+func (idx *Indexer) runSubscription(ctx context.Context) error {
+	headers := make(chan *types.Header, 16)
+	sub, err := idx.chain.Eth.SubscribeNewHead(ctx, headers)
+	if err != nil {
+		return fmt.Errorf("subscribe new heads: %w", err)
+	}
+	defer sub.Unsubscribe()
+	slog.Info("indexer using eth_subscribe mode (real-time)")
+
+	// Initial catch-up: process blocks missed before subscription was established
+	if err := idx.poll(ctx); err != nil {
+		slog.Error("initial catch-up poll failed", "error", err)
+	}
 
 	for {
 		select {
 		case <-ctx.Done():
-			slog.Info("indexer received stop signal")
+			return nil
+		case err := <-sub.Err():
+			slog.Warn("subscription disconnected", "error", err)
+			return fmt.Errorf("subscription error: %w", err) // caller will retry or fallback
+		case header := <-headers:
+			slog.Debug("new block via subscription", "block", header.Number.Uint64())
+			if err := idx.poll(ctx); err != nil {
+				slog.Error("poll failed (subscription mode)", "error", err)
+			}
+		}
+	}
+}
+
+// runPolling uses a 3-second ticker as fallback when subscription is unavailable.
+// Runs for 60 seconds then returns to let the caller retry subscription.
+func (idx *Indexer) runPolling(ctx context.Context) error {
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	// Retry subscription mode after 60 seconds
+	retryTimer := time.NewTimer(60 * time.Second)
+	defer retryTimer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
 			return ctx.Err()
+		case <-retryTimer.C:
+			slog.Info("polling timeout, retrying subscription mode")
+			return nil // return to Run() loop to retry subscription
 		case <-ticker.C:
 			if err := idx.poll(ctx); err != nil {
 				slog.Error("poll failed", "error", err)
@@ -98,7 +161,10 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 
 	// 1. Read the last synced block
 	q := gen.New(idx.pool)
-	state, err := q.GetSyncState(ctx, syncKey)
+	state, err := q.GetSyncState(ctx, gen.GetSyncStateParams{
+		ChainID:      idx.chainID,
+		ContractName: syncKey,
+	})
 	if err != nil {
 		if !errors.Is(err, pgx.ErrNoRows) {
 			return fmt.Errorf("failed to read sync state: %w", err)
@@ -148,7 +214,7 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 	logs, err := idx.chain.Eth.FilterLogs(ctx, ethereum.FilterQuery{
 		FromBlock: new(big.Int).SetUint64(fromBlock),
 		ToBlock:   new(big.Int).SetUint64(toBlock),
-		Addresses: []common.Address{idx.chain.AWPRegistryAddr, idx.chain.AWPEmissionAddr, idx.chain.StakeNFTAddr, idx.chain.SubnetNFTAddr, idx.chain.AWPDAOAddr},
+		Addresses: []common.Address{idx.chain.AWPRegistryAddr, idx.chain.AWPEmissionAddr, idx.chain.VeAWPAddr, idx.chain.AWPWorkNetAddr, idx.chain.AWPDAOAddr, idx.chain.AWPAllocatorAddr},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to filter logs: %w", err)
@@ -183,6 +249,7 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 
 	// 7. Update sync progress
 	if err := qtx.UpsertSyncState(ctx, gen.UpsertSyncStateParams{
+		ChainID:      idx.chainID,
 		ContractName: syncKey,
 		LastBlock:    int64(toBlock),
 	}); err != nil {
@@ -191,7 +258,10 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 
 	// Prune old block hashes (keep last 256 blocks to limit DB growth)
 	if int64(toBlock) > 256 {
-		_ = qtx.PruneIndexedBlocks(ctx, int64(toBlock)-256)
+		_ = qtx.PruneIndexedBlocks(ctx, gen.PruneIndexedBlocksParams{
+			ChainID:     idx.chainID,
+			BlockNumber: int64(toBlock) - 256,
+		})
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -214,8 +284,41 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 		}
 	}
 
+	// 7. Refresh active worknet tokens cache for keeper compoundFees (every poll, cheap DB query)
+	idx.refreshActiveWorknetTokens(ctx, gen.New(idx.pool))
+
 	slog.Info("scan complete", "blocks", toBlock-fromBlock+1, "logs", len(logs), "events", len(events))
 	return nil
+}
+
+// refreshActiveWorknetTokens caches active worknet tokens in Redis.
+// Stores both the flat token list (for compoundFees) and the worknetId→token map (for price keying by worknetId).
+func (idx *Indexer) refreshActiveWorknetTokens(ctx context.Context, q *gen.Queries) {
+	rows, err := q.ListActiveWorknetTokensWithSubnetID(ctx, idx.chainID)
+	if err != nil {
+		return // non-critical, skip silently
+	}
+
+	// Build flat token list (backward compat for compoundFees) and worknetId→token map
+	tokens := make([]string, 0, len(rows))
+	subnetMap := make(map[string]string, len(rows)) // worknetId (decimal string) → worknetToken
+	for _, r := range rows {
+		tokens = append(tokens, r.WorknetToken)
+		if r.SubnetID.Valid && r.SubnetID.Int != nil {
+			subnetMap[r.SubnetID.Int.String()] = r.WorknetToken
+		}
+	}
+
+	pipe := idx.rds.Pipeline()
+	if data, err := json.Marshal(tokens); err == nil {
+		pipe.Set(ctx, fmt.Sprintf("active_worknet_tokens:%d", idx.chainID), data, 25*time.Hour)
+	}
+	if data, err := json.Marshal(subnetMap); err == nil {
+		pipe.Set(ctx, fmt.Sprintf("active_worknet_subnet_map:%d", idx.chainID), data, 25*time.Hour)
+	}
+	if _, err := pipe.Exec(ctx); err != nil {
+		slog.Error("failed to cache active worknet tokens", "error", err)
+	}
 }
 
 // detectReorg walks back from lastBlock checking stored block hashes against the chain.
@@ -228,7 +331,10 @@ func (idx *Indexer) detectReorg(ctx context.Context, q *gen.Queries, lastBlock u
 
 	for i := uint64(0); i < maxReorgDepth && lastBlock > i; i++ {
 		checkBlock := lastBlock - i
-		storedHash, err := q.GetIndexedBlockHash(ctx, int64(checkBlock))
+		storedHash, err := q.GetIndexedBlockHash(ctx, gen.GetIndexedBlockHashParams{
+			ChainID:     idx.chainID,
+			BlockNumber: int64(checkBlock),
+		})
 		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				continue // no hash stored for this block (not a batch boundary), skip
@@ -273,19 +379,29 @@ func (idx *Indexer) rollback(ctx context.Context, forkPoint int64) error {
 
 	qtx := gen.New(tx)
 	if err := qtx.UpsertSyncState(ctx, gen.UpsertSyncStateParams{
+		ChainID:      idx.chainID,
 		ContractName: syncKey,
 		LastBlock:    forkPoint,
 	}); err != nil {
 		return fmt.Errorf("reset sync state: %w", err)
 	}
-	if err := qtx.DeleteIndexedBlocksAfter(ctx, forkPoint); err != nil {
+	if err := qtx.DeleteIndexedBlocksAfter(ctx, gen.DeleteIndexedBlocksAfterParams{
+		ChainID:     idx.chainID,
+		BlockNumber: forkPoint,
+	}); err != nil {
 		return fmt.Errorf("delete indexed blocks after %d: %w", forkPoint, err)
 	}
 	// Delete only rows written after the fork point (scoped rollback, not global truncate)
-	if err := qtx.DeleteStakeAllocationsAfterBlock(ctx, forkPoint); err != nil {
+	if err := qtx.DeleteStakeAllocationsAfterBlock(ctx, gen.DeleteStakeAllocationsAfterBlockParams{
+		ChainID:      idx.chainID,
+		UpdatedBlock: forkPoint,
+	}); err != nil {
 		return fmt.Errorf("delete stake_allocations after %d: %w", forkPoint, err)
 	}
-	if err := qtx.DeleteUserBalancesAfterBlock(ctx, forkPoint); err != nil {
+	if err := qtx.DeleteUserBalancesAfterBlock(ctx, gen.DeleteUserBalancesAfterBlockParams{
+		ChainID:      idx.chainID,
+		UpdatedBlock: forkPoint,
+	}); err != nil {
 		return fmt.Errorf("delete user_balances after %d: %w", forkPoint, err)
 	}
 
@@ -305,6 +421,7 @@ func (idx *Indexer) recordBlockHashes(ctx context.Context, q *gen.Queries, fromB
 		return fmt.Errorf("get header for block %d: %w", toBlock, err)
 	}
 	return q.UpsertIndexedBlock(ctx, gen.UpsertIndexedBlockParams{
+		ChainID:     idx.chainID,
 		BlockNumber: int64(toBlock),
 		BlockHash:   header.Hash().Hex(),
 	})
@@ -314,19 +431,25 @@ func (idx *Indexer) recordBlockHashes(ctx context.Context, q *gen.Queries, fromB
 func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log) ([]redisEvent, error) {
 	awpRegistry := idx.chain.AWPRegistry
 	awpEmission := idx.chain.AWPEmission
-	stakeNFT := idx.chain.StakeNFT
+	veAWP := idx.chain.VeAWP
+	awpAllocator := idx.chain.AWPAllocator
 
 	// ── AWPRegistry Account System V2 events ──
 
 	// UserRegistered(address indexed user)
 	if evt, err := awpRegistry.ParseUserRegistered(lg); err == nil {
+		var registeredAt int64
+		if header, err := idx.chain.Eth.HeaderByNumber(ctx, new(big.Int).SetUint64(lg.BlockNumber)); err == nil {
+			registeredAt = int64(header.Time)
+		}
 		if err := q.SetUserRegisteredAt(ctx, gen.SetUserRegisteredAtParams{
+			ChainID:      idx.chainID,
 			Address:      strings.ToLower(evt.User.Hex()),
-			RegisteredAt: int64(lg.BlockNumber),
+			RegisteredAt: registeredAt,
 		}); err != nil {
 			return nil, fmt.Errorf("SetUserRegisteredAt: %w", err)
 		}
-		return []redisEvent{makeEvent("UserRegistered", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("UserRegistered", idx.chainID, lg, map[string]interface{}{
 			"user": evt.User.Hex(),
 		})}, nil
 	}
@@ -334,15 +457,19 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// Bound(address indexed addr, address indexed target)
 	if evt, err := awpRegistry.ParseBound(lg); err == nil {
 		if err := q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
+			ChainID: idx.chainID,
 			Address: strings.ToLower(evt.Addr.Hex()),
 			BoundTo: strings.ToLower(evt.Target.Hex()),
 		}); err != nil {
 			return nil, fmt.Errorf("UpsertUserBinding: %w", err)
 		}
-		if err := q.InitUserBalance(ctx, strings.ToLower(evt.Addr.Hex())); err != nil {
+		if err := q.InitUserBalance(ctx, gen.InitUserBalanceParams{
+			ChainID:     idx.chainID,
+			UserAddress: strings.ToLower(evt.Addr.Hex()),
+		}); err != nil {
 			return nil, fmt.Errorf("InitUserBalance (Bound): %w", err)
 		}
-		return []redisEvent{makeEvent("Bound", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("Bound", idx.chainID, lg, map[string]interface{}{
 			"addr":   evt.Addr.Hex(),
 			"target": evt.Target.Hex(),
 		})}, nil
@@ -350,10 +477,13 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// Unbound(address indexed addr)
 	if evt, err := awpRegistry.ParseUnbound(lg); err == nil {
-		if err := q.ClearUserBinding(ctx, strings.ToLower(evt.Addr.Hex())); err != nil {
+		if err := q.ClearUserBinding(ctx, gen.ClearUserBindingParams{
+			Address: strings.ToLower(evt.Addr.Hex()),
+			ChainID: idx.chainID,
+		}); err != nil {
 			return nil, fmt.Errorf("ClearUserBinding: %w", err)
 		}
-		return []redisEvent{makeEvent("Unbound", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("Unbound", idx.chainID, lg, map[string]interface{}{
 			"addr": evt.Addr.Hex(),
 		})}, nil
 	}
@@ -361,12 +491,13 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	// RecipientSet(address indexed addr, address recipient)
 	if evt, err := awpRegistry.ParseRecipientSet(lg); err == nil {
 		if err := q.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+			ChainID:   idx.chainID,
 			Address:   strings.ToLower(evt.Addr.Hex()),
 			Recipient: strings.ToLower(evt.Recipient.Hex()),
 		}); err != nil {
 			return nil, fmt.Errorf("UpsertUserRecipient: %w", err)
 		}
-		return []redisEvent{makeEvent("RecipientSet", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("RecipientSet", idx.chainID, lg, map[string]interface{}{
 			"addr":      evt.Addr.Hex(),
 			"recipient": evt.Recipient.Hex(),
 		})}, nil
@@ -374,7 +505,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// DelegateGranted(address indexed staker, address indexed delegate)
 	if evt, err := awpRegistry.ParseDelegateGranted(lg); err == nil {
-		return []redisEvent{makeEvent("DelegateGranted", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("DelegateGranted", idx.chainID, lg, map[string]interface{}{
 			"staker":   evt.Staker.Hex(),
 			"delegate": evt.Delegate.Hex(),
 		})}, nil
@@ -382,20 +513,21 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// DelegateRevoked(address indexed staker, address indexed delegate)
 	if evt, err := awpRegistry.ParseDelegateRevoked(lg); err == nil {
-		return []redisEvent{makeEvent("DelegateRevoked", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("DelegateRevoked", idx.chainID, lg, map[string]interface{}{
 			"staker":   evt.Staker.Hex(),
 			"delegate": evt.Delegate.Hex(),
 		})}, nil
 	}
 
-	// StakeNFT.Deposited — new stake position created
-	if evt, err := stakeNFT.ParseDeposited(lg); err == nil {
+	// VeAWP.Deposited — new stake position created
+	if evt, err := veAWP.ParseDeposited(lg); err == nil {
 		// Read position from chain to get the actual createdAt timestamp
-		pos, err := idx.chain.StakeNFT.Positions(nil, evt.TokenId)
+		pos, err := idx.chain.VeAWP.Positions(&bind.CallOpts{Context: ctx}, evt.TokenId)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read position for createdAt: %w", err)
 		}
 		if err := q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+			ChainID:     idx.chainID,
 			TokenID:     evt.TokenId.Int64(),
 			Owner:       strings.ToLower(evt.User.Hex()),
 			Amount:      bigIntToNumeric(evt.Amount),
@@ -404,7 +536,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("InsertStakePosition: %w", err)
 		}
-		return []redisEvent{makeEvent("Deposited", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("Deposited", idx.chainID, lg, map[string]interface{}{
 			"user":        evt.User.Hex(),
 			"tokenId":     evt.TokenId.String(),
 			"amount":      evt.Amount.String(),
@@ -412,53 +544,80 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// StakeNFT.PositionIncreased — position amount/lock updated
-	if evt, err := stakeNFT.ParsePositionIncreased(lg); err == nil {
+	// VeAWP.PositionIncreased — position amount/lock updated
+	if evt, err := veAWP.ParsePositionIncreased(lg); err == nil {
 		// Read updated position from chain to get new total amount
-		pos, err := idx.chain.StakeNFT.Positions(nil, evt.TokenId)
+		pos, err := idx.chain.VeAWP.Positions(&bind.CallOpts{Context: ctx}, evt.TokenId)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read position: %w", err)
 		}
 		if err := q.UpdateStakePosition(ctx, gen.UpdateStakePositionParams{
+			ChainID:     idx.chainID,
 			TokenID:     evt.TokenId.Int64(),
 			Amount:      bigIntToNumeric(pos.Amount),
 			LockEndTime: int64(pos.LockEndTime),
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateStakePosition: %w", err)
 		}
-		return []redisEvent{makeEvent("PositionIncreased", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("PositionIncreased", idx.chainID, lg, map[string]interface{}{
 			"tokenId":        evt.TokenId.String(),
 			"addedAmount":    evt.AddedAmount.String(),
 			"newLockEndTime": evt.NewLockEndTime,
 		})}, nil
 	}
 
-	// StakeNFT.Withdrawn — position burned
-	if evt, err := stakeNFT.ParseWithdrawn(lg); err == nil {
-		if err := q.BurnStakePosition(ctx, evt.TokenId.Int64()); err != nil {
+	// VeAWP.PositionDecreased — partial withdrawal (amount reduced, position kept)
+	if evt, err := veAWP.ParsePositionDecreased(lg); err == nil {
+		// Read position from chain to get current lockEndTime (unchanged by partialWithdraw)
+		pos, err := idx.chain.VeAWP.Positions(&bind.CallOpts{Context: ctx}, evt.TokenId)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read position: %w", err)
+		}
+		if err := q.UpdateStakePosition(ctx, gen.UpdateStakePositionParams{
+			ChainID:     idx.chainID,
+			TokenID:     evt.TokenId.Int64(),
+			Amount:      bigIntToNumeric(evt.RemainingAmount),
+			LockEndTime: int64(pos.LockEndTime),
+		}); err != nil {
+			return nil, fmt.Errorf("UpdateStakePosition (PositionDecreased): %w", err)
+		}
+		return []redisEvent{makeEvent("PositionDecreased", idx.chainID, lg, map[string]interface{}{
+			"tokenId":         evt.TokenId.String(),
+			"withdrawnAmount": evt.WithdrawnAmount.String(),
+			"remainingAmount": evt.RemainingAmount.String(),
+		})}, nil
+	}
+
+	// VeAWP.Withdrawn — position burned
+	if evt, err := veAWP.ParseWithdrawn(lg); err == nil {
+		if err := q.BurnStakePosition(ctx, gen.BurnStakePositionParams{
+			ChainID: idx.chainID,
+			TokenID: evt.TokenId.Int64(),
+		}); err != nil {
 			return nil, fmt.Errorf("BurnStakePosition: %w", err)
 		}
-		return []redisEvent{makeEvent("Withdrawn", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("Withdrawn", idx.chainID, lg, map[string]interface{}{
 			"user":    evt.User.Hex(),
 			"tokenId": evt.TokenId.String(),
 			"amount":  evt.Amount.String(),
 		})}, nil
 	}
 
-	// StakeNFT.Transfer — NFT ownership transfer (ERC721 Transfer event)
-	// Guard on address to avoid matching SubnetNFT Transfer (same event signature)
-	if lg.Address == idx.chain.StakeNFTAddr {
-		if evt, err := stakeNFT.ParseTransfer(lg); err == nil {
+	// VeAWP.Transfer — NFT ownership transfer (ERC721 Transfer event)
+	// Guard on address to avoid matching AWPWorkNet Transfer (same event signature)
+	if lg.Address == idx.chain.VeAWPAddr {
+		if evt, err := veAWP.ParseTransfer(lg); err == nil {
 			// Skip mint (from=0) and burn (to=0) — handled by Deposited/Withdrawn
 			zeroAddr := common.Address{}
 			if evt.From != zeroAddr && evt.To != zeroAddr {
 				if err := q.UpdateStakePositionOwner(ctx, gen.UpdateStakePositionOwnerParams{
+					ChainID: idx.chainID,
 					TokenID: evt.TokenId.Int64(),
 					Owner:   strings.ToLower(evt.To.Hex()),
 				}); err != nil {
 					return nil, fmt.Errorf("UpdateStakePositionOwner: %w", err)
 				}
-				return []redisEvent{makeEvent("StakeNFTTransfer", lg, map[string]interface{}{
+				return []redisEvent{makeEvent("VeAWPTransfer", idx.chainID, lg, map[string]interface{}{
 					"from":    evt.From.Hex(),
 					"to":      evt.To.Hex(),
 					"tokenId": evt.TokenId.String(),
@@ -468,67 +627,72 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}
 	}
 
-	// Allocated (V2: staker instead of user)
-	if evt, err := awpRegistry.ParseAllocated(lg); err == nil {
+	// Allocated (V2: staker instead of user, now emitted by AWPAllocator)
+	if evt, err := awpAllocator.ParseAllocated(lg); err == nil {
 		if err := q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
-			SubnetID:     evt.SubnetId.Int64(),
+			SubnetID:     bigIntToNumeric(evt.WorknetId),
 			Amount:       bigIntToNumeric(evt.Amount),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("UpsertStakeAllocation: %w", err)
 		}
 		if err := q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
+			ChainID:        idx.chainID,
 			UserAddress:    strings.ToLower(evt.Staker.Hex()),
 			TotalAllocated: bigIntToNumeric(evt.Amount),
 			UpdatedBlock:   int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("AddUserAllocated: %w", err)
 		}
-		return []redisEvent{makeEvent("Allocated", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("Allocated", idx.chainID, lg, map[string]interface{}{
 			"staker":   evt.Staker.Hex(),
 			"agent":    evt.Agent.Hex(),
-			"subnetId": evt.SubnetId.String(),
+			"worknetId": evt.WorknetId.String(),
 			"amount":   evt.Amount.String(),
 			"operator": evt.Operator.Hex(),
 		})}, nil
 	}
 
-	// Deallocated (V2: staker instead of user)
-	if evt, err := awpRegistry.ParseDeallocated(lg); err == nil {
+	// Deallocated (V2: staker instead of user, now emitted by AWPAllocator)
+	if evt, err := awpAllocator.ParseDeallocated(lg); err == nil {
 		if err := q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
+			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
-			SubnetID:     evt.SubnetId.Int64(),
+			SubnetID:     bigIntToNumeric(evt.WorknetId),
 			Amount:       bigIntToNumeric(evt.Amount),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("SubtractStakeAllocation: %w", err)
 		}
 		if err := q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{
+			ChainID:        idx.chainID,
 			UserAddress:    strings.ToLower(evt.Staker.Hex()),
 			TotalAllocated: bigIntToNumeric(evt.Amount),
 			UpdatedBlock:   int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("SubtractUserAllocated: %w", err)
 		}
-		return []redisEvent{makeEvent("Deallocated", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("Deallocated", idx.chainID, lg, map[string]interface{}{
 			"staker":   evt.Staker.Hex(),
 			"agent":    evt.Agent.Hex(),
-			"subnetId": evt.SubnetId.String(),
+			"worknetId": evt.WorknetId.String(),
 			"amount":   evt.Amount.String(),
 			"operator": evt.Operator.Hex(),
 		})}, nil
 	}
 
-	// Reallocated (V2: staker instead of user)
-	if evt, err := awpRegistry.ParseReallocated(lg); err == nil {
+	// Reallocated (V2: staker instead of user, now emitted by AWPAllocator)
+	if evt, err := awpAllocator.ParseReallocated(lg); err == nil {
 		// Subtract from source allocation
 		if err := q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
+			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.FromAgent.Hex()),
-			SubnetID:     evt.FromSubnet.Int64(),
+			SubnetID:     bigIntToNumeric(evt.FromWorknetId),
 			Amount:       bigIntToNumeric(evt.Amount),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
@@ -536,52 +700,69 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}
 		// Add to destination allocation
 		if err := q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.ToAgent.Hex()),
-			SubnetID:     evt.ToSubnet.Int64(),
+			SubnetID:     bigIntToNumeric(evt.ToWorknetId),
 			Amount:       bigIntToNumeric(evt.Amount),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("UpsertStakeAllocation(Reallocated): %w", err)
 		}
-		return []redisEvent{makeEvent("Reallocated", lg, map[string]interface{}{
+		// Touch user_balances.updated_block for correct reorg rollback
+		// (total_allocated unchanged in reallocate, but updated_block must advance)
+		if err := q.TouchUserBalance(ctx, gen.TouchUserBalanceParams{
+			ChainID:      idx.chainID,
+			Address:      strings.ToLower(evt.Staker.Hex()),
+			UpdatedBlock: int64(lg.BlockNumber),
+		}); err != nil {
+			return nil, fmt.Errorf("TouchUserBalance(Reallocated): %w", err)
+		}
+		return []redisEvent{makeEvent("Reallocated", idx.chainID, lg, map[string]interface{}{
 			"staker":     evt.Staker.Hex(),
 			"fromAgent":  evt.FromAgent.Hex(),
-			"fromSubnet": evt.FromSubnet.String(),
+			"fromSubnet": evt.FromWorknetId.String(),
 			"toAgent":    evt.ToAgent.Hex(),
-			"toSubnet":   evt.ToSubnet.String(),
+			"toSubnet":   evt.ToWorknetId.String(),
 			"amount":     evt.Amount.String(),
 			"operator":   evt.Operator.Hex(),
 		})}, nil
 	}
 
-	// SubnetRegistered
-	if evt, err := awpRegistry.ParseSubnetRegistered(lg); err == nil {
-		// Read skillsURI and minStake from SubnetNFT on-chain (not included in event)
+	// AgentAllocationsFrozen removed — freezeAgentAllocations deleted from AWPAllocator
+
+	// WorknetRegistered
+	if evt, err := awpRegistry.ParseWorknetRegistered(lg); err == nil {
+		// Read full worknet data from AWPWorkNet on-chain (not included in event)
 		skillsURI := ""
 		minStake := big.NewInt(0)
-		if nftData, nftErr := idx.chain.SubnetNFT.GetSubnetData(nil, evt.SubnetId); nftErr == nil {
+		worknetManager := ""
+		worknetToken := ""
+		if nftData, nftErr := idx.chain.AWPWorkNet.GetWorknetData(&bind.CallOpts{Context: ctx}, evt.WorknetId); nftErr == nil {
 			skillsURI = nftData.SkillsURI
 			if nftData.MinStake != nil {
 				minStake = nftData.MinStake
 			}
+			worknetManager = strings.ToLower(nftData.WorknetManager.Hex())
+			worknetToken = strings.ToLower(nftData.WorknetToken.Hex())
 		}
 		// Read on-chain createdAt (block.timestamp, not block number)
 		var createdAtTs int64
-		if subnetInfo, err := idx.chain.AWPRegistry.GetSubnet(nil, evt.SubnetId); err == nil {
+		if subnetInfo, err := idx.chain.AWPRegistry.GetWorknet(nil, evt.WorknetId); err == nil {
 			createdAtTs = int64(subnetInfo.CreatedAt)
 		} else {
 			createdAtTs = int64(lg.BlockNumber) // fallback to block number if RPC fails
 		}
 		if err := q.InsertSubnet(ctx, gen.InsertSubnetParams{
-			SubnetID:       evt.SubnetId.Int64(),
+			SubnetID:       bigIntToNumeric(evt.WorknetId),
+			ChainID:        idx.chainID,
 			Owner:          strings.ToLower(evt.Owner.Hex()),
 			Name:           evt.Name,
 			Symbol:         evt.Symbol,
-			SubnetContract: strings.ToLower(evt.SubnetManager.Hex()),
+			SubnetContract: worknetManager,
 			SkillsUri:      pgtype.Text{String: skillsURI, Valid: skillsURI != ""},
 			MinStake:       bigIntToNumeric(minStake),
-			AlphaToken:     strings.ToLower(evt.AlphaToken.Hex()),
+			WorknetToken:   worknetToken,
 			LpPool:         pgtype.Text{Valid: false},
 			CreatedAt:      createdAtTs,
 			ImmunityEndsAt: pgtype.Int8{Valid: false},
@@ -590,18 +771,19 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}
 		// Mark matching salt as used in pool (best-effort; pool may not contain this address)
 		if markErr := q.MarkSaltUsedByAddress(ctx, gen.MarkSaltUsedByAddressParams{
-			SubnetID: pgtype.Int8{Int64: evt.SubnetId.Int64(), Valid: true},
-			Lower:    strings.ToLower(evt.AlphaToken.Hex()),
+			ChainID:  idx.chainID,
+			SubnetID: bigIntToNumeric(evt.WorknetId),
+			Lower:    worknetToken,
 		}); markErr != nil {
-			slog.Warn("mark salt used failed (non-critical)", "error", markErr, "alphaToken", evt.AlphaToken.Hex())
+			slog.Warn("mark salt used failed (non-critical)", "error", markErr, "worknetToken", worknetToken)
 		}
-		return []redisEvent{makeEvent("SubnetRegistered", lg, map[string]interface{}{
-			"subnetId":      evt.SubnetId.String(),
-			"owner":         evt.Owner.Hex(),
-			"name":          evt.Name,
-			"symbol":        evt.Symbol,
-			"subnetManager": evt.SubnetManager.Hex(),
-			"alphaToken":    evt.AlphaToken.Hex(),
+		return []redisEvent{makeEvent("WorknetRegistered", idx.chainID, lg, map[string]interface{}{
+			"worknetId":      evt.WorknetId.String(),
+			"owner":          evt.Owner.Hex(),
+			"name":           evt.Name,
+			"symbol":         evt.Symbol,
+			"worknetManager": worknetManager,
+			"worknetToken":   worknetToken,
 		})}, nil
 	}
 
@@ -609,150 +791,177 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 	if evt, err := awpRegistry.ParseLPCreated(lg); err == nil {
 		poolIdHex := "0x" + hex.EncodeToString(evt.PoolId[:])
 		if err := q.UpdateSubnetLP(ctx, gen.UpdateSubnetLPParams{
-			SubnetID: evt.SubnetId.Int64(),
+			SubnetID: bigIntToNumeric(evt.WorknetId),
 			LpPool:   pgtype.Text{String: poolIdHex, Valid: true},
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetLP: %w", err)
 		}
-		return []redisEvent{makeEvent("LPCreated", lg, map[string]interface{}{
-			"subnetId":    evt.SubnetId.String(),
-			"poolId":      poolIdHex,
-			"awpAmount":   evt.AwpAmount.String(),
-			"alphaAmount": evt.AlphaAmount.String(),
+		return []redisEvent{makeEvent("LPCreated", idx.chainID, lg, map[string]interface{}{
+			"worknetId":          evt.WorknetId.String(),
+			"poolId":             poolIdHex,
+			"awpAmount":          evt.AwpAmount.String(),
+			"worknetTokenAmount": evt.WorknetTokenAmount.String(),
 		})}, nil
 	}
 
-	// SubnetActivated
-	if evt, err := awpRegistry.ParseSubnetActivated(lg); err == nil {
+	// WorknetActivated
+	if evt, err := awpRegistry.ParseWorknetActivated(lg); err == nil {
 		// Read on-chain activatedAt (block.timestamp)
 		var activatedAtTs int64
-		if subnetInfo, err := idx.chain.AWPRegistry.GetSubnet(nil, evt.SubnetId); err == nil {
+		if subnetInfo, err := idx.chain.AWPRegistry.GetWorknet(nil, evt.WorknetId); err == nil {
 			activatedAtTs = int64(subnetInfo.ActivatedAt)
 		} else {
 			activatedAtTs = int64(lg.BlockNumber) // fallback
 		}
 		if err := q.UpdateSubnetActivated(ctx, gen.UpdateSubnetActivatedParams{
-			SubnetID:    evt.SubnetId.Int64(),
+			SubnetID:    bigIntToNumeric(evt.WorknetId),
 			ActivatedAt: pgtype.Int8{Int64: activatedAtTs, Valid: true},
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetActivated: %w", err)
 		}
-		return []redisEvent{makeEvent("SubnetActivated", lg, map[string]interface{}{
-			"subnetId": evt.SubnetId.String(),
+		return []redisEvent{makeEvent("WorknetActivated", idx.chainID, lg, map[string]interface{}{
+			"worknetId": evt.WorknetId.String(),
 		})}, nil
 	}
 
-	// SubnetPaused
-	if evt, err := awpRegistry.ParseSubnetPaused(lg); err == nil {
+	// WorknetPaused
+	if evt, err := awpRegistry.ParseWorknetPaused(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: evt.SubnetId.Int64(),
+			SubnetID: bigIntToNumeric(evt.WorknetId),
 			Status:   "Paused",
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Paused): %w", err)
 		}
-		return []redisEvent{makeEvent("SubnetPaused", lg, map[string]interface{}{
-			"subnetId": evt.SubnetId.String(),
+		return []redisEvent{makeEvent("WorknetPaused", idx.chainID, lg, map[string]interface{}{
+			"worknetId": evt.WorknetId.String(),
 		})}, nil
 	}
 
-	// SubnetResumed
-	if evt, err := awpRegistry.ParseSubnetResumed(lg); err == nil {
+	// WorknetResumed
+	if evt, err := awpRegistry.ParseWorknetResumed(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: evt.SubnetId.Int64(),
+			SubnetID: bigIntToNumeric(evt.WorknetId),
 			Status:   "Active",
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Active): %w", err)
 		}
-		return []redisEvent{makeEvent("SubnetResumed", lg, map[string]interface{}{
-			"subnetId": evt.SubnetId.String(),
+		return []redisEvent{makeEvent("WorknetResumed", idx.chainID, lg, map[string]interface{}{
+			"worknetId": evt.WorknetId.String(),
 		})}, nil
 	}
 
-	// SubnetBanned
-	if evt, err := awpRegistry.ParseSubnetBanned(lg); err == nil {
+	// WorknetBanned
+	if evt, err := awpRegistry.ParseWorknetBanned(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: evt.SubnetId.Int64(),
+			SubnetID: bigIntToNumeric(evt.WorknetId),
 			Status:   "Banned",
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Banned): %w", err)
 		}
-		return []redisEvent{makeEvent("SubnetBanned", lg, map[string]interface{}{
-			"subnetId": evt.SubnetId.String(),
+		return []redisEvent{makeEvent("WorknetBanned", idx.chainID, lg, map[string]interface{}{
+			"worknetId": evt.WorknetId.String(),
 		})}, nil
 	}
 
-	// SubnetUnbanned
-	if evt, err := awpRegistry.ParseSubnetUnbanned(lg); err == nil {
+	// WorknetUnbanned
+	if evt, err := awpRegistry.ParseWorknetUnbanned(lg); err == nil {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: evt.SubnetId.Int64(),
+			SubnetID: bigIntToNumeric(evt.WorknetId),
 			Status:   "Active",
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetStatus(Active): %w", err)
 		}
-		return []redisEvent{makeEvent("SubnetUnbanned", lg, map[string]interface{}{
-			"subnetId": evt.SubnetId.String(),
+		return []redisEvent{makeEvent("WorknetUnbanned", idx.chainID, lg, map[string]interface{}{
+			"worknetId": evt.WorknetId.String(),
 		})}, nil
 	}
 
-	// SubnetDeregistered
-	if evt, err := awpRegistry.ParseSubnetDeregistered(lg); err == nil {
-		if err := q.UpdateSubnetBurned(ctx, evt.SubnetId.Int64()); err != nil {
+	// WorknetRejected
+	if evt, err := awpRegistry.ParseWorknetRejected(lg); err == nil {
+		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
+			SubnetID: bigIntToNumeric(evt.WorknetId),
+			Status:   "Rejected",
+		}); err != nil {
+			return nil, fmt.Errorf("UpdateSubnetStatus(Rejected): %w", err)
+		}
+		return []redisEvent{makeEvent("WorknetRejected", idx.chainID, lg, map[string]interface{}{
+			"worknetId": evt.WorknetId.String(),
+		})}, nil
+	}
+
+	// WorknetCancelled
+	if evt, err := awpRegistry.ParseWorknetCancelled(lg); err == nil {
+		if err := q.UpdateSubnetBurned(ctx, bigIntToNumeric(evt.WorknetId)); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetBurned: %w", err)
 		}
-		return []redisEvent{makeEvent("SubnetDeregistered", lg, map[string]interface{}{
-			"subnetId": evt.SubnetId.String(),
+		return []redisEvent{makeEvent("WorknetCancelled", idx.chainID, lg, map[string]interface{}{
+			"worknetId": evt.WorknetId.String(),
 		})}, nil
 	}
 
-	// ── SubnetNFT events ──
+	// ── AWPWorkNet events ──
 
-	subnetNFT := idx.chain.SubnetNFT
+	awpWorkNet := idx.chain.AWPWorkNet
 
-	// SkillsURIUpdated (emitted from SubnetNFT)
-	if evt, err := subnetNFT.ParseSkillsURIUpdated(lg); err == nil {
+	// SkillsURIUpdated (emitted from AWPWorkNet)
+	if evt, err := awpWorkNet.ParseSkillsURIUpdated(lg); err == nil {
 		if err := q.UpdateSubnetSkillsURI(ctx, gen.UpdateSubnetSkillsURIParams{
-			SubnetID:  evt.TokenId.Int64(),
+			SubnetID:  bigIntToNumeric(evt.TokenId),
 			SkillsUri: pgtype.Text{String: evt.SkillsURI, Valid: evt.SkillsURI != ""},
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetSkillsURI: %w", err)
 		}
-		return []redisEvent{makeEvent("SkillsURIUpdated", lg, map[string]interface{}{
-			"subnetId":  evt.TokenId.String(),
+		return []redisEvent{makeEvent("SkillsURIUpdated", idx.chainID, lg, map[string]interface{}{
+			"worknetId":  evt.TokenId.String(),
 			"skillsURI": evt.SkillsURI,
 		})}, nil
 	}
 
-	// MinStakeUpdated (emitted from SubnetNFT)
-	if evt, err := subnetNFT.ParseMinStakeUpdated(lg); err == nil {
+	// MinStakeUpdated (emitted from AWPWorkNet)
+	if evt, err := awpWorkNet.ParseMinStakeUpdated(lg); err == nil {
 		if err := q.UpdateSubnetMinStake(ctx, gen.UpdateSubnetMinStakeParams{
-			SubnetID: evt.TokenId.Int64(),
+			SubnetID: bigIntToNumeric(evt.TokenId),
 			MinStake: bigIntToNumeric(evt.MinStake),
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetMinStake: %w", err)
 		}
-		return []redisEvent{makeEvent("MinStakeUpdated", lg, map[string]interface{}{
-			"subnetId": evt.TokenId.String(),
+		return []redisEvent{makeEvent("MinStakeUpdated", idx.chainID, lg, map[string]interface{}{
+			"worknetId": evt.TokenId.String(),
 			"minStake": evt.MinStake.String(),
 		})}, nil
 	}
 
-	// SubnetNFT.Transfer — subnet ownership transfer (ERC721 Transfer event)
-	// Guard on address to avoid matching StakeNFT Transfer (same event signature)
-	if lg.Address == idx.chain.SubnetNFTAddr {
-		if evt, err := subnetNFT.ParseTransfer(lg); err == nil {
-			// Skip mint (from=0) and burn (to=0) — handled by SubnetRegistered/SubnetDeregistered
+	// MetadataURIUpdated (emitted from AWPWorkNet)
+	if evt, err := idx.chain.AWPWorkNet.ParseMetadataURIUpdated(lg); err == nil {
+		if err := q.UpdateSubnetMetadataURI(ctx, gen.UpdateSubnetMetadataURIParams{
+			SubnetID:    bigIntToNumeric(evt.TokenId),
+			MetadataUri: evt.MetadataURI,
+		}); err != nil {
+			return nil, fmt.Errorf("UpdateSubnetMetadataURI: %w", err)
+		}
+		return []redisEvent{makeEvent("MetadataURIUpdated", idx.chainID, lg, map[string]interface{}{
+			"worknetId":   evt.TokenId.String(),
+			"metadataURI": evt.MetadataURI,
+		})}, nil
+	}
+
+	// AWPWorkNet.Transfer — subnet ownership transfer (ERC721 Transfer event)
+	// Guard on address to avoid matching VeAWP Transfer (same event signature)
+	if lg.Address == idx.chain.AWPWorkNetAddr {
+		if evt, err := awpWorkNet.ParseTransfer(lg); err == nil {
+			// Skip mint (from=0) and burn (to=0) — handled by WorknetRegistered/WorknetCancelled
 			zeroAddr := common.Address{}
 			if evt.From != zeroAddr && evt.To != zeroAddr {
 				if err := q.UpdateSubnetOwner(ctx, gen.UpdateSubnetOwnerParams{
-					SubnetID: evt.TokenId.Int64(),
+					SubnetID: bigIntToNumeric(evt.TokenId),
 					Owner:    strings.ToLower(evt.To.Hex()),
 				}); err != nil {
 					return nil, fmt.Errorf("UpdateSubnetOwner: %w", err)
 				}
-				return []redisEvent{makeEvent("SubnetNFTTransfer", lg, map[string]interface{}{
+				return []redisEvent{makeEvent("WorknetNFTTransfer", idx.chainID, lg, map[string]interface{}{
 					"from":     evt.From.Hex(),
 					"to":       evt.To.Hex(),
-					"subnetId": evt.TokenId.String(),
+					"worknetId": evt.TokenId.String(),
 				})}, nil
 			}
 			return nil, nil
@@ -761,49 +970,35 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// ── AWPEmission events ──
 
-	// GovernanceWeightUpdated (emitted from AWPEmission) — weight data lives on-chain; only publish Redis event
-	if evt, err := awpEmission.ParseGovernanceWeightUpdated(lg); err == nil {
-		return []redisEvent{makeEvent("GovernanceWeightUpdated", lg, map[string]interface{}{
-			"addr":   evt.Addr.Hex(),
-			"weight": evt.Weight.String(),
-		})}, nil
-	}
-
 	// RecipientAWPDistributed (emitted from AWPEmission)
 	if evt, err := awpEmission.ParseRecipientAWPDistributed(lg); err == nil {
 		if err := q.InsertRecipientAWPDistribution(ctx, gen.InsertRecipientAWPDistributionParams{
+			ChainID:   idx.chainID,
 			EpochID:   evt.Epoch.Int64(),
 			Recipient: strings.ToLower(evt.Recipient.Hex()),
 			AwpAmount: bigIntToNumeric(evt.AwpAmount),
 		}); err != nil {
 			return nil, fmt.Errorf("InsertRecipientAWPDistribution: %w", err)
 		}
-		return []redisEvent{makeEvent("RecipientAWPDistributed", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("RecipientAWPDistributed", idx.chainID, lg, map[string]interface{}{
 			"epoch":     evt.Epoch.String(),
 			"recipient": evt.Recipient.Hex(),
 			"awpAmount": evt.AwpAmount.String(),
 		})}, nil
 	}
 
-	// DAOMatchDistributed (emitted from AWPEmission)
-	if evt, err := awpEmission.ParseDAOMatchDistributed(lg); err == nil {
-		if err := q.UpdateEpochDAO(ctx, gen.UpdateEpochDAOParams{
-			EpochID:     evt.Epoch.Int64(),
-			DaoEmission: bigIntToNumeric(evt.Amount),
-		}); err != nil {
-			return nil, fmt.Errorf("UpdateEpochDAO: %w", err)
-		}
-		return []redisEvent{makeEvent("DAOMatchDistributed", lg, map[string]interface{}{
-			"epoch":  evt.Epoch.String(),
-			"amount": evt.Amount.String(),
-		})}, nil
-	}
-
 	// EpochSettled (emitted from AWPEmission)
 	if evt, err := awpEmission.ParseEpochSettled(lg); err == nil {
-		// start_time = genesisTime + epochId * epochDuration (time-based epoch, not block number)
-		epochStartTime := idx.genesisTime + evt.Epoch.Int64()*idx.epochDuration
+		// Read current baseTime/baseEpoch/epochDuration from chain (may change via setEpochDuration/pauseEpochUntil)
+		bt, _ := idx.chain.AWPEmission.BaseTime(nil)
+		be, _ := idx.chain.AWPEmission.BaseEpoch(nil)
+		ed, _ := idx.chain.AWPEmission.EpochDuration(nil)
+		var epochStartTime int64
+		if bt != nil && be != nil && ed != nil && ed.Int64() > 0 {
+			epochStartTime = bt.Int64() + (evt.Epoch.Int64()-be.Int64())*ed.Int64()
+		}
 		if err := q.UpsertEpoch(ctx, gen.UpsertEpochParams{
+			ChainID:       idx.chainID,
 			EpochID:       evt.Epoch.Int64(),
 			StartTime:     epochStartTime,
 			DailyEmission: bigIntToNumeric(evt.TotalEmission),
@@ -811,7 +1006,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}); err != nil {
 			return nil, fmt.Errorf("UpsertEpoch: %w", err)
 		}
-		return []redisEvent{makeEvent("EpochSettled", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("EpochSettled", idx.chainID, lg, map[string]interface{}{
 			"epoch":          evt.Epoch.String(),
 			"totalEmission":  evt.TotalEmission.String(),
 			"recipientCount": evt.RecipientCount.String(),
@@ -820,30 +1015,21 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// AllocationsSubmitted (emitted from AWPEmission)
 	if evt, err := awpEmission.ParseAllocationsSubmitted(lg); err == nil {
-		addrs := make([]string, len(evt.Recipients))
-		for i, a := range evt.Recipients {
-			addrs[i] = strings.ToLower(a.Hex())
+		// Unpack [64-bit weight | 160-bit address] from uint256[] packed
+		addrs := make([]string, len(evt.Packed))
+		ws := make([]string, len(evt.Packed))
+		mask160 := new(big.Int).Sub(new(big.Int).Lsh(big.NewInt(1), 160), big.NewInt(1))
+		for i, p := range evt.Packed {
+			addr := common.BytesToAddress(new(big.Int).And(p, mask160).Bytes())
+			weight := new(big.Int).Rsh(p, 160)
+			addrs[i] = strings.ToLower(addr.Hex())
+			ws[i] = weight.String()
 		}
-		ws := make([]string, len(evt.Weights))
-		for i, w := range evt.Weights {
-			ws[i] = w.String()
-		}
-		return []redisEvent{makeEvent("AllocationsSubmitted", lg, map[string]interface{}{
-			"nonce":      evt.Nonce.String(),
-			"recipients": addrs,
-			"weights":    ws,
-		})}, nil
-	}
-
-	// OracleConfigUpdated (emitted from AWPEmission)
-	if evt, err := awpEmission.ParseOracleConfigUpdated(lg); err == nil {
-		addrs := make([]string, len(evt.Oracles))
-		for i, o := range evt.Oracles {
-			addrs[i] = strings.ToLower(o.Hex())
-		}
-		return []redisEvent{makeEvent("OracleConfigUpdated", lg, map[string]interface{}{
-			"oracles":   addrs,
-			"threshold": evt.Threshold.String(),
+		return []redisEvent{makeEvent("AllocationsSubmitted", idx.chainID, lg, map[string]interface{}{
+			"epoch":       evt.EffectiveEpoch.String(),
+			"totalWeight": evt.TotalWeight.String(),
+			"recipients":  addrs,
+			"weights":     ws,
 		})}, nil
 	}
 
@@ -854,36 +1040,27 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		// GuardianUpdated(address indexed newGuardian)
 		case common.HexToHash("0x6bb7ff33e730289800c62ad882105a144a74010d2bdbb9a942544a3005ad55bf"):
 			newGuardian := common.BytesToAddress(lg.Topics[1].Bytes())
-			return []redisEvent{makeEvent("GuardianUpdated", lg, map[string]interface{}{
+			return []redisEvent{makeEvent("GuardianUpdated", idx.chainID, lg, map[string]interface{}{
 				"newGuardian": newGuardian.Hex(),
 			})}, nil
 		// InitialAlphaPriceUpdated(uint256 newPrice)
 		case common.HexToHash("0xab7ee876750d22d253d0b38988caea5f6285a832697e4889d9beb36515dde34e"):
 			newPrice := new(big.Int).SetBytes(lg.Data)
-			return []redisEvent{makeEvent("InitialAlphaPriceUpdated", lg, map[string]interface{}{
+			return []redisEvent{makeEvent("InitialAlphaPriceUpdated", idx.chainID, lg, map[string]interface{}{
 				"newPrice": newPrice.String(),
 			})}, nil
-		// ImmunityPeriodUpdated(uint256 newPeriod)
-		case common.HexToHash("0x49b186851943e5bbcefec9411c3238262c6e102e4000142f8f060143d1b8724c"):
-			newPeriod := new(big.Int).SetBytes(lg.Data)
-			return []redisEvent{makeEvent("ImmunityPeriodUpdated", lg, map[string]interface{}{
-				"newPeriod": newPeriod.String(),
-			})}, nil
-		// AlphaTokenFactoryUpdated(address indexed newFactory)
-		case common.HexToHash("0xca3b5054bdfbf81973dd36029b7ef8c5479d0739433700df6b2e6d690ead4a3e"):
+		// WorknetTokenFactoryUpdated(address indexed newFactory)
+		case common.HexToHash("0x6fac6d042be483deca8d53cac5f9d41f12737c9d1bd41bac9a83651ba6360ba3"):
 			newFactory := common.BytesToAddress(lg.Topics[1].Bytes())
-			return []redisEvent{makeEvent("AlphaTokenFactoryUpdated", lg, map[string]interface{}{
+			return []redisEvent{makeEvent("WorknetTokenFactoryUpdated", idx.chainID, lg, map[string]interface{}{
 				"newFactory": newFactory.Hex(),
 			})}, nil
-		// DefaultSubnetManagerImplUpdated(address indexed newImpl)
-		case common.HexToHash("0xa37cb79f631c6bb2a11d965d06cce40e3c936eba1649879b8ffa233c0219f949"):
+		// DefaultWorknetManagerImplUpdated(address indexed newImpl)
+		case common.HexToHash("0x6a188d8fd7e85ab2a2e4c5bd188038185536a69910c989e130f1a5ea59534e33"):
 			newImpl := common.BytesToAddress(lg.Topics[1].Bytes())
-			return []redisEvent{makeEvent("DefaultSubnetManagerImplUpdated", lg, map[string]interface{}{
+			return []redisEvent{makeEvent("DefaultWorknetManagerImplUpdated", idx.chainID, lg, map[string]interface{}{
 				"newImpl": newImpl.Hex(),
 			})}, nil
-		// DexConfigUpdated()
-		case common.HexToHash("0xaf06d41ee280e7c0649c5447e17c66f71908440d4a6a8ab4f5210b89c640925b"):
-			return []redisEvent{makeEvent("DexConfigUpdated", lg, map[string]interface{}{})}, nil
 		}
 	}
 
@@ -893,7 +1070,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// ProposalCreated
 	if evt, err := awpDAO.ParseProposalCreated(lg); err == nil {
-		return []redisEvent{makeEvent("ProposalCreated", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("ProposalCreated", idx.chainID, lg, map[string]interface{}{
 			"proposalId":  evt.ProposalId.String(),
 			"proposer":    evt.Proposer.Hex(),
 			"voteStart":   evt.VoteStart.String(),
@@ -904,7 +1081,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// VoteCast
 	if evt, err := awpDAO.ParseVoteCast(lg); err == nil {
-		return []redisEvent{makeEvent("VoteCast", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("VoteCast", idx.chainID, lg, map[string]interface{}{
 			"voter":      evt.Voter.Hex(),
 			"proposalId": evt.ProposalId.String(),
 			"support":    evt.Support,
@@ -915,21 +1092,21 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// ProposalExecuted
 	if evt, err := awpDAO.ParseProposalExecuted(lg); err == nil {
-		return []redisEvent{makeEvent("ProposalExecuted", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("ProposalExecuted", idx.chainID, lg, map[string]interface{}{
 			"proposalId": evt.ProposalId.String(),
 		})}, nil
 	}
 
 	// ProposalCanceled
 	if evt, err := awpDAO.ParseProposalCanceled(lg); err == nil {
-		return []redisEvent{makeEvent("ProposalCanceled", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("ProposalCanceled", idx.chainID, lg, map[string]interface{}{
 			"proposalId": evt.ProposalId.String(),
 		})}, nil
 	}
 
 	// ProposalQueued
 	if evt, err := awpDAO.ParseProposalQueued(lg); err == nil {
-		return []redisEvent{makeEvent("ProposalQueued", lg, map[string]interface{}{
+		return []redisEvent{makeEvent("ProposalQueued", idx.chainID, lg, map[string]interface{}{
 			"proposalId": evt.ProposalId.String(),
 			"etaSeconds": evt.EtaSeconds.String(),
 		})}, nil
@@ -949,9 +1126,10 @@ func bigIntToNumeric(v *big.Int) pgtype.Numeric {
 }
 
 // makeEvent constructs an event structure to be published to Redis
-func makeEvent(eventType string, lg types.Log, data map[string]interface{}) redisEvent {
+func makeEvent(eventType string, chainID int64, lg types.Log, data map[string]interface{}) redisEvent {
 	return redisEvent{
 		Type:        eventType,
+		ChainID:     chainID,
 		BlockNumber: lg.BlockNumber,
 		TxHash:      lg.TxHash.Hex(),
 		Data:        data,

@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math/big"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -23,10 +25,8 @@ func main() {
 			newLogger,
 			config.Load,
 			newRedis,
-			newEthClient,
-			newKeeper,
 		),
-		fx.Invoke(startKeeper),
+		fx.Invoke(startKeepers),
 	).Run()
 }
 
@@ -48,23 +48,16 @@ func newRedis(lc fx.Lifecycle, cfg *config.Config) (*redis.Client, error) {
 	return rdb, nil
 }
 
-func newEthClient(lc fx.Lifecycle, cfg *config.Config) (*ethclient.Client, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	client, err := ethclient.DialContext(ctx, cfg.RPCURL)
-	if err != nil {
-		return nil, err
-	}
-	lc.Append(fx.Hook{
-		OnStop: func(ctx context.Context) error {
-			client.Close()
-			return nil
-		},
-	})
-	return client, nil
+// keeperAddrs holds resolved per-chain contract addresses for a keeper
+type keeperAddrs struct {
+	AWPEmission string
+	AWPToken    string
+	LPManager   string
+	PoolManager string
 }
 
-func newKeeper(client *ethclient.Client, rdb *redis.Client, cfg *config.Config, logger *slog.Logger) (*chain.Keeper, error) {
+// newKeeperForChain creates a Keeper for a single chain using the given RPC URL and chain ID
+func newKeeperForChain(rpcURL string, chainID *big.Int, addrs keeperAddrs, rdb *redis.Client, cfg *config.Config, logger *slog.Logger) (*chain.Keeper, error) {
 	if cfg.KeeperPrivateKey == "" {
 		return nil, fmt.Errorf("KEEPER_PRIVATE_KEY is required")
 	}
@@ -73,22 +66,64 @@ func newKeeper(client *ethclient.Client, rdb *redis.Client, cfg *config.Config, 
 		return nil, fmt.Errorf("invalid keeper private key: %w", err)
 	}
 
+	dialCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client, err := ethclient.DialContext(dialCtx, rpcURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial RPC: %w", err)
+	}
+
+	awpEmissionAddr := common.HexToAddress(addrs.AWPEmission)
+	awpTokenAddr := common.HexToAddress(addrs.AWPToken)
+	lpManagerAddr := common.HexToAddress(addrs.LPManager)
+	poolManagerAddr := common.HexToAddress(addrs.PoolManager)
+	return chain.NewKeeper(client, awpEmissionAddr, awpTokenAddr, lpManagerAddr, poolManagerAddr, key, chainID, rdb, logger)
+}
+
+// startKeepers starts one or more keeper goroutines depending on configuration.
+// Multi-chain mode: CHAINS_FILE env set => spawn one goroutine per chain.
+// Single-chain mode: fallback using CHAIN_ID + RPC_URL from env.
+func startKeepers(lc fx.Lifecycle, rdb *redis.Client, cfg *config.Config, logger *slog.Logger) error {
+	if cfg.ChainsFile != "" {
+		return startMultiChain(lc, rdb, cfg, logger)
+	}
+	return startSingleChain(lc, rdb, cfg, logger)
+}
+
+// startSingleChain uses env-configured CHAIN_ID and RPC_URL (backward compatible)
+func startSingleChain(lc fx.Lifecycle, rdb *redis.Client, cfg *config.Config, logger *slog.Logger) error {
+	// Fetch on-chain chain ID
+	dialCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client, err := ethclient.DialContext(dialCtx, cfg.RPCURL)
+	if err != nil {
+		return fmt.Errorf("failed to dial RPC: %w", err)
+	}
+
 	chainCtx, chainCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer chainCancel()
 	chainID, err := client.ChainID(chainCtx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get chain ID: %w", err)
+		client.Close()
+		return fmt.Errorf("failed to get chain ID: %w", err)
 	}
+	client.Close() // newKeeperForChain creates its own connection
 
-	awpEmissionAddr := common.HexToAddress(cfg.AWPEmissionAddress)
-	awpTokenAddr := common.HexToAddress(cfg.AWPTokenAddress)
-	return chain.NewKeeper(client, awpEmissionAddr, awpTokenAddr, key, chainID, rdb, logger)
-}
+	addrs := keeperAddrs{
+		AWPEmission: cfg.AWPEmissionAddress,
+		AWPToken:    cfg.AWPTokenAddress,
+		LPManager:   cfg.LPManagerAddress,
+		PoolManager: cfg.PoolManagerAddress,
+	}
+	k, err := newKeeperForChain(cfg.RPCURL, chainID, addrs, rdb, cfg, logger)
+	if err != nil {
+		return fmt.Errorf("keeper: %w", err)
+	}
+	k.SetSkipSettle(cfg.KeeperSkipSettle)
 
-func startKeeper(lc fx.Lifecycle, k *chain.Keeper, logger *slog.Logger) {
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
-			logger.Info("Keeper starting")
+			logger.Info("Keeper starting (single-chain)", "chainId", chainID.Int64(), "skipSettle", cfg.KeeperSkipSettle)
 			k.Start(ctx)
 			return nil
 		},
@@ -97,4 +132,62 @@ func startKeeper(lc fx.Lifecycle, k *chain.Keeper, logger *slog.Logger) {
 			return nil
 		},
 	})
+	return nil
+}
+
+// startMultiChain loads chains.yaml and spawns one keeper goroutine per chain
+func startMultiChain(lc fx.Lifecycle, rdb *redis.Client, cfg *config.Config, logger *slog.Logger) error {
+	chains, err := config.LoadChains(cfg.ChainsFile)
+	if err != nil {
+		return fmt.Errorf("load chains: %w", err)
+	}
+
+	type keeperEntry struct {
+		keeper  *chain.Keeper
+		chainID int64
+		name    string
+	}
+
+	// Create all keepers (completed before start; failure prevents startup)
+	entries := make([]keeperEntry, 0, len(chains))
+	for _, ch := range chains {
+		// Per-chain address overrides take priority over global env
+		addrs := keeperAddrs{
+			AWPEmission: config.ResolveAddress(ch.AWPEmission, cfg.AWPEmissionAddress),
+			AWPToken:    config.ResolveAddress(ch.AWPToken, cfg.AWPTokenAddress),
+			LPManager:   config.ResolveAddress(ch.LPManager, cfg.LPManagerAddress),
+			PoolManager: config.ResolveAddress(ch.PoolManager, cfg.PoolManagerAddress),
+		}
+		k, kerr := newKeeperForChain(ch.RPCURL, big.NewInt(ch.ChainID), addrs, rdb, cfg, logger)
+		if kerr != nil {
+			return fmt.Errorf("keeper for %s (chainId=%d): %w", ch.Name, ch.ChainID, kerr)
+		}
+		k.SetSkipSettle(cfg.KeeperSkipSettle)
+		entries = append(entries, keeperEntry{keeper: k, chainID: ch.ChainID, name: ch.Name})
+	}
+
+	lc.Append(fx.Hook{
+		OnStart: func(ctx context.Context) error {
+			logger.Info("Keeper starting (multi-chain)", "chains", len(entries))
+
+			var wg sync.WaitGroup
+			for _, e := range entries {
+				wg.Add(1)
+				go func(entry keeperEntry) {
+					defer wg.Done()
+					logger.Info("keeper goroutine started", "chain", entry.name, "chainId", entry.chainID)
+					entry.keeper.Start(ctx)
+				}(e)
+			}
+			// WaitGroup is not awaited in OnStart — goroutines run in background until OnStop
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			for _, e := range entries {
+				e.keeper.Stop()
+			}
+			return nil
+		},
+	})
+	return nil
 }

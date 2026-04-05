@@ -1,0 +1,117 @@
+{
+  "deployer": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+  "contracts": [
+    {
+      "name": "AWPToken",
+      "prefix": "0000",
+      "suffix": "000A1",
+      "initCodeHash": "0xc0051dadfac28a7d611e4e541a09243bfb424c36360c7d7421413b8201e38377",
+      "salt": "0x63787a77a72c9946796166e93f5f71818534037f37bca39afad4deffad9ae440",
+      "address": "0x00007650D3e13ACdB587e77D8C1C67316D6000A1"
+    },
+    {
+      "name": "AlphaTokenFactory",
+      "prefix": "",
+      "suffix": "",
+      "initCodeHash": "0xa7b6ad128b0e562d637d9e4f405ff393586be9a584ef2d575bcbb12a5e5da24a",
+      "salt": "0x0906d68324d5ae5bff62956a7ae7e1a88bb8881f7e54e877973eac88af39f2ed",
+      "address": "0xF46180deb405F05410cfA64473ceafB1B54B502a"
+    },
+    {
+      "name": "AWPEmission_impl",
+      "prefix": "",
+      "suffix": "",
+      "initCodeHash": "0xd77819c6610c570c6feea060bf8eb9572f3460cc8d001080c0bd068fefce8b1f",
+      "salt": "0x1ca9e405563c2ef4786137fec5c1f7fd6b7f52cfc6d3fc8581d754841d989824",
+      "address": "0xBF0db36Bba224048B215eb9Bb969551a100dbeD9"
+    },
+    {
+      "name": "AWPRegistry_impl",
+      "prefix": "",
+      "suffix": "",
+      "initCodeHash": "0xbf8e869e28057e4c6ea7e1a93a07da327c5ee8d54fb13f0ac345605ad9a1d465",
+      "salt": "0x2fae784fa593b2edde51e2091f055bf54eb596f3bec399066252df289a9105d5",
+      "address": "0xE3A564Bb2079DFD5aa786F8BE933Ad9cdD95e530"
+    },
+    {
+      "name": "WorknetManager_impl",
+      "prefix": "",
+      "suffix": "",
+      "initCodeHash": "0xb5e7bf650709279024780e5b84530ee2f8b01c328ed39e5adf27f23bb587a9ec",
+      "salt": "0x5f8059afeb33937480a06defddd5eb438ee621f047baa34b572cedeca1514031",
+      "address": "0x3B3FCEf6B5B9221Ea51851F7E18E93E2611985cb"
+    },
+    {
+      "name": "Treasury",
+      "prefix": "",
+      "suffix": "",
+      "initCodeHash": "0x510873ccb1e7fa5d5d914e4a04098100134984f7e8f9a23f00d2562a60971625",
+      "salt": "0xeef11e199ab70797df4cfabac3229dac112470535966c5e6fdc8d404d386bf12",
+      "address": "0x528666b2AB15Cfd14DDA811e76E0746D9594B4cA"
+    },
+    {
+      "name": "AWPRegistry",
+      "prefix": "0000",
+      "suffix": "00A2",
+      "initCodeHash": "0xa1ebfa59e92e5091b3c1100f8a1e045754ef96ca253fbd3813e221eaaeb436c9",
+      "salt": "0x3852a5ff5973cac1322a1d84e4deaaa53af19dc847a5e6e973840fde7a337f66",
+      "address": "0x0000E433b1e3d0DeB72588fBbAc1F172eD7400A2"
+    },
+    {
+      "name": "WorknetNFT",
+      "prefix": "",
+      "suffix": "",
+      "initCodeHash": "0x9aaceff445f61fa92d681f0ce5c08fd46746d8be65b0e4c514b586c8a589a610",
+      "salt": "0x8e3fcb04c63e8fcc0a5398885d13fa0f4b992f0b1d84a7c355f7193672c02ca7",
+      "address": "0xc325e7185AE626f4DcE253164DD318C9255c3472"
+    },
+    {
+      "name": "LPManager",
+      "prefix": "",
+      "suffix": "",
+      "initCodeHash": "0xececf13d61c9d6f9f2397d3e4d63b03feacbffc1d8cdad3117b7f3f327962d32",
+      "salt": "0x88a5a2b3a31bfb9375f7881a6e46c8d98784e41aa4be647a4458ed98b601b968",
+      "address": "0x19ba30418B07549582717437210262AB2D93761d"
+    },
+    {
+      "name": "StakingVault_impl",
+      "prefix": "",
+      "suffix": "",
+      "initCodeHash": "0xd6527d2bbdd225951b9f5d734847ea4d0f7e524fe178095a8bc3770e72703288",
+      "salt": "0x98ca0cb893c5f3797cbac11a67ba116961e35a4389f453cc0f4ac064beb2c8c2",
+      "address": "0x39F5d123cBc529f94d206215cEE1CBDC7cd9c99d"
+    },
+    {
+      "name": "StakingVault",
+      "prefix": "",
+      "suffix": "",
+      "initCodeHash": "0xe61f68fe4fce5affb0676e47c5fb97203580125b7abef1dbd21080adaca6d375",
+      "salt": "0xab5a69621fe65bd1968371149eb3d16459f80990ef2ebad0b26ad66260ba8388",
+      "address": "0x8d9Ea8f7f4E4C10DeA62580723403a87b04E6C3A"
+    },
+    {
+      "name": "AWPEmission_proxy",
+      "prefix": "",
+      "suffix": "",
+      "initCodeHash": "0x8246a25bff787b383c1c5eba4ec27286f6d8e2aa27daa22ca9e375f37ae296f1",
+      "salt": "0x35a98bbbfbe190bfc247dff4749171e6d57b992d2887ff2ab0020a532c158d4b",
+      "address": "0x94489182f70956B6B118e8c9aef2cF504C2E6784"
+    },
+    {
+      "name": "StakeNFT",
+      "prefix": "",
+      "suffix": "",
+      "initCodeHash": "0x431537d5eee83d72259c2f173c1962d38fbb65fde23dac69f71889ef3c7f57c3",
+      "salt": "0xdf84377d2fa83b3b908bfeacdea56ac504fd999793895ea971c19bce876053f7",
+      "address": "0xab202091f27Ca3947da2da14f8b9D22D5F894533"
+    },
+    {
+      "name": "AWPDAO",
+      "prefix": "",
+      "suffix": "",
+      "initCodeHash": "0x2ac7f11166940e2a1ad27c6e470da932953b4da7d63286d3cbb015ae49673c97",
+      "salt": "0x7dac71d36aaa25b135bb7926d6c0f1c250603b08300594ba95ac5da7120910b3",
+      "address": "0xb269Bf0B4E2383C016aa20698dA30351DD614150"
+    }
+  ]
+}

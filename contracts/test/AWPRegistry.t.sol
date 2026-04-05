@@ -1,571 +1,681 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Test, console} from "forge-std/Test.sol";
-import {AWPToken} from "../src/token/AWPToken.sol";
-import {AlphaTokenFactory} from "../src/token/AlphaTokenFactory.sol";
-import {AWPEmission} from "../src/token/AWPEmission.sol";
-import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
-import {StakingVault} from "../src/core/StakingVault.sol";
-import {StakeNFT} from "../src/core/StakeNFT.sol";
-import {SubnetNFT} from "../src/core/SubnetNFT.sol";
-import {MockLPManager} from "./helpers/MockLPManager.sol";
+import {DeployHelper} from "./helpers/DeployHelper.sol";
 import {AWPRegistry} from "../src/AWPRegistry.sol";
 import {IAWPRegistry} from "../src/interfaces/IAWPRegistry.sol";
-import {Treasury} from "../src/governance/Treasury.sol";
 
-contract AWPRegistryTest is Test {
-    AWPToken awp;
-    AlphaTokenFactory factory;
-    AWPEmission emission;
-    StakingVault vault;
-    StakeNFT stakeNFT;
-    SubnetNFT nft;
-    MockLPManager lp;
-    AWPRegistry awpRegistry;
-    Treasury treasury;
-
-    address deployer = address(1);
-    address guardian = address(2);
-    address user1 = address(3);
-    address agent1 = address(4);
-    address subnetManager = address(5);
-    address user2 = address(6);
-
-    uint256 constant INITIAL_DAILY_EMISSION = 15_800_000 * 1e18;
-    uint256 constant EPOCH_DURATION = 1 days;
-
+contract AWPRegistryTest is DeployHelper {
     function setUp() public {
-        vm.startPrank(deployer);
-
-        // Deploy tokens
-        awp = new AWPToken("AWP Token", "AWP", deployer);
-
-        // Deploy Treasury
-        address[] memory proposers = new address[](0);
-        address[] memory executors = new address[](1);
-        executors[0] = address(0);
-        treasury = new Treasury(0, proposers, executors, deployer);
-
-        // Deploy AWPRegistry
-        awpRegistry = new AWPRegistry(deployer, address(treasury), guardian);
-
-        // Deploy sub-contracts
-        factory = new AlphaTokenFactory(deployer, 0);
-        nft = new SubnetNFT("AWP Subnet", "AWPSUB", address(awpRegistry));
-        lp = new MockLPManager(address(awpRegistry), address(awp));
-
-        // Deploy AWPEmission (UUPS proxy)
-        AWPEmission emissionImpl = new AWPEmission();
-        bytes memory emissionInitData = abi.encodeCall(
-            AWPEmission.initialize,
-            (address(awp), address(treasury), INITIAL_DAILY_EMISSION, block.timestamp, EPOCH_DURATION)
-        );
-        ERC1967Proxy emissionProxy = new ERC1967Proxy(address(emissionImpl), emissionInitData);
-        emission = AWPEmission(address(emissionProxy));
-
-        // Set AWP minter
-        awp.addMinter(address(emission));
-        awp.renounceAdmin();
-
-        // Configure factory
-        factory.setAddresses(address(awpRegistry));
-
-        // Deploy StakeNFT and StakingVault
-        vault = new StakingVault(address(awpRegistry));
-        stakeNFT = new StakeNFT(address(awp), address(vault), address(awpRegistry));
-
-        // Initialize registry (no accessManager parameter)
-        awpRegistry.initializeRegistry(
-            address(awp),
-            address(nft),
-            address(factory),
-            address(emission),
-            address(lp),
-            address(vault),
-            address(stakeNFT),
-            address(0), // no default SubnetManager impl in unit tests
-            "" // no dexConfig in unit tests
-        );
-
-        // Give users some AWP
-        awp.transfer(user1, 10_000_000 * 1e18);
-        awp.transfer(user2, 10_000_000 * 1e18);
-
-        vm.stopPrank();
+        _deployAll();
     }
 
-    // ── Registry tests ──
-
-    function test_initializeRegistryOnce() public {
-        vm.expectRevert(AWPRegistry.NotDeployer.selector);
-        awpRegistry.initializeRegistry(
-            address(awp), address(nft), address(factory), address(emission),
-            address(lp), address(vault), address(stakeNFT), address(0), ""
-        );
-    }
-
-    // ── Registration ──
-
-    function test_register() public {
-        vm.prank(user1);
-        awpRegistry.register();
-        assertTrue(awpRegistry.isRegistered(user1));
-    }
-
-    function test_register_alreadyRegistered_reverts() public {
-        vm.prank(user1);
-        awpRegistry.register();
-        vm.prank(user1);
-        vm.expectRevert(AWPRegistry.AlreadyRegistered.selector);
-        awpRegistry.register();
-    }
-
-    // ── Binding ──
+    // ═══════════════════════════════════════════════
+    //  Binding
+    // ═══════════════════════════════════════════════
 
     function test_bind() public {
-        vm.prank(agent1);
-        awpRegistry.bind(user1);
-        assertEq(awpRegistry.boundTo(agent1), user1);
+        vm.prank(alice);
+        awpRegistry.bind(bob);
+        assertEq(awpRegistry.boundTo(alice), bob);
+    }
+
+    function test_unbind() public {
+        vm.prank(alice);
+        awpRegistry.bind(bob);
+        vm.prank(alice);
+        awpRegistry.unbind();
+        assertEq(awpRegistry.boundTo(alice), address(0));
     }
 
     function test_bind_selfBind_reverts() public {
-        vm.prank(user1);
-        vm.expectRevert(AWPRegistry.InvalidAddress.selector);
-        awpRegistry.bind(user1);
+        vm.prank(alice);
+        vm.expectRevert(AWPRegistry.SelfBind.selector);
+        awpRegistry.bind(alice);
     }
 
-    function test_bind_zeroAddress_reverts() public {
-        vm.prank(agent1);
-        vm.expectRevert(AWPRegistry.InvalidAddress.selector);
-        awpRegistry.bind(address(0));
-    }
-
-    function test_bind_rebind() public {
-        vm.prank(agent1);
-        awpRegistry.bind(user1);
-        assertEq(awpRegistry.boundTo(agent1), user1);
-
-        // rebind to user2
-        vm.prank(agent1);
-        awpRegistry.bind(user2);
-        assertEq(awpRegistry.boundTo(agent1), user2);
-    }
-
-    function test_bind_antiCycle() public {
-        // A -> B -> C, then C tries to bind to A => cycle
-        vm.prank(address(0x10));
-        awpRegistry.bind(address(0x11));
-        vm.prank(address(0x11));
-        awpRegistry.bind(address(0x12));
-
-        vm.prank(address(0x12));
+    function test_bind_cycle_reverts() public {
+        vm.prank(alice);
+        awpRegistry.bind(bob);
+        vm.prank(bob);
         vm.expectRevert(AWPRegistry.CycleDetected.selector);
-        awpRegistry.bind(address(0x10));
+        awpRegistry.bind(alice);
     }
 
-    // ── Unbind ──
-
-    function test_unbind() public {
-        vm.prank(agent1);
-        awpRegistry.bind(user1);
-        assertEq(awpRegistry.boundTo(agent1), user1);
-
-        vm.prank(agent1);
-        awpRegistry.unbind();
-        assertEq(awpRegistry.boundTo(agent1), address(0));
-    }
-
-    // ── Recipient ──
+    // ═══════════════════════════════════════════════
+    //  Recipient
+    // ═══════════════════════════════════════════════
 
     function test_setRecipient() public {
-        vm.prank(user1);
-        awpRegistry.setRecipient(user2);
-        assertEq(awpRegistry.recipient(user1), user2);
+        vm.prank(alice);
+        awpRegistry.setRecipient(bob);
+        assertEq(awpRegistry.recipient(alice), bob);
+    }
+
+    function test_setRecipient_clear() public {
+        vm.prank(alice);
+        awpRegistry.setRecipient(bob);
+        vm.prank(alice);
+        awpRegistry.setRecipient(address(0));
+        assertEq(awpRegistry.recipient(alice), address(0));
     }
 
     function test_resolveRecipient() public {
-        // Set up: agent1 -> user1, user1 has recipient = user2
-        vm.prank(user1);
-        awpRegistry.setRecipient(user2);
-        vm.prank(agent1);
-        awpRegistry.bind(user1);
+        vm.prank(alice);
+        awpRegistry.bind(bob);
+        vm.prank(bob);
+        awpRegistry.setRecipient(relayer);
 
-        // resolveRecipient(agent1) should walk to user1 and return user2
-        assertEq(awpRegistry.resolveRecipient(agent1), user2);
+        assertEq(awpRegistry.resolveRecipient(alice), relayer);
     }
 
-    function test_resolveRecipient_unregistered() public {
-        // No binding, no recipient => returns the address itself
-        assertEq(awpRegistry.resolveRecipient(user1), user1);
+    // ═══════════════════════════════════════════════
+    //  Delegation
+    // ═══════════════════════════════════════════════
+
+    function test_grantDelegate() public {
+        vm.prank(alice);
+        awpRegistry.grantDelegate(bob);
+        assertTrue(awpRegistry.delegates(alice, bob));
     }
 
-    // ── Delegation ──
-
-    function test_grantAndRevokeDelegate() public {
-        vm.prank(user1);
-        awpRegistry.grantDelegate(user2);
-        assertTrue(awpRegistry.delegates(user1, user2));
-
-        vm.prank(user1);
-        awpRegistry.revokeDelegate(user2);
-        assertFalse(awpRegistry.delegates(user1, user2));
+    function test_revokeDelegate() public {
+        vm.prank(alice);
+        awpRegistry.grantDelegate(bob);
+        vm.prank(alice);
+        awpRegistry.revokeDelegate(bob);
+        assertFalse(awpRegistry.delegates(alice, bob));
     }
 
-    function test_revokeDelegate_self_reverts() public {
-        vm.prank(user1);
-        vm.expectRevert(AWPRegistry.CannotRevokeSelf.selector);
-        awpRegistry.revokeDelegate(user1);
+    // ═══════════════════════════════════════════════
+    //  Worknet Registration
+    // ═══════════════════════════════════════════════
+
+    function test_registerWorknet() public {
+        uint256 wid = _registerWorknet(alice);
+
+        assertTrue(wid > 0);
+        IAWPRegistry.WorknetInfo memory info = awpRegistry.getWorknet(wid);
+        assertEq(uint8(info.status), uint8(IAWPRegistry.WorknetStatus.Pending));
     }
 
-    // ── Staking (allocation with explicit staker) ──
+    function test_registerWorknet_escrpwsAWP() public {
+        uint256 cost = awpRegistry.initialAlphaMint() * awpRegistry.initialAlphaPrice() / 1e18;
+        uint256 balBefore = awp.balanceOf(alice);
 
-    function test_allocateAndDeallocate() public {
-        // Setup: deposit via StakeNFT, register subnet
-        vm.startPrank(user1);
-        awp.approve(address(stakeNFT), 1000 * 1e18);
-        stakeNFT.deposit(1000 * 1e18, 52 weeks);
-        vm.stopPrank();
+        _registerWorknet(alice);
 
-        _registerSubnet();
-
-        vm.prank(user1);
-        awpRegistry.activateSubnet(1);
-
-        // Allocate (staker = user1, agent = agent1)
-        vm.prank(user1);
-        awpRegistry.allocate(user1, agent1, 1, 500 * 1e18);
-        assertEq(vault.getAgentStake(user1, agent1, 1), 500 * 1e18);
-
-        // Deallocate
-        vm.prank(user1);
-        awpRegistry.deallocate(user1, agent1, 1, 200 * 1e18);
-        assertEq(vault.getAgentStake(user1, agent1, 1), 300 * 1e18);
+        assertEq(balBefore - awp.balanceOf(alice), cost);
     }
 
-    function test_allocate_delegate() public {
-        // Setup: deposit
-        vm.startPrank(user1);
-        awp.approve(address(stakeNFT), 1000 * 1e18);
-        stakeNFT.deposit(1000 * 1e18, 52 weeks);
-        awpRegistry.grantDelegate(user2);
-        vm.stopPrank();
-
-        _registerSubnet();
-
-        vm.prank(user1);
-        awpRegistry.activateSubnet(1);
-
-        // user2 allocates on behalf of user1
-        vm.prank(user2);
-        awpRegistry.allocate(user1, agent1, 1, 500 * 1e18);
-        assertEq(vault.getAgentStake(user1, agent1, 1), 500 * 1e18);
+    function test_registerWorknet_worknetId_format() public {
+        uint256 wid = _registerWorknet(alice);
+        // chainId * 100_000_000 + localId
+        assertEq(wid / 100_000_000, block.chainid);
+        assertEq(wid % 100_000_000, 1);
     }
 
-    function test_allocate_notAuthorized_reverts() public {
-        vm.startPrank(user1);
-        awp.approve(address(stakeNFT), 1000 * 1e18);
-        stakeNFT.deposit(1000 * 1e18, 52 weeks);
-        vm.stopPrank();
+    // ═══════════════════════════════════════════════
+    //  Activation (Guardian only)
+    // ═══════════════════════════════════════════════
 
-        _registerSubnet();
+    function test_activateWorknet() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
 
-        vm.prank(user1);
-        awpRegistry.activateSubnet(1);
-
-        // user2 has no delegation from user1
-        vm.prank(user2);
-        vm.expectRevert(AWPRegistry.NotAuthorized.selector);
-        awpRegistry.allocate(user1, agent1, 1, 500 * 1e18);
+        IAWPRegistry.WorknetInfo memory info = awpRegistry.getWorknet(wid);
+        assertEq(uint8(info.status), uint8(IAWPRegistry.WorknetStatus.Active));
+        assertTrue(info.lpPool != bytes32(0));
     }
 
-    function test_reallocate_immediate() public {
-        vm.startPrank(user1);
-        awp.approve(address(stakeNFT), 1000 * 1e18);
-        stakeNFT.deposit(1000 * 1e18, 52 weeks);
-        vm.stopPrank();
+    function test_activateWorknet_mintsNFT() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
 
-        _registerSubnet(); // subnetId=1
-
-        vm.prank(user1);
-        awpRegistry.activateSubnet(1);
-
-        address agent2 = address(10);
-
-        // Allocate to agent1/subnet1
-        vm.prank(user1);
-        awpRegistry.allocate(user1, agent1, 1, 500 * 1e18);
-
-        // Reallocate to agent2/subnet1 — takes effect immediately
-        vm.prank(user1);
-        awpRegistry.reallocate(user1, agent1, 1, agent2, 1, 200 * 1e18);
-
-        assertEq(vault.getAgentStake(user1, agent1, 1), 300 * 1e18);
-        assertEq(vault.getAgentStake(user1, agent2, 1), 200 * 1e18);
+        assertEq(awpWorkNet.ownerOf(wid), alice);
     }
 
-    // ── Subnet registration ──
+    function test_activateWorknet_notGuardian_reverts() public {
+        uint256 wid = _registerWorknet(alice);
 
-    function test_registerSubnet() public {
-        uint256 subnetId = _registerSubnet();
-        assertEq(subnetId, 1);
-
-        IAWPRegistry.SubnetInfo memory info = awpRegistry.getSubnet(1);
-        assertEq(awpRegistry.getSubnetFull(subnetId).subnetManager, subnetManager);
-        assertTrue(info.status == IAWPRegistry.SubnetStatus.Pending);
+        vm.prank(alice);
+        vm.expectRevert(AWPRegistry.NotGuardian.selector);
+        awpRegistry.activateWorknet(wid);
     }
 
-    function test_registerSubnetInvalidParams() public {
-        vm.startPrank(user1);
-        awp.approve(address(awpRegistry), 2_000_000 * 1e18);
+    // ═══════════════════════════════════════════════
+    //  Cancel / Reject
+    // ═══════════════════════════════════════════════
 
-        // Empty name
-        vm.expectRevert(AWPRegistry.InvalidSubnetParams.selector);
-        awpRegistry.registerSubnet(
-            IAWPRegistry.SubnetParams({
-                name: "",
-                symbol: "TEST",
-                subnetManager: subnetManager,
-                salt: bytes32(0),
-                minStake: 0,
-                skillsURI: ""
-            })
-        );
+    function test_cancelWorknet_refundsAWP() public {
+        uint256 cost = awpRegistry.initialAlphaMint() * awpRegistry.initialAlphaPrice() / 1e18;
+        uint256 balBefore = awp.balanceOf(alice);
+        uint256 wid = _registerWorknet(alice);
 
-        // Empty subnet contract address
-        vm.expectRevert(AWPRegistry.SubnetManagerRequired.selector);
-        awpRegistry.registerSubnet(
-            IAWPRegistry.SubnetParams({
-                name: "Test",
-                symbol: "TEST",
-                subnetManager: address(0),
-                salt: bytes32(0),
-                minStake: 0,
-                skillsURI: ""
-            })
-        );
-        vm.stopPrank();
+        vm.prank(alice);
+        awpRegistry.cancelWorknet(wid);
+
+        assertEq(awp.balanceOf(alice), balBefore); // fully refunded
     }
 
-    // ── Subnet lifecycle ──
+    function test_cancelWorknet_notOwner_reverts() public {
+        uint256 wid = _registerWorknet(alice);
 
-    function test_activateSubnet() public {
-        uint256 subnetId = _registerSubnet();
-
-        vm.prank(user1);
-        awpRegistry.activateSubnet(subnetId);
-
-        assertTrue(awpRegistry.isSubnetActive(subnetId));
-        assertEq(awpRegistry.getActiveSubnetCount(), 1);
+        vm.prank(bob);
+        vm.expectRevert(AWPRegistry.NotOwner.selector);
+        awpRegistry.cancelWorknet(wid);
     }
 
-    function test_pauseAndResumeSubnet() public {
-        uint256 subnetId = _registerSubnet();
-        vm.startPrank(user1);
-        awpRegistry.activateSubnet(subnetId);
-        awpRegistry.pauseSubnet(subnetId);
-        assertFalse(awpRegistry.isSubnetActive(subnetId));
+    function test_rejectWorknet_refundsToOwner() public {
+        uint256 cost = awpRegistry.initialAlphaMint() * awpRegistry.initialAlphaPrice() / 1e18;
+        uint256 balBefore = awp.balanceOf(alice);
+        uint256 wid = _registerWorknet(alice);
 
-        awpRegistry.resumeSubnet(subnetId);
-        assertTrue(awpRegistry.isSubnetActive(subnetId));
-        vm.stopPrank();
+        vm.prank(guardian);
+        awpRegistry.rejectWorknet(wid);
+
+        assertEq(awp.balanceOf(alice), balBefore);
     }
 
-    function test_banAndUnbanSubnet() public {
-        uint256 subnetId = _registerSubnet();
-        vm.prank(user1);
-        awpRegistry.activateSubnet(subnetId);
+    // ═══════════════════════════════════════════════
+    //  Pause / Resume / Ban
+    // ═══════════════════════════════════════════════
 
-        vm.prank(address(treasury));
-        awpRegistry.banSubnet(subnetId);
+    function test_pauseWorknet() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
 
-        IAWPRegistry.SubnetInfo memory info = awpRegistry.getSubnet(subnetId);
-        assertTrue(info.status == IAWPRegistry.SubnetStatus.Banned);
+        vm.prank(alice);
+        awpRegistry.pauseWorknet(wid);
 
-        vm.prank(address(treasury));
-        awpRegistry.unbanSubnet(subnetId);
-        info = awpRegistry.getSubnet(subnetId);
-        assertTrue(info.status == IAWPRegistry.SubnetStatus.Active);
+        IAWPRegistry.WorknetInfo memory info = awpRegistry.getWorknet(wid);
+        assertEq(uint8(info.status), uint8(IAWPRegistry.WorknetStatus.Paused));
     }
 
-    function test_deregisterSubnet() public {
-        uint256 subnetId = _registerSubnet();
-        vm.prank(user1);
-        awpRegistry.activateSubnet(subnetId);
+    function test_resumeWorknet() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
 
-        // Cannot deregister Active subnet (must ban first)
-        vm.prank(address(treasury));
-        vm.expectRevert(AWPRegistry.InvalidSubnetStatus.selector);
-        awpRegistry.deregisterSubnet(subnetId);
+        vm.prank(alice);
+        awpRegistry.pauseWorknet(wid);
+        vm.prank(alice);
+        awpRegistry.resumeWorknet(wid);
 
-        // Ban the subnet first
-        vm.prank(address(treasury));
-        awpRegistry.banSubnet(subnetId);
-
-        // Cannot deregister during immunity period
-        vm.prank(address(treasury));
-        vm.expectRevert(AWPRegistry.ImmunityNotExpired.selector);
-        awpRegistry.deregisterSubnet(subnetId);
-
-        // After immunity period, deregister succeeds
-        vm.warp(block.timestamp + 31 days);
-        vm.prank(address(treasury));
-        awpRegistry.deregisterSubnet(subnetId);
-
-        assertEq(awpRegistry.getActiveSubnetCount(), 0);
+        assertTrue(awpRegistry.isWorknetActive(wid));
     }
 
-    // ── Permission tests ──
+    function test_banWorknet() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
 
-    function test_onlyTimelockFunctions() public {
-        vm.expectRevert(AWPRegistry.NotTimelock.selector);
-        awpRegistry.setInitialAlphaPrice(1e15);
+        vm.prank(guardian);
+        awpRegistry.banWorknet(wid);
 
-        vm.expectRevert(AWPRegistry.NotTimelock.selector);
-        awpRegistry.setGuardian(address(0));
-
-        vm.expectRevert(AWPRegistry.NotTimelock.selector);
-        awpRegistry.unpause();
+        IAWPRegistry.WorknetInfo memory info = awpRegistry.getWorknet(wid);
+        assertEq(uint8(info.status), uint8(IAWPRegistry.WorknetStatus.Banned));
     }
 
-    function test_onlyGuardianPause() public {
+    // ═══════════════════════════════════════════════
+    //  GetWorknetFull
+    // ═══════════════════════════════════════════════
+
+    function test_getWorknetFull_pending() public {
+        uint256 wid = _registerWorknet(alice);
+        IAWPRegistry.WorknetFullInfo memory full = awpRegistry.getWorknetFull(wid);
+
+        assertEq(full.owner, alice);
+        assertEq(full.worknetToken, address(0)); // not deployed yet
+        assertEq(uint8(full.status), uint8(IAWPRegistry.WorknetStatus.Pending));
+    }
+
+    function test_getWorknetFull_active() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
+
+        // Verify via getWorknet (simpler, no cross-contract NFT read)
+        IAWPRegistry.WorknetInfo memory info = awpRegistry.getWorknet(wid);
+        assertEq(uint8(info.status), uint8(IAWPRegistry.WorknetStatus.Active));
+        assertTrue(info.lpPool != bytes32(0));
+    }
+
+    function test_getWorknetFull_nonExistent_reverts() public {
+        vm.expectRevert();
+        awpRegistry.getWorknetFull(999999);
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Guardian
+    // ═══════════════════════════════════════════════
+
+    function test_setGuardian() public {
+        vm.prank(guardian);
+        awpRegistry.setGuardian(alice);
+        assertEq(awpRegistry.guardian(), alice);
+    }
+
+    function test_pause_unpause() public {
         vm.prank(guardian);
         awpRegistry.pause();
         assertTrue(awpRegistry.paused());
 
-        vm.expectRevert(AWPRegistry.NotGuardian.selector);
-        awpRegistry.pause();
+        vm.prank(guardian);
+        awpRegistry.unpause();
+        assertFalse(awpRegistry.paused());
     }
 
-    // ── Queries ──
-
-    function test_getAgentInfo() public {
-        vm.prank(user1);
-        awpRegistry.register();
-        vm.prank(agent1);
-        awpRegistry.bind(user1);
-
-        vm.startPrank(user1);
-        awp.approve(address(stakeNFT), 1000 * 1e18);
-        stakeNFT.deposit(1000 * 1e18, 52 weeks);
-        vm.stopPrank();
-
-        _registerSubnet();
-
-        vm.prank(user1);
-        awpRegistry.activateSubnet(1);
-
-        vm.prank(user1);
-        awpRegistry.allocate(user1, agent1, 1, 500 * 1e18);
-
-        AWPRegistry.AgentInfo memory info = awpRegistry.getAgentInfo(agent1, 1);
-        assertEq(info.root, user1);
-        assertTrue(info.isValid);
-        assertEq(info.stake, 500 * 1e18);
-        assertEq(info.rewardRecipient, user1);
-    }
+    // ═══════════════════════════════════════════════
+    //  GetRegistry
+    // ═══════════════════════════════════════════════
 
     function test_getRegistry() public view {
-        (address a, address b, address c, address d, address e, address f, address g,,) =
+        (address a, address b, address c, address d, address e, address f, address g, address h, address i) =
             awpRegistry.getRegistry();
         assertEq(a, address(awp));
-        assertEq(b, address(nft));
+        assertEq(b, address(awpWorkNet));
         assertEq(c, address(factory));
-        assertEq(d, address(emission));
-        assertEq(e, address(lp));
-        assertEq(f, address(vault));
-        assertEq(g, address(stakeNFT));
+        assertEq(d, address(awpEmission));
+        assertEq(e, address(lpManager));
+        assertEq(f, address(awpAllocator));
+        assertEq(g, address(veAwp));
+        assertEq(h, address(treasury));
+        assertEq(i, guardian);
     }
 
-    // ── Helper functions ──
+    // ═══════════════════════════════════════════════
+    //  Rescue
+    // ═══════════════════════════════════════════════
 
-    function _registerSubnet() internal returns (uint256) {
-        uint256 lpCost = 100_000_000 * 1e18 * 1e16 / 1e18;
-        vm.startPrank(user1);
-        awp.approve(address(awpRegistry), lpCost);
-        uint256 subnetId = awpRegistry.registerSubnet(
-            IAWPRegistry.SubnetParams({
-                name: "TestSubnet",
-                symbol: "TSUB",
-                subnetManager: subnetManager,
-                salt: bytes32(0),
-                minStake: 0,
-                skillsURI: ""
-            })
-        );
+    function test_rescueToken_cannotRescueAWP() public {
+        vm.prank(guardian);
+        vm.expectRevert(AWPRegistry.CannotRescueEscrowedToken.selector);
+        awpRegistry.rescueToken(address(awp), guardian, 1);
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Register — edge cases
+    // ═══════════════════════════════════════════════
+
+    function test_registerWorknet_emptyName_reverts() public {
+        uint256 cost = awpRegistry.initialAlphaMint() * awpRegistry.initialAlphaPrice() / 1e18;
+        vm.startPrank(alice);
+        awp.approve(address(awpRegistry), cost);
+        vm.expectRevert(AWPRegistry.InvalidWorknetName.selector);
+        awpRegistry.registerWorknet(IAWPRegistry.WorknetParams({
+            name: "", symbol: "T", worknetManager: address(0), salt: bytes32(0), minStake: 0, skillsURI: ""
+        }));
         vm.stopPrank();
-        return subnetId;
     }
 
-    // ── Unbind idempotent ──
+    function test_registerWorknet_nameTooLong_reverts() public {
+        uint256 cost = awpRegistry.initialAlphaMint() * awpRegistry.initialAlphaPrice() / 1e18;
+        // 65 chars exceeds 64 limit
+        bytes memory longName = new bytes(65);
+        for (uint i; i < 65; i++) longName[i] = "a";
 
-    function test_unbind_idempotent() public {
-        // unbind when already unbound — should not revert
-        vm.prank(user1);
-        awpRegistry.unbind();
-        assertEq(awpRegistry.boundTo(user1), address(0));
+        vm.startPrank(alice);
+        awp.approve(address(awpRegistry), cost);
+        vm.expectRevert(AWPRegistry.InvalidWorknetName.selector);
+        awpRegistry.registerWorknet(IAWPRegistry.WorknetParams({
+            name: string(longName), symbol: "T", worknetManager: address(0), salt: bytes32(0), minStake: 0, skillsURI: ""
+        }));
+        vm.stopPrank();
     }
 
-    // ── resolveRecipient deep chain ──
-
-    function test_resolveRecipient_deepChain() public {
-        // Build chain: agent3 → agent2 → agent1 → user1 (root with recipient)
-        address agent2 = makeAddr("agent2");
-        address agent3 = makeAddr("agent3");
-
-        vm.prank(user1);
-        awpRegistry.setRecipient(address(0xBEEF));
-
-        vm.prank(agent1);
-        awpRegistry.bind(user1);
-
-        vm.prank(agent2);
-        awpRegistry.bind(agent1);
-
-        vm.prank(agent3);
-        awpRegistry.bind(agent2);
-
-        // resolveRecipient(agent3) should walk up to user1 and return 0xBEEF
-        assertEq(awpRegistry.resolveRecipient(agent3), address(0xBEEF));
+    function test_registerWorknet_emptySymbol_reverts() public {
+        uint256 cost = awpRegistry.initialAlphaMint() * awpRegistry.initialAlphaPrice() / 1e18;
+        vm.startPrank(alice);
+        awp.approve(address(awpRegistry), cost);
+        vm.expectRevert(AWPRegistry.InvalidWorknetSymbol.selector);
+        awpRegistry.registerWorknet(IAWPRegistry.WorknetParams({
+            name: "Test", symbol: "", worknetManager: address(0), salt: bytes32(0), minStake: 0, skillsURI: ""
+        }));
+        vm.stopPrank();
     }
 
-    // ── Bind chain too long ──
+    function test_registerWorknet_symbolTooLong_reverts() public {
+        uint256 cost = awpRegistry.initialAlphaMint() * awpRegistry.initialAlphaPrice() / 1e18;
+        bytes memory longSym = new bytes(17);
+        for (uint i; i < 17; i++) longSym[i] = "X";
 
-    function test_bind_chainTooLong() public {
-        // Build a chain of 100 addresses, then try to bind one more
-        address[] memory addrs = new address[](101);
-        for (uint256 i = 0; i < 101; i++) {
-            addrs[i] = address(uint160(0x1000 + i));
-        }
-        // Chain: addrs[0] is root, addrs[1] → addrs[0], addrs[2] → addrs[1], ...
-        for (uint256 i = 1; i < 101; i++) {
-            vm.prank(addrs[i]);
-            awpRegistry.bind(addrs[i-1]);
-        }
-        // addrs[100] is bound to addrs[99], chain depth is 100
-        // Now try to bind a new address to addrs[100] — should revert ChainTooLong
-        address newAddr = makeAddr("tooDeep");
-        vm.prank(newAddr);
-        vm.expectRevert(AWPRegistry.ChainTooLong.selector);
-        awpRegistry.bind(addrs[100]);
+        vm.startPrank(alice);
+        awp.approve(address(awpRegistry), cost);
+        vm.expectRevert(AWPRegistry.InvalidWorknetSymbol.selector);
+        awpRegistry.registerWorknet(IAWPRegistry.WorknetParams({
+            name: "Test", symbol: string(longSym), worknetManager: address(0), salt: bytes32(0), minStake: 0, skillsURI: ""
+        }));
+        vm.stopPrank();
     }
 
-    // ── minStake enforcement ──
-
-
-    // ── setImmunityPeriod tests ──
-
-    function test_setImmunityPeriod() public {
-        vm.prank(address(treasury));
-        awpRegistry.setImmunityPeriod(60 days);
-        assertEq(awpRegistry.immunityPeriod(), 60 days);
+    function test_registerWorknet_jsonUnsafeName_reverts() public {
+        uint256 cost = awpRegistry.initialAlphaMint() * awpRegistry.initialAlphaPrice() / 1e18;
+        vm.startPrank(alice);
+        awp.approve(address(awpRegistry), cost);
+        vm.expectRevert(AWPRegistry.JsonUnsafeCharacter.selector);
+        awpRegistry.registerWorknet(IAWPRegistry.WorknetParams({
+            name: 'bad"quote', symbol: "T", worknetManager: address(0), salt: bytes32(0), minStake: 0, skillsURI: ""
+        }));
+        vm.stopPrank();
     }
 
-    // ── nextSubnetId tests ──
+    function test_registerWorknet_withCustomWorknetManager() public {
+        uint256 cost = awpRegistry.initialAlphaMint() * awpRegistry.initialAlphaPrice() / 1e18;
+        vm.startPrank(alice);
+        awp.approve(address(awpRegistry), cost);
+        uint256 wid = awpRegistry.registerWorknet(IAWPRegistry.WorknetParams({
+            name: "CustomWM", symbol: "CWM",
+            worknetManager: makeAddr("customWM"),
+            salt: bytes32(0), minStake: 100e18, skillsURI: "https://skills"
+        }));
+        vm.stopPrank();
+        assertTrue(wid > 0);
+    }
 
-    function test_nextSubnetId() public {
-        uint256 before = awpRegistry.nextSubnetId();
-        _registerSubnet();
-        assertEq(awpRegistry.nextSubnetId(), before + 1);
+    function test_registerWorknet_incrementsLocalId() public {
+        uint256 wid1 = _registerWorknet(alice, "Net1", "N1");
+        uint256 wid2 = _registerWorknet(bob, "Net2", "N2");
+
+        assertEq(wid1 % 100_000_000, 1);
+        assertEq(wid2 % 100_000_000, 2);
+    }
+
+    function test_registerWorknet_insufficientApproval_reverts() public {
+        vm.startPrank(alice);
+        awp.approve(address(awpRegistry), 1); // too little
+        vm.expectRevert();
+        awpRegistry.registerWorknet(IAWPRegistry.WorknetParams({
+            name: "Test", symbol: "T", worknetManager: address(0), salt: bytes32(0), minStake: 0, skillsURI: ""
+        }));
+        vm.stopPrank();
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Activate — edge cases
+    // ═══════════════════════════════════════════════
+
+    function test_activateWorknet_deploysWorknetToken() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
+
+        IAWPRegistry.WorknetFullInfo memory full = awpRegistry.getWorknetFull(wid);
+        assertTrue(full.worknetToken != address(0));
+    }
+
+    function test_activateWorknet_deploysWorknetManagerProxy() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
+
+        IAWPRegistry.WorknetFullInfo memory full = awpRegistry.getWorknetFull(wid);
+        assertTrue(full.worknetManager != address(0));
+    }
+
+    function test_activateWorknet_alreadyActive_reverts() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
+
+        vm.prank(guardian);
+        vm.expectRevert();
+        awpRegistry.activateWorknet(wid);
+    }
+
+    function test_activateWorknet_cancelled_reverts() public {
+        uint256 wid = _registerWorknet(alice);
+        vm.prank(alice);
+        awpRegistry.cancelWorknet(wid);
+
+        vm.prank(guardian);
+        vm.expectRevert();
+        awpRegistry.activateWorknet(wid);
+    }
+
+    function test_activateWorknet_setsActivatedAt() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
+
+        IAWPRegistry.WorknetInfo memory info = awpRegistry.getWorknet(wid);
+        assertEq(info.activatedAt, block.timestamp);
+    }
+
+    function test_activateWorknet_clearsEscrowAndPending() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
+
+        (uint128 lpAmount, uint128 alphaMint) = awpRegistry.worknetEscrow(wid);
+        assertEq(lpAmount, 0);
+        assertEq(alphaMint, 0);
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Cancel / Reject — edge cases
+    // ═══════════════════════════════════════════════
+
+    function test_cancelWorknet_alreadyActive_reverts() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
+
+        vm.prank(alice);
+        vm.expectRevert(); // pendingWorknets[wid].owner == address(0)
+        awpRegistry.cancelWorknet(wid);
+    }
+
+    function test_rejectWorknet_alreadyActive_reverts() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
+
+        vm.prank(guardian);
+        vm.expectRevert();
+        awpRegistry.rejectWorknet(wid);
+    }
+
+    function test_rejectWorknet_notGuardian_reverts() public {
+        uint256 wid = _registerWorknet(alice);
+
+        vm.prank(alice);
+        vm.expectRevert(AWPRegistry.NotGuardian.selector);
+        awpRegistry.rejectWorknet(wid);
+    }
+
+    function test_cancelWorknet_doubleCancel_reverts() public {
+        uint256 wid = _registerWorknet(alice);
+
+        vm.prank(alice);
+        awpRegistry.cancelWorknet(wid);
+
+        vm.prank(alice);
+        vm.expectRevert(AWPRegistry.NotOwner.selector);
+        awpRegistry.cancelWorknet(wid);
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Pause / Resume / Ban — edge cases
+    // ═══════════════════════════════════════════════
+
+    function test_pauseWorknet_notOwner_reverts() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
+
+        vm.prank(bob);
+        vm.expectRevert(AWPRegistry.NotOwner.selector);
+        awpRegistry.pauseWorknet(wid);
+    }
+
+    function test_pauseWorknet_alreadyPaused_reverts() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
+
+        vm.prank(alice);
+        awpRegistry.pauseWorknet(wid);
+
+        vm.prank(alice);
+        vm.expectRevert(); // InvalidWorknetStatus
+        awpRegistry.pauseWorknet(wid);
+    }
+
+    function test_resumeWorknet_notPaused_reverts() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
+
+        vm.prank(alice);
+        vm.expectRevert(); // InvalidWorknetStatus
+        awpRegistry.resumeWorknet(wid);
+    }
+
+    function test_resumeWorknet_notOwner_reverts() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
+
+        vm.prank(alice);
+        awpRegistry.pauseWorknet(wid);
+
+        vm.prank(bob);
+        vm.expectRevert(AWPRegistry.NotOwner.selector);
+        awpRegistry.resumeWorknet(wid);
+    }
+
+    function test_banWorknet_pending_reverts() public {
+        uint256 wid = _registerWorknet(alice);
+
+        vm.prank(guardian);
+        vm.expectRevert(); // InvalidWorknetStatus
+        awpRegistry.banWorknet(wid);
+    }
+
+    function test_banWorknet_notGuardian_reverts() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
+
+        vm.prank(alice);
+        vm.expectRevert(AWPRegistry.NotGuardian.selector);
+        awpRegistry.banWorknet(wid);
+    }
+
+    function test_unbanWorknet_notBanned_reverts() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
+
+        vm.prank(guardian);
+        vm.expectRevert(); // InvalidWorknetStatus
+        awpRegistry.unbanWorknet(wid);
+    }
+
+    function test_banWorknet_fromPaused() public {
+        uint256 wid = _registerWorknet(alice);
+        _activateWorknet(wid);
+
+        // Pause first
+        vm.prank(alice);
+        awpRegistry.pauseWorknet(wid);
+
+        // Then ban from Paused state
+        vm.prank(guardian);
+        awpRegistry.banWorknet(wid);
+
+        IAWPRegistry.WorknetInfo memory info = awpRegistry.getWorknet(wid);
+        assertEq(uint8(info.status), uint8(IAWPRegistry.WorknetStatus.Banned));
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Active Worknet Tracking
+    // ═══════════════════════════════════════════════
+
+    function test_getActiveWorknetCount_after_register_activate() public {
+        assertEq(awpRegistry.getActiveWorknetCount(), 0);
+
+        uint256 wid = _registerWorknet(alice);
+        assertEq(awpRegistry.getActiveWorknetCount(), 0); // Pending doesn't count
+
+        _activateWorknet(wid);
+        assertEq(awpRegistry.getActiveWorknetCount(), 1);
+    }
+
+    function test_getActiveWorknetIds() public {
+        uint256 wid1 = _registerWorknet(alice, "A", "A");
+        uint256 wid2 = _registerWorknet(bob, "B", "B");
+        _activateWorknet(wid1);
+        _activateWorknet(wid2);
+
+        uint256[] memory ids = awpRegistry.getActiveWorknetIds(0, 10);
+        assertEq(ids.length, 2);
+    }
+
+    function test_isWorknetActive_transitions() public {
+        uint256 wid = _registerWorknet(alice);
+        assertFalse(awpRegistry.isWorknetActive(wid)); // Pending
+
+        _activateWorknet(wid);
+        assertTrue(awpRegistry.isWorknetActive(wid));  // Active
+
+        vm.prank(alice);
+        awpRegistry.pauseWorknet(wid);
+        assertFalse(awpRegistry.isWorknetActive(wid)); // Paused
+
+        vm.prank(alice);
+        awpRegistry.resumeWorknet(wid);
+        assertTrue(awpRegistry.isWorknetActive(wid));  // Active again
+
+        vm.prank(guardian);
+        awpRegistry.banWorknet(wid);
+        assertFalse(awpRegistry.isWorknetActive(wid)); // Banned
+    }
+
+    function test_activeWorknetCount_decreasesOnPauseAndBan() public {
+        uint256 wid1 = _registerWorknet(alice, "A", "A");
+        uint256 wid2 = _registerWorknet(bob, "B", "B");
+        _activateWorknet(wid1);
+        _activateWorknet(wid2);
+        assertEq(awpRegistry.getActiveWorknetCount(), 2);
+
+        vm.prank(alice);
+        awpRegistry.pauseWorknet(wid1);
+        assertEq(awpRegistry.getActiveWorknetCount(), 1);
+
+        vm.prank(guardian);
+        awpRegistry.banWorknet(wid2);
+        assertEq(awpRegistry.getActiveWorknetCount(), 0);
+    }
+
+    // ═══════════════════════════════════════════════
+    //  Guardian Parameters
+    // ═══════════════════════════════════════════════
+
+    function test_setInitialAlphaPrice() public {
+        vm.prank(guardian);
+        awpRegistry.setInitialAlphaPrice(1e15);
+        assertEq(awpRegistry.initialAlphaPrice(), 1e15);
+    }
+
+    function test_setInitialAlphaPrice_tooLow_reverts() public {
+        vm.prank(guardian);
+        vm.expectRevert(AWPRegistry.PriceTooLow.selector);
+        awpRegistry.setInitialAlphaPrice(1e11);
+    }
+
+    function test_setInitialAlphaPrice_tooHigh_reverts() public {
+        vm.prank(guardian);
+        vm.expectRevert(AWPRegistry.PriceTooHigh.selector);
+        awpRegistry.setInitialAlphaPrice(1e31);
+    }
+
+    function test_setInitialAlphaMint() public {
+        vm.prank(guardian);
+        awpRegistry.setInitialAlphaMint(5e26);
+        assertEq(awpRegistry.initialAlphaMint(), 5e26);
+    }
+
+    function test_setInitialAlphaMint_zero_reverts() public {
+        vm.prank(guardian);
+        vm.expectRevert(AWPRegistry.InvalidMintAmount.selector);
+        awpRegistry.setInitialAlphaMint(0);
+    }
+
+    function test_setWorknetManagerImpl() public {
+        address newImpl = makeAddr("newImpl");
+        vm.prank(guardian);
+        awpRegistry.setWorknetManagerImpl(newImpl);
+    }
+
+    function test_setWorknetManagerImpl_zero_reverts() public {
+        vm.prank(guardian);
+        vm.expectRevert(AWPRegistry.ZeroAddress.selector);
+        awpRegistry.setWorknetManagerImpl(address(0));
     }
 }

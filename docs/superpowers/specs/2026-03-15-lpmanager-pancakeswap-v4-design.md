@@ -284,7 +284,7 @@ function _getLiquidityForAmounts(uint160 sqrtPriceX96, uint256 amt0, uint256 amt
     uint160 sqrtRatioAX96 = 4295128739;  // MIN_SQRT_RATIO
     uint160 sqrtRatioBX96 = 1461446703485210103287273052203988822378723970342;  // MAX_SQRT_RATIO
 
-    // 两步 mulDiv 避免 sqrtPriceX96 * sqrtRatioBX96 溢出 uint256
+    // Two-step mulDiv to avoid sqrtPriceX96 * sqrtRatioBX96 overflow in uint256
     uint256 intermediate = Math.mulDiv(amt0, uint256(sqrtPriceX96), 1 << 96);
     uint256 L0 = Math.mulDiv(intermediate, uint256(sqrtRatioBX96),
                              uint256(sqrtRatioBX96 - sqrtPriceX96));

@@ -6,12 +6,26 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/coder/websocket"
 	"github.com/redis/go-redis/v9"
 )
+
+// mockAllocQuerier mocks the allocation query interface
+type mockAllocQuerier struct {
+	stakeMap map[string]string // "agent:worknetId" -> amount
+}
+
+func (m *mockAllocQuerier) GetAgentSubnetStakeWS(ctx context.Context, chainID int64, agent string, subnetID string) (string, error) {
+	key := agent + ":" + subnetID
+	if v, ok := m.stakeMap[key]; ok {
+		return v, nil
+	}
+	return "0", nil
+}
 
 // newTestRedis creates a Redis client connected to the local test instance; skips the test if unavailable
 func newTestRedis(t *testing.T) *redis.Client {
@@ -309,5 +323,1133 @@ func TestHub_SlowClientEviction(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("expected 0 clients, got %d", count)
+	}
+}
+
+func TestHub_AllocationWatch(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	watchClient := &Client{
+		hub:          h,
+		send:         make(chan []byte, 256),
+		filters:      make(map[string]bool),
+		allocWatches: map[string]bool{"0xagent1:12345": true},
+	}
+	normalClient := &Client{
+		hub:          h,
+		send:         make(chan []byte, 256),
+		filters:      make(map[string]bool),
+		allocWatches: make(map[string]bool),
+	}
+
+	h.mu.Lock()
+	h.clients[watchClient] = true
+	h.clients[normalClient] = true
+	h.mu.Unlock()
+
+	allocMsg := []byte(`{"type":"Allocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xStaker1","agent":"0xAgent1","worknetId":"12345","amount":"1000","operator":"0xOp1"}}`)
+	h.broadcastToClients(allocMsg)
+
+	// watchClient should receive AllocationChanged
+	select {
+	case msg := <-watchClient.send:
+		var evt map[string]interface{}
+		if err := json.Unmarshal(msg, &evt); err != nil {
+			t.Fatalf("failed to parse: %v", err)
+		}
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+		if evt["sourceEvent"] != "Allocated" {
+			t.Errorf("expected sourceEvent Allocated, got %v", evt["sourceEvent"])
+		}
+		if evt["agent"] != "0xagent1" {
+			t.Errorf("expected agent 0xagent1, got %v", evt["agent"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("watchClient should have received AllocationChanged")
+	}
+
+	// normalClient should receive the original event
+	select {
+	case msg := <-normalClient.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(msg, &evt)
+		if evt["type"] != "Allocated" {
+			t.Errorf("normalClient expected Allocated, got %v", evt["type"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("normalClient should have received Allocated")
+	}
+}
+
+func TestHub_AllocationWatch_Reallocated(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	client := &Client{
+		hub:          h,
+		send:         make(chan []byte, 256),
+		filters:      make(map[string]bool),
+		allocWatches: map[string]bool{"0xtoagent:200": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	msg := []byte(`{"type":"Reallocated","blockNumber":60,"txHash":"0xr","data":{"staker":"0xS","fromAgent":"0xFromAgent","fromSubnet":"100","toAgent":"0xToAgent","toSubnet":"200","amount":"500","operator":"0xO"}}`)
+	h.broadcastToClients(msg)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("should receive AllocationChanged for Reallocated to-side")
+	}
+}
+
+func TestHub_SubnetWatch(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	// Subscribe to worknetId only, without specifying agent
+	client := &Client{
+		hub:           h,
+		send:          make(chan []byte, 256),
+		filters:       make(map[string]bool),
+		allocWatches:  make(map[string]bool),
+		subnetWatches: map[string]bool{"12345": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	// Any agent allocating on this subnet should trigger push
+	msg := []byte(`{"type":"Allocated","blockNumber":200,"txHash":"0xaaa","data":{"staker":"0xS","agent":"0xAnyAgent","worknetId":"12345","amount":"999","operator":"0xO"}}`)
+	h.broadcastToClients(msg)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+		if evt["worknetId"] != "12345" {
+			t.Errorf("expected worknetId 12345, got %v", evt["worknetId"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("subnet watch should receive AllocationChanged for any agent")
+	}
+
+	// Different subnet should not trigger push (goes through normal broadcast, but client has no filter so still receives original event)
+	otherMsg := []byte(`{"type":"Allocated","blockNumber":201,"txHash":"0xbbb","data":{"staker":"0xS","agent":"0xOther","worknetId":"99999","amount":"1","operator":"0xO"}}`)
+	h.broadcastToClients(otherMsg)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		// Non-matching subnet, should be sent as original Allocated
+		if evt["type"] != "Allocated" {
+			t.Errorf("expected original Allocated, got %v", evt["type"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("should still receive non-matching events as normal broadcast")
+	}
+}
+
+// ============================================================================
+// 1. extractAllocKeys unit tests
+// ============================================================================
+
+func TestExtractAllocKeys_Allocated(t *testing.T) {
+	data := map[string]interface{}{
+		"staker":   "0xS",
+		"agent":    "0xAgent1",
+		"worknetId": "12345",
+		"amount":   "1000",
+	}
+	keys := extractAllocKeys("Allocated", data)
+	if len(keys) != 1 {
+		t.Fatalf("expected 1 key, got %d: %v", len(keys), keys)
+	}
+	if keys[0] != "0xagent1:12345" {
+		t.Errorf("expected 0xagent1:12345, got %s", keys[0])
+	}
+}
+
+func TestExtractAllocKeys_Deallocated(t *testing.T) {
+	data := map[string]interface{}{
+		"staker":   "0xS",
+		"agent":    "0xAgent2",
+		"worknetId": "67890",
+		"amount":   "500",
+	}
+	keys := extractAllocKeys("Deallocated", data)
+	if len(keys) != 1 {
+		t.Fatalf("expected 1 key, got %d: %v", len(keys), keys)
+	}
+	if keys[0] != "0xagent2:67890" {
+		t.Errorf("expected 0xagent2:67890, got %s", keys[0])
+	}
+}
+
+func TestExtractAllocKeys_Reallocated(t *testing.T) {
+	data := map[string]interface{}{
+		"staker":    "0xS",
+		"agent":     "0xDirectAgent",
+		"worknetId":  "100",
+		"fromAgent": "0xFromAgent",
+		"fromSubnet": "200",
+		"toAgent":   "0xToAgent",
+		"toSubnet":  "300",
+		"amount":    "1000",
+	}
+	keys := extractAllocKeys("Reallocated", data)
+	// Should return 3 keys: agent:worknetId, fromAgent:fromSubnet, toAgent:toSubnet
+	if len(keys) != 3 {
+		t.Fatalf("expected 3 keys, got %d: %v", len(keys), keys)
+	}
+	expected := []string{
+		"0xdirectagent:100",
+		"0xfromagent:200",
+		"0xtoagent:300",
+	}
+	for i, exp := range expected {
+		if keys[i] != exp {
+			t.Errorf("key[%d]: expected %s, got %s", i, exp, keys[i])
+		}
+	}
+}
+
+func TestExtractAllocKeys_MissingFields(t *testing.T) {
+	// Missing agent
+	data1 := map[string]interface{}{
+		"worknetId": "12345",
+	}
+	keys1 := extractAllocKeys("Allocated", data1)
+	if len(keys1) != 0 {
+		t.Errorf("expected 0 keys when agent missing, got %d: %v", len(keys1), keys1)
+	}
+
+	// Missing worknetId
+	data2 := map[string]interface{}{
+		"agent": "0xAgent1",
+	}
+	keys2 := extractAllocKeys("Allocated", data2)
+	if len(keys2) != 0 {
+		t.Errorf("expected 0 keys when worknetId missing, got %d: %v", len(keys2), keys2)
+	}
+
+	// Both missing
+	data3 := map[string]interface{}{
+		"staker": "0xS",
+	}
+	keys3 := extractAllocKeys("Allocated", data3)
+	if len(keys3) != 0 {
+		t.Errorf("expected 0 keys when both missing, got %d: %v", len(keys3), keys3)
+	}
+}
+
+func TestExtractAllocKeys_CaseInsensitive(t *testing.T) {
+	data := map[string]interface{}{
+		"agent":    "0xABCDEF1234567890abcdef1234567890ABCDEF12",
+		"worknetId": "999",
+	}
+	keys := extractAllocKeys("Allocated", data)
+	if len(keys) != 1 {
+		t.Fatalf("expected 1 key, got %d", len(keys))
+	}
+	// agent should be converted to lowercase
+	if keys[0] != strings.ToLower("0xABCDEF1234567890abcdef1234567890ABCDEF12")+":999" {
+		t.Errorf("expected lowercased agent, got %s", keys[0])
+	}
+}
+
+// ============================================================================
+// 2. enrichAllocEvent unit tests
+// ============================================================================
+
+func TestEnrichAllocEvent_NoQuerier(t *testing.T) {
+	h, _ := newTestHub(t)
+	// Do not set allocQuery
+
+	evt := broadcastEvent{
+		Type: "Allocated",
+		Data: map[string]interface{}{
+			"agent":    "0xagent1",
+			"worknetId": "12345",
+			"amount":   "1000",
+		},
+	}
+
+	result := h.enrichAllocEvent(evt, "0xagent1:12345")
+
+	if result["type"] != "AllocationChanged" {
+		t.Errorf("expected type AllocationChanged, got %v", result["type"])
+	}
+	if _, exists := result["currentStake"]; exists {
+		t.Error("currentStake should not be present without querier")
+	}
+}
+
+func TestEnrichAllocEvent_WithQuerier(t *testing.T) {
+	h, _ := newTestHub(t)
+	h.SetAllocationQuerier(&mockAllocQuerier{
+		stakeMap: map[string]string{
+			"0xagent1:12345": "5000",
+		},
+	}, 56)
+
+	evt := broadcastEvent{
+		Type: "Allocated",
+		Data: map[string]interface{}{
+			"agent":    "0xagent1",
+			"worknetId": "12345",
+			"amount":   "1000",
+		},
+	}
+
+	result := h.enrichAllocEvent(evt, "0xagent1:12345")
+
+	if result["currentStake"] != "5000" {
+		t.Errorf("expected currentStake 5000, got %v", result["currentStake"])
+	}
+}
+
+func TestEnrichAllocEvent_Fields(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	data := map[string]interface{}{
+		"staker":   "0xS",
+		"agent":    "0xagent1",
+		"worknetId": "12345",
+		"amount":   "1000",
+	}
+	evt := broadcastEvent{
+		Type: "Allocated",
+		Data: data,
+	}
+
+	result := h.enrichAllocEvent(evt, "0xagent1:12345")
+
+	// Verify all fields exist
+	requiredFields := []string{"type", "sourceEvent", "agent", "worknetId", "data"}
+	for _, field := range requiredFields {
+		if _, ok := result[field]; !ok {
+			t.Errorf("missing required field: %s", field)
+		}
+	}
+
+	if result["type"] != "AllocationChanged" {
+		t.Errorf("expected AllocationChanged, got %v", result["type"])
+	}
+	if result["sourceEvent"] != "Allocated" {
+		t.Errorf("expected sourceEvent Allocated, got %v", result["sourceEvent"])
+	}
+	if result["agent"] != "0xagent1" {
+		t.Errorf("expected agent 0xagent1, got %v", result["agent"])
+	}
+	if result["worknetId"] != "12345" {
+		t.Errorf("expected worknetId 12345, got %v", result["worknetId"])
+	}
+	// data should be the original event data
+	resultData, ok := result["data"].(map[string]interface{})
+	if !ok {
+		t.Fatal("data field should be map[string]interface{}")
+	}
+	if resultData["amount"] != "1000" {
+		t.Errorf("expected data.amount 1000, got %v", resultData["amount"])
+	}
+}
+
+// ============================================================================
+// 3. Allocation watch broadcast tests
+// ============================================================================
+
+func TestHub_AllocationWatch_Deallocated(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	client := &Client{
+		hub:          h,
+		send:         make(chan []byte, 256),
+		filters:      make(map[string]bool),
+		allocWatches: map[string]bool{"0xagent1:12345": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	msg := []byte(`{"type":"Deallocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xS","agent":"0xAgent1","worknetId":"12345","amount":"500","operator":"0xO"}}`)
+	h.broadcastToClients(msg)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+		if evt["sourceEvent"] != "Deallocated" {
+			t.Errorf("expected sourceEvent Deallocated, got %v", evt["sourceEvent"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("should receive AllocationChanged for Deallocated event")
+	}
+}
+
+func TestHub_AllocationWatch_FromSideReallocated(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	// Watch the from-side agent:subnet
+	client := &Client{
+		hub:          h,
+		send:         make(chan []byte, 256),
+		filters:      make(map[string]bool),
+		allocWatches: map[string]bool{"0xfromagent:100": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	msg := []byte(`{"type":"Reallocated","blockNumber":60,"txHash":"0xr","data":{"staker":"0xS","fromAgent":"0xFromAgent","fromSubnet":"100","toAgent":"0xToAgent","toSubnet":"200","amount":"500","operator":"0xO"}}`)
+	h.broadcastToClients(msg)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+		if evt["agent"] != "0xfromagent" {
+			t.Errorf("expected agent 0xfromagent, got %v", evt["agent"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("should receive AllocationChanged for Reallocated from-side")
+	}
+}
+
+func TestHub_AllocationWatch_MultipleWatches(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	client := &Client{
+		hub:     h,
+		send:    make(chan []byte, 256),
+		filters: make(map[string]bool),
+		allocWatches: map[string]bool{
+			"0xagent1:111": true,
+			"0xagent2:222": true,
+			"0xagent3:333": true,
+		},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	// First event matches second watch
+	msg1 := []byte(`{"type":"Allocated","blockNumber":1,"txHash":"0x1","data":{"staker":"0xS","agent":"0xAgent2","worknetId":"222","amount":"100","operator":"0xO"}}`)
+	h.broadcastToClients(msg1)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+		if evt["agent"] != "0xagent2" {
+			t.Errorf("expected agent 0xagent2, got %v", evt["agent"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("should receive AllocationChanged for second watch")
+	}
+
+	// Second event matches third watch
+	msg2 := []byte(`{"type":"Allocated","blockNumber":2,"txHash":"0x2","data":{"staker":"0xS","agent":"0xAgent3","worknetId":"333","amount":"200","operator":"0xO"}}`)
+	h.broadcastToClients(msg2)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["agent"] != "0xagent3" {
+			t.Errorf("expected agent 0xagent3, got %v", evt["agent"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("should receive AllocationChanged for third watch")
+	}
+}
+
+func TestHub_AllocationWatch_ExactTakesPriority(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	// Client sets both exact match and subnet-level match
+	client := &Client{
+		hub:           h,
+		send:          make(chan []byte, 256),
+		filters:       make(map[string]bool),
+		allocWatches:  map[string]bool{"0xagent1:12345": true},
+		subnetWatches: map[string]bool{"12345": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	msg := []byte(`{"type":"Allocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xS","agent":"0xAgent1","worknetId":"12345","amount":"1000","operator":"0xO"}}`)
+	h.broadcastToClients(msg)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+		// Exact match takes priority, agent should be the exact watch agent
+		if evt["agent"] != "0xagent1" {
+			t.Errorf("expected agent 0xagent1, got %v", evt["agent"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("should receive AllocationChanged")
+	}
+
+	// Should receive only one message (exact match takes priority, no duplicate subnet-level match)
+	select {
+	case extra := <-client.send:
+		t.Fatalf("should not receive duplicate message, but got: %s", string(extra))
+	case <-time.After(200 * time.Millisecond):
+		// Correct: no extra messages
+	}
+}
+
+func TestHub_AllocationWatch_WatchPlusTypeFilter(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	// Client sets type filter ["Allocated"] and allocWatch
+	client := &Client{
+		hub:          h,
+		send:         make(chan []byte, 256),
+		filters:      map[string]bool{"Allocated": true},
+		allocWatches: map[string]bool{"0xagent1:12345": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	// Event matching allocWatch -> should receive AllocationChanged
+	allocMsg := []byte(`{"type":"Allocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xS","agent":"0xAgent1","worknetId":"12345","amount":"1000","operator":"0xO"}}`)
+	h.broadcastToClients(allocMsg)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("should receive AllocationChanged for matching alloc watch")
+	}
+
+	// Non-allocation event not matching type filter -> should not be received
+	nonAllocMsg := []byte(`{"type":"EpochSettled","data":"test"}`)
+	h.broadcastToClients(nonAllocMsg)
+
+	select {
+	case extra := <-client.send:
+		t.Fatalf("should not receive non-matching event, but got: %s", string(extra))
+	case <-time.After(200 * time.Millisecond):
+		// Correct: filtered by type filter
+	}
+}
+
+func TestHub_AllocationWatch_NonAllocEvent(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	client := &Client{
+		hub:          h,
+		send:         make(chan []byte, 256),
+		filters:      make(map[string]bool),
+		allocWatches: map[string]bool{"0xagent1:12345": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	// Non-allocation event (EpochSettled) should go through normal broadcast path
+	msg := []byte(`{"type":"EpochSettled","data":{"epoch":"5"}}`)
+	h.broadcastToClients(msg)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "EpochSettled" {
+			t.Errorf("expected EpochSettled, got %v", evt["type"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("non-alloc event should be received via normal broadcast")
+	}
+}
+
+func TestHub_AllocationWatch_NoMatchFallsThrough(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	// Watch a specific agent:subnet, but event is for another agent:subnet
+	client := &Client{
+		hub:          h,
+		send:         make(chan []byte, 256),
+		filters:      make(map[string]bool),
+		allocWatches: map[string]bool{"0xagent1:12345": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	// Non-matching allocation event -> should be sent as original event (since there is no type filter)
+	msg := []byte(`{"type":"Allocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xS","agent":"0xOtherAgent","worknetId":"99999","amount":"1000","operator":"0xO"}}`)
+	h.broadcastToClients(msg)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "Allocated" {
+			t.Errorf("expected original Allocated (no match), got %v", evt["type"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("non-matching alloc event should fall through to normal broadcast")
+	}
+}
+
+// ============================================================================
+// 4. Subnet-level watch tests
+// ============================================================================
+
+func TestHub_SubnetWatch_Deallocated(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	client := &Client{
+		hub:           h,
+		send:          make(chan []byte, 256),
+		filters:       make(map[string]bool),
+		allocWatches:  make(map[string]bool),
+		subnetWatches: map[string]bool{"12345": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	msg := []byte(`{"type":"Deallocated","blockNumber":100,"txHash":"0xabc","data":{"staker":"0xS","agent":"0xAnyAgent","worknetId":"12345","amount":"500","operator":"0xO"}}`)
+	h.broadcastToClients(msg)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+		if evt["sourceEvent"] != "Deallocated" {
+			t.Errorf("expected sourceEvent Deallocated, got %v", evt["sourceEvent"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("subnet watch should trigger for Deallocated")
+	}
+}
+
+func TestHub_SubnetWatch_Reallocated(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	// Watch toSubnet
+	client := &Client{
+		hub:           h,
+		send:          make(chan []byte, 256),
+		filters:       make(map[string]bool),
+		allocWatches:  make(map[string]bool),
+		subnetWatches: map[string]bool{"200": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	msg := []byte(`{"type":"Reallocated","blockNumber":60,"txHash":"0xr","data":{"staker":"0xS","fromAgent":"0xFromAgent","fromSubnet":"100","toAgent":"0xToAgent","toSubnet":"200","amount":"500","operator":"0xO"}}`)
+	h.broadcastToClients(msg)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+		if evt["worknetId"] != "200" {
+			t.Errorf("expected worknetId 200, got %v", evt["worknetId"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("subnet watch should trigger for Reallocated to-subnet")
+	}
+}
+
+func TestHub_SubnetWatch_MultipleSubnets(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	client := &Client{
+		hub:           h,
+		send:          make(chan []byte, 256),
+		filters:       make(map[string]bool),
+		allocWatches:  make(map[string]bool),
+		subnetWatches: map[string]bool{"111": true, "222": true, "333": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	// Match second subnet
+	msg1 := []byte(`{"type":"Allocated","blockNumber":1,"txHash":"0x1","data":{"staker":"0xS","agent":"0xA","worknetId":"222","amount":"100","operator":"0xO"}}`)
+	h.broadcastToClients(msg1)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+		if evt["worknetId"] != "222" {
+			t.Errorf("expected worknetId 222, got %v", evt["worknetId"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("should receive AllocationChanged for subnet 222")
+	}
+
+	// Match third subnet
+	msg2 := []byte(`{"type":"Allocated","blockNumber":2,"txHash":"0x2","data":{"staker":"0xS","agent":"0xB","worknetId":"333","amount":"200","operator":"0xO"}}`)
+	h.broadcastToClients(msg2)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["worknetId"] != "333" {
+			t.Errorf("expected worknetId 333, got %v", evt["worknetId"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("should receive AllocationChanged for subnet 333")
+	}
+}
+
+func TestHub_SubnetWatch_CombinedWithExact(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	// Exact watch agent1 on subnet 111, subnet-level watch on subnet 222
+	client := &Client{
+		hub:           h,
+		send:          make(chan []byte, 256),
+		filters:       make(map[string]bool),
+		allocWatches:  map[string]bool{"0xagent1:111": true},
+		subnetWatches: map[string]bool{"222": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	// Exact match event
+	msg1 := []byte(`{"type":"Allocated","blockNumber":1,"txHash":"0x1","data":{"staker":"0xS","agent":"0xAgent1","worknetId":"111","amount":"100","operator":"0xO"}}`)
+	h.broadcastToClients(msg1)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+		if evt["agent"] != "0xagent1" {
+			t.Errorf("expected agent 0xagent1, got %v", evt["agent"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("exact watch should trigger")
+	}
+
+	// Subnet-level match event
+	msg2 := []byte(`{"type":"Allocated","blockNumber":2,"txHash":"0x2","data":{"staker":"0xS","agent":"0xOtherAgent","worknetId":"222","amount":"200","operator":"0xO"}}`)
+	h.broadcastToClients(msg2)
+
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "AllocationChanged" {
+			t.Errorf("expected AllocationChanged, got %v", evt["type"])
+		}
+		if evt["worknetId"] != "222" {
+			t.Errorf("expected worknetId 222, got %v", evt["worknetId"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("subnet watch should trigger")
+	}
+}
+
+// ============================================================================
+// 5. WebSocket integration tests
+// ============================================================================
+
+func TestHub_WS_WatchAllocations_Integration(t *testing.T) {
+	h, rdb := newTestHub(t)
+	startHub(t, h)
+
+	testDone := make(chan struct{})
+	t.Cleanup(func() { close(testDone) })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.HandleConnect(w, r)
+		<-testDone
+	}))
+	t.Cleanup(srv.Close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, "ws"+srv.URL[len("http"):], nil)
+	if err != nil {
+		t.Fatalf("WebSocket connection failed: %v", err)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
+
+	// Wait for client registration
+	count := waitForClients(h, 1, 3*time.Second)
+	if count != 1 {
+		t.Fatalf("expected 1 client, got %d", count)
+	}
+
+	// Send watchAllocations subscription (address must be 42 chars: 0x + 40 hex)
+	watchMsg, _ := json.Marshal(filterMessage{
+		WatchAllocations: []allocationWatch{
+			{Agent: "0xAa11223344556677889900aabbccddeeff112233", SubnetID: "55555"},
+		},
+	})
+	if err := conn.Write(ctx, websocket.MessageText, watchMsg); err != nil {
+		t.Fatalf("failed to send watch message: %v", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	// Publish allocation event via Redis (agent case differs, extractAllocKeys will toLower)
+	allocEvt := `{"type":"Allocated","blockNumber":500,"txHash":"0xtest","data":{"staker":"0xS","agent":"0xAa11223344556677889900aabbccddeeff112233","worknetId":"55555","amount":"2000","operator":"0xO"}}`
+	if err := rdb.Publish(ctx, "chain_events", allocEvt).Err(); err != nil {
+		t.Fatalf("failed to publish Redis event: %v", err)
+	}
+
+	// Read WebSocket message
+	_, data, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("failed to read WebSocket message: %v", err)
+	}
+
+	var evt map[string]interface{}
+	if err := json.Unmarshal(data, &evt); err != nil {
+		t.Fatalf("failed to parse message: %v", err)
+	}
+	if evt["type"] != "AllocationChanged" {
+		t.Errorf("expected AllocationChanged, got %v", evt["type"])
+	}
+	if evt["sourceEvent"] != "Allocated" {
+		t.Errorf("expected sourceEvent Allocated, got %v", evt["sourceEvent"])
+	}
+}
+
+func TestHub_WS_SubnetWatch_Integration(t *testing.T) {
+	h, rdb := newTestHub(t)
+	startHub(t, h)
+
+	testDone := make(chan struct{})
+	t.Cleanup(func() { close(testDone) })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.HandleConnect(w, r)
+		<-testDone
+	}))
+	t.Cleanup(srv.Close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, "ws"+srv.URL[len("http"):], nil)
+	if err != nil {
+		t.Fatalf("WebSocket connection failed: %v", err)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
+
+	count := waitForClients(h, 1, 3*time.Second)
+	if count != 1 {
+		t.Fatalf("expected 1 client, got %d", count)
+	}
+
+	// Send subnet-level watchAllocations (agent omitted)
+	watchMsg, _ := json.Marshal(filterMessage{
+		WatchAllocations: []allocationWatch{
+			{SubnetID: "77777"},
+		},
+	})
+	if err := conn.Write(ctx, websocket.MessageText, watchMsg); err != nil {
+		t.Fatalf("failed to send watch message: %v", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	// Publish event via Redis
+	allocEvt := `{"type":"Allocated","blockNumber":600,"txHash":"0xsub","data":{"staker":"0xS","agent":"0xRandomAgent1234567890123456789012345678","worknetId":"77777","amount":"3000","operator":"0xO"}}`
+	if err := rdb.Publish(ctx, "chain_events", allocEvt).Err(); err != nil {
+		t.Fatalf("failed to publish Redis event: %v", err)
+	}
+
+	_, data, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("failed to read WebSocket message: %v", err)
+	}
+
+	var evt map[string]interface{}
+	if err := json.Unmarshal(data, &evt); err != nil {
+		t.Fatalf("failed to parse message: %v", err)
+	}
+	if evt["type"] != "AllocationChanged" {
+		t.Errorf("expected AllocationChanged, got %v", evt["type"])
+	}
+	if evt["worknetId"] != "77777" {
+		t.Errorf("expected worknetId 77777, got %v", evt["worknetId"])
+	}
+}
+
+func TestHub_WS_UpdateSubscription(t *testing.T) {
+	h, rdb := newTestHub(t)
+	startHub(t, h)
+
+	testDone := make(chan struct{})
+	t.Cleanup(func() { close(testDone) })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.HandleConnect(w, r)
+		<-testDone
+	}))
+	t.Cleanup(srv.Close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, "ws"+srv.URL[len("http"):], nil)
+	if err != nil {
+		t.Fatalf("WebSocket connection failed: %v", err)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
+
+	count := waitForClients(h, 1, 3*time.Second)
+	if count != 1 {
+		t.Fatalf("expected 1 client, got %d", count)
+	}
+
+	// First subscription agent1:11111 (address must be 42 chars: 0x + 40 hex)
+	watch1, _ := json.Marshal(filterMessage{
+		WatchAllocations: []allocationWatch{
+			{Agent: "0x1111111111111111111111111111111111111111", SubnetID: "11111"},
+		},
+	})
+	if err := conn.Write(ctx, websocket.MessageText, watch1); err != nil {
+		t.Fatalf("failed to send first watch: %v", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	// Second subscription agent2:22222 (should replace the first)
+	watch2, _ := json.Marshal(filterMessage{
+		WatchAllocations: []allocationWatch{
+			{Agent: "0x2222222222222222222222222222222222222222", SubnetID: "22222"},
+		},
+	})
+	if err := conn.Write(ctx, websocket.MessageText, watch2); err != nil {
+		t.Fatalf("failed to send second watch: %v", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	// Publish event matching first subscription -> should be sent as original event (no longer matches)
+	evt1 := `{"type":"Allocated","blockNumber":1,"txHash":"0x1","data":{"staker":"0xS","agent":"0x1111111111111111111111111111111111111111","worknetId":"11111","amount":"100","operator":"0xO"}}`
+	if err := rdb.Publish(ctx, "chain_events", evt1).Err(); err != nil {
+		t.Fatalf("failed to publish: %v", err)
+	}
+
+	_, data1, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("failed to read: %v", err)
+	}
+	var parsed1 map[string]interface{}
+	_ = json.Unmarshal(data1, &parsed1)
+	// First subscription was replaced, should receive original Allocated (not AllocationChanged)
+	if parsed1["type"] != "Allocated" {
+		t.Errorf("expected original Allocated (old watch replaced), got %v", parsed1["type"])
+	}
+
+	// Publish event matching second subscription -> should receive AllocationChanged
+	evt2 := `{"type":"Allocated","blockNumber":2,"txHash":"0x2","data":{"staker":"0xS","agent":"0x2222222222222222222222222222222222222222","worknetId":"22222","amount":"200","operator":"0xO"}}`
+	if err := rdb.Publish(ctx, "chain_events", evt2).Err(); err != nil {
+		t.Fatalf("failed to publish: %v", err)
+	}
+
+	_, data2, err := conn.Read(ctx)
+	if err != nil {
+		t.Fatalf("failed to read: %v", err)
+	}
+	var parsed2 map[string]interface{}
+	_ = json.Unmarshal(data2, &parsed2)
+	if parsed2["type"] != "AllocationChanged" {
+		t.Errorf("expected AllocationChanged for new watch, got %v", parsed2["type"])
+	}
+}
+
+// ============================================================================
+// 6. Edge case tests
+// ============================================================================
+
+func TestHub_AllocationWatch_SlowClientEviction(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	// buffer size 1, simulating slow client (fill buffer with non-allocation event, then trigger eviction with allocation event)
+	client := &Client{
+		hub:          h,
+		send:         make(chan []byte, 1),
+		filters:      make(map[string]bool),
+		allocWatches: map[string]bool{"0xagent1:12345": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	// Fill buffer with non-allocation event (goes through normal broadcast path)
+	msg1 := []byte(`{"type":"EpochSettled","data":{"epoch":"1"}}`)
+	h.broadcastToClients(msg1)
+
+	h.mu.RLock()
+	_, tracked := h.clients[client]
+	h.mu.RUnlock()
+	if !tracked {
+		t.Fatal("client should still be tracked after first message")
+	}
+
+	// Send another non-allocation event: buffer full, should be evicted
+	msg2 := []byte(`{"type":"EpochSettled","data":{"epoch":"2"}}`)
+	h.broadcastToClients(msg2)
+
+	h.mu.RLock()
+	_, tracked = h.clients[client]
+	clientCount := len(h.clients)
+	h.mu.RUnlock()
+
+	if tracked {
+		t.Fatal("slow client with alloc watches should be evicted when buffer full")
+	}
+	if clientCount != 0 {
+		t.Fatalf("expected 0 clients, got %d", clientCount)
+	}
+}
+
+func TestHub_AllocationWatch_EmptyData(t *testing.T) {
+	h, _ := newTestHub(t)
+
+	client := &Client{
+		hub:          h,
+		send:         make(chan []byte, 256),
+		filters:      make(map[string]bool),
+		allocWatches: map[string]bool{"0xagent1:12345": true},
+	}
+
+	h.mu.Lock()
+	h.clients[client] = true
+	h.mu.Unlock()
+
+	// Allocation event missing data field
+	msg := []byte(`{"type":"Allocated","blockNumber":100,"txHash":"0xabc"}`)
+	h.broadcastToClients(msg)
+
+	// Since allocKeys cannot be extracted, should go through normal broadcast
+	select {
+	case received := <-client.send:
+		var evt map[string]interface{}
+		_ = json.Unmarshal(received, &evt)
+		if evt["type"] != "Allocated" {
+			t.Errorf("expected original Allocated, got %v", evt["type"])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("should receive message via normal broadcast")
+	}
+}
+
+func TestHub_AllocationWatch_InvalidWatchParams(t *testing.T) {
+	h, _ := newTestHub(t)
+	startHub(t, h)
+
+	testDone := make(chan struct{})
+	t.Cleanup(func() { close(testDone) })
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h.HandleConnect(w, r)
+		<-testDone
+	}))
+	t.Cleanup(srv.Close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	conn, _, err := websocket.Dial(ctx, "ws"+srv.URL[len("http"):], nil)
+	if err != nil {
+		t.Fatalf("WebSocket connection failed: %v", err)
+	}
+	defer func() { _ = conn.Close(websocket.StatusNormalClosure, "") }()
+
+	count := waitForClients(h, 1, 3*time.Second)
+	if count != 1 {
+		t.Fatalf("expected 1 client, got %d", count)
+	}
+
+	// Send invalid watchAllocations (address too short and too long)
+	watchMsg, _ := json.Marshal(filterMessage{
+		WatchAllocations: []allocationWatch{
+			{Agent: "0xShort", SubnetID: "12345"},                                          // Address too short (!= 42 chars)
+			{Agent: "0xTooLongAddress1234567890123456789012345678901234567890", SubnetID: "12345"}, // Address too long
+			{Agent: "0xValid1234567890123456789012345678901234", SubnetID: ""},              // worknetId is empty
+		},
+	})
+	if err := conn.Write(ctx, websocket.MessageText, watchMsg); err != nil {
+		t.Fatalf("failed to send watch message: %v", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+
+	// Verify client watches are empty (all entries should be filtered out)
+	h.mu.RLock()
+	var allocCount, subnetCount int
+	for c := range h.clients {
+		allocCount = len(c.allocWatches)
+		subnetCount = len(c.subnetWatches)
+	}
+	h.mu.RUnlock()
+
+	if allocCount != 0 {
+		t.Errorf("expected 0 allocWatches after invalid params, got %d", allocCount)
+	}
+	if subnetCount != 0 {
+		t.Errorf("expected 0 subnetWatches after invalid params, got %d", subnetCount)
 	}
 }

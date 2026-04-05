@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/cortexia/rootnet/api/internal/db/gen"
@@ -66,6 +67,8 @@ func (db *testDB) truncate() {
 }
 
 // numericFromInt64 converts an int64 to pgtype.Numeric
+const testChainID int64 = 8453
+
 func numericFromInt64(v int64) pgtype.Numeric {
 	return pgtype.Numeric{
 		Int:   big.NewInt(v),
@@ -105,7 +108,7 @@ func TestIndexerScenario_Bound(t *testing.T) {
 	targetAddr := "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
 	// Simulate Bound event: agent binds to target
-	err := db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
+	err := db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID,
 		Address: agentAddr,
 		BoundTo: targetAddr,
 	})
@@ -113,25 +116,25 @@ func TestIndexerScenario_Bound(t *testing.T) {
 		t.Fatalf("UpsertUserBinding failed: %v", err)
 	}
 
-	err = db.q.InitUserBalance(ctx, agentAddr)
+	err = db.q.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: testChainID, UserAddress: agentAddr})
 	if err != nil {
 		t.Fatalf("InitUserBalance failed: %v", err)
 	}
 
 	// Verify user was created with correct binding
-	user, err := db.q.GetUser(ctx, agentAddr)
+	user, err := db.q.GetUser(ctx, gen.GetUserParams{ChainID: testChainID, Address: agentAddr})
 	if err != nil {
 		t.Fatalf("GetUser failed: %v", err)
 	}
-	if user.Address != agentAddr {
+	if strings.TrimSpace(user.Address) != agentAddr {
 		t.Fatalf("user address mismatch: expected %s, got %s", agentAddr, user.Address)
 	}
-	if user.BoundTo != targetAddr {
+	if strings.TrimSpace(user.BoundTo) != targetAddr {
 		t.Fatalf("bound_to mismatch: expected %s, got %s", targetAddr, user.BoundTo)
 	}
 
 	// Verify balance initialized to 0
-	bal, err := db.q.GetUserBalance(ctx, agentAddr)
+	bal, err := db.q.GetUserBalance(ctx, gen.GetUserBalanceParams{ChainID: testChainID, UserAddress: agentAddr})
 	if err != nil {
 		t.Fatalf("GetUserBalance failed: %v", err)
 	}
@@ -145,7 +148,7 @@ func TestIndexerScenario_BindAndLookup(t *testing.T) {
 	agentAddr := "0xcccccccccccccccccccccccccccccccccccccccc"
 
 	// Simulate Bound event: agent binds to owner
-	err := db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{
+	err := db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID,
 		Address: agentAddr,
 		BoundTo: ownerAddr,
 	})
@@ -154,19 +157,19 @@ func TestIndexerScenario_BindAndLookup(t *testing.T) {
 	}
 
 	// Verify agent binding
-	user, err := db.q.GetUser(ctx, agentAddr)
+	user, err := db.q.GetUser(ctx, gen.GetUserParams{ChainID: testChainID, Address: agentAddr})
 	if err != nil {
 		t.Fatalf("GetUser failed: %v", err)
 	}
-	if user.Address != agentAddr {
+	if strings.TrimSpace(user.Address) != agentAddr {
 		t.Fatalf("address mismatch: expected %s, got %s", agentAddr, user.Address)
 	}
-	if user.BoundTo != ownerAddr {
+	if strings.TrimSpace(user.BoundTo) != ownerAddr {
 		t.Fatalf("bound_to mismatch: expected %s, got %s", ownerAddr, user.BoundTo)
 	}
 
 	// Verify query by bound_to (owner)
-	agents, err := db.q.GetUsersByBoundTo(ctx, ownerAddr)
+	agents, err := db.q.GetUsersByBoundTo(ctx, gen.GetUsersByBoundToParams{ChainID: testChainID, BoundTo: ownerAddr})
 	if err != nil {
 		t.Fatalf("GetUsersByBoundTo failed: %v", err)
 	}
@@ -178,16 +181,16 @@ func TestIndexerScenario_BindAndLookup(t *testing.T) {
 	}
 }
 
-func TestIndexerScenario_StakeNFTDeposited(t *testing.T) {
+func TestIndexerScenario_VeAWPDeposited(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 	userAddr := "0xdddddddddddddddddddddddddddddddddddddd"
 
 	// Register user
-	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: userAddr, BoundTo: ""})
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: userAddr, BoundTo: ""})
 
-	// Simulate StakeNFT.Deposited event: create stake position
-	err := db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+	// Simulate VeAWP.Deposited event: create stake position
+	err := db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID:      1,
 		Owner:        userAddr,
 		Amount:       numericFromInt64(1000),
@@ -198,17 +201,17 @@ func TestIndexerScenario_StakeNFTDeposited(t *testing.T) {
 		t.Fatalf("InsertStakePosition failed: %v", err)
 	}
 
-	pos, err := db.q.GetStakePosition(ctx, 1)
+	pos, err := db.q.GetStakePosition(ctx, gen.GetStakePositionParams{ChainID: testChainID, TokenID: 1})
 	if err != nil {
 		t.Fatalf("GetStakePosition failed: %v", err)
 	}
 	assertNumericEqual(t, "position amount", pos.Amount, 1000)
-	if pos.Owner != userAddr {
+	if strings.TrimSpace(pos.Owner) != userAddr {
 		t.Fatalf("owner mismatch: expected %s, got %s", userAddr, pos.Owner)
 	}
 
 	// Create another position
-	err = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+	err = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID:      2,
 		Owner:        userAddr,
 		Amount:       numericFromInt64(500),
@@ -220,26 +223,26 @@ func TestIndexerScenario_StakeNFTDeposited(t *testing.T) {
 	}
 
 	// Verify total staked
-	total, err := db.q.GetUserTotalStaked(ctx, userAddr)
+	total, err := db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: userAddr})
 	if err != nil {
 		t.Fatalf("GetUserTotalStaked failed: %v", err)
 	}
 	assertNumericEqual(t, "cumulative total staked", total, 1500)
 }
 
-func TestIndexerScenario_StakeNFTPositionIncreased(t *testing.T) {
+func TestIndexerScenario_VeAWPPositionIncreased(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 	userAddr := "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 
 	// Setup: create a stake position
-	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID: 10, Owner: userAddr, Amount: numericFromInt64(2000),
 		LockEndTime: 10, CreatedAt: 100,
 	})
 
 	// Simulate PositionIncreased: update amount and lock
-	err := db.q.UpdateStakePosition(ctx, gen.UpdateStakePositionParams{
+	err := db.q.UpdateStakePosition(ctx, gen.UpdateStakePositionParams{ChainID: testChainID,
 		TokenID:      10,
 		Amount:       numericFromInt64(3000),
 		LockEndTime: 20,
@@ -248,7 +251,7 @@ func TestIndexerScenario_StakeNFTPositionIncreased(t *testing.T) {
 		t.Fatalf("UpdateStakePosition failed: %v", err)
 	}
 
-	pos, err := db.q.GetStakePosition(ctx, 10)
+	pos, err := db.q.GetStakePosition(ctx, gen.GetStakePositionParams{ChainID: testChainID, TokenID: 10})
 	if err != nil {
 		t.Fatalf("GetStakePosition failed: %v", err)
 	}
@@ -258,24 +261,24 @@ func TestIndexerScenario_StakeNFTPositionIncreased(t *testing.T) {
 	}
 }
 
-func TestIndexerScenario_StakeNFTWithdrawn(t *testing.T) {
+func TestIndexerScenario_VeAWPWithdrawn(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 	userAddr := "0xffffffffffffffffffffffffffffffffffffffff"
 
 	// Setup: create a stake position
-	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID: 20, Owner: userAddr, Amount: numericFromInt64(5000),
 		LockEndTime: 5, CreatedAt: 100,
 	})
 
 	// Simulate Withdrawn event (burn)
-	err := db.q.BurnStakePosition(ctx, 20)
+	err := db.q.BurnStakePosition(ctx, gen.BurnStakePositionParams{ChainID: testChainID, TokenID: 20})
 	if err != nil {
 		t.Fatalf("BurnStakePosition failed: %v", err)
 	}
 
-	pos, err := db.q.GetStakePosition(ctx, 20)
+	pos, err := db.q.GetStakePosition(ctx, gen.GetStakePositionParams{ChainID: testChainID, TokenID: 20})
 	if err != nil {
 		t.Fatalf("GetStakePosition failed: %v", err)
 	}
@@ -284,7 +287,7 @@ func TestIndexerScenario_StakeNFTWithdrawn(t *testing.T) {
 	}
 
 	// Burned positions should not appear in user positions list
-	positions, err := db.q.GetUserStakePositions(ctx, userAddr)
+	positions, err := db.q.GetUserStakePositions(ctx, gen.GetUserStakePositionsParams{ChainID: testChainID, Owner: userAddr})
 	if err != nil {
 		t.Fatalf("GetUserStakePositions failed: %v", err)
 	}
@@ -293,27 +296,27 @@ func TestIndexerScenario_StakeNFTWithdrawn(t *testing.T) {
 	}
 
 	// Total staked should be 0 (burned excluded)
-	total, err := db.q.GetUserTotalStaked(ctx, userAddr)
+	total, err := db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: userAddr})
 	if err != nil {
 		t.Fatalf("GetUserTotalStaked failed: %v", err)
 	}
 	assertNumericEqual(t, "total staked after burn", total, 0)
 }
 
-func TestIndexerScenario_StakeNFTTransfer(t *testing.T) {
+func TestIndexerScenario_VeAWPTransfer(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 	aliceAddr := "0x1111111111111111111111111111111111111111"
 	bobAddr := "0x2222222222222222222222222222222222222222"
 
 	// Setup: create a position owned by alice
-	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID: 30, Owner: aliceAddr, Amount: numericFromInt64(1000),
 		LockEndTime: 10, CreatedAt: 100,
 	})
 
 	// Simulate ERC721 Transfer: alice -> bob
-	err := db.q.UpdateStakePositionOwner(ctx, gen.UpdateStakePositionOwnerParams{
+	err := db.q.UpdateStakePositionOwner(ctx, gen.UpdateStakePositionOwnerParams{ChainID: testChainID,
 		TokenID: 30,
 		Owner:   bobAddr,
 	})
@@ -321,19 +324,19 @@ func TestIndexerScenario_StakeNFTTransfer(t *testing.T) {
 		t.Fatalf("UpdateStakePositionOwner failed: %v", err)
 	}
 
-	pos, err := db.q.GetStakePosition(ctx, 30)
+	pos, err := db.q.GetStakePosition(ctx, gen.GetStakePositionParams{ChainID: testChainID, TokenID: 30})
 	if err != nil {
 		t.Fatalf("GetStakePosition failed: %v", err)
 	}
-	if pos.Owner != bobAddr {
+	if strings.TrimSpace(pos.Owner) != bobAddr {
 		t.Fatalf("owner mismatch: expected %s, got %s", bobAddr, pos.Owner)
 	}
 
 	// Alice should have 0, bob should have 1000
-	aliceTotal, _ := db.q.GetUserTotalStaked(ctx, aliceAddr)
+	aliceTotal, _ := db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: aliceAddr})
 	assertNumericEqual(t, "alice total after transfer", aliceTotal, 0)
 
-	bobTotal, _ := db.q.GetUserTotalStaked(ctx, bobAddr)
+	bobTotal, _ := db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: bobAddr})
 	assertNumericEqual(t, "bob total after transfer", bobTotal, 1000)
 }
 
@@ -342,14 +345,14 @@ func TestIndexerScenario_Allocated(t *testing.T) {
 	ctx := context.Background()
 	userAddr := "0x2222222222222222222222222222222222222222"
 	agentAddr := "0x3333333333333333333333333333333333333333"
-	var subnetID int64 = 1
+	subnetID := numericFromInt64(1)
 
 	// Setup: register user + balance
-	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: userAddr, BoundTo: ""})
-	_ = db.q.InitUserBalance(ctx, userAddr)
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: userAddr, BoundTo: ""})
+	_ = db.q.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: testChainID, UserAddress: userAddr})
 
 	// Simulate Allocated event
-	err := db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+	err := db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{ChainID: testChainID,
 		UserAddress:  userAddr,
 		AgentAddress: agentAddr,
 		SubnetID:     subnetID,
@@ -359,7 +362,7 @@ func TestIndexerScenario_Allocated(t *testing.T) {
 		t.Fatalf("UpsertStakeAllocation failed: %v", err)
 	}
 
-	err = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
+	err = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{ChainID: testChainID,
 		UserAddress:    userAddr,
 		TotalAllocated: numericFromInt64(1000),
 	})
@@ -368,7 +371,7 @@ func TestIndexerScenario_Allocated(t *testing.T) {
 	}
 
 	// Verify agent-subnet stake
-	stake, err := db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{
+	stake, err := db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{ChainID: testChainID,
 		AgentAddress: agentAddr,
 		SubnetID:     subnetID,
 	})
@@ -378,14 +381,14 @@ func TestIndexerScenario_Allocated(t *testing.T) {
 	assertNumericEqual(t, "agent_subnet_stake", stake, 1000)
 
 	// Verify user allocated has increased
-	bal, err := db.q.GetUserBalance(ctx, userAddr)
+	bal, err := db.q.GetUserBalance(ctx, gen.GetUserBalanceParams{ChainID: testChainID, UserAddress: userAddr})
 	if err != nil {
 		t.Fatalf("GetUserBalance failed: %v", err)
 	}
 	assertNumericEqual(t, "total_allocated", bal.TotalAllocated, 1000)
 
 	// Allocate another 500 (UpsertStakeAllocation should accumulate)
-	err = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+	err = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{ChainID: testChainID,
 		UserAddress:  userAddr,
 		AgentAddress: agentAddr,
 		SubnetID:     subnetID,
@@ -394,12 +397,12 @@ func TestIndexerScenario_Allocated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second UpsertStakeAllocation failed: %v", err)
 	}
-	_ = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
+	_ = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{ChainID: testChainID,
 		UserAddress:    userAddr,
 		TotalAllocated: numericFromInt64(500),
 	})
 
-	stake, err = db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{
+	stake, err = db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{ChainID: testChainID,
 		AgentAddress: agentAddr,
 		SubnetID:     subnetID,
 	})
@@ -414,24 +417,24 @@ func TestIndexerScenario_Deallocated(t *testing.T) {
 	ctx := context.Background()
 	userAddr := "0x4444444444444444444444444444444444444444"
 	agentAddr := "0x5555555555555555555555555555555555555555"
-	var subnetID int64 = 2
+	subnetID := numericFromInt64(2)
 
 	// Setup: register user + allocation 2000
-	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: userAddr, BoundTo: ""})
-	_ = db.q.InitUserBalance(ctx, userAddr)
-	_ = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: userAddr, BoundTo: ""})
+	_ = db.q.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: testChainID, UserAddress: userAddr})
+	_ = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{ChainID: testChainID,
 		UserAddress:  userAddr,
 		AgentAddress: agentAddr,
 		SubnetID:     subnetID,
 		Amount:       numericFromInt64(2000),
 	})
-	_ = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
+	_ = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{ChainID: testChainID,
 		UserAddress:    userAddr,
 		TotalAllocated: numericFromInt64(2000),
 	})
 
 	// Simulate Deallocated event: reduce by 700
-	err := db.q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
+	err := db.q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{ChainID: testChainID,
 		UserAddress:  userAddr,
 		AgentAddress: agentAddr,
 		SubnetID:     subnetID,
@@ -441,7 +444,7 @@ func TestIndexerScenario_Deallocated(t *testing.T) {
 		t.Fatalf("SubtractStakeAllocation failed: %v", err)
 	}
 
-	err = db.q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{
+	err = db.q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{ChainID: testChainID,
 		UserAddress:    userAddr,
 		TotalAllocated: numericFromInt64(700),
 	})
@@ -450,7 +453,7 @@ func TestIndexerScenario_Deallocated(t *testing.T) {
 	}
 
 	// Verify stake has decreased
-	stake, err := db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{
+	stake, err := db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{ChainID: testChainID,
 		AgentAddress: agentAddr,
 		SubnetID:     subnetID,
 	})
@@ -460,7 +463,7 @@ func TestIndexerScenario_Deallocated(t *testing.T) {
 	assertNumericEqual(t, "stake after reduction", stake, 1300)
 
 	// Verify allocated has decreased
-	bal, err := db.q.GetUserBalance(ctx, userAddr)
+	bal, err := db.q.GetUserBalance(ctx, gen.GetUserBalanceParams{ChainID: testChainID, UserAddress: userAddr})
 	if err != nil {
 		t.Fatalf("GetUserBalance failed: %v", err)
 	}
@@ -472,14 +475,14 @@ func TestIndexerScenario_SubnetRegistered(t *testing.T) {
 	ctx := context.Background()
 
 	// Simulate SubnetRegistered event
-	err := db.q.InsertSubnet(ctx, gen.InsertSubnetParams{
-		SubnetID:       1,
+	err := db.q.InsertSubnet(ctx, gen.InsertSubnetParams{ChainID: testChainID,
+		SubnetID: numericFromInt64(1),
 		Owner:          "0xaaaa000000000000000000000000000000000001",
 		Name:           "TestSubnet",
 		Symbol:         "TST",
 		SubnetContract: "0xbbbb000000000000000000000000000000000001",
 		MinStake:       pgtype.Numeric{Int: big.NewInt(0), Exp: 0, Valid: true},
-		AlphaToken:     "0xcccc000000000000000000000000000000000001",
+		WorknetToken:     "0xcccc000000000000000000000000000000000001",
 		LpPool:         pgtype.Text{Valid: false},
 		CreatedAt:      200,
 		ImmunityEndsAt: pgtype.Int8{Valid: false},
@@ -489,7 +492,7 @@ func TestIndexerScenario_SubnetRegistered(t *testing.T) {
 	}
 
 	// Verify
-	subnet, err := db.q.GetSubnet(ctx, 1)
+	subnet, err := db.q.GetSubnet(ctx, numericFromInt64(1))
 	if err != nil {
 		t.Fatalf("GetSubnet failed: %v", err)
 	}
@@ -518,14 +521,14 @@ func TestIndexerScenario_SubnetLifecycle(t *testing.T) {
 	ctx := context.Background()
 
 	// Register subnet
-	_ = db.q.InsertSubnet(ctx, gen.InsertSubnetParams{
-		SubnetID:       10,
+	_ = db.q.InsertSubnet(ctx, gen.InsertSubnetParams{ChainID: testChainID,
+		SubnetID: numericFromInt64(10),
 		Owner:          "0xaaaa000000000000000000000000000000000010",
 		Name:           "LifecycleNet",
 		Symbol:         "LCN",
 		SubnetContract: "0xbbbb000000000000000000000000000000000010",
 		MinStake:       pgtype.Numeric{Int: big.NewInt(0), Exp: 0, Valid: true},
-		AlphaToken:     "0xcccc000000000000000000000000000000000010",
+		WorknetToken:     "0xcccc000000000000000000000000000000000010",
 		LpPool:         pgtype.Text{Valid: false},
 		CreatedAt:      300,
 		ImmunityEndsAt: pgtype.Int8{Valid: false},
@@ -533,14 +536,14 @@ func TestIndexerScenario_SubnetLifecycle(t *testing.T) {
 
 	// 1. Activate subnet (SubnetActivated)
 	err := db.q.UpdateSubnetActivated(ctx, gen.UpdateSubnetActivatedParams{
-		SubnetID:    10,
+		SubnetID: numericFromInt64(10),
 		ActivatedAt: pgtype.Int8{Int64: 350, Valid: true},
 	})
 	if err != nil {
 		t.Fatalf("UpdateSubnetActivated failed: %v", err)
 	}
 
-	subnet, err := db.q.GetSubnet(ctx, 10)
+	subnet, err := db.q.GetSubnet(ctx, numericFromInt64(10))
 	if err != nil {
 		t.Fatalf("GetSubnet failed: %v", err)
 	}
@@ -553,14 +556,14 @@ func TestIndexerScenario_SubnetLifecycle(t *testing.T) {
 
 	// 2. Pause subnet (SubnetPaused)
 	err = db.q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-		SubnetID: 10,
+		SubnetID: numericFromInt64(10),
 		Status:   "Paused",
 	})
 	if err != nil {
 		t.Fatalf("UpdateSubnetStatus(Paused) failed: %v", err)
 	}
 
-	subnet, err = db.q.GetSubnet(ctx, 10)
+	subnet, err = db.q.GetSubnet(ctx, numericFromInt64(10))
 	if err != nil {
 		t.Fatalf("GetSubnet failed: %v", err)
 	}
@@ -570,14 +573,14 @@ func TestIndexerScenario_SubnetLifecycle(t *testing.T) {
 
 	// 3. Resume subnet (SubnetResumed)
 	err = db.q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-		SubnetID: 10,
+		SubnetID: numericFromInt64(10),
 		Status:   "Active",
 	})
 	if err != nil {
 		t.Fatalf("UpdateSubnetStatus(Active) failed: %v", err)
 	}
 
-	subnet, err = db.q.GetSubnet(ctx, 10)
+	subnet, err = db.q.GetSubnet(ctx, numericFromInt64(10))
 	if err != nil {
 		t.Fatalf("GetSubnet failed: %v", err)
 	}
@@ -587,14 +590,14 @@ func TestIndexerScenario_SubnetLifecycle(t *testing.T) {
 
 	// 4. Ban subnet (SubnetBanned)
 	err = db.q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-		SubnetID: 10,
+		SubnetID: numericFromInt64(10),
 		Status:   "Banned",
 	})
 	if err != nil {
 		t.Fatalf("UpdateSubnetStatus(Banned) failed: %v", err)
 	}
 
-	subnet, err = db.q.GetSubnet(ctx, 10)
+	subnet, err = db.q.GetSubnet(ctx, numericFromInt64(10))
 	if err != nil {
 		t.Fatalf("GetSubnet failed: %v", err)
 	}
@@ -604,14 +607,14 @@ func TestIndexerScenario_SubnetLifecycle(t *testing.T) {
 
 	// 5. Unban subnet (SubnetUnbanned)
 	err = db.q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-		SubnetID: 10,
+		SubnetID: numericFromInt64(10),
 		Status:   "Active",
 	})
 	if err != nil {
 		t.Fatalf("UpdateSubnetStatus(Active) failed: %v", err)
 	}
 
-	subnet, err = db.q.GetSubnet(ctx, 10)
+	subnet, err = db.q.GetSubnet(ctx, numericFromInt64(10))
 	if err != nil {
 		t.Fatalf("GetSubnet failed: %v", err)
 	}
@@ -620,12 +623,12 @@ func TestIndexerScenario_SubnetLifecycle(t *testing.T) {
 	}
 
 	// 6. Deregister subnet (SubnetDeregistered)
-	err = db.q.UpdateSubnetBurned(ctx, 10)
+	err = db.q.UpdateSubnetBurned(ctx, numericFromInt64(10))
 	if err != nil {
 		t.Fatalf("UpdateSubnetBurned failed: %v", err)
 	}
 
-	subnet, err = db.q.GetSubnet(ctx, 10)
+	subnet, err = db.q.GetSubnet(ctx, numericFromInt64(10))
 	if err != nil {
 		t.Fatalf("GetSubnet failed: %v", err)
 	}
@@ -639,14 +642,14 @@ func TestIndexerScenario_SubnetLP(t *testing.T) {
 	ctx := context.Background()
 
 	// Register subnet
-	_ = db.q.InsertSubnet(ctx, gen.InsertSubnetParams{
-		SubnetID:       20,
+	_ = db.q.InsertSubnet(ctx, gen.InsertSubnetParams{ChainID: testChainID,
+		SubnetID: numericFromInt64(20),
 		Owner:          "0xaaaa000000000000000000000000000000000020",
 		Name:           "LPTestNet",
 		Symbol:         "LPT",
 		SubnetContract: "0xbbbb000000000000000000000000000000000020",
 		MinStake:       pgtype.Numeric{Int: big.NewInt(0), Exp: 0, Valid: true},
-		AlphaToken:     "0xcccc000000000000000000000000000000000020",
+		WorknetToken:     "0xcccc000000000000000000000000000000000020",
 		LpPool:         pgtype.Text{Valid: false},
 		CreatedAt:      400,
 		ImmunityEndsAt: pgtype.Int8{Valid: false},
@@ -655,18 +658,18 @@ func TestIndexerScenario_SubnetLP(t *testing.T) {
 	// Simulate LPCreated event
 	lpPoolAddr := "0xdddd000000000000000000000000000000000020"
 	err := db.q.UpdateSubnetLP(ctx, gen.UpdateSubnetLPParams{
-		SubnetID: 20,
+		SubnetID: numericFromInt64(20),
 		LpPool:   pgtype.Text{String: lpPoolAddr, Valid: true},
 	})
 	if err != nil {
 		t.Fatalf("UpdateSubnetLP failed: %v", err)
 	}
 
-	subnet, err := db.q.GetSubnet(ctx, 20)
+	subnet, err := db.q.GetSubnet(ctx, numericFromInt64(20))
 	if err != nil {
 		t.Fatalf("GetSubnet failed: %v", err)
 	}
-	if !subnet.LpPool.Valid || subnet.LpPool.String != lpPoolAddr {
+	if !subnet.LpPool.Valid || strings.TrimSpace(subnet.LpPool.String) != lpPoolAddr {
 		t.Fatalf("LpPool mismatch: %v", subnet.LpPool)
 	}
 }
@@ -676,7 +679,7 @@ func TestIndexerScenario_EpochSettled(t *testing.T) {
 	ctx := context.Background()
 
 	// Simulate EpochSettled event
-	err := db.q.UpsertEpoch(ctx, gen.UpsertEpochParams{
+	err := db.q.UpsertEpoch(ctx, gen.UpsertEpochParams{ChainID: testChainID,
 		EpochID:       1,
 		StartTime:     1000,
 		DailyEmission: numericFromInt64(50000),
@@ -686,7 +689,7 @@ func TestIndexerScenario_EpochSettled(t *testing.T) {
 		t.Fatalf("UpsertEpoch failed: %v", err)
 	}
 
-	epoch, err := db.q.GetEpoch(ctx, 1)
+	epoch, err := db.q.GetEpoch(ctx, gen.GetEpochParams{ChainID: testChainID, EpochID: 1})
 	if err != nil {
 		t.Fatalf("GetEpoch failed: %v", err)
 	}
@@ -699,7 +702,7 @@ func TestIndexerScenario_EpochSettled(t *testing.T) {
 	assertNumericEqual(t, "daily_emission", epoch.DailyEmission, 50000)
 
 	// Simulate DAOMatchDistributed event: update dao_emission
-	err = db.q.UpdateEpochDAO(ctx, gen.UpdateEpochDAOParams{
+	err = db.q.UpdateEpochDAO(ctx, gen.UpdateEpochDAOParams{ChainID: testChainID,
 		EpochID:     1,
 		DaoEmission: numericFromInt64(5000),
 	})
@@ -707,7 +710,7 @@ func TestIndexerScenario_EpochSettled(t *testing.T) {
 		t.Fatalf("UpdateEpochDAO failed: %v", err)
 	}
 
-	epoch, err = db.q.GetEpoch(ctx, 1)
+	epoch, err = db.q.GetEpoch(ctx, gen.GetEpochParams{ChainID: testChainID, EpochID: 1})
 	if err != nil {
 		t.Fatalf("GetEpoch failed: %v", err)
 	}
@@ -719,7 +722,7 @@ func TestIndexerScenario_SubnetAWPDistributed(t *testing.T) {
 	ctx := context.Background()
 
 	// Create epoch first
-	_ = db.q.UpsertEpoch(ctx, gen.UpsertEpochParams{
+	_ = db.q.UpsertEpoch(ctx, gen.UpsertEpochParams{ChainID: testChainID,
 		EpochID:       5,
 		StartTime:     5000,
 		DailyEmission: numericFromInt64(100000),
@@ -729,7 +732,7 @@ func TestIndexerScenario_SubnetAWPDistributed(t *testing.T) {
 	// Simulate AWPDistributed event (by recipient address)
 	recipient1 := "0x0000000000000000000000000000000000000001"
 	recipient2 := "0x0000000000000000000000000000000000000002"
-	err := db.q.InsertRecipientAWPDistribution(ctx, gen.InsertRecipientAWPDistributionParams{
+	err := db.q.InsertRecipientAWPDistribution(ctx, gen.InsertRecipientAWPDistributionParams{ChainID: testChainID,
 		EpochID:   5,
 		Recipient: recipient1,
 		AwpAmount: numericFromInt64(25000),
@@ -739,7 +742,7 @@ func TestIndexerScenario_SubnetAWPDistributed(t *testing.T) {
 	}
 
 	// Add another recipient distribution
-	err = db.q.InsertRecipientAWPDistribution(ctx, gen.InsertRecipientAWPDistributionParams{
+	err = db.q.InsertRecipientAWPDistribution(ctx, gen.InsertRecipientAWPDistributionParams{ChainID: testChainID,
 		EpochID:   5,
 		Recipient: recipient2,
 		AwpAmount: numericFromInt64(30000),
@@ -749,7 +752,7 @@ func TestIndexerScenario_SubnetAWPDistributed(t *testing.T) {
 	}
 
 	// Verify via GetRecipientEarnings query
-	earnings, err := db.q.GetRecipientEarnings(ctx, gen.GetRecipientEarningsParams{
+	earnings, err := db.q.GetRecipientEarnings(ctx, gen.GetRecipientEarningsParams{ChainID: testChainID,
 		Recipient: recipient1,
 		Limit:     10,
 		Offset:    0,
@@ -763,7 +766,7 @@ func TestIndexerScenario_SubnetAWPDistributed(t *testing.T) {
 	assertNumericEqual(t, "recipient1_awp", earnings[0].AwpAmount, 25000)
 
 	// Verify epoch distribution list
-	dists, err := db.q.GetEpochDistributions(ctx, 5)
+	dists, err := db.q.GetEpochDistributions(ctx, gen.GetEpochDistributionsParams{ChainID: testChainID, EpochID: 5})
 	if err != nil {
 		t.Fatalf("GetEpochDistributions failed: %v", err)
 	}
@@ -777,7 +780,7 @@ func TestIndexerScenario_SyncState(t *testing.T) {
 	ctx := context.Background()
 
 	// Write sync state for the first time
-	err := db.q.UpsertSyncState(ctx, gen.UpsertSyncStateParams{
+	err := db.q.UpsertSyncState(ctx, gen.UpsertSyncStateParams{ChainID: testChainID,
 		ContractName: "indexer",
 		LastBlock:    1000,
 	})
@@ -785,7 +788,7 @@ func TestIndexerScenario_SyncState(t *testing.T) {
 		t.Fatalf("UpsertSyncState failed: %v", err)
 	}
 
-	state, err := db.q.GetSyncState(ctx, "indexer")
+	state, err := db.q.GetSyncState(ctx, gen.GetSyncStateParams{ChainID: testChainID, ContractName: "indexer"})
 	if err != nil {
 		t.Fatalf("GetSyncState failed: %v", err)
 	}
@@ -794,7 +797,7 @@ func TestIndexerScenario_SyncState(t *testing.T) {
 	}
 
 	// Update sync state
-	err = db.q.UpsertSyncState(ctx, gen.UpsertSyncStateParams{
+	err = db.q.UpsertSyncState(ctx, gen.UpsertSyncStateParams{ChainID: testChainID,
 		ContractName: "indexer",
 		LastBlock:    2000,
 	})
@@ -802,7 +805,7 @@ func TestIndexerScenario_SyncState(t *testing.T) {
 		t.Fatalf("second UpsertSyncState failed: %v", err)
 	}
 
-	state, err = db.q.GetSyncState(ctx, "indexer")
+	state, err = db.q.GetSyncState(ctx, gen.GetSyncStateParams{ChainID: testChainID, ContractName: "indexer"})
 	if err != nil {
 		t.Fatalf("GetSyncState failed: %v", err)
 	}
@@ -811,7 +814,7 @@ func TestIndexerScenario_SyncState(t *testing.T) {
 	}
 
 	// Query non-existent key
-	_, err = db.q.GetSyncState(ctx, "nonexistent")
+	_, err = db.q.GetSyncState(ctx, gen.GetSyncStateParams{ChainID: testChainID, ContractName: "nonexistent"})
 	if err != pgx.ErrNoRows {
 		t.Fatalf("expected ErrNoRows, got: %v", err)
 	}
@@ -822,12 +825,12 @@ func TestIndexerScenario_Unbound(t *testing.T) {
 	ctx := context.Background()
 	ownerAddr := "0x6666666666666666666666666666666666666666"
 	agentAddr := "0x7777777777777777777777777777777777777777"
-	var subnetID int64 = 5
+	subnetID := numericFromInt64(5)
 
 	// Setup: bind agent to owner, create stake allocation
-	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: agentAddr, BoundTo: ownerAddr})
-	_ = db.q.InitUserBalance(ctx, ownerAddr)
-	_ = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: agentAddr, BoundTo: ownerAddr})
+	_ = db.q.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: testChainID, UserAddress: ownerAddr})
+	_ = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{ChainID: testChainID,
 		UserAddress:  ownerAddr,
 		AgentAddress: agentAddr,
 		SubnetID:     subnetID,
@@ -835,22 +838,22 @@ func TestIndexerScenario_Unbound(t *testing.T) {
 	})
 
 	// Simulate Unbound event: clear binding
-	err := db.q.ClearUserBinding(ctx, agentAddr)
+	err := db.q.ClearUserBinding(ctx, gen.ClearUserBindingParams{ChainID: testChainID, Address: agentAddr})
 	if err != nil {
 		t.Fatalf("ClearUserBinding failed: %v", err)
 	}
 
 	// Verify binding is cleared
-	user, err := db.q.GetUser(ctx, agentAddr)
+	user, err := db.q.GetUser(ctx, gen.GetUserParams{ChainID: testChainID, Address: agentAddr})
 	if err != nil {
 		t.Fatalf("GetUser failed: %v", err)
 	}
-	if user.BoundTo != "" {
+	if strings.TrimSpace(user.BoundTo) != "" {
 		t.Fatalf("BoundTo should be empty after unbind, got %s", user.BoundTo)
 	}
 
 	// Freeze agent allocations (simulating what indexer does on unbind)
-	err = db.q.FreezeAgentAllocations(ctx, gen.FreezeAgentAllocationsParams{
+	err = db.q.FreezeAgentAllocations(ctx, gen.FreezeAgentAllocationsParams{ChainID: testChainID,
 		UserAddress:  ownerAddr,
 		AgentAddress: agentAddr,
 	})
@@ -859,7 +862,7 @@ func TestIndexerScenario_Unbound(t *testing.T) {
 	}
 
 	// Verify allocations are frozen (GetAgentSubnetStake excludes frozen)
-	stake, err := db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{
+	stake, err := db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{ChainID: testChainID,
 		AgentAddress: agentAddr,
 		SubnetID:     subnetID,
 	})
@@ -869,7 +872,7 @@ func TestIndexerScenario_Unbound(t *testing.T) {
 	assertNumericEqual(t, "stake after freeze (excluding frozen)", stake, 0)
 
 	// Verify frozen allocation still exists
-	frozen, err := db.q.GetFrozenByUser(ctx, ownerAddr)
+	frozen, err := db.q.GetFrozenByUser(ctx, gen.GetFrozenByUserParams{ChainID: testChainID, UserAddress: ownerAddr})
 	if err != nil {
 		t.Fatalf("GetFrozenByUser failed: %v", err)
 	}
@@ -886,7 +889,7 @@ func TestIndexerScenario_RecipientSet(t *testing.T) {
 	recipientAddr := "0xbbbb111111111111111111111111111111111111"
 
 	// Simulate RecipientSet event
-	err := db.q.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+	err := db.q.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{ChainID: testChainID,
 		Address:   userAddr,
 		Recipient: recipientAddr,
 	})
@@ -894,17 +897,17 @@ func TestIndexerScenario_RecipientSet(t *testing.T) {
 		t.Fatalf("UpsertUserRecipient failed: %v", err)
 	}
 
-	user, err := db.q.GetUser(ctx, userAddr)
+	user, err := db.q.GetUser(ctx, gen.GetUserParams{ChainID: testChainID, Address: userAddr})
 	if err != nil {
 		t.Fatalf("GetUser failed: %v", err)
 	}
-	if user.Recipient != recipientAddr {
+	if strings.TrimSpace(user.Recipient) != recipientAddr {
 		t.Fatalf("Recipient mismatch: expected %s, got %s", recipientAddr, user.Recipient)
 	}
 
 	// Update recipient
 	newRecipient := "0xcccc111111111111111111111111111111111111"
-	err = db.q.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{
+	err = db.q.UpsertUserRecipient(ctx, gen.UpsertUserRecipientParams{ChainID: testChainID,
 		Address:   userAddr,
 		Recipient: newRecipient,
 	})
@@ -912,11 +915,11 @@ func TestIndexerScenario_RecipientSet(t *testing.T) {
 		t.Fatalf("UpsertUserRecipient (update) failed: %v", err)
 	}
 
-	user, err = db.q.GetUser(ctx, userAddr)
+	user, err = db.q.GetUser(ctx, gen.GetUserParams{ChainID: testChainID, Address: userAddr})
 	if err != nil {
 		t.Fatalf("GetUser failed: %v", err)
 	}
-	if user.Recipient != newRecipient {
+	if strings.TrimSpace(user.Recipient) != newRecipient {
 		t.Fatalf("Recipient after update mismatch: expected %s, got %s", newRecipient, user.Recipient)
 	}
 }
@@ -927,8 +930,8 @@ func TestIndexerScenario_TransactionAtomicity(t *testing.T) {
 	userAddr := "0xdddd111111111111111111111111111111111111"
 
 	// Setup
-	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: userAddr, BoundTo: ""})
-	_ = db.q.InitUserBalance(ctx, userAddr)
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: userAddr, BoundTo: ""})
+	_ = db.q.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: testChainID, UserAddress: userAddr})
 
 	// Simulate indexer transaction mode: execute multiple operations in a transaction
 	tx, err := db.pool.Begin(ctx)
@@ -939,7 +942,7 @@ func TestIndexerScenario_TransactionAtomicity(t *testing.T) {
 	qtx := gen.New(tx)
 
 	// Insert a stake position within a transaction
-	err = qtx.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+	err = qtx.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID: 100, Owner: userAddr, Amount: numericFromInt64(5000),
 		LockEndTime: 10, CreatedAt: 100,
 	})
@@ -949,7 +952,7 @@ func TestIndexerScenario_TransactionAtomicity(t *testing.T) {
 	}
 
 	// Update sync state
-	err = qtx.UpsertSyncState(ctx, gen.UpsertSyncStateParams{
+	err = qtx.UpsertSyncState(ctx, gen.UpsertSyncStateParams{ChainID: testChainID,
 		ContractName: "indexer",
 		LastBlock:    500,
 	})
@@ -965,13 +968,13 @@ func TestIndexerScenario_TransactionAtomicity(t *testing.T) {
 	}
 
 	// Verify all operations took effect
-	pos, err := db.q.GetStakePosition(ctx, 100)
+	pos, err := db.q.GetStakePosition(ctx, gen.GetStakePositionParams{ChainID: testChainID, TokenID: 100})
 	if err != nil {
 		t.Fatalf("GetStakePosition failed: %v", err)
 	}
 	assertNumericEqual(t, "position amount after transaction", pos.Amount, 5000)
 
-	state, err := db.q.GetSyncState(ctx, "indexer")
+	state, err := db.q.GetSyncState(ctx, gen.GetSyncStateParams{ChainID: testChainID, ContractName: "indexer"})
 	if err != nil {
 		t.Fatalf("GetSyncState failed: %v", err)
 	}
@@ -986,7 +989,7 @@ func TestIndexerScenario_TransactionRollback(t *testing.T) {
 	userAddr := "0xeeee111111111111111111111111111111111111"
 
 	// Setup: create a stake position
-	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID: 200, Owner: userAddr, Amount: numericFromInt64(5000),
 		LockEndTime: 10, CreatedAt: 100,
 	})
@@ -998,7 +1001,7 @@ func TestIndexerScenario_TransactionRollback(t *testing.T) {
 	}
 
 	qtx := gen.New(tx)
-	_ = qtx.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+	_ = qtx.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID: 201, Owner: userAddr, Amount: numericFromInt64(9999),
 		LockEndTime: 20, CreatedAt: 200,
 	})
@@ -1010,7 +1013,7 @@ func TestIndexerScenario_TransactionRollback(t *testing.T) {
 	}
 
 	// Verify only original position exists
-	total, err := db.q.GetUserTotalStaked(ctx, userAddr)
+	total, err := db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: userAddr})
 	if err != nil {
 		t.Fatalf("GetUserTotalStaked failed: %v", err)
 	}
@@ -1039,23 +1042,23 @@ func TestIntegration_FullUserLifecycle(t *testing.T) {
 
 	alice := "0xa11ce00000000000000000000000000000000001"
 	agentA := "0xage0a00000000000000000000000000000000001"
-	var subnet1 int64 = 1
+	subnet1 := numericFromInt64(1)
 
 	// 1. Register user + initialize balance
-	err := db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: alice, BoundTo: ""})
+	err := db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: alice, BoundTo: ""})
 	if err != nil {
 		t.Fatalf("UpsertUserBinding failed: %v", err)
 	}
-	err = db.q.InitUserBalance(ctx, alice)
+	err = db.q.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: testChainID, UserAddress: alice})
 	if err != nil {
 		t.Fatalf("InitUserBalance failed: %v", err)
 	}
 
 	// 2. Bind agent to alice
-	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: agentA, BoundTo: alice})
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: agentA, BoundTo: alice})
 
-	// 3. Simulate StakeNFT.Deposited: create stake position of 10000
-	err = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+	// 3. Simulate VeAWP.Deposited: create stake position of 10000
+	err = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID: 1, Owner: alice, Amount: numericFromInt64(10000),
 		LockEndTime: 50, CreatedAt: 100,
 	})
@@ -1064,7 +1067,7 @@ func TestIntegration_FullUserLifecycle(t *testing.T) {
 	}
 
 	// 4. Simulate Allocated event: allocate 5000 to (agentA, subnet1)
-	err = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+	err = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{ChainID: testChainID,
 		UserAddress:  alice,
 		AgentAddress: agentA,
 		SubnetID:     subnet1,
@@ -1073,7 +1076,7 @@ func TestIntegration_FullUserLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UpsertStakeAllocation failed: %v", err)
 	}
-	err = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
+	err = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{ChainID: testChainID,
 		UserAddress:    alice,
 		TotalAllocated: numericFromInt64(5000),
 	})
@@ -1082,7 +1085,7 @@ func TestIntegration_FullUserLifecycle(t *testing.T) {
 	}
 
 	// 5. Simulate Deallocated event: reduce by 2000
-	err = db.q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
+	err = db.q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{ChainID: testChainID,
 		UserAddress:  alice,
 		AgentAddress: agentA,
 		SubnetID:     subnet1,
@@ -1091,7 +1094,7 @@ func TestIntegration_FullUserLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SubtractStakeAllocation failed: %v", err)
 	}
-	err = db.q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{
+	err = db.q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{ChainID: testChainID,
 		UserAddress:    alice,
 		TotalAllocated: numericFromInt64(2000),
 	})
@@ -1100,13 +1103,13 @@ func TestIntegration_FullUserLifecycle(t *testing.T) {
 	}
 
 	// 6. Verify final state: totalStaked=10000, allocated=3000
-	totalStaked, err := db.q.GetUserTotalStaked(ctx, alice)
+	totalStaked, err := db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: alice})
 	if err != nil {
 		t.Fatalf("GetUserTotalStaked failed: %v", err)
 	}
 	assertNumericEqual(t, "total staked", totalStaked, 10000)
 
-	bal, err := db.q.GetUserBalance(ctx, alice)
+	bal, err := db.q.GetUserBalance(ctx, gen.GetUserBalanceParams{ChainID: testChainID, UserAddress: alice})
 	if err != nil {
 		t.Fatalf("GetUserBalance failed: %v", err)
 	}
@@ -1121,7 +1124,7 @@ func TestIntegration_FullUserLifecycle(t *testing.T) {
 	}
 
 	// 7. Verify stake allocation amount=3000
-	alloc, err := db.q.GetStakeAllocation(ctx, gen.GetStakeAllocationParams{
+	alloc, err := db.q.GetStakeAllocation(ctx, gen.GetStakeAllocationParams{ChainID: testChainID,
 		UserAddress:  alice,
 		AgentAddress: agentA,
 		SubnetID:     subnet1,
@@ -1138,57 +1141,57 @@ func TestIntegration_BalanceInvariant(t *testing.T) {
 
 	user := "0x1a0b0c0d0e0f0000000000000000000000000001"
 	agent := "0x2a0b0c0d0e0f0000000000000000000000000001"
-	var subnetID int64 = 1
+	subnetID := numericFromInt64(1)
 
 	// Setup user
-	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: user, BoundTo: ""})
-	_ = db.q.InitUserBalance(ctx, user)
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: user, BoundTo: ""})
+	_ = db.q.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: testChainID, UserAddress: user})
 
 	// 1. Stake 7000 via two NFT positions
-	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID: 1, Owner: user, Amount: numericFromInt64(5000),
 		LockEndTime: 50, CreatedAt: 100,
 	})
-	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID: 2, Owner: user, Amount: numericFromInt64(2000),
 		LockEndTime: 50, CreatedAt: 200,
 	})
 
 	// 2. Allocate 3000
-	_ = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+	_ = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{ChainID: testChainID,
 		UserAddress: user, AgentAddress: agent, SubnetID: subnetID,
 		Amount: numericFromInt64(3000),
 	})
-	_ = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
+	_ = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{ChainID: testChainID,
 		UserAddress: user, TotalAllocated: numericFromInt64(3000),
 	})
 
 	// 3. Allocate 1000 more (allocated=4000)
-	_ = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+	_ = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{ChainID: testChainID,
 		UserAddress: user, AgentAddress: agent, SubnetID: subnetID,
 		Amount: numericFromInt64(1000),
 	})
-	_ = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
+	_ = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{ChainID: testChainID,
 		UserAddress: user, TotalAllocated: numericFromInt64(1000),
 	})
 
 	// 4. Deallocate 500 (allocated=3500)
-	_ = db.q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
+	_ = db.q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{ChainID: testChainID,
 		UserAddress: user, AgentAddress: agent, SubnetID: subnetID,
 		Amount: numericFromInt64(500),
 	})
-	_ = db.q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{
+	_ = db.q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{ChainID: testChainID,
 		UserAddress: user, TotalAllocated: numericFromInt64(500),
 	})
 
 	// 5. Verify invariants
-	totalStaked, err := db.q.GetUserTotalStaked(ctx, user)
+	totalStaked, err := db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: user})
 	if err != nil {
 		t.Fatalf("GetUserTotalStaked failed: %v", err)
 	}
 	assertNumericEqual(t, "total_staked", totalStaked, 7000)
 
-	bal, err := db.q.GetUserBalance(ctx, user)
+	bal, err := db.q.GetUserBalance(ctx, gen.GetUserBalanceParams{ChainID: testChainID, UserAddress: user})
 	if err != nil {
 		t.Fatalf("GetUserBalance failed: %v", err)
 	}
@@ -1217,54 +1220,54 @@ func TestIntegration_MultiUserIsolation(t *testing.T) {
 	alice := "0x3a0b0c0d0e0f0000000000000000000000000001"
 	bob := "0x3a0b0c0d0e0f0000000000000000000000000002"
 	agent := "0x3a0b0c0d0e0f0000000000000000000000000003"
-	var subnetID int64 = 1
+	subnetID := numericFromInt64(1)
 
 	// 1. Create alice and bob
-	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: alice, BoundTo: ""})
-	_ = db.q.InitUserBalance(ctx, alice)
-	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: bob, BoundTo: ""})
-	_ = db.q.InitUserBalance(ctx, bob)
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: alice, BoundTo: ""})
+	_ = db.q.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: testChainID, UserAddress: alice})
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: bob, BoundTo: ""})
+	_ = db.q.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: testChainID, UserAddress: bob})
 
-	// 2. Stake 5000 for alice, 3000 for bob (via StakeNFT positions)
-	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+	// 2. Stake 5000 for alice, 3000 for bob (via veAWP positions)
+	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID: 1, Owner: alice, Amount: numericFromInt64(5000),
 		LockEndTime: 50, CreatedAt: 100,
 	})
-	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID: 2, Owner: bob, Amount: numericFromInt64(3000),
 		LockEndTime: 50, CreatedAt: 101,
 	})
 
 	// 3. Alice allocates 2000
-	_ = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+	_ = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{ChainID: testChainID,
 		UserAddress: alice, AgentAddress: agent, SubnetID: subnetID,
 		Amount: numericFromInt64(2000),
 	})
-	_ = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
+	_ = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{ChainID: testChainID,
 		UserAddress: alice, TotalAllocated: numericFromInt64(2000),
 	})
 
 	// 4. Verify bob's staked amount is unaffected
-	bobStaked, err := db.q.GetUserTotalStaked(ctx, bob)
+	bobStaked, err := db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: bob})
 	if err != nil {
 		t.Fatalf("GetUserTotalStaked(bob) failed: %v", err)
 	}
 	assertNumericEqual(t, "bob total_staked", bobStaked, 3000)
 
-	bobBal, err := db.q.GetUserBalance(ctx, bob)
+	bobBal, err := db.q.GetUserBalance(ctx, gen.GetUserBalanceParams{ChainID: testChainID, UserAddress: bob})
 	if err != nil {
 		t.Fatalf("GetUserBalance(bob) failed: %v", err)
 	}
 	assertNumericEqual(t, "bob total_allocated", bobBal.TotalAllocated, 0)
 
 	// Verify alice's state is correct
-	aliceStaked, err := db.q.GetUserTotalStaked(ctx, alice)
+	aliceStaked, err := db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: alice})
 	if err != nil {
 		t.Fatalf("GetUserTotalStaked(alice) failed: %v", err)
 	}
 	assertNumericEqual(t, "alice total_staked", aliceStaked, 5000)
 
-	aliceBal, err := db.q.GetUserBalance(ctx, alice)
+	aliceBal, err := db.q.GetUserBalance(ctx, gen.GetUserBalanceParams{ChainID: testChainID, UserAddress: alice})
 	if err != nil {
 		t.Fatalf("GetUserBalance(alice) failed: %v", err)
 	}
@@ -1276,7 +1279,7 @@ func TestIntegration_EpochDistributionAccounting(t *testing.T) {
 	ctx := context.Background()
 
 	// 1. Insert epoch, daily_emission=1000
-	err := db.q.UpsertEpoch(ctx, gen.UpsertEpochParams{
+	err := db.q.UpsertEpoch(ctx, gen.UpsertEpochParams{ChainID: testChainID,
 		EpochID:       10,
 		StartTime:     10000,
 		DailyEmission: numericFromInt64(1000),
@@ -1296,7 +1299,7 @@ func TestIntegration_EpochDistributionAccounting(t *testing.T) {
 		{"0x0000000000000000000000000000000000000003", 500},
 	}
 	for _, d := range distributions {
-		err := db.q.InsertRecipientAWPDistribution(ctx, gen.InsertRecipientAWPDistributionParams{
+		err := db.q.InsertRecipientAWPDistribution(ctx, gen.InsertRecipientAWPDistributionParams{ChainID: testChainID,
 			EpochID:   10,
 			Recipient: d.recipient,
 			AwpAmount: numericFromInt64(d.amount),
@@ -1308,7 +1311,7 @@ func TestIntegration_EpochDistributionAccounting(t *testing.T) {
 
 	// 3. Query each recipient's earnings
 	for _, d := range distributions {
-		earnings, err := db.q.GetRecipientEarnings(ctx, gen.GetRecipientEarningsParams{
+		earnings, err := db.q.GetRecipientEarnings(ctx, gen.GetRecipientEarningsParams{ChainID: testChainID,
 			Recipient: d.recipient, Limit: 10, Offset: 0,
 		})
 		if err != nil {
@@ -1321,7 +1324,7 @@ func TestIntegration_EpochDistributionAccounting(t *testing.T) {
 	}
 
 	// 4. Query epoch distribution list, verify total = 1000
-	dists, err := db.q.GetEpochDistributions(ctx, 10)
+	dists, err := db.q.GetEpochDistributions(ctx, gen.GetEpochDistributionsParams{ChainID: testChainID, EpochID: 10})
 	if err != nil {
 		t.Fatalf("GetEpochDistributions failed: %v", err)
 	}
@@ -1337,7 +1340,7 @@ func TestIntegration_EpochDistributionAccounting(t *testing.T) {
 	}
 
 	// 5. Update dao_emission=0 (all rewards distributed to subnets)
-	err = db.q.UpdateEpochDAO(ctx, gen.UpdateEpochDAOParams{
+	err = db.q.UpdateEpochDAO(ctx, gen.UpdateEpochDAOParams{ChainID: testChainID,
 		EpochID:     10,
 		DaoEmission: numericFromInt64(0),
 	})
@@ -1346,7 +1349,7 @@ func TestIntegration_EpochDistributionAccounting(t *testing.T) {
 	}
 
 	// 6. Verify epoch data consistency: dao_emission has been recorded
-	epoch, err := db.q.GetEpoch(ctx, 10)
+	epoch, err := db.q.GetEpoch(ctx, gen.GetEpochParams{ChainID: testChainID, EpochID: 10})
 	if err != nil {
 		t.Fatalf("GetEpoch failed: %v", err)
 	}
@@ -1354,14 +1357,14 @@ func TestIntegration_EpochDistributionAccounting(t *testing.T) {
 	assertNumericEqual(t, "daily_emission", epoch.DailyEmission, 1000)
 }
 
-func TestIntegration_StakeNFTLifecycle(t *testing.T) {
+func TestIntegration_VeAWPLifecycle(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 
 	user := "0x4a0b0c0d0e0f0000000000000000000000000001"
 
 	// 1. Deposit (create position) 5000
-	err := db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+	err := db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID: 1, Owner: user, Amount: numericFromInt64(5000),
 		LockEndTime: 50, CreatedAt: 100,
 	})
@@ -1369,40 +1372,40 @@ func TestIntegration_StakeNFTLifecycle(t *testing.T) {
 		t.Fatalf("InsertStakePosition failed: %v", err)
 	}
 
-	total, err := db.q.GetUserTotalStaked(ctx, user)
+	total, err := db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: user})
 	if err != nil {
 		t.Fatalf("GetUserTotalStaked failed: %v", err)
 	}
 	assertNumericEqual(t, "staked after first deposit", total, 5000)
 
 	// 2. Add to position (PositionIncreased: 5000 -> 7000)
-	err = db.q.UpdateStakePosition(ctx, gen.UpdateStakePositionParams{
+	err = db.q.UpdateStakePosition(ctx, gen.UpdateStakePositionParams{ChainID: testChainID,
 		TokenID: 1, Amount: numericFromInt64(7000), LockEndTime: 60,
 	})
 	if err != nil {
 		t.Fatalf("UpdateStakePosition failed: %v", err)
 	}
 
-	total, err = db.q.GetUserTotalStaked(ctx, user)
+	total, err = db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: user})
 	if err != nil {
 		t.Fatalf("GetUserTotalStaked failed: %v", err)
 	}
 	assertNumericEqual(t, "staked after increase", total, 7000)
 
 	// 3. Withdraw (burn) position
-	err = db.q.BurnStakePosition(ctx, 1)
+	err = db.q.BurnStakePosition(ctx, gen.BurnStakePositionParams{ChainID: testChainID, TokenID: 1})
 	if err != nil {
 		t.Fatalf("BurnStakePosition failed: %v", err)
 	}
 
-	total, err = db.q.GetUserTotalStaked(ctx, user)
+	total, err = db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: user})
 	if err != nil {
 		t.Fatalf("GetUserTotalStaked failed: %v", err)
 	}
 	assertNumericEqual(t, "staked after burn", total, 0)
 
 	// 4. Verify position is burned
-	pos, err := db.q.GetStakePosition(ctx, 1)
+	pos, err := db.q.GetStakePosition(ctx, gen.GetStakePositionParams{ChainID: testChainID, TokenID: 1})
 	if err != nil {
 		t.Fatalf("GetStakePosition failed: %v", err)
 	}
@@ -1417,31 +1420,31 @@ func TestIntegration_AgentRemovalAndReallocation(t *testing.T) {
 
 	user := "0x5a0b0c0d0e0f0000000000000000000000000001"
 	agent := "0x5a0b0c0d0e0f0000000000000000000000000002"
-	var subnet1 int64 = 1
+	subnet1 := numericFromInt64(1)
 
 	// 1. Create user, agent, and stake position
-	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: user, BoundTo: ""})
-	_ = db.q.InitUserBalance(ctx, user)
-	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: user, BoundTo: ""})
+	_ = db.q.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: testChainID, UserAddress: user})
+	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID: 1, Owner: user, Amount: numericFromInt64(10000),
 		LockEndTime: 50, CreatedAt: 100,
 	})
-	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{Address: agent, BoundTo: user})
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: agent, BoundTo: user})
 
 	// 2. Allocate 5000 to (agent, subnet1)
-	err := db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
+	err := db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{ChainID: testChainID,
 		UserAddress: user, AgentAddress: agent, SubnetID: subnet1,
 		Amount: numericFromInt64(5000),
 	})
 	if err != nil {
 		t.Fatalf("UpsertStakeAllocation failed: %v", err)
 	}
-	_ = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
+	_ = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{ChainID: testChainID,
 		UserAddress: user, TotalAllocated: numericFromInt64(5000),
 	})
 
 	// 3. FreezeAgentAllocations — set frozen=true
-	err = db.q.FreezeAgentAllocations(ctx, gen.FreezeAgentAllocationsParams{
+	err = db.q.FreezeAgentAllocations(ctx, gen.FreezeAgentAllocationsParams{ChainID: testChainID,
 		UserAddress:  user,
 		AgentAddress: agent,
 	})
@@ -1450,7 +1453,7 @@ func TestIntegration_AgentRemovalAndReallocation(t *testing.T) {
 	}
 
 	// 4. Verify frozen allocations exist
-	frozen, err := db.q.GetFrozenByUser(ctx, user)
+	frozen, err := db.q.GetFrozenByUser(ctx, gen.GetFrozenByUserParams{ChainID: testChainID, UserAddress: user})
 	if err != nil {
 		t.Fatalf("GetFrozenByUser failed: %v", err)
 	}
@@ -1460,7 +1463,7 @@ func TestIntegration_AgentRemovalAndReallocation(t *testing.T) {
 	assertNumericEqual(t, "frozen amount", frozen[0].Amount, 5000)
 
 	// Verify GetAgentSubnetStake excludes frozen (returns 0)
-	stake, err := db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{
+	stake, err := db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{ChainID: testChainID,
 		AgentAddress: agent, SubnetID: subnet1,
 	})
 	if err != nil {
@@ -1469,13 +1472,13 @@ func TestIntegration_AgentRemovalAndReallocation(t *testing.T) {
 	assertNumericEqual(t, "non-frozen stake after freeze", stake, 0)
 
 	// 5. DeleteFrozenAllocations — simulate executePendingOperations release
-	err = db.q.DeleteFrozenAllocations(ctx, user)
+	err = db.q.DeleteFrozenAllocations(ctx, gen.DeleteFrozenAllocationsParams{ChainID: testChainID, UserAddress: user})
 	if err != nil {
 		t.Fatalf("DeleteFrozenAllocations failed: %v", err)
 	}
 
 	// 6. Verify allocations have been deleted
-	frozen, err = db.q.GetFrozenByUser(ctx, user)
+	frozen, err = db.q.GetFrozenByUser(ctx, gen.GetFrozenByUserParams{ChainID: testChainID, UserAddress: user})
 	if err != nil {
 		t.Fatalf("GetFrozenByUser(after delete) failed: %v", err)
 	}
@@ -1484,7 +1487,7 @@ func TestIntegration_AgentRemovalAndReallocation(t *testing.T) {
 	}
 
 	// GetStakeAllocation should also return ErrNoRows
-	_, err = db.q.GetStakeAllocation(ctx, gen.GetStakeAllocationParams{
+	_, err = db.q.GetStakeAllocation(ctx, gen.GetStakeAllocationParams{ChainID: testChainID,
 		UserAddress: user, AgentAddress: agent, SubnetID: subnet1,
 	})
 	if err != pgx.ErrNoRows {
@@ -1492,7 +1495,7 @@ func TestIntegration_AgentRemovalAndReallocation(t *testing.T) {
 	}
 
 	// 7. SubtractUserAllocated to release allocated quota
-	err = db.q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{
+	err = db.q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{ChainID: testChainID,
 		UserAddress: user, TotalAllocated: numericFromInt64(5000),
 	})
 	if err != nil {
@@ -1500,15 +1503,203 @@ func TestIntegration_AgentRemovalAndReallocation(t *testing.T) {
 	}
 
 	// Verify final state: allocated=0, totalStaked=10000
-	totalStaked, err := db.q.GetUserTotalStaked(ctx, user)
+	totalStaked, err := db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: user})
 	if err != nil {
 		t.Fatalf("GetUserTotalStaked failed: %v", err)
 	}
 	assertNumericEqual(t, "final total_staked", totalStaked, 10000)
 
-	bal, err := db.q.GetUserBalance(ctx, user)
+	bal, err := db.q.GetUserBalance(ctx, gen.GetUserBalanceParams{ChainID: testChainID, UserAddress: user})
 	if err != nil {
 		t.Fatalf("GetUserBalance failed: %v", err)
 	}
 	assertNumericEqual(t, "final total_allocated", bal.TotalAllocated, 0)
+}
+
+func TestIndexerScenario_VeAWPPositionDecreased(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+	userAddr := "0xdede000000000000000000000000000000000001"
+
+	// Setup: create a stake position with 5000
+	err := db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
+		TokenID: 50, Owner: userAddr, Amount: numericFromInt64(5000),
+		LockEndTime: 100, CreatedAt: 10,
+	})
+	if err != nil {
+		t.Fatalf("InsertStakePosition failed: %v", err)
+	}
+
+	// Verify initial state
+	total, err := db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: userAddr})
+	if err != nil {
+		t.Fatalf("GetUserTotalStaked failed: %v", err)
+	}
+	assertNumericEqual(t, "staked before decrease", total, 5000)
+
+	// Simulate PositionDecreased: partial withdrawal reduces amount to 3000
+	// (indexer calls UpdateStakePosition with remainingAmount and unchanged lockEndTime)
+	err = db.q.UpdateStakePosition(ctx, gen.UpdateStakePositionParams{ChainID: testChainID,
+		TokenID:     50,
+		Amount:      numericFromInt64(3000),
+		LockEndTime: 100, // unchanged by partialWithdraw
+	})
+	if err != nil {
+		t.Fatalf("UpdateStakePosition (PositionDecreased) failed: %v", err)
+	}
+
+	// Verify amount decreased
+	pos, err := db.q.GetStakePosition(ctx, gen.GetStakePositionParams{ChainID: testChainID, TokenID: 50})
+	if err != nil {
+		t.Fatalf("GetStakePosition failed: %v", err)
+	}
+	assertNumericEqual(t, "amount after decrease", pos.Amount, 3000)
+	if pos.LockEndTime != 100 {
+		t.Fatalf("lockEndTime should remain unchanged, got %d", pos.LockEndTime)
+	}
+	if pos.Burned {
+		t.Fatal("position should NOT be burned after partial withdrawal")
+	}
+
+	// Verify total staked reflects the decrease
+	total, err = db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: userAddr})
+	if err != nil {
+		t.Fatalf("GetUserTotalStaked failed: %v", err)
+	}
+	assertNumericEqual(t, "staked after decrease", total, 3000)
+
+	// Decrease again to 1000
+	err = db.q.UpdateStakePosition(ctx, gen.UpdateStakePositionParams{ChainID: testChainID,
+		TokenID:     50,
+		Amount:      numericFromInt64(1000),
+		LockEndTime: 100,
+	})
+	if err != nil {
+		t.Fatalf("UpdateStakePosition (second decrease) failed: %v", err)
+	}
+
+	total, err = db.q.GetUserTotalStaked(ctx, gen.GetUserTotalStakedParams{ChainID: testChainID, Owner: userAddr})
+	if err != nil {
+		t.Fatalf("GetUserTotalStaked (second decrease) failed: %v", err)
+	}
+	assertNumericEqual(t, "staked after second decrease", total, 1000)
+}
+
+func TestIndexerScenario_Reallocated(t *testing.T) {
+	db := setupTestDB(t)
+	ctx := context.Background()
+	userAddr := "0xrea100c000000000000000000000000000000001"
+	fromAgent := "0xrea100c000000000000000000000000000000002"
+	toAgent := "0xrea100c000000000000000000000000000000003"
+	fromSubnet := numericFromInt64(10)
+	toSubnet := numericFromInt64(20)
+
+	// Setup: register user + balance
+	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: userAddr, BoundTo: ""})
+	_ = db.q.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: testChainID, UserAddress: userAddr})
+
+	// Setup: allocate 5000 to (fromAgent, fromSubnet)
+	err := db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{ChainID: testChainID,
+		UserAddress:  userAddr,
+		AgentAddress: fromAgent,
+		SubnetID:     fromSubnet,
+		Amount:       numericFromInt64(5000),
+	})
+	if err != nil {
+		t.Fatalf("initial UpsertStakeAllocation failed: %v", err)
+	}
+	_ = db.q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{ChainID: testChainID,
+		UserAddress:    userAddr,
+		TotalAllocated: numericFromInt64(5000),
+	})
+
+	// Simulate Reallocated event: move 2000 from (fromAgent, fromSubnet) to (toAgent, toSubnet)
+	// Step 1: Subtract from source
+	err = db.q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{ChainID: testChainID,
+		UserAddress:  userAddr,
+		AgentAddress: fromAgent,
+		SubnetID:     fromSubnet,
+		Amount:       numericFromInt64(2000),
+	})
+	if err != nil {
+		t.Fatalf("SubtractStakeAllocation (Reallocated source) failed: %v", err)
+	}
+
+	// Step 2: Add to destination
+	err = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{ChainID: testChainID,
+		UserAddress:  userAddr,
+		AgentAddress: toAgent,
+		SubnetID:     toSubnet,
+		Amount:       numericFromInt64(2000),
+	})
+	if err != nil {
+		t.Fatalf("UpsertStakeAllocation (Reallocated dest) failed: %v", err)
+	}
+
+	// Verify source decreased: 5000 - 2000 = 3000
+	sourceStake, err := db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{ChainID: testChainID,
+		AgentAddress: fromAgent,
+		SubnetID:     fromSubnet,
+	})
+	if err != nil {
+		t.Fatalf("GetAgentSubnetStake (source) failed: %v", err)
+	}
+	assertNumericEqual(t, "source stake after reallocation", sourceStake, 3000)
+
+	// Verify destination received: 2000
+	destStake, err := db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{ChainID: testChainID,
+		AgentAddress: toAgent,
+		SubnetID:     toSubnet,
+	})
+	if err != nil {
+		t.Fatalf("GetAgentSubnetStake (dest) failed: %v", err)
+	}
+	assertNumericEqual(t, "dest stake after reallocation", destStake, 2000)
+
+	// Verify total_allocated unchanged (reallocation does not change user's total allocation)
+	bal, err := db.q.GetUserBalance(ctx, gen.GetUserBalanceParams{ChainID: testChainID, UserAddress: userAddr})
+	if err != nil {
+		t.Fatalf("GetUserBalance failed: %v", err)
+	}
+	assertNumericEqual(t, "total_allocated after reallocation", bal.TotalAllocated, 5000)
+
+	// Reallocate remaining 3000 from source to same destination
+	err = db.q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{ChainID: testChainID,
+		UserAddress:  userAddr,
+		AgentAddress: fromAgent,
+		SubnetID:     fromSubnet,
+		Amount:       numericFromInt64(3000),
+	})
+	if err != nil {
+		t.Fatalf("SubtractStakeAllocation (full move) failed: %v", err)
+	}
+	err = db.q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{ChainID: testChainID,
+		UserAddress:  userAddr,
+		AgentAddress: toAgent,
+		SubnetID:     toSubnet,
+		Amount:       numericFromInt64(3000),
+	})
+	if err != nil {
+		t.Fatalf("UpsertStakeAllocation (full move) failed: %v", err)
+	}
+
+	// Source should be 0
+	sourceStake, err = db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{ChainID: testChainID,
+		AgentAddress: fromAgent,
+		SubnetID:     fromSubnet,
+	})
+	if err != nil {
+		t.Fatalf("GetAgentSubnetStake (source depleted) failed: %v", err)
+	}
+	assertNumericEqual(t, "source stake fully moved", sourceStake, 0)
+
+	// Destination should be 2000 + 3000 = 5000
+	destStake, err = db.q.GetAgentSubnetStake(ctx, gen.GetAgentSubnetStakeParams{ChainID: testChainID,
+		AgentAddress: toAgent,
+		SubnetID:     toSubnet,
+	})
+	if err != nil {
+		t.Fatalf("GetAgentSubnetStake (dest final) failed: %v", err)
+	}
+	assertNumericEqual(t, "dest stake final", destStake, 5000)
 }

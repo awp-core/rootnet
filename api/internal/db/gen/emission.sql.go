@@ -12,12 +12,24 @@ import (
 )
 
 const getEpoch = `-- name: GetEpoch :one
-SELECT epoch_id, start_time, daily_emission, dao_emission FROM epochs WHERE epoch_id = $1
+SELECT epoch_id, start_time, daily_emission, dao_emission FROM epochs WHERE chain_id = $1 AND epoch_id = $2
 `
 
-func (q *Queries) GetEpoch(ctx context.Context, epochID int64) (Epoch, error) {
-	row := q.db.QueryRow(ctx, getEpoch, epochID)
-	var i Epoch
+type GetEpochParams struct {
+	ChainID int64 `json:"chain_id"`
+	EpochID int64 `json:"epoch_id"`
+}
+
+type GetEpochRow struct {
+	EpochID       int64          `json:"epoch_id"`
+	StartTime     int64          `json:"start_time"`
+	DailyEmission pgtype.Numeric `json:"daily_emission"`
+	DaoEmission   pgtype.Numeric `json:"dao_emission"`
+}
+
+func (q *Queries) GetEpoch(ctx context.Context, arg GetEpochParams) (GetEpochRow, error) {
+	row := q.db.QueryRow(ctx, getEpoch, arg.ChainID, arg.EpochID)
+	var i GetEpochRow
 	err := row.Scan(
 		&i.EpochID,
 		&i.StartTime,
@@ -29,8 +41,13 @@ func (q *Queries) GetEpoch(ctx context.Context, epochID int64) (Epoch, error) {
 
 const getEpochDistributions = `-- name: GetEpochDistributions :many
 SELECT epoch_id, recipient, awp_amount FROM recipient_awp_distributions
-WHERE epoch_id = $1 ORDER BY recipient
+WHERE chain_id = $1 AND epoch_id = $2 ORDER BY recipient
 `
+
+type GetEpochDistributionsParams struct {
+	ChainID int64 `json:"chain_id"`
+	EpochID int64 `json:"epoch_id"`
+}
 
 type GetEpochDistributionsRow struct {
 	EpochID   int64          `json:"epoch_id"`
@@ -38,8 +55,8 @@ type GetEpochDistributionsRow struct {
 	AwpAmount pgtype.Numeric `json:"awp_amount"`
 }
 
-func (q *Queries) GetEpochDistributions(ctx context.Context, epochID int64) ([]GetEpochDistributionsRow, error) {
-	rows, err := q.db.Query(ctx, getEpochDistributions, epochID)
+func (q *Queries) GetEpochDistributions(ctx context.Context, arg GetEpochDistributionsParams) ([]GetEpochDistributionsRow, error) {
+	rows, err := q.db.Query(ctx, getEpochDistributions, arg.ChainID, arg.EpochID)
 	if err != nil {
 		return nil, err
 	}
@@ -60,12 +77,19 @@ func (q *Queries) GetEpochDistributions(ctx context.Context, epochID int64) ([]G
 
 const getLatestEpoch = `-- name: GetLatestEpoch :one
 SELECT epoch_id, start_time, daily_emission, dao_emission FROM epochs
-ORDER BY epoch_id DESC LIMIT 1
+WHERE chain_id = $1 ORDER BY epoch_id DESC LIMIT 1
 `
 
-func (q *Queries) GetLatestEpoch(ctx context.Context) (Epoch, error) {
-	row := q.db.QueryRow(ctx, getLatestEpoch)
-	var i Epoch
+type GetLatestEpochRow struct {
+	EpochID       int64          `json:"epoch_id"`
+	StartTime     int64          `json:"start_time"`
+	DailyEmission pgtype.Numeric `json:"daily_emission"`
+	DaoEmission   pgtype.Numeric `json:"dao_emission"`
+}
+
+func (q *Queries) GetLatestEpoch(ctx context.Context, chainID int64) (GetLatestEpochRow, error) {
+	row := q.db.QueryRow(ctx, getLatestEpoch, chainID)
+	var i GetLatestEpochRow
 	err := row.Scan(
 		&i.EpochID,
 		&i.StartTime,
@@ -77,10 +101,11 @@ func (q *Queries) GetLatestEpoch(ctx context.Context) (Epoch, error) {
 
 const getRecipientEarnings = `-- name: GetRecipientEarnings :many
 SELECT epoch_id, recipient, awp_amount FROM recipient_awp_distributions
-WHERE recipient = $1 ORDER BY epoch_id DESC LIMIT $2 OFFSET $3
+WHERE chain_id = $1 AND recipient = $2 ORDER BY epoch_id DESC LIMIT $3 OFFSET $4
 `
 
 type GetRecipientEarningsParams struct {
+	ChainID   int64  `json:"chain_id"`
 	Recipient string `json:"recipient"`
 	Limit     int32  `json:"limit"`
 	Offset    int32  `json:"offset"`
@@ -93,7 +118,12 @@ type GetRecipientEarningsRow struct {
 }
 
 func (q *Queries) GetRecipientEarnings(ctx context.Context, arg GetRecipientEarningsParams) ([]GetRecipientEarningsRow, error) {
-	rows, err := q.db.Query(ctx, getRecipientEarnings, arg.Recipient, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, getRecipientEarnings,
+		arg.ChainID,
+		arg.Recipient,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -121,9 +151,9 @@ ORDER BY r.epoch_id DESC LIMIT $2 OFFSET $3
 `
 
 type GetSubnetEarningsByIDParams struct {
-	SubnetID int64 `json:"subnet_id"`
-	Limit    int32 `json:"limit"`
-	Offset   int32 `json:"offset"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
+	Limit    int32          `json:"limit"`
+	Offset   int32          `json:"offset"`
 }
 
 type GetSubnetEarningsByIDRow struct {
@@ -153,40 +183,54 @@ func (q *Queries) GetSubnetEarningsByID(ctx context.Context, arg GetSubnetEarnin
 }
 
 const insertRecipientAWPDistribution = `-- name: InsertRecipientAWPDistribution :exec
-INSERT INTO recipient_awp_distributions (epoch_id, recipient, awp_amount) VALUES ($1, $2, $3)
-ON CONFLICT (epoch_id, recipient) DO NOTHING
+INSERT INTO recipient_awp_distributions (chain_id, epoch_id, recipient, awp_amount) VALUES ($1, $2, $3, $4)
+ON CONFLICT (chain_id, epoch_id, recipient) DO NOTHING
 `
 
 type InsertRecipientAWPDistributionParams struct {
+	ChainID   int64          `json:"chain_id"`
 	EpochID   int64          `json:"epoch_id"`
 	Recipient string         `json:"recipient"`
 	AwpAmount pgtype.Numeric `json:"awp_amount"`
 }
 
 func (q *Queries) InsertRecipientAWPDistribution(ctx context.Context, arg InsertRecipientAWPDistributionParams) error {
-	_, err := q.db.Exec(ctx, insertRecipientAWPDistribution, arg.EpochID, arg.Recipient, arg.AwpAmount)
+	_, err := q.db.Exec(ctx, insertRecipientAWPDistribution,
+		arg.ChainID,
+		arg.EpochID,
+		arg.Recipient,
+		arg.AwpAmount,
+	)
 	return err
 }
 
 const listEpochs = `-- name: ListEpochs :many
 SELECT epoch_id, start_time, daily_emission, dao_emission FROM epochs
-ORDER BY epoch_id DESC LIMIT $1 OFFSET $2
+WHERE chain_id = $1 ORDER BY epoch_id DESC LIMIT $2 OFFSET $3
 `
 
 type ListEpochsParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	ChainID int64 `json:"chain_id"`
+	Limit   int32 `json:"limit"`
+	Offset  int32 `json:"offset"`
 }
 
-func (q *Queries) ListEpochs(ctx context.Context, arg ListEpochsParams) ([]Epoch, error) {
-	rows, err := q.db.Query(ctx, listEpochs, arg.Limit, arg.Offset)
+type ListEpochsRow struct {
+	EpochID       int64          `json:"epoch_id"`
+	StartTime     int64          `json:"start_time"`
+	DailyEmission pgtype.Numeric `json:"daily_emission"`
+	DaoEmission   pgtype.Numeric `json:"dao_emission"`
+}
+
+func (q *Queries) ListEpochs(ctx context.Context, arg ListEpochsParams) ([]ListEpochsRow, error) {
+	rows, err := q.db.Query(ctx, listEpochs, arg.ChainID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Epoch{}
+	items := []ListEpochsRow{}
 	for rows.Next() {
-		var i Epoch
+		var i ListEpochsRow
 		if err := rows.Scan(
 			&i.EpochID,
 			&i.StartTime,
@@ -204,30 +248,32 @@ func (q *Queries) ListEpochs(ctx context.Context, arg ListEpochsParams) ([]Epoch
 }
 
 const updateEpochDAO = `-- name: UpdateEpochDAO :exec
-INSERT INTO epochs (epoch_id, start_time, daily_emission, dao_emission) VALUES ($1, 0, 0, $2)
-ON CONFLICT (epoch_id) DO UPDATE SET dao_emission = EXCLUDED.dao_emission
+INSERT INTO epochs (chain_id, epoch_id, start_time, daily_emission, dao_emission) VALUES ($1, $2, 0, 0, $3)
+ON CONFLICT (chain_id, epoch_id) DO UPDATE SET dao_emission = EXCLUDED.dao_emission
 `
 
 type UpdateEpochDAOParams struct {
+	ChainID     int64          `json:"chain_id"`
 	EpochID     int64          `json:"epoch_id"`
 	DaoEmission pgtype.Numeric `json:"dao_emission"`
 }
 
 func (q *Queries) UpdateEpochDAO(ctx context.Context, arg UpdateEpochDAOParams) error {
-	_, err := q.db.Exec(ctx, updateEpochDAO, arg.EpochID, arg.DaoEmission)
+	_, err := q.db.Exec(ctx, updateEpochDAO, arg.ChainID, arg.EpochID, arg.DaoEmission)
 	return err
 }
 
 const upsertEpoch = `-- name: UpsertEpoch :exec
-INSERT INTO epochs (epoch_id, start_time, daily_emission, dao_emission)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (epoch_id) DO UPDATE SET
+INSERT INTO epochs (chain_id, epoch_id, start_time, daily_emission, dao_emission)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (chain_id, epoch_id) DO UPDATE SET
   start_time = EXCLUDED.start_time,
   daily_emission = EXCLUDED.daily_emission,
   dao_emission = COALESCE(EXCLUDED.dao_emission, epochs.dao_emission)
 `
 
 type UpsertEpochParams struct {
+	ChainID       int64          `json:"chain_id"`
 	EpochID       int64          `json:"epoch_id"`
 	StartTime     int64          `json:"start_time"`
 	DailyEmission pgtype.Numeric `json:"daily_emission"`
@@ -236,6 +282,7 @@ type UpsertEpochParams struct {
 
 func (q *Queries) UpsertEpoch(ctx context.Context, arg UpsertEpochParams) error {
 	_, err := q.db.Exec(ctx, upsertEpoch,
+		arg.ChainID,
 		arg.EpochID,
 		arg.StartTime,
 		arg.DailyEmission,

@@ -7,28 +7,39 @@ import (
 	"fmt"
 	"log/slog"
 	"math/big"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/cortexia/rootnet/api/internal/chain/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/redis/go-redis/v9"
 	"github.com/robfig/cron/v3"
 )
 
-// Keeper is the on-chain scheduled task executor responsible for settling epochs and updating caches
+// Keeper is the on-chain scheduled task executor responsible for settling epochs, updating caches, and compounding LP fees
 type Keeper struct {
 	client      *ethclient.Client
 	awpEmission *bindings.AWPEmission
 	awpToken    *bindings.AWPToken
+	lpManager   *bindings.LPManagerBase
+	poolManager *bindings.PoolManagerReader
 	key         *ecdsa.PrivateKey
 	chainID     *big.Int
+	chainIDInt  int64
 	cron        *cron.Cron
 	redis       *redis.Client
 	logger      *slog.Logger
 	cancel      context.CancelFunc
+
+	// Distributed lock value (unique per instance, for safe release)
+	lockValue string
+
+	// When true, skip settleEpoch (read-only mode: cache updates only)
+	skipSettle bool
 
 	// Serializes sendSettleEpoch to prevent concurrent nonce collisions
 	txMu sync.Mutex
@@ -59,6 +70,8 @@ func NewKeeper(
 	client *ethclient.Client,
 	awpEmissionAddr common.Address,
 	awpTokenAddr common.Address,
+	lpManagerAddr common.Address,
+	poolManagerAddr common.Address,
 	key *ecdsa.PrivateKey,
 	chainID *big.Int,
 	rdb *redis.Client,
@@ -74,22 +87,81 @@ func NewKeeper(
 		return nil, fmt.Errorf("failed to bind AWPToken contract: %w", err)
 	}
 
+	var lpMgr *bindings.LPManagerBase
+	if lpManagerAddr != (common.Address{}) {
+		lpMgr, err = bindings.NewLPManagerBase(lpManagerAddr, client)
+		if err != nil {
+			return nil, fmt.Errorf("failed to bind LPManager contract: %w", err)
+		}
+	}
+
+	var poolMgr *bindings.PoolManagerReader
+	if poolManagerAddr != (common.Address{}) {
+		poolMgr, err = bindings.NewPoolManagerReader(poolManagerAddr, client)
+		if err != nil {
+			return nil, fmt.Errorf("failed to bind PoolManager contract: %w", err)
+		}
+	}
+
 	return &Keeper{
 		client:      client,
 		awpEmission: awpEmission,
 		awpToken:    awpToken,
+		lpManager:   lpMgr,
+		poolManager: poolMgr,
 		key:         key,
 		chainID:     chainID,
+		chainIDInt:  chainID.Int64(),
 		cron:        cron.New(),
 		redis:       rdb,
 		logger:      logger,
 	}, nil
 }
 
+// SetSkipSettle enables/disables settle-epoch execution (read-only mode when true)
+func (k *Keeper) SetSkipSettle(skip bool) { k.skipSettle = skip }
+
+// acquireLock acquires a Redis distributed lock to prevent concurrent keeper instances.
+// Uses a unique lock value so releaseLock only deletes our own lock.
+func (k *Keeper) acquireLock(ctx context.Context) bool {
+	lockKey := fmt.Sprintf("keeper:lock:%d", k.chainIDInt)
+	k.lockValue = fmt.Sprintf("%d-%d", os.Getpid(), time.Now().UnixNano())
+	ok, err := k.redis.SetNX(ctx, lockKey, k.lockValue, 90*time.Second).Result()
+	if err != nil {
+		k.logger.Warn("failed to acquire keeper lock", "error", err)
+		return false
+	}
+	return ok
+}
+
+// renewLock extends the distributed lock TTL only if we still own it.
+func (k *Keeper) renewLock(ctx context.Context) {
+	lockKey := fmt.Sprintf("keeper:lock:%d", k.chainIDInt)
+	script := `if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("EXPIRE", KEYS[1], ARGV[2]) else return 0 end`
+	result, _ := k.redis.Eval(ctx, script, []string{lockKey}, k.lockValue, 90).Int64()
+	if result == 0 {
+		k.logger.Warn("lost keeper lock, another instance may have taken over", "chainId", k.chainIDInt)
+	}
+}
+
+// releaseLock releases the distributed lock only if we own it (safe against stale lock deletion).
+func (k *Keeper) releaseLock() {
+	lockKey := fmt.Sprintf("keeper:lock:%d", k.chainIDInt)
+	// Lua: only delete if the lock value matches ours
+	script := `if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("DEL", KEYS[1]) else return 0 end`
+	k.redis.Eval(context.Background(), script, []string{lockKey}, k.lockValue)
+}
+
 // Start launches the scheduled task scheduler.
 func (k *Keeper) Start(_ context.Context) {
 	ctx, cancel := context.WithCancel(context.Background())
 	k.cancel = cancel
+
+	// Distributed lock: prevent multiple keeper instances from running simultaneously
+	if !k.acquireLock(ctx) {
+		k.logger.Error("another keeper instance is already running for this chain, exiting", "chainId", k.chainIDInt)
+		return
+	}
 
 	// Attempt to settle epoch every 30 seconds
 	if _, err := k.cron.AddFunc("@every 30s", func() {
@@ -105,16 +177,40 @@ func (k *Keeper) Start(_ context.Context) {
 		k.logger.Error("failed to add cron", "error", err)
 	}
 
+	// Update relayer native balance every 25s (aligned with token price updates)
+	if _, err := k.cron.AddFunc("@every 25s", func() {
+		k.updateRelayerBalance(ctx)
+	}); err != nil {
+		k.logger.Error("failed to add relayer balance cron", "error", err)
+	}
+
+	// Compound LP fees every 24 hours (if LPManager is configured)
+	if k.lpManager != nil {
+		if _, err := k.cron.AddFunc("@every 24h", func() {
+			k.compoundAllFees(ctx)
+		}); err != nil {
+			k.logger.Error("failed to add compound fees cron", "error", err)
+		}
+	}
+
+	// Renew distributed lock every 30s (TTL 60s, ensures lock does not expire)
+	if _, err := k.cron.AddFunc("@every 30s", func() {
+		k.renewLock(ctx)
+	}); err != nil {
+		k.logger.Error("failed to add lock renewal cron", "error", err)
+	}
+
 	k.cron.Start()
 	k.logger.Info("Keeper scheduled tasks started")
 }
 
-// Stop halts the scheduled task scheduler
+// Stop halts the scheduled task scheduler and releases the distributed lock
 func (k *Keeper) Stop() {
 	if k.cancel != nil {
 		k.cancel()
 	}
 	k.cron.Stop()
+	k.releaseLock()
 	k.logger.Info("Keeper scheduled tasks stopped")
 }
 
@@ -172,7 +268,7 @@ func (k *Keeper) trySettleEpoch(ctx context.Context) {
 		return
 	}
 
-	if currentEpoch.Cmp(settledEpoch) > 0 {
+	if currentEpoch.Cmp(settledEpoch) >= 0 && !k.skipSettle {
 		k.logger.Info("new epoch ready, executing settleEpoch",
 			"settledEpoch", settledEpoch.String(),
 			"currentEpoch", currentEpoch.String(),
@@ -238,7 +334,7 @@ func (k *Keeper) updateTokenPrices(ctx context.Context) {
 		return
 	}
 
-	if err := k.redis.Set(ctx, "emission_current", emData, 30*time.Second).Err(); err != nil {
+	if err := k.redis.Set(ctx, fmt.Sprintf("emission_current:%d", k.chainIDInt), emData, 30*time.Second).Err(); err != nil {
 		k.logger.Error("failed to write emission_current cache", "error", err)
 	}
 
@@ -262,13 +358,14 @@ func (k *Keeper) updateTokenPrices(ctx context.Context) {
 		return
 	}
 
-	if err := k.redis.Set(ctx, "awp_info", awpData, 1*time.Minute).Err(); err != nil {
+	if err := k.redis.Set(ctx, fmt.Sprintf("awp_info:%d", k.chainIDInt), awpData, 1*time.Minute).Err(); err != nil {
 		k.logger.Error("failed to write awp_info cache", "error", err)
 	}
 
-	// TODO: Implement alpha price updates per Redis Key Spec
-	// alpha_price:{subnetId} → JSON, TTL=10m
-	// Requires CLPoolManager bindings to read sqrtPriceX96 from on-chain pools
+	// Update alpha token prices from on-chain pool state
+	if k.lpManager != nil && k.poolManager != nil {
+		k.updateWorknetTokenPrices(ctx)
+	}
 
 	k.logger.Debug("token caches updated",
 		"epoch", currentEpoch.String(),
@@ -276,4 +373,206 @@ func (k *Keeper) updateTokenPrices(ctx context.Context) {
 		"dailyEmission", dailyEmission.String(),
 		"totalWeight", totalWeight.String(),
 	)
+}
+
+// alphaPrice is the cached price data for an Alpha token
+type worknetTokenPrice struct {
+	PriceInAWP   string `json:"priceInAWP"`   // worknet token price denominated in AWP
+	SqrtPriceX96 string `json:"sqrtPriceX96"` // raw sqrtPriceX96 for frontend use
+	UpdatedAt    int64  `json:"updatedAt"`     // unix timestamp
+}
+
+// tokenPriceResult holds the computed price data for a single worknet token (used by worker goroutines)
+type tokenPriceResult struct {
+	key  string
+	data []byte
+}
+
+// updateWorknetTokenPrices reads sqrtPriceX96 from each active worknet's LP pool and caches the price.
+// Called every 25s as part of updateTokenPrices.
+// Uses a bounded worker pool (max 10 concurrent) to parallelize RPC calls across tokens.
+// Redis keys are keyed by worknetId (worknet_token_price:{worknetId}) per spec.
+func (k *Keeper) updateWorknetTokenPrices(ctx context.Context) {
+	// Read worknetId→worknetToken map from Redis (populated by indexer)
+	subnetMapKey := fmt.Sprintf("active_worknet_subnet_map:%d", k.chainIDInt)
+	data, err := k.redis.Get(ctx, subnetMapKey).Result()
+	if err != nil {
+		return // no active tokens, skip
+	}
+
+	var subnetMap map[string]string // worknetId → worknetToken
+	if err := json.Unmarshal([]byte(data), &subnetMap); err != nil {
+		return
+	}
+
+	if len(subnetMap) == 0 {
+		return
+	}
+
+	type subnetToken struct {
+		subnetID string
+		token    string
+	}
+	entries := make([]subnetToken, 0, len(subnetMap))
+	for sid, tok := range subnetMap {
+		entries = append(entries, subnetToken{subnetID: sid, token: tok})
+	}
+
+	// Bounded worker pool: max 10 concurrent RPC goroutines
+	const maxWorkers = 10
+	sem := make(chan struct{}, maxWorkers)
+	results := make(chan tokenPriceResult, len(entries))
+
+	var wg sync.WaitGroup
+	for _, entry := range entries {
+		wg.Add(1)
+		go func(e subnetToken) {
+			defer wg.Done()
+			sem <- struct{}{}        // acquire slot
+			defer func() { <-sem }() // release slot
+
+			token := common.HexToAddress(e.token)
+
+			// Read poolId from LPManager (sequential: GetSlot0 depends on poolId)
+			poolId, err := k.lpManager.WorknetTokenToPoolId(nil, token)
+			if err != nil || poolId == [32]byte{} {
+				return // no pool for this token
+			}
+
+			// Read sqrtPriceX96 from PoolManager
+			slot0, err := k.poolManager.GetSlot0(nil, poolId)
+			if err != nil {
+				k.logger.Debug("failed to read pool slot0", "worknetId", e.subnetID, "worknetToken", e.token, "error", err)
+				return
+			}
+
+			sqrtPrice := new(big.Int).SetBytes(slot0.SqrtPriceX96.Bytes())
+			if sqrtPrice.Sign() == 0 {
+				return // pool not initialized
+			}
+
+			// Compute price: (sqrtPriceX96 / 2^96)^2 = sqrtPriceX96^2 / 2^192
+			sqrtPriceBig := slot0.SqrtPriceX96
+			q96 := new(big.Int).Lsh(big.NewInt(1), 96)
+
+			// price = sqrtPriceX96^2 / 2^192, scaled to 18 decimals
+			numerator := new(big.Int).Mul(sqrtPriceBig, sqrtPriceBig)
+			numerator.Mul(numerator, big.NewInt(1e18))
+			denominator := new(big.Int).Mul(q96, q96)
+			priceRaw := new(big.Int).Div(numerator, denominator)
+
+			priceData, _ := json.Marshal(worknetTokenPrice{
+				PriceInAWP:   priceRaw.String(),
+				SqrtPriceX96: sqrtPriceBig.String(),
+				UpdatedAt:    time.Now().Unix(),
+			})
+
+			results <- tokenPriceResult{
+				key:  fmt.Sprintf("worknet_token_price:%s", e.subnetID),
+				data: priceData,
+			}
+		}(entry)
+	}
+
+	// Close results channel after all workers finish
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// Collect results and write all to Redis via pipeline
+	var collected []tokenPriceResult
+	for r := range results {
+		collected = append(collected, r)
+	}
+
+	if len(collected) > 0 {
+		pipe := k.redis.Pipeline()
+		for _, r := range collected {
+			pipe.Set(ctx, r.key, r.data, 10*time.Minute)
+		}
+		if _, err := pipe.Exec(ctx); err != nil {
+			k.logger.Error("failed to pipeline worknet token prices to Redis", "error", err)
+		}
+	}
+}
+
+// compoundAllFees iterates active worknet tokens and compounds LP fees for each.
+// Called every 24h by cron. Each compoundFees call collects accrued trading fees from
+// the LP position and reinvests them as additional liquidity.
+func (k *Keeper) compoundAllFees(ctx context.Context) {
+	// No longer holding lock for entire duration — lock per-tx to avoid blocking settleEpoch
+
+	worknetTokensKey := fmt.Sprintf("active_worknet_tokens:%d", k.chainIDInt)
+	data, err := k.redis.Get(ctx, worknetTokensKey).Result()
+	if err != nil {
+		k.logger.Debug("no active worknet tokens cached for compounding (will be populated by indexer)", "chainId", k.chainIDInt)
+		return
+	}
+
+	var worknetTokens []string
+	if err := json.Unmarshal([]byte(data), &worknetTokens); err != nil {
+		k.logger.Error("failed to parse active worknet tokens", "error", err)
+		return
+	}
+
+	if len(worknetTokens) == 0 {
+		return
+	}
+
+	compounded := 0
+	for _, tokenHex := range worknetTokens {
+		token := common.HexToAddress(tokenHex)
+
+		// Per-tx: lock -> auth (auto nonce) -> send -> unlock -> wait for confirmation
+		k.txMu.Lock()
+		auth, err := k.auth()
+		if err != nil {
+			k.txMu.Unlock()
+			k.logger.Error("failed to create tx signer for compoundFees", "error", err)
+			return
+		}
+		timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		auth.Context = timeoutCtx
+		tx, txErr := k.lpManager.CompoundFees(auth, token)
+		k.txMu.Unlock()
+
+		if txErr != nil {
+			cancel()
+			k.logger.Debug("compoundFees skipped", "worknetToken", tokenHex, "error", txErr)
+			continue
+		}
+		k.logger.Info("compoundFees tx sent", "worknetToken", tokenHex, "txHash", tx.Hash().Hex())
+
+		// Wait for tx to be mined before sending next one to avoid nonce conflicts
+		_, _ = bind.WaitMined(timeoutCtx, k.client, tx)
+		cancel()
+		compounded++
+	}
+
+	if compounded > 0 {
+		k.logger.Info("LP fee compounding complete", "compounded", compounded, "total", len(worknetTokens))
+	}
+}
+
+// updateRelayerBalance reads the relayer native token balance, writes to Redis, and alerts when balance is low
+func (k *Keeper) updateRelayerBalance(ctx context.Context) {
+	addr := crypto.PubkeyToAddress(k.key.PublicKey)
+	balance, err := k.client.BalanceAt(ctx, addr, nil)
+	if err != nil {
+		k.logger.Debug("failed to read relayer balance", "error", err)
+		return
+	}
+	key := fmt.Sprintf("relayer_balance:%d", k.chainIDInt)
+	k.redis.Set(ctx, key, balance.String(), 1*time.Minute)
+
+	// Alert when balance is below 0.01 ETH/BNB
+	threshold := big.NewInt(1e16)
+	if balance.Cmp(threshold) < 0 {
+		k.logger.Error("ALERT: relayer balance critically low",
+			"chainId", k.chainIDInt,
+			"balance", balance.String(),
+			"address", addr.Hex(),
+		)
+	}
 }

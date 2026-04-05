@@ -1,13 +1,9 @@
 package handler
 
 import (
-	"errors"
-	"math/big"
 	"net/http"
 
-	"github.com/cortexia/rootnet/api/internal/db/gen"
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
 )
 
 // balanceResponse is the response type for a user's staking balance
@@ -24,57 +20,12 @@ func (h *Handler) GetBalance(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid address")
 		return
 	}
-	address := normalizeAddr(raw)
-
-	ctx := r.Context()
-
-	// Get total staked from stake_positions
-	totalStakedNum, err := h.queries.GetUserTotalStaked(ctx, address)
+	chainID := h.resolveChainID(r)
+	resp, err := h.svcGetBalance(r.Context(), chainID, normalizeAddr(raw))
 	if err != nil {
-		h.logger.Error("failed to get user total staked", "error", err, "address", address)
-		h.writeError(w, http.StatusInternalServerError, "failed to get user balance")
+		h.writeSvcError(w, err)
 		return
 	}
-
-	totalStaked := "0"
-	if totalStakedNum.Valid {
-		totalStaked = totalStakedNum.Int.String()
-	}
-
-	// Get total allocated from user_balances
-	totalAllocated := "0"
-	balance, err := h.queries.GetUserBalance(ctx, address)
-	if err != nil {
-		if !errors.Is(err, pgx.ErrNoRows) {
-			h.logger.Error("failed to get user balance", "error", err, "address", address)
-			h.writeError(w, http.StatusInternalServerError, "failed to get user balance")
-			return
-		}
-		// No balance record; totalAllocated stays 0
-	} else {
-		if balance.TotalAllocated.Valid {
-			totalAllocated = balance.TotalAllocated.Int.String()
-		}
-	}
-
-	// Compute unallocated = totalStaked - totalAllocated
-	unallocated := "0"
-	if totalStakedNum.Valid {
-		stakedBig := totalStakedNum.Int
-		allocBig := new(big.Int)
-		if balance.TotalAllocated.Valid {
-			allocBig.Set(balance.TotalAllocated.Int)
-		}
-		diff := new(big.Int).Sub(stakedBig, allocBig)
-		unallocated = diff.String()
-	}
-
-	resp := balanceResponse{
-		TotalStaked:    totalStaked,
-		TotalAllocated: totalAllocated,
-		Unallocated:    unallocated,
-	}
-
 	h.writeJSON(w, http.StatusOK, resp)
 }
 
@@ -85,16 +36,13 @@ func (h *Handler) GetStakePositions(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid address")
 		return
 	}
-	address := normalizeAddr(rawAddr)
-
-	positions, err := h.queries.GetUserStakePositions(r.Context(), address)
+	chainID := h.resolveChainID(r)
+	result, err := h.svcGetStakePositions(r.Context(), chainID, normalizeAddr(rawAddr))
 	if err != nil {
-		h.logger.Error("failed to get stake positions", "error", err, "address", address)
-		h.writeError(w, http.StatusInternalServerError, "failed to get stake positions")
+		h.writeSvcError(w, err)
 		return
 	}
-
-	h.writeJSON(w, http.StatusOK, positions)
+	h.writeJSON(w, http.StatusOK, result)
 }
 
 // GetAllocations returns a paginated list of stake allocations for a user
@@ -104,27 +52,18 @@ func (h *Handler) GetAllocations(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid address")
 		return
 	}
-	address := normalizeAddr(rawAddr)
-
+	chainID := h.resolveChainID(r)
 	limit, offset := h.parsePageParams(r)
-
-	allocations, err := h.queries.GetAllocationsByUser(r.Context(), gen.GetAllocationsByUserParams{
-		UserAddress: address,
-		Limit:       int32(limit),
-		Offset:      int32(offset),
-	})
+	result, err := h.svcGetAllocations(r.Context(), chainID, normalizeAddr(rawAddr), int32(limit), int32(offset))
 	if err != nil {
-		h.logger.Error("failed to get stake allocations", "error", err, "address", address)
-		h.writeError(w, http.StatusInternalServerError, "failed to get stake allocations")
+		h.writeSvcError(w, err)
 		return
 	}
-
-	h.writeJSON(w, http.StatusOK, allocations)
+	h.writeJSON(w, http.StatusOK, result)
 }
 
 // GetPending returns pending reallocations; in dual-slot mode reallocate takes effect immediately so this is always empty
 func (h *Handler) GetPending(w http.ResponseWriter, r *http.Request) {
-	// In dual-slot mode reallocate takes effect immediately; no pending records to query
 	h.writeJSON(w, http.StatusOK, []struct{}{})
 }
 
@@ -135,87 +74,61 @@ func (h *Handler) GetFrozen(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, "invalid address")
 		return
 	}
-	address := normalizeAddr(rawAddr)
-
-	frozen, err := h.queries.GetFrozenByUser(r.Context(), address)
+	chainID := h.resolveChainID(r)
+	result, err := h.svcGetFrozen(r.Context(), chainID, normalizeAddr(rawAddr))
 	if err != nil {
-		h.logger.Error("failed to get frozen allocations", "error", err, "address", address)
-		h.writeError(w, http.StatusInternalServerError, "failed to get frozen allocations")
+		h.writeSvcError(w, err)
 		return
 	}
-
-	h.writeJSON(w, http.StatusOK, frozen)
+	h.writeJSON(w, http.StatusOK, result)
 }
 
-// GetAgentSubnetStake returns the stake amount for an agent in a given subnet
+// GetAgentSubnetStake returns the stake amount for an agent in a given subnet (cross-chain)
 func (h *Handler) GetAgentSubnetStake(w http.ResponseWriter, r *http.Request) {
 	rawAgent := chi.URLParam(r, "agent")
 	if !isValidAddress(rawAgent) {
 		h.writeError(w, http.StatusBadRequest, "invalid agent address")
 		return
 	}
-	agentAddr := normalizeAddr(rawAgent)
-
 	subnetID, err := parseSubnetID(r)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	stake, err := h.queries.GetAgentSubnetStake(r.Context(), gen.GetAgentSubnetStakeParams{
-		AgentAddress: agentAddr,
-		SubnetID:     subnetID,
-	})
-	if err != nil {
-		h.logger.Error("failed to get agent subnet stake", "error", err)
-		h.writeError(w, http.StatusInternalServerError, "failed to get agent subnet stake")
+	amount, svcErr := h.svcGetAgentSubnetStake(r.Context(), normalizeAddr(rawAgent), subnetID)
+	if svcErr != nil {
+		h.writeSvcError(w, svcErr)
 		return
-	}
-
-	amount := "0"
-	if stake.Valid {
-		amount = stake.Int.String()
 	}
 	h.writeJSON(w, http.StatusOK, map[string]string{"amount": amount})
 }
 
-// GetAgentSubnets returns all subnets an agent participates in along with their stake amounts
+// GetAgentSubnets returns all subnets an agent participates in along with their stake amounts (cross-chain)
 func (h *Handler) GetAgentSubnets(w http.ResponseWriter, r *http.Request) {
 	rawAgent := chi.URLParam(r, "agent")
 	if !isValidAddress(rawAgent) {
 		h.writeError(w, http.StatusBadRequest, "invalid agent address")
 		return
 	}
-	agentAddr := normalizeAddr(rawAgent)
-
-	subnets, err := h.queries.GetAgentSubnets(r.Context(), agentAddr)
+	result, err := h.svcGetAgentSubnets(r.Context(), normalizeAddr(rawAgent))
 	if err != nil {
-		h.logger.Error("failed to get agent subnets", "error", err, "agent", agentAddr)
-		h.writeError(w, http.StatusInternalServerError, "failed to get agent subnets")
+		h.writeSvcError(w, err)
 		return
 	}
-
-	h.writeJSON(w, http.StatusOK, subnets)
+	h.writeJSON(w, http.StatusOK, result)
 }
 
-// GetSubnetTotalStake returns the total stake amount for a subnet
+// GetSubnetTotalStake returns the total stake amount for a subnet (cross-chain)
 func (h *Handler) GetSubnetTotalStake(w http.ResponseWriter, r *http.Request) {
 	subnetID, err := parseSubnetID(r)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-
-	total, err := h.queries.GetSubnetTotalStake(r.Context(), subnetID)
-	if err != nil {
-		h.logger.Error("failed to get subnet total stake", "error", err, "subnetId", subnetID)
-		h.writeError(w, http.StatusInternalServerError, "failed to get subnet total stake")
+	amount, svcErr := h.svcGetSubnetTotalStake(r.Context(), subnetID)
+	if svcErr != nil {
+		h.writeSvcError(w, svcErr)
 		return
-	}
-
-	amount := "0"
-	if total.Valid {
-		amount = total.Int.String()
 	}
 	h.writeJSON(w, http.StatusOK, map[string]string{"total": amount})
 }

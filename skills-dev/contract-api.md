@@ -72,7 +72,11 @@ boundTo(address addr) → address
 recipient(address addr) → address
 delegates(address user, address delegate) → bool
 nonces(address) → uint256
+extractChainId(uint256 subnetId) pure → uint256       // Extract chainId from global subnetId
+extractLocalId(uint256 subnetId) pure → uint256       // Extract local counter from global subnetId
 ```
+
+> **SubnetId encoding**: SubnetId is now globally unique across chains: `(block.chainid << 64) | localCounter`. Use `extractChainId()` and `extractLocalId()` to decode.
 
 ### Emergency
 ```

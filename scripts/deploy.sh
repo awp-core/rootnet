@@ -50,7 +50,15 @@ command -v jq    >/dev/null 2>&1 || error "jq not found"
 # ─── Load config ───
 
 [[ -f "$CONTRACTS_DIR/.env" ]] || error "Missing $CONTRACTS_DIR/.env"
-set -a; source "$CONTRACTS_DIR/.env"; set +a
+# Source .env but do NOT override variables already exported by deploy-multichain.sh
+# Use a temp file that wraps each line with ${VAR:-value} pattern
+while IFS='=' read -r key value; do
+    [[ -z "$key" || "$key" == \#* ]] && continue
+    # Only set if not already in environment
+    if [[ -z "${!key+x}" ]]; then
+        export "$key=$value"
+    fi
+done < <(grep -v '^\s*#' "$CONTRACTS_DIR/.env" | grep -v '^\s*$' | grep '=')
 
 # ─── Parse flags ───
 
@@ -59,7 +67,7 @@ SKIP_MINE=""
 VERIFY_ONLY=""
 for arg in "$@"; do
     case "$arg" in
-        --dry-run)     DRY_RUN="--dry-run" ;;
+        --dry-run)     DRY_RUN="1" ;;
         --skip-mine)   SKIP_MINE=1 ;;
         --verify-only) VERIFY_ONLY=1 ;;
     esac
@@ -67,7 +75,7 @@ done
 
 # ─── Validate required vars ───
 
-for var in ETH_RPC_URL DEPLOYER_PRIVATE_KEY GUARDIAN LIQUIDITY_POOL AIRDROP POOL_MANAGER POSITION_MANAGER PERMIT2 CL_SWAP_ROUTER; do
+for var in ETH_RPC_URL DEPLOYER_PRIVATE_KEY GUARDIAN LIQUIDITY_POOL AIRDROP POOL_MANAGER POSITION_MANAGER PERMIT2 CL_SWAP_ROUTER GENESIS_TIME; do
     [[ -n "${!var:-}" ]] || error "Missing required env var: $var"
 done
 
@@ -86,7 +94,8 @@ if [[ -n "$VERIFY_ONLY" ]]; then
     set -a; source "$OUTPUT_ENV"; set +a
     FACTORY_ADDRESS="${ALPHA_FACTORY_ADDRESS:-}"
     AWP_EMISSION_IMPL="${AWP_EMISSION_IMPL:-}"
-    CHAIN_ID=$(cast chain-id --rpc-url "$ETH_RPC_URL" 2>/dev/null || echo "56")
+    CHAIN_ID=$(cast chain-id --rpc-url "$ETH_RPC_URL" 2>/dev/null)
+    if [ -z "$CHAIN_ID" ]; then echo "ERROR: Cannot determine CHAIN_ID from RPC"; exit 1; fi
     cd "$CONTRACTS_DIR"
     # fall through to verification section below
 else
@@ -116,39 +125,74 @@ contracts = [
     {"name": "AWPToken",           "env_prefix": "AWP_TOKEN"},
     {"name": "AlphaTokenFactory",  "env_prefix": "ALPHA_FACTORY"},
     {"name": "AWPEmission_impl",   "env_prefix": "EMISSION_IMPL"},
-    {"name": "SubnetManager_impl", "env_prefix": "SUBNET_MANAGER_IMPL"},
+    {"name": "AWPRegistry_impl",   "env_prefix": "AWP_REGISTRY_IMPL"},
+    {"name": "WorknetManager_impl", "env_prefix": "WORKNET_MANAGER_IMPL"},
     {"name": "Treasury",           "env_prefix": "TREASURY"},
     {"name": "AWPRegistry",        "env_prefix": "AWP_REGISTRY"},
-    {"name": "SubnetNFT",          "env_prefix": "SUBNET_NFT"},
+    {"name": "WorknetNFT",          "env_prefix": "WORKNET_NFT"},
     {"name": "LPManager",          "env_prefix": "LP_MANAGER"},
+    {"name": "StakingVault_impl",   "env_prefix": "STAKING_VAULT_IMPL"},
     {"name": "StakingVault",       "env_prefix": "STAKING_VAULT"},
     {"name": "AWPEmission_proxy",  "env_prefix": "EMISSION_PROXY"},
     {"name": "StakeNFT",           "env_prefix": "STAKE_NFT"},
     {"name": "AWPDAO",             "env_prefix": "DAO"},
 ]
+# Merge mode: preserve existing salt/address from salt.json if present
+existing = {}
+path = sys.argv[1]
+try:
+    with open(path) as f:
+        old = json.load(f)
+    for c in old.get("contracts", []):
+        if c.get("salt"):
+            existing[c["name"]] = {"salt": c["salt"], "address": c.get("address", "")}
+except (FileNotFoundError, json.JSONDecodeError):
+    pass
+
 out = {"deployer": "0x4e59b44847b379578588920cA78FbF26c0B4956C", "contracts": []}
 for c in contracts:
     prefix = os.environ.get(f"VANITY_PREFIX_{c['env_prefix']}", "")
     suffix = os.environ.get(f"VANITY_SUFFIX_{c['env_prefix']}", "")
+    prev = existing.get(c["name"], {})
     out["contracts"].append({
         "name": c["name"],
         "prefix": prefix,
         "suffix": suffix,
         "initCodeHash": "",
-        "salt": "",
-        "address": ""
+        "salt": prev.get("salt", ""),
+        "address": prev.get("address", "")
     })
-with open(sys.argv[1], "w") as f:
+with open(path, "w") as f:
     json.dump(out, f, indent=2)
-print(f"Generated {sys.argv[1]} with {len(contracts)} contracts")
+kept = sum(1 for c in out["contracts"] if c["salt"])
+print(f"Generated {path} with {len(contracts)} contracts ({kept} salts preserved)")
 PYEOF
 
     # Helper: run InitCodeHashes.s.sol and parse output
+    # Resolves chain-specific variants: "LPManager (Uniswap)" → "LPManager" on Uni chains
     compute_hashes() {
+        local chain_id
+        chain_id=$(cast chain-id --rpc-url "$ETH_RPC_URL" 2>/dev/null || echo "0")
+        local dex_suffix="Uniswap"
+        [[ "$chain_id" == "56" || "$chain_id" == "97" ]] && dex_suffix="PancakeSwap"
+
         forge script script/InitCodeHashes.s.sol --rpc-url "$ETH_RPC_URL" 2>&1 | grep ': 0x' | while read -r line; do
             name="${line%%:*}"
             name=$(echo "$name" | xargs) # trim
             hash="${line##*: }"
+            # Skip Deployer line
+            [[ "$name" == "Deployer" ]] && continue
+            # For chain-specific contracts, only emit the matching variant
+            if [[ "$name" == *"(PancakeSwap)"* || "$name" == *"(Uniswap)"* ]]; then
+                if [[ "$name" != *"($dex_suffix)"* ]]; then
+                    continue # skip wrong DEX variant
+                fi
+                # Strip variant suffix: "LPManager (Uniswap)" → "LPManager"
+                name="${name%% (*}"
+            fi
+            # Map proxy names to salt.json names
+            [[ "$name" == "AWPRegistry_proxy" ]] && name="AWPRegistry"
+            [[ "$name" == "StakingVault_proxy" ]] && name="StakingVault"
             echo "$name $hash"
         done
     }
@@ -180,24 +224,23 @@ PYEOF
             AWPEmission_impl)  export ADDR_EMISSION_IMPL="$addr" ;;
             Treasury)          export ADDR_TREASURY="$addr" ;;
             AWPRegistry)       export ADDR_AWP_REGISTRY="$addr" ;;
-            SubnetNFT)         export ADDR_SUBNET_NFT="$addr" ;;
+            WorknetNFT)         export ADDR_WORKNET_NFT="$addr" ;;
             StakingVault)      export ADDR_STAKING_VAULT="$addr" ;;
             StakeNFT)          export ADDR_STAKE_NFT="$addr" ;;
+            AWPRegistry_impl)  export ADDR_AWP_REGISTRY_IMPL="$addr" ;;
+            StakingVault_impl) export ADDR_STAKING_VAULT_IMPL="$addr" ;;
         esac
     }
 
-    # Clear old salts (force fresh mining)
-    for i in $(seq 0 $(($(jq '.contracts | length' "$SALT_JSON") - 1))); do
-        local_tmp=$(mktemp)
-        jq ".contracts[$i].salt = \"\" | .contracts[$i].address = \"\" | .contracts[$i].initCodeHash = \"\"" "$SALT_JSON" > "$local_tmp" && mv "$local_tmp" "$SALT_JSON"
-    done
+    # Note: salts are preserved from previous runs (merge mode in Python block above).
+    # To force fresh mining, delete salt.json before running.
 
     # Tier definitions: mine in order, export addresses between tiers
     TIERS=(
-        "AWPToken AlphaTokenFactory AWPEmission_impl SubnetManager_impl"
+        "AWPToken AlphaTokenFactory AWPEmission_impl AWPRegistry_impl StakingVault_impl WorknetManager_impl"
         "Treasury"
         "AWPRegistry"
-        "SubnetNFT LPManager StakingVault AWPEmission_proxy"
+        "WorknetNFT LPManager StakingVault AWPEmission_proxy"
         "StakeNFT"
         "AWPDAO"
     )
@@ -229,6 +272,7 @@ PYEOF
     info "All salts mined!"
 
     # Write SALT_* env vars to contracts/.env for Deploy.s.sol
+    sed -i '/^SALT_/d' "$CONTRACTS_DIR/.env"
     {
         echo ""
         echo "# ── Mined CREATE2 salts (auto-generated by deploy.sh) ──"
@@ -243,22 +287,82 @@ PYEOF
                     AWPEmission_proxy) echo "SALT_EMISSION_PROXY=$SALT" ;;
                     Treasury)          echo "SALT_TREASURY=$SALT" ;;
                     AWPRegistry)       echo "SALT_AWP_REGISTRY=$SALT" ;;
-                    SubnetNFT)         echo "SALT_SUBNET_NFT=$SALT" ;;
+                    WorknetNFT)         echo "SALT_WORKNET_NFT=$SALT" ;;
                     LPManager)         echo "SALT_LP_MANAGER=$SALT" ;;
                     StakingVault)      echo "SALT_STAKING_VAULT=$SALT" ;;
                     StakeNFT)          echo "SALT_STAKE_NFT=$SALT" ;;
                     AWPDAO)            echo "SALT_DAO=$SALT" ;;
-                    SubnetManager_impl) echo "SALT_SUBNET_MANAGER_IMPL=$SALT" ;;
+                    WorknetManager_impl) echo "SALT_WORKNET_MANAGER_IMPL=$SALT" ;;
+                    AWPRegistry_impl)  echo "SALT_AWP_REGISTRY_IMPL=$SALT" ;;
+                    StakingVault_impl) echo "SALT_STAKING_VAULT_IMPL=$SALT" ;;
                 esac
             fi
         done
     } >> "$CONTRACTS_DIR/.env"
 
-    # Reload env with new salts
-    set -a; source "$CONTRACTS_DIR/.env"; set +a
+    # Reload only SALT_* vars from .env (don't overwrite DEX addresses from deploy-multichain.sh)
+    while IFS='=' read -r key value; do
+        [[ "$key" == SALT_* ]] && export "$key=$value"
+    done < <(grep '^SALT_' "$CONTRACTS_DIR/.env")
 
 else
     step "Step 2/7 — Skipping salt mining (--skip-mine)"
+fi
+
+# ═══════════════════════════════════════════════
+#  STEP 2.5: VALIDATE VANITY ADDRESSES
+# ═══════════════════════════════════════════════
+# Validate mined salts match .env VANITY_PREFIX/SUFFIX rules
+# Runs after both mining and --skip-mine paths
+
+validate_vanity() {
+    local name="$1" env_prefix="$2"
+    local want_prefix="${!env_prefix:-}"
+    local suffix_var="${env_prefix/PREFIX/SUFFIX}"
+    local want_suffix="${!suffix_var:-}"
+
+    # No vanity rule, skip
+    [[ -z "$want_prefix" && -z "$want_suffix" ]] && return 0
+
+    # Read address from salt.json
+    local addr
+    addr=$(jq -r --arg n "$name" '.contracts[] | select(.name==$n) | .address // empty' "$SALT_JSON")
+    if [[ -z "$addr" ]]; then
+        warn "[$name] No address in salt.json — cannot validate vanity"
+        return 1
+    fi
+
+    # Strip 0x prefix, keep original EIP-55 case for case-sensitive matching
+    local hex="${addr#0x}"
+
+    local ok=1
+    if [[ -n "$want_prefix" ]]; then
+        local actual_prefix="${hex:0:${#want_prefix}}"
+        if [[ "$actual_prefix" != "$want_prefix" ]]; then
+            warn "[$name] Vanity prefix mismatch: want=$want_prefix got=$actual_prefix (addr=$addr)"
+            ok=0
+        fi
+    fi
+    if [[ -n "$want_suffix" ]]; then
+        local actual_suffix="${hex: -${#want_suffix}}"
+        if [[ "$actual_suffix" != "$want_suffix" ]]; then
+            warn "[$name] Vanity suffix mismatch: want=$want_suffix got=$actual_suffix (addr=$addr)"
+            ok=0
+        fi
+    fi
+
+    if [[ "$ok" == "1" ]]; then
+        info "[$name] Vanity OK: $addr (prefix=$want_prefix suffix=$want_suffix)"
+    else
+        error "[$name] Vanity validation failed! Re-run without --skip-mine to re-mine salts."
+    fi
+}
+
+if [[ -f "$SALT_JSON" ]]; then
+    step "Step 2.5/7 — Validate vanity addresses"
+    validate_vanity "AWPToken" "VANITY_PREFIX_AWP_TOKEN"
+    validate_vanity "AWPRegistry" "VANITY_PREFIX_AWP_REGISTRY"
+    # Add more contract vanity rule validations here
 fi
 
 # ═══════════════════════════════════════════════
@@ -274,7 +378,7 @@ step "Step 4/7 — Deploy contracts"
 
 DEPLOY_OUTPUT=$(forge script script/Deploy.s.sol \
     --rpc-url "$ETH_RPC_URL" \
-    --broadcast $DRY_RUN 2>&1) || { echo "$DEPLOY_OUTPUT"; error "Deployment failed"; }
+    $([ -z "$DRY_RUN" ] && echo "--broadcast") 2>&1) || { echo "$DEPLOY_OUTPUT"; error "Deployment failed"; }
 
 # Parse addresses
 parse_address() {
@@ -284,19 +388,21 @@ parse_address() {
 AWP_TOKEN_ADDRESS=$(parse_address "AWPToken:")
 FACTORY_ADDRESS=$(parse_address "AlphaTokenFactory:")
 TREASURY_ADDRESS=$(parse_address "Treasury:")
-AWP_REGISTRY_ADDRESS=$(parse_address "AWPRegistry:")
-SUBNETNFT_ADDRESS=$(parse_address "SubnetNFT:")
-LP_MANAGER_ADDRESS=$(parse_address "LPManager:")
+AWP_REGISTRY_IMPL=$(parse_address "AWPRegistry impl:")
+AWP_REGISTRY_ADDRESS=$(parse_address "AWPRegistry proxy:")
+SUBNETNFT_ADDRESS=$(parse_address "WorknetNFT:")
+LP_MANAGER_ADDRESS=$(parse_address "LPManager")
 AWP_EMISSION_IMPL=$(parse_address "AWPEmission impl:")
 AWP_EMISSION_ADDRESS=$(parse_address "AWPEmission proxy:")
-STAKING_VAULT_ADDRESS=$(parse_address "StakingVault:")
+STAKING_VAULT_IMPL=$(parse_address "StakingVault impl:")
+STAKING_VAULT_ADDRESS=$(parse_address "StakingVault proxy:")
 STAKENFT_ADDRESS=$(parse_address "StakeNFT:")
 DAO_ADDRESS=$(parse_address "AWPDAO:")
-SUBNET_MANAGER_IMPL=$(parse_address "SubnetManager impl:")
+WORKNET_MANAGER_IMPL=$(parse_address "WorknetManager impl")
 
-for var in AWP_TOKEN_ADDRESS FACTORY_ADDRESS TREASURY_ADDRESS AWP_REGISTRY_ADDRESS SUBNETNFT_ADDRESS \
-           LP_MANAGER_ADDRESS AWP_EMISSION_IMPL AWP_EMISSION_ADDRESS STAKING_VAULT_ADDRESS \
-           STAKENFT_ADDRESS DAO_ADDRESS SUBNET_MANAGER_IMPL; do
+for var in AWP_TOKEN_ADDRESS FACTORY_ADDRESS TREASURY_ADDRESS AWP_REGISTRY_IMPL AWP_REGISTRY_ADDRESS SUBNETNFT_ADDRESS \
+           LP_MANAGER_ADDRESS AWP_EMISSION_IMPL AWP_EMISSION_ADDRESS STAKING_VAULT_IMPL STAKING_VAULT_ADDRESS \
+           STAKENFT_ADDRESS DAO_ADDRESS WORKNET_MANAGER_IMPL; do
     [[ -n "${!var:-}" ]] || error "Failed to parse $var"
 done
 
@@ -304,7 +410,8 @@ info "All contracts deployed!"
 
 # Get actual deploy block
 if [[ -z "$DRY_RUN" ]]; then
-    CHAIN_ID=$(cast chain-id --rpc-url "$ETH_RPC_URL" 2>/dev/null || echo "56")
+    CHAIN_ID=$(cast chain-id --rpc-url "$ETH_RPC_URL" 2>/dev/null)
+    if [ -z "$CHAIN_ID" ]; then echo "ERROR: Cannot determine CHAIN_ID from RPC"; exit 1; fi
     RUN_FILE="$CONTRACTS_DIR/broadcast/Deploy.s.sol/$CHAIN_ID/run-latest.json"
     if [[ -f "$RUN_FILE" ]]; then
         ACTUAL_BLOCK=$(jq -r '.receipts[0].blockNumber // empty' "$RUN_FILE" 2>/dev/null | xargs printf "%d" 2>/dev/null || true)
@@ -365,8 +472,10 @@ RELAYER_PRIVATE_KEY=$RELAYER_PRIVATE_KEY
 KEEPER_PRIVATE_KEY=$KEEPER_PRIVATE_KEY
 
 # ── For verification (internal) ──
+AWP_REGISTRY_IMPL=$AWP_REGISTRY_IMPL
 AWP_EMISSION_IMPL=$AWP_EMISSION_IMPL
-SUBNET_MANAGER_IMPL=$SUBNET_MANAGER_IMPL
+STAKING_VAULT_IMPL=$STAKING_VAULT_IMPL
+WORKNET_MANAGER_IMPL=$WORKNET_MANAGER_IMPL
 ENVFILE
 
 chmod 600 "$OUTPUT_ENV"
@@ -409,8 +518,18 @@ else
         8453)  VERIFIER_URL="https://api.basescan.org/api" ;;
         84532) VERIFIER_URL="https://api-sepolia.basescan.org/api" ;;
         1)     VERIFIER_URL="https://api.etherscan.io/api" ;;
+        42161) VERIFIER_URL="https://api.arbiscan.io/api" ;;
+        421614) VERIFIER_URL="https://api-sepolia.arbiscan.io/api" ;;
     esac
-    VF="--etherscan-api-key $ETHERSCAN_API_KEY"
+    # Select per-chain explorer API key (fallback to ETHERSCAN_API_KEY)
+    case "$CHAIN_ID" in
+        1) EXPLORER_KEY="${ETHERSCAN_API_KEY:-$ETHERSCAN_API_KEY}" ;;
+        56) EXPLORER_KEY="${BSCSCAN_API_KEY:-$ETHERSCAN_API_KEY}" ;;
+        8453) EXPLORER_KEY="${BASESCAN_API_KEY:-$ETHERSCAN_API_KEY}" ;;
+        42161) EXPLORER_KEY="${ARBISCAN_API_KEY:-$ETHERSCAN_API_KEY}" ;;
+        *) EXPLORER_KEY="$ETHERSCAN_API_KEY" ;;
+    esac
+    VF="--etherscan-api-key $EXPLORER_KEY"
     [[ -n "$VERIFIER_URL" ]] && VF="$VF --verifier-url $VERIFIER_URL"
 
     vc() {
@@ -419,30 +538,42 @@ else
         local cmd="forge verify-contract $addr $contract --chain-id $CHAIN_ID $VF --watch"
         [[ -n "$args" ]] && cmd="$cmd --constructor-args $args"
         info "Verifying $label at $addr ..."
-        eval "$cmd" 2>&1 | tail -3 || warn "Verification failed for $label"
+        eval "$cmd" 2>&1 | tail -3 || warn "Verification failed for $label (may already be verified)"
     }
 
+    # ── Standalone contracts (direct constructor args) ──
     vc "$AWP_TOKEN_ADDRESS" "src/token/AWPToken.sol:AWPToken" \
         "$(cast abi-encode 'c(string,string,address)' 'AWP Token' 'AWP' "$DEPLOYER")" "AWPToken"
     vc "$FACTORY_ADDRESS" "src/token/AlphaTokenFactory.sol:AlphaTokenFactory" \
         "$(cast abi-encode 'c(address,uint64)' "$DEPLOYER" "$VANITY_RULE")" "AlphaTokenFactory"
     vc "$TREASURY_ADDRESS" "src/governance/Treasury.sol:Treasury" \
         "$(cast abi-encode 'c(uint256,address[],address[],address)' 172800 '[]' '[0x0000000000000000000000000000000000000000]' "$DEPLOYER")" "Treasury"
-    vc "$AWP_REGISTRY_ADDRESS" "src/AWPRegistry.sol:AWPRegistry" \
-        "$(cast abi-encode 'c(address,address,address)' "$DEPLOYER" "$TREASURY_ADDRESS" "$GUARDIAN")" "AWPRegistry"
-    vc "$SUBNETNFT_ADDRESS" "src/core/SubnetNFT.sol:SubnetNFT" \
-        "$(cast abi-encode 'c(string,string,address)' 'AWP Subnet' 'AWPSUB' "$AWP_REGISTRY_ADDRESS")" "SubnetNFT"
-    [[ -n "$POOL_MANAGER" && -n "$POSITION_MANAGER" && -n "$PERMIT2" ]] && \
-    vc "$LP_MANAGER_ADDRESS" "src/core/LPManager.sol:LPManager" \
-        "$(cast abi-encode 'c(address,address,address,address,address)' "$AWP_REGISTRY_ADDRESS" "$POOL_MANAGER" "$POSITION_MANAGER" "$PERMIT2" "$AWP_TOKEN_ADDRESS")" "LPManager"
-    [[ -n "${AWP_EMISSION_IMPL:-}" ]] && vc "$AWP_EMISSION_IMPL" "src/token/AWPEmission.sol:AWPEmission" "" "AWPEmission (impl)"
-    [[ -n "${SUBNET_MANAGER_IMPL:-}" ]] && vc "$SUBNET_MANAGER_IMPL" "src/subnets/SubnetManager.sol:SubnetManager" "" "SubnetManager (impl)"
-    vc "$STAKING_VAULT_ADDRESS" "src/core/StakingVault.sol:StakingVault" \
-        "$(cast abi-encode 'c(address)' "$AWP_REGISTRY_ADDRESS")" "StakingVault"
+    vc "$SUBNETNFT_ADDRESS" "src/core/WorknetNFT.sol:WorknetNFT" \
+        "$(cast abi-encode 'c(string,string,address)' 'AWP Worknet' 'AWPSUB' "$AWP_REGISTRY_ADDRESS")" "WorknetNFT"
     vc "$STAKENFT_ADDRESS" "src/core/StakeNFT.sol:StakeNFT" \
         "$(cast abi-encode 'c(address,address,address)' "$AWP_TOKEN_ADDRESS" "$STAKING_VAULT_ADDRESS" "$AWP_REGISTRY_ADDRESS")" "StakeNFT"
     vc "$DAO_ADDRESS" "src/governance/AWPDAO.sol:AWPDAO" \
         "$(cast abi-encode 'c(address,address,address,uint48,uint32,uint256)' "$STAKENFT_ADDRESS" "$AWP_TOKEN_ADDRESS" "$TREASURY_ADDRESS" 7200 50400 4)" "AWPDAO"
+
+    # ── DEX-specific LP Manager (auto-detect chain) ──
+    if [[ "$CHAIN_ID" == "56" || "$CHAIN_ID" == "97" ]]; then
+        [[ -n "$POOL_MANAGER" ]] && vc "$LP_MANAGER_ADDRESS" "src/core/LPManager.sol:LPManager" \
+            "$(""  # UUPS proxy, no constructor args for impl)" "LPManager (PancakeSwap)"
+    else
+        [[ -n "$POOL_MANAGER" ]] && vc "$LP_MANAGER_ADDRESS" "src/core/LPManagerUni.sol:LPManagerUni" \
+            "$(""  # UUPS proxy, no constructor args for impl)" "LPManager (Uniswap)"
+    fi
+
+    # ── UUPS implementation contracts (no constructor args — _disableInitializers only) ──
+    [[ -n "${AWP_REGISTRY_IMPL:-}" ]] && vc "$AWP_REGISTRY_IMPL" "src/AWPRegistry.sol:AWPRegistry" "" "AWPRegistry (impl)"
+    [[ -n "${AWP_EMISSION_IMPL:-}" ]] && vc "$AWP_EMISSION_IMPL" "src/token/AWPEmission.sol:AWPEmission" "" "AWPEmission (impl)"
+    [[ -n "${STAKING_VAULT_IMPL:-}" ]] && vc "$STAKING_VAULT_IMPL" "src/core/StakingVault.sol:StakingVault" "" "StakingVault (impl)"
+    if [[ "$CHAIN_ID" == "56" || "$CHAIN_ID" == "97" ]]; then
+        [[ -n "${WORKNET_MANAGER_IMPL:-}" ]] && vc "$WORKNET_MANAGER_IMPL" "src/worknets/WorknetManager.sol:WorknetManager" "" "WorknetManager (impl)"
+    else
+        [[ -n "${WORKNET_MANAGER_IMPL:-}" ]] && vc "$WORKNET_MANAGER_IMPL" "src/worknets/WorknetManagerUni.sol:WorknetManagerUni" "" "WorknetManagerUni (impl)"
+    fi
+
     info "Verification complete!"
 fi
 
@@ -460,12 +591,12 @@ echo "  AWPToken:         ${AWP_TOKEN_ADDRESS:-N/A}"
 echo "  AWPEmission:      ${AWP_EMISSION_ADDRESS:-N/A}"
 echo "  StakingVault:     ${STAKING_VAULT_ADDRESS:-N/A}"
 echo "  StakeNFT:         ${STAKENFT_ADDRESS:-N/A}"
-echo "  SubnetNFT:        ${SUBNETNFT_ADDRESS:-N/A}"
+echo "  WorknetNFT:        ${SUBNETNFT_ADDRESS:-N/A}"
 echo "  LPManager:        ${LP_MANAGER_ADDRESS:-N/A}"
 echo "  Factory:          ${FACTORY_ADDRESS:-N/A}"
 echo "  AWPDAO:           ${DAO_ADDRESS:-N/A}"
 echo "  Treasury:         ${TREASURY_ADDRESS:-N/A}"
-echo "  SubnetMgr impl:  ${SUBNET_MANAGER_IMPL:-N/A}"
+echo "  SubnetMgr impl:  ${WORKNET_MANAGER_IMPL:-N/A}"
 echo ""
 echo "  Deploy Block:     ${DEPLOY_BLOCK:-N/A}"
 echo "  Vanity Rule:      $VANITY_RULE"
@@ -473,3 +604,11 @@ echo "  API Config:       $OUTPUT_ENV"
 echo ""
 echo "  Next: ./scripts/deploy-api.sh"
 echo "════════════════════════════════════════════════"
+
+echo ""
+echo "=== POST-DEPLOY CHECKLIST ==="
+echo "1. Transfer Guardian to Safe multisig: AWPEmission.setGuardian(safeAddress)"
+echo "2. Transfer Guardian on AWPRegistry: AWPRegistry.setGuardian(safeAddress)"
+echo "3. Verify all contracts on block explorer: ./scripts/verify-all.sh"
+echo "4. Fund relayer address with native gas tokens"
+echo ""

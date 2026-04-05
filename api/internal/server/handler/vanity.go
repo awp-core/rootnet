@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"errors"
@@ -20,6 +21,7 @@ type VanityHandler struct {
 	factoryAddr  string
 	initCodeHash string
 	rule         chain.VanityRule
+	chainID      int64 // chain_id for DB queries
 	timeout      time.Duration
 	sem          chan struct{} // concurrency limiter semaphore
 	queries      *gen.Queries  // DB queries (salt pool)
@@ -28,11 +30,12 @@ type VanityHandler struct {
 }
 
 // NewVanityHandler creates a VanityHandler
-func NewVanityHandler(factoryAddr string, initCodeHash string, rule chain.VanityRule, queries *gen.Queries, limiter *ratelimit.Limiter, logger *slog.Logger) *VanityHandler {
+func NewVanityHandler(factoryAddr string, initCodeHash string, rule chain.VanityRule, chainID int64, queries *gen.Queries, limiter *ratelimit.Limiter, logger *slog.Logger) *VanityHandler {
 	return &VanityHandler{
 		factoryAddr:  factoryAddr,
 		initCodeHash: initCodeHash,
 		rule:         rule,
+		chainID:      chainID,
 		timeout:      120 * time.Second,
 		sem:          make(chan struct{}, 2),
 		queries:      queries,
@@ -51,6 +54,16 @@ func (vh *VanityHandler) writeJSON(w http.ResponseWriter, status int, data any) 
 
 func (vh *VanityHandler) writeError(w http.ResponseWriter, status int, msg string) {
 	vh.writeJSON(w, status, map[string]string{"error": msg})
+}
+
+// resolveChainID extracts the chainId query parameter from an HTTP request, falling back to default chainID
+func (vh *VanityHandler) resolveChainID(r *http.Request) int64 {
+	if v := r.URL.Query().Get("chainId"); v != "" {
+		if id, err := strconv.ParseInt(v, 10, 64); err == nil && id > 0 {
+			return id
+		}
+	}
+	return vh.chainID
 }
 
 type computeSaltResponse struct {
@@ -76,8 +89,9 @@ func (vh *VanityHandler) ComputeSalt(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// 1. Claim a salt from DB pool (atomic UPDATE+RETURNING with FOR UPDATE SKIP LOCKED)
+	chainID := vh.resolveChainID(r)
 	if vh.queries != nil {
-		row, err := vh.queries.ClaimRandomSalt(ctx)
+		row, err := vh.queries.ClaimRandomSalt(ctx, chainID)
 		if err == nil {
 			vh.writeJSON(w, http.StatusOK, computeSaltResponse{
 				Salt:    row.Salt,

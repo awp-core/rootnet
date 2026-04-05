@@ -12,60 +12,86 @@ import (
 )
 
 const addProposalVotesAgainst = `-- name: AddProposalVotesAgainst :exec
-UPDATE proposals SET votes_against = votes_against + $2 WHERE proposal_id = $1
+UPDATE proposals SET votes_against = votes_against + $3 WHERE chain_id = $1 AND proposal_id = $2
 `
 
 type AddProposalVotesAgainstParams struct {
+	ChainID      int64          `json:"chain_id"`
 	ProposalID   string         `json:"proposal_id"`
 	VotesAgainst pgtype.Numeric `json:"votes_against"`
 }
 
 func (q *Queries) AddProposalVotesAgainst(ctx context.Context, arg AddProposalVotesAgainstParams) error {
-	_, err := q.db.Exec(ctx, addProposalVotesAgainst, arg.ProposalID, arg.VotesAgainst)
+	_, err := q.db.Exec(ctx, addProposalVotesAgainst, arg.ChainID, arg.ProposalID, arg.VotesAgainst)
 	return err
 }
 
 const addProposalVotesFor = `-- name: AddProposalVotesFor :exec
-UPDATE proposals SET votes_for = votes_for + $2 WHERE proposal_id = $1
+UPDATE proposals SET votes_for = votes_for + $3 WHERE chain_id = $1 AND proposal_id = $2
 `
 
 type AddProposalVotesForParams struct {
+	ChainID    int64          `json:"chain_id"`
 	ProposalID string         `json:"proposal_id"`
 	VotesFor   pgtype.Numeric `json:"votes_for"`
 }
 
 func (q *Queries) AddProposalVotesFor(ctx context.Context, arg AddProposalVotesForParams) error {
-	_, err := q.db.Exec(ctx, addProposalVotesFor, arg.ProposalID, arg.VotesFor)
+	_, err := q.db.Exec(ctx, addProposalVotesFor, arg.ChainID, arg.ProposalID, arg.VotesFor)
 	return err
 }
 
 const deleteIndexedBlocksAfter = `-- name: DeleteIndexedBlocksAfter :exec
-DELETE FROM indexed_blocks WHERE block_number > $1
+DELETE FROM indexed_blocks WHERE chain_id = $1 AND block_number > $2
 `
 
-func (q *Queries) DeleteIndexedBlocksAfter(ctx context.Context, blockNumber int64) error {
-	_, err := q.db.Exec(ctx, deleteIndexedBlocksAfter, blockNumber)
+type DeleteIndexedBlocksAfterParams struct {
+	ChainID     int64 `json:"chain_id"`
+	BlockNumber int64 `json:"block_number"`
+}
+
+func (q *Queries) DeleteIndexedBlocksAfter(ctx context.Context, arg DeleteIndexedBlocksAfterParams) error {
+	_, err := q.db.Exec(ctx, deleteIndexedBlocksAfter, arg.ChainID, arg.BlockNumber)
 	return err
 }
 
 const getIndexedBlockHash = `-- name: GetIndexedBlockHash :one
-SELECT block_hash FROM indexed_blocks WHERE block_number = $1
+SELECT block_hash FROM indexed_blocks WHERE chain_id = $1 AND block_number = $2
 `
 
-func (q *Queries) GetIndexedBlockHash(ctx context.Context, blockNumber int64) (string, error) {
-	row := q.db.QueryRow(ctx, getIndexedBlockHash, blockNumber)
+type GetIndexedBlockHashParams struct {
+	ChainID     int64 `json:"chain_id"`
+	BlockNumber int64 `json:"block_number"`
+}
+
+func (q *Queries) GetIndexedBlockHash(ctx context.Context, arg GetIndexedBlockHashParams) (string, error) {
+	row := q.db.QueryRow(ctx, getIndexedBlockHash, arg.ChainID, arg.BlockNumber)
 	var block_hash string
 	err := row.Scan(&block_hash)
 	return block_hash, err
 }
 
 const getProposal = `-- name: GetProposal :one
-SELECT proposal_id, proposer, description, status, votes_for, votes_against FROM proposals WHERE proposal_id = $1
+SELECT proposal_id, proposer, description, status, votes_for, votes_against FROM proposals WHERE chain_id = $1 AND proposal_id = $2
 `
 
-func (q *Queries) GetProposal(ctx context.Context, proposalID string) (Proposal, error) {
-	row := q.db.QueryRow(ctx, getProposal, proposalID)
-	var i Proposal
+type GetProposalParams struct {
+	ChainID    int64  `json:"chain_id"`
+	ProposalID string `json:"proposal_id"`
+}
+
+type GetProposalRow struct {
+	ProposalID   string         `json:"proposal_id"`
+	Proposer     string         `json:"proposer"`
+	Description  pgtype.Text    `json:"description"`
+	Status       string         `json:"status"`
+	VotesFor     pgtype.Numeric `json:"votes_for"`
+	VotesAgainst pgtype.Numeric `json:"votes_against"`
+}
+
+func (q *Queries) GetProposal(ctx context.Context, arg GetProposalParams) (GetProposalRow, error) {
+	row := q.db.QueryRow(ctx, getProposal, arg.ChainID, arg.ProposalID)
+	var i GetProposalRow
 	err := row.Scan(
 		&i.ProposalID,
 		&i.Proposer,
@@ -78,23 +104,109 @@ func (q *Queries) GetProposal(ctx context.Context, proposalID string) (Proposal,
 }
 
 const getSyncState = `-- name: GetSyncState :one
-SELECT contract_name, last_block FROM sync_states WHERE contract_name = $1
+SELECT contract_name, last_block FROM sync_states WHERE chain_id = $1 AND contract_name = $2
 `
 
-func (q *Queries) GetSyncState(ctx context.Context, contractName string) (SyncState, error) {
-	row := q.db.QueryRow(ctx, getSyncState, contractName)
-	var i SyncState
+type GetSyncStateParams struct {
+	ChainID      int64  `json:"chain_id"`
+	ContractName string `json:"contract_name"`
+}
+
+type GetSyncStateRow struct {
+	ContractName string `json:"contract_name"`
+	LastBlock    int64  `json:"last_block"`
+}
+
+func (q *Queries) GetSyncState(ctx context.Context, arg GetSyncStateParams) (GetSyncStateRow, error) {
+	row := q.db.QueryRow(ctx, getSyncState, arg.ChainID, arg.ContractName)
+	var i GetSyncStateRow
 	err := row.Scan(&i.ContractName, &i.LastBlock)
 	return i, err
 }
 
+const listAllProposals = `-- name: ListAllProposals :many
+SELECT chain_id, proposal_id, proposer, description, status, votes_for, votes_against FROM proposals ORDER BY chain_id, proposal_id DESC LIMIT $1 OFFSET $2
+`
+
+type ListAllProposalsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListAllProposals(ctx context.Context, arg ListAllProposalsParams) ([]Proposal, error) {
+	rows, err := q.db.Query(ctx, listAllProposals, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Proposal{}
+	for rows.Next() {
+		var i Proposal
+		if err := rows.Scan(
+			&i.ChainID,
+			&i.ProposalID,
+			&i.Proposer,
+			&i.Description,
+			&i.Status,
+			&i.VotesFor,
+			&i.VotesAgainst,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllProposalsByStatus = `-- name: ListAllProposalsByStatus :many
+SELECT chain_id, proposal_id, proposer, description, status, votes_for, votes_against FROM proposals WHERE status = $1 ORDER BY chain_id, proposal_id DESC LIMIT $2 OFFSET $3
+`
+
+type ListAllProposalsByStatusParams struct {
+	Status string `json:"status"`
+	Limit  int32  `json:"limit"`
+	Offset int32  `json:"offset"`
+}
+
+func (q *Queries) ListAllProposalsByStatus(ctx context.Context, arg ListAllProposalsByStatusParams) ([]Proposal, error) {
+	rows, err := q.db.Query(ctx, listAllProposalsByStatus, arg.Status, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Proposal{}
+	for rows.Next() {
+		var i Proposal
+		if err := rows.Scan(
+			&i.ChainID,
+			&i.ProposalID,
+			&i.Proposer,
+			&i.Description,
+			&i.Status,
+			&i.VotesFor,
+			&i.VotesAgainst,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertProposal = `-- name: InsertProposal :exec
-INSERT INTO proposals (proposal_id, proposer, description, status, votes_for, votes_against)
-VALUES ($1, $2, $3, $4, 0, 0)
-ON CONFLICT (proposal_id) DO NOTHING
+INSERT INTO proposals (chain_id, proposal_id, proposer, description, status, votes_for, votes_against)
+VALUES ($1, $2, $3, $4, $5, 0, 0)
+ON CONFLICT (chain_id, proposal_id) DO NOTHING
 `
 
 type InsertProposalParams struct {
+	ChainID     int64       `json:"chain_id"`
 	ProposalID  string      `json:"proposal_id"`
 	Proposer    string      `json:"proposer"`
 	Description pgtype.Text `json:"description"`
@@ -103,6 +215,7 @@ type InsertProposalParams struct {
 
 func (q *Queries) InsertProposal(ctx context.Context, arg InsertProposalParams) error {
 	_, err := q.db.Exec(ctx, insertProposal,
+		arg.ChainID,
 		arg.ProposalID,
 		arg.Proposer,
 		arg.Description,
@@ -113,23 +226,33 @@ func (q *Queries) InsertProposal(ctx context.Context, arg InsertProposalParams) 
 
 const listProposals = `-- name: ListProposals :many
 SELECT proposal_id, proposer, description, status, votes_for, votes_against FROM proposals
-ORDER BY proposal_id DESC LIMIT $1 OFFSET $2
+WHERE chain_id = $1 ORDER BY proposal_id DESC LIMIT $2 OFFSET $3
 `
 
 type ListProposalsParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	ChainID int64 `json:"chain_id"`
+	Limit   int32 `json:"limit"`
+	Offset  int32 `json:"offset"`
 }
 
-func (q *Queries) ListProposals(ctx context.Context, arg ListProposalsParams) ([]Proposal, error) {
-	rows, err := q.db.Query(ctx, listProposals, arg.Limit, arg.Offset)
+type ListProposalsRow struct {
+	ProposalID   string         `json:"proposal_id"`
+	Proposer     string         `json:"proposer"`
+	Description  pgtype.Text    `json:"description"`
+	Status       string         `json:"status"`
+	VotesFor     pgtype.Numeric `json:"votes_for"`
+	VotesAgainst pgtype.Numeric `json:"votes_against"`
+}
+
+func (q *Queries) ListProposals(ctx context.Context, arg ListProposalsParams) ([]ListProposalsRow, error) {
+	rows, err := q.db.Query(ctx, listProposals, arg.ChainID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Proposal{}
+	items := []ListProposalsRow{}
 	for rows.Next() {
-		var i Proposal
+		var i ListProposalsRow
 		if err := rows.Scan(
 			&i.ProposalID,
 			&i.Proposer,
@@ -150,24 +273,39 @@ func (q *Queries) ListProposals(ctx context.Context, arg ListProposalsParams) ([
 
 const listProposalsByStatus = `-- name: ListProposalsByStatus :many
 SELECT proposal_id, proposer, description, status, votes_for, votes_against FROM proposals
-WHERE status = $1 ORDER BY proposal_id DESC LIMIT $2 OFFSET $3
+WHERE chain_id = $1 AND status = $2 ORDER BY proposal_id DESC LIMIT $3 OFFSET $4
 `
 
 type ListProposalsByStatusParams struct {
-	Status string `json:"status"`
-	Limit  int32  `json:"limit"`
-	Offset int32  `json:"offset"`
+	ChainID int64  `json:"chain_id"`
+	Status  string `json:"status"`
+	Limit   int32  `json:"limit"`
+	Offset  int32  `json:"offset"`
 }
 
-func (q *Queries) ListProposalsByStatus(ctx context.Context, arg ListProposalsByStatusParams) ([]Proposal, error) {
-	rows, err := q.db.Query(ctx, listProposalsByStatus, arg.Status, arg.Limit, arg.Offset)
+type ListProposalsByStatusRow struct {
+	ProposalID   string         `json:"proposal_id"`
+	Proposer     string         `json:"proposer"`
+	Description  pgtype.Text    `json:"description"`
+	Status       string         `json:"status"`
+	VotesFor     pgtype.Numeric `json:"votes_for"`
+	VotesAgainst pgtype.Numeric `json:"votes_against"`
+}
+
+func (q *Queries) ListProposalsByStatus(ctx context.Context, arg ListProposalsByStatusParams) ([]ListProposalsByStatusRow, error) {
+	rows, err := q.db.Query(ctx, listProposalsByStatus,
+		arg.ChainID,
+		arg.Status,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Proposal{}
+	items := []ListProposalsByStatusRow{}
 	for rows.Next() {
-		var i Proposal
+		var i ListProposalsByStatusRow
 		if err := rows.Scan(
 			&i.ProposalID,
 			&i.Proposer,
@@ -187,54 +325,62 @@ func (q *Queries) ListProposalsByStatus(ctx context.Context, arg ListProposalsBy
 }
 
 const pruneIndexedBlocks = `-- name: PruneIndexedBlocks :exec
-DELETE FROM indexed_blocks WHERE block_number < $1
+DELETE FROM indexed_blocks WHERE chain_id = $1 AND block_number < $2
 `
 
-func (q *Queries) PruneIndexedBlocks(ctx context.Context, blockNumber int64) error {
-	_, err := q.db.Exec(ctx, pruneIndexedBlocks, blockNumber)
+type PruneIndexedBlocksParams struct {
+	ChainID     int64 `json:"chain_id"`
+	BlockNumber int64 `json:"block_number"`
+}
+
+func (q *Queries) PruneIndexedBlocks(ctx context.Context, arg PruneIndexedBlocksParams) error {
+	_, err := q.db.Exec(ctx, pruneIndexedBlocks, arg.ChainID, arg.BlockNumber)
 	return err
 }
 
 const updateProposalStatus = `-- name: UpdateProposalStatus :exec
-UPDATE proposals SET status = $2 WHERE proposal_id = $1
+UPDATE proposals SET status = $3 WHERE chain_id = $1 AND proposal_id = $2
 `
 
 type UpdateProposalStatusParams struct {
+	ChainID    int64  `json:"chain_id"`
 	ProposalID string `json:"proposal_id"`
 	Status     string `json:"status"`
 }
 
 func (q *Queries) UpdateProposalStatus(ctx context.Context, arg UpdateProposalStatusParams) error {
-	_, err := q.db.Exec(ctx, updateProposalStatus, arg.ProposalID, arg.Status)
+	_, err := q.db.Exec(ctx, updateProposalStatus, arg.ChainID, arg.ProposalID, arg.Status)
 	return err
 }
 
 const upsertIndexedBlock = `-- name: UpsertIndexedBlock :exec
-INSERT INTO indexed_blocks (block_number, block_hash) VALUES ($1, $2)
-ON CONFLICT (block_number) DO UPDATE SET block_hash = EXCLUDED.block_hash
+INSERT INTO indexed_blocks (chain_id, block_number, block_hash) VALUES ($1, $2, $3)
+ON CONFLICT (chain_id, block_number) DO UPDATE SET block_hash = EXCLUDED.block_hash
 `
 
 type UpsertIndexedBlockParams struct {
+	ChainID     int64  `json:"chain_id"`
 	BlockNumber int64  `json:"block_number"`
 	BlockHash   string `json:"block_hash"`
 }
 
 func (q *Queries) UpsertIndexedBlock(ctx context.Context, arg UpsertIndexedBlockParams) error {
-	_, err := q.db.Exec(ctx, upsertIndexedBlock, arg.BlockNumber, arg.BlockHash)
+	_, err := q.db.Exec(ctx, upsertIndexedBlock, arg.ChainID, arg.BlockNumber, arg.BlockHash)
 	return err
 }
 
 const upsertSyncState = `-- name: UpsertSyncState :exec
-INSERT INTO sync_states (contract_name, last_block) VALUES ($1, $2)
-ON CONFLICT (contract_name) DO UPDATE SET last_block = EXCLUDED.last_block
+INSERT INTO sync_states (chain_id, contract_name, last_block) VALUES ($1, $2, $3)
+ON CONFLICT (chain_id, contract_name) DO UPDATE SET last_block = EXCLUDED.last_block
 `
 
 type UpsertSyncStateParams struct {
+	ChainID      int64  `json:"chain_id"`
 	ContractName string `json:"contract_name"`
 	LastBlock    int64  `json:"last_block"`
 }
 
 func (q *Queries) UpsertSyncState(ctx context.Context, arg UpsertSyncStateParams) error {
-	_, err := q.db.Exec(ctx, upsertSyncState, arg.ContractName, arg.LastBlock)
+	_, err := q.db.Exec(ctx, upsertSyncState, arg.ChainID, arg.ContractName, arg.LastBlock)
 	return err
 }

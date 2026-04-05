@@ -31,7 +31,7 @@ var (
 
 // AWPDAOMetaData contains all meta data concerning the AWPDAO contract.
 var AWPDAOMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"constructor\",\"inputs\":[{\"name\":\"stakeNFT_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"awpToken_\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"timelock_\",\"type\":\"address\",\"internalType\":\"contractTimelockController\"},{\"name\":\"votingDelay_\",\"type\":\"uint48\",\"internalType\":\"uint48\"},{\"name\":\"votingPeriod_\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"quorumPercent_\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"receive\",\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"BALLOT_TYPEHASH\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"CLOCK_MODE\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"COUNTING_MODE\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"EXTENDED_BALLOT_TYPEHASH\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"awpToken\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"contractIERC20\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"cancel\",\"inputs\":[{\"name\":\"targets\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"values\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"calldatas\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"descriptionHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"castVote\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"\",\"type\":\"uint8\",\"internalType\":\"uint8\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"castVoteBySig\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"support\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"voter\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"signature\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"castVoteWithReason\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"castVoteWithReasonAndParams\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"support\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"reason\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"params\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"castVoteWithReasonAndParamsBySig\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"support\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"voter\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"reason\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"params\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"signature\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"clock\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint48\",\"internalType\":\"uint48\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"eip712Domain\",\"inputs\":[],\"outputs\":[{\"name\":\"fields\",\"type\":\"bytes1\",\"internalType\":\"bytes1\"},{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"version\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"verifyingContract\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"extensions\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"execute\",\"inputs\":[{\"name\":\"targets\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"values\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"calldatas\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"descriptionHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"getVotes\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"timepoint\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getVotesWithParams\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"timepoint\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"params\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"hasVoted\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"hasVotedWithToken\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"tokenId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"hashProposal\",\"inputs\":[{\"name\":\"targets\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"values\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"calldatas\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"descriptionHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"isSignalProposal\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"name\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"nonces\",\"inputs\":[{\"name\":\"owner\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"onERC1155BatchReceived\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes4\",\"internalType\":\"bytes4\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"onERC1155Received\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes4\",\"internalType\":\"bytes4\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"onERC721Received\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes4\",\"internalType\":\"bytes4\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"proposalCreatedAt\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalDeadline\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalEta\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalNeedsQueuing\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalProposer\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalSnapshot\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalThreshold\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalTotalVotingPower\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalVotes\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"againstVotes\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"forVotes\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"abstainVotes\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"propose\",\"inputs\":[{\"name\":\"\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"proposeWithTokens\",\"inputs\":[{\"name\":\"targets\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"values\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"calldatas\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"description\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"tokenIds\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"queue\",\"inputs\":[{\"name\":\"targets\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"values\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"calldatas\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"descriptionHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"quorum\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"quorumPercent\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"relay\",\"inputs\":[{\"name\":\"target\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"value\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"setProposalThreshold\",\"inputs\":[{\"name\":\"newProposalThreshold\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setVotingDelay\",\"inputs\":[{\"name\":\"newVotingDelay\",\"type\":\"uint48\",\"internalType\":\"uint48\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setVotingPeriod\",\"inputs\":[{\"name\":\"newVotingPeriod\",\"type\":\"uint32\",\"internalType\":\"uint32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"signalPropose\",\"inputs\":[{\"name\":\"description\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"tokenIds\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"stakeNFT\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"contractIStakeNFT\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"state\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint8\",\"internalType\":\"enumIGovernor.ProposalState\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"supportsInterface\",\"inputs\":[{\"name\":\"interfaceId\",\"type\":\"bytes4\",\"internalType\":\"bytes4\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"timelock\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"updateTimelock\",\"inputs\":[{\"name\":\"newTimelock\",\"type\":\"address\",\"internalType\":\"contractTimelockController\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"version\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"votingDelay\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"votingPeriod\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"EIP712DomainChanged\",\"inputs\":[],\"anonymous\":false},{\"type\":\"event\",\"name\":\"ProposalCanceled\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"ProposalCreated\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"proposer\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"targets\",\"type\":\"address[]\",\"indexed\":false,\"internalType\":\"address[]\"},{\"name\":\"values\",\"type\":\"uint256[]\",\"indexed\":false,\"internalType\":\"uint256[]\"},{\"name\":\"signatures\",\"type\":\"string[]\",\"indexed\":false,\"internalType\":\"string[]\"},{\"name\":\"calldatas\",\"type\":\"bytes[]\",\"indexed\":false,\"internalType\":\"bytes[]\"},{\"name\":\"voteStart\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"voteEnd\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"description\",\"type\":\"string\",\"indexed\":false,\"internalType\":\"string\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"ProposalExecuted\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"ProposalQueued\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"etaSeconds\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"ProposalThresholdSet\",\"inputs\":[{\"name\":\"oldProposalThreshold\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"newProposalThreshold\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"TimelockChange\",\"inputs\":[{\"name\":\"oldTimelock\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"newTimelock\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"VoteCast\",\"inputs\":[{\"name\":\"voter\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"proposalId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"support\",\"type\":\"uint8\",\"indexed\":false,\"internalType\":\"uint8\"},{\"name\":\"weight\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"reason\",\"type\":\"string\",\"indexed\":false,\"internalType\":\"string\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"VoteCastWithParams\",\"inputs\":[{\"name\":\"voter\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"proposalId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"support\",\"type\":\"uint8\",\"indexed\":false,\"internalType\":\"uint8\"},{\"name\":\"weight\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"reason\",\"type\":\"string\",\"indexed\":false,\"internalType\":\"string\"},{\"name\":\"params\",\"type\":\"bytes\",\"indexed\":false,\"internalType\":\"bytes\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"VotingDelaySet\",\"inputs\":[{\"name\":\"oldVotingDelay\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"newVotingDelay\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"VotingPeriodSet\",\"inputs\":[{\"name\":\"oldVotingPeriod\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"newVotingPeriod\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"FailedCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"GovernorAlreadyCastVote\",\"inputs\":[{\"name\":\"voter\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"GovernorAlreadyQueuedProposal\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"GovernorDisabledDeposit\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"GovernorInsufficientProposerVotes\",\"inputs\":[{\"name\":\"proposer\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"votes\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"threshold\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"GovernorInvalidProposalLength\",\"inputs\":[{\"name\":\"targets\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"calldatas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"values\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"GovernorInvalidSignature\",\"inputs\":[{\"name\":\"voter\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"GovernorInvalidVoteParams\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"GovernorInvalidVoteType\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"GovernorInvalidVotingPeriod\",\"inputs\":[{\"name\":\"votingPeriod\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"GovernorNonexistentProposal\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"GovernorNotQueuedProposal\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"GovernorOnlyExecutor\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"GovernorOnlyProposer\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"GovernorQueueNotImplemented\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"GovernorRestrictedProposer\",\"inputs\":[{\"name\":\"proposer\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"GovernorUnexpectedProposalState\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"current\",\"type\":\"uint8\",\"internalType\":\"enumIGovernor.ProposalState\"},{\"name\":\"expectedStates\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"InsufficientVotingPower\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidAccountNonce\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"currentNonce\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidShortString\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"LockExpired\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MintedAfterProposal\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NoTokens\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotTokenOwner\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"SafeCastOverflowedUintDowncast\",\"inputs\":[{\"name\":\"bits\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"value\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"StringTooLong\",\"inputs\":[{\"name\":\"str\",\"type\":\"string\",\"internalType\":\"string\"}]},{\"type\":\"error\",\"name\":\"TokenAlreadyVoted\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UseProposeWithTokens\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UsecastVoteWithParams\",\"inputs\":[]}]",
+	ABI: "[{\"type\":\"constructor\",\"inputs\":[{\"name\":\"veAWP_\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"receive\",\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"BALLOT_TYPEHASH\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"CLOCK_MODE\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"COUNTING_MODE\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"EXTENDED_BALLOT_TYPEHASH\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"UPGRADE_INTERFACE_VERSION\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"cancel\",\"inputs\":[{\"name\":\"targets\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"values\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"calldatas\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"descriptionHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"castVote\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"\",\"type\":\"uint8\",\"internalType\":\"uint8\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"castVoteBySig\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"castVoteWithReason\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"castVoteWithReasonAndParams\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"support\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"reason\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"params\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"castVoteWithReasonAndParamsBySig\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"support\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"voter\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"reason\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"params\",\"type\":\"bytes\",\"internalType\":\"bytes\"},{\"name\":\"signature\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"clock\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint48\",\"internalType\":\"uint48\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"eip712Domain\",\"inputs\":[],\"outputs\":[{\"name\":\"fields\",\"type\":\"bytes1\",\"internalType\":\"bytes1\"},{\"name\":\"name\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"version\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"chainId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"verifyingContract\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"salt\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"},{\"name\":\"extensions\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"execute\",\"inputs\":[{\"name\":\"targets\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"values\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"calldatas\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"descriptionHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"getProposalId\",\"inputs\":[{\"name\":\"targets\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"values\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"calldatas\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"descriptionHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getVotes\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"timepoint\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getVotesWithParams\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"timepoint\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"params\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"guardian\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"guardianCancel\",\"inputs\":[{\"name\":\"targets\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"values\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"calldatas\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"descriptionHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"hasVoted\",\"inputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"hasVotedWithToken\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"tokenId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"hashProposal\",\"inputs\":[{\"name\":\"targets\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"values\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"calldatas\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"descriptionHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"initialize\",\"inputs\":[{\"name\":\"timelock_\",\"type\":\"address\",\"internalType\":\"contractTimelockControllerUpgradeable\"},{\"name\":\"votingDelay_\",\"type\":\"uint48\",\"internalType\":\"uint48\"},{\"name\":\"votingPeriod_\",\"type\":\"uint32\",\"internalType\":\"uint32\"},{\"name\":\"lateQuorumExtension_\",\"type\":\"uint48\",\"internalType\":\"uint48\"},{\"name\":\"quorumPercent_\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"guardian_\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"isSignalProposal\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"lateQuorumVoteExtension\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint48\",\"internalType\":\"uint48\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"name\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"nonces\",\"inputs\":[{\"name\":\"owner\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"onERC1155BatchReceived\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes4\",\"internalType\":\"bytes4\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"onERC1155Received\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes4\",\"internalType\":\"bytes4\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"onERC721Received\",\"inputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes4\",\"internalType\":\"bytes4\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"proposalCreatedAt\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalDeadline\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalEta\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalNeedsQueuing\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalProposer\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalSnapshot\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalThreshold\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalTotalVotingPower\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"proposalVotes\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"againstVotes\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"forVotes\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"abstainVotes\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"propose\",\"inputs\":[{\"name\":\"\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"pure\"},{\"type\":\"function\",\"name\":\"proposeWithTokens\",\"inputs\":[{\"name\":\"targets\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"values\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"calldatas\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"description\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"tokenIds\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"proxiableUUID\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"queue\",\"inputs\":[{\"name\":\"targets\",\"type\":\"address[]\",\"internalType\":\"address[]\"},{\"name\":\"values\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"},{\"name\":\"calldatas\",\"type\":\"bytes[]\",\"internalType\":\"bytes[]\"},{\"name\":\"descriptionHash\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"quorum\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"quorumPercent\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"relay\",\"inputs\":[{\"name\":\"target\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"value\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"setGuardian\",\"inputs\":[{\"name\":\"g\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setLateQuorumVoteExtension\",\"inputs\":[{\"name\":\"newVoteExtension\",\"type\":\"uint48\",\"internalType\":\"uint48\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setProposalThreshold\",\"inputs\":[{\"name\":\"newProposalThreshold\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setQuorumPercent\",\"inputs\":[{\"name\":\"newQuorumPercent\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setVotingDelay\",\"inputs\":[{\"name\":\"newVotingDelay\",\"type\":\"uint48\",\"internalType\":\"uint48\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"setVotingPeriod\",\"inputs\":[{\"name\":\"newVotingPeriod\",\"type\":\"uint32\",\"internalType\":\"uint32\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"signalPropose\",\"inputs\":[{\"name\":\"description\",\"type\":\"string\",\"internalType\":\"string\"},{\"name\":\"tokenIds\",\"type\":\"uint256[]\",\"internalType\":\"uint256[]\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"state\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"outputs\":[{\"name\":\"\",\"type\":\"uint8\",\"internalType\":\"enumIGovernor.ProposalState\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"supportsInterface\",\"inputs\":[{\"name\":\"interfaceId\",\"type\":\"bytes4\",\"internalType\":\"bytes4\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bool\",\"internalType\":\"bool\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"timelock\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"updateTimelock\",\"inputs\":[{\"name\":\"newTimelock\",\"type\":\"address\",\"internalType\":\"contractTimelockControllerUpgradeable\"}],\"outputs\":[],\"stateMutability\":\"nonpayable\"},{\"type\":\"function\",\"name\":\"upgradeToAndCall\",\"inputs\":[{\"name\":\"newImplementation\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"data\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"outputs\":[],\"stateMutability\":\"payable\"},{\"type\":\"function\",\"name\":\"veAWP\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"contractIveAWP\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"version\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"string\",\"internalType\":\"string\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"votingDelay\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"votingPeriod\",\"inputs\":[],\"outputs\":[{\"name\":\"\",\"type\":\"uint256\",\"internalType\":\"uint256\"}],\"stateMutability\":\"view\"},{\"type\":\"event\",\"name\":\"EIP712DomainChanged\",\"inputs\":[],\"anonymous\":false},{\"type\":\"event\",\"name\":\"GuardianUpdated\",\"inputs\":[{\"name\":\"newGuardian\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Initialized\",\"inputs\":[{\"name\":\"version\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"LateQuorumVoteExtensionSet\",\"inputs\":[{\"name\":\"oldVoteExtension\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"},{\"name\":\"newVoteExtension\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"ProposalCanceled\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"ProposalCreated\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"proposer\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"targets\",\"type\":\"address[]\",\"indexed\":false,\"internalType\":\"address[]\"},{\"name\":\"values\",\"type\":\"uint256[]\",\"indexed\":false,\"internalType\":\"uint256[]\"},{\"name\":\"signatures\",\"type\":\"string[]\",\"indexed\":false,\"internalType\":\"string[]\"},{\"name\":\"calldatas\",\"type\":\"bytes[]\",\"indexed\":false,\"internalType\":\"bytes[]\"},{\"name\":\"voteStart\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"voteEnd\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"description\",\"type\":\"string\",\"indexed\":false,\"internalType\":\"string\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"ProposalExecuted\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"ProposalExtended\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"indexed\":true,\"internalType\":\"uint256\"},{\"name\":\"extendedDeadline\",\"type\":\"uint64\",\"indexed\":false,\"internalType\":\"uint64\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"ProposalQueued\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"etaSeconds\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"ProposalThresholdSet\",\"inputs\":[{\"name\":\"oldProposalThreshold\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"newProposalThreshold\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"QuorumPercentUpdated\",\"inputs\":[{\"name\":\"newQuorumPercent\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"TimelockChange\",\"inputs\":[{\"name\":\"oldTimelock\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"},{\"name\":\"newTimelock\",\"type\":\"address\",\"indexed\":false,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"Upgraded\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"VoteCast\",\"inputs\":[{\"name\":\"voter\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"proposalId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"support\",\"type\":\"uint8\",\"indexed\":false,\"internalType\":\"uint8\"},{\"name\":\"weight\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"reason\",\"type\":\"string\",\"indexed\":false,\"internalType\":\"string\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"VoteCastWithParams\",\"inputs\":[{\"name\":\"voter\",\"type\":\"address\",\"indexed\":true,\"internalType\":\"address\"},{\"name\":\"proposalId\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"support\",\"type\":\"uint8\",\"indexed\":false,\"internalType\":\"uint8\"},{\"name\":\"weight\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"reason\",\"type\":\"string\",\"indexed\":false,\"internalType\":\"string\"},{\"name\":\"params\",\"type\":\"bytes\",\"indexed\":false,\"internalType\":\"bytes\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"VotingDelaySet\",\"inputs\":[{\"name\":\"oldVotingDelay\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"newVotingDelay\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"event\",\"name\":\"VotingPeriodSet\",\"inputs\":[{\"name\":\"oldVotingPeriod\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"},{\"name\":\"newVotingPeriod\",\"type\":\"uint256\",\"indexed\":false,\"internalType\":\"uint256\"}],\"anonymous\":false},{\"type\":\"error\",\"name\":\"AddressEmptyCode\",\"inputs\":[{\"name\":\"target\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC1967InvalidImplementation\",\"inputs\":[{\"name\":\"implementation\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"ERC1967NonPayable\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"FailedCall\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"GovernorAlreadyCastVote\",\"inputs\":[{\"name\":\"voter\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"GovernorAlreadyQueuedProposal\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"GovernorDisabledDeposit\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"GovernorInsufficientProposerVotes\",\"inputs\":[{\"name\":\"proposer\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"votes\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"threshold\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"GovernorInvalidProposalLength\",\"inputs\":[{\"name\":\"targets\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"calldatas\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"values\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"GovernorInvalidSignature\",\"inputs\":[{\"name\":\"voter\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"GovernorInvalidVoteParams\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"GovernorInvalidVoteType\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"GovernorInvalidVotingPeriod\",\"inputs\":[{\"name\":\"votingPeriod\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"GovernorNonexistentProposal\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"GovernorNotQueuedProposal\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"GovernorOnlyExecutor\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"GovernorQueueNotImplemented\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"GovernorRestrictedProposer\",\"inputs\":[{\"name\":\"proposer\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"GovernorUnableToCancel\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"}]},{\"type\":\"error\",\"name\":\"GovernorUnexpectedProposalState\",\"inputs\":[{\"name\":\"proposalId\",\"type\":\"uint256\",\"internalType\":\"uint256\"},{\"name\":\"current\",\"type\":\"uint8\",\"internalType\":\"enumIGovernor.ProposalState\"},{\"name\":\"expectedStates\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"InvalidAccountNonce\",\"inputs\":[{\"name\":\"account\",\"type\":\"address\",\"internalType\":\"address\"},{\"name\":\"currentNonce\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"InvalidInitialization\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"InvalidQuorumPercent\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"LockExpired\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"MintedAfterProposal\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NoTokens\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotGuardian\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotGuardianOrExecutor\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotInitializing\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"NotTokenOwner\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"SafeCastOverflowedUintDowncast\",\"inputs\":[{\"name\":\"bits\",\"type\":\"uint8\",\"internalType\":\"uint8\"},{\"name\":\"value\",\"type\":\"uint256\",\"internalType\":\"uint256\"}]},{\"type\":\"error\",\"name\":\"TokenAlreadyVoted\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnauthorizedCallContext\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UUPSUnsupportedProxiableUUID\",\"inputs\":[{\"name\":\"slot\",\"type\":\"bytes32\",\"internalType\":\"bytes32\"}]},{\"type\":\"error\",\"name\":\"UseCastVoteWithParams\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"UseProposeWithTokens\",\"inputs\":[]},{\"type\":\"error\",\"name\":\"ZeroTotalVotingPower\",\"inputs\":[]}]",
 }
 
 // AWPDAOABI is the input ABI used to generate the binding from.
@@ -304,35 +304,35 @@ func (_AWPDAO *AWPDAOCallerSession) EXTENDEDBALLOTTYPEHASH() ([32]byte, error) {
 	return _AWPDAO.Contract.EXTENDEDBALLOTTYPEHASH(&_AWPDAO.CallOpts)
 }
 
-// AwpToken is a free data retrieval call binding the contract method 0x41a578cf.
+// UPGRADEINTERFACEVERSION is a free data retrieval call binding the contract method 0xad3cb1cc.
 //
-// Solidity: function awpToken() view returns(address)
-func (_AWPDAO *AWPDAOCaller) AwpToken(opts *bind.CallOpts) (common.Address, error) {
+// Solidity: function UPGRADE_INTERFACE_VERSION() view returns(string)
+func (_AWPDAO *AWPDAOCaller) UPGRADEINTERFACEVERSION(opts *bind.CallOpts) (string, error) {
 	var out []interface{}
-	err := _AWPDAO.contract.Call(opts, &out, "awpToken")
+	err := _AWPDAO.contract.Call(opts, &out, "UPGRADE_INTERFACE_VERSION")
 
 	if err != nil {
-		return *new(common.Address), err
+		return *new(string), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+	out0 := *abi.ConvertType(out[0], new(string)).(*string)
 
 	return out0, err
 
 }
 
-// AwpToken is a free data retrieval call binding the contract method 0x41a578cf.
+// UPGRADEINTERFACEVERSION is a free data retrieval call binding the contract method 0xad3cb1cc.
 //
-// Solidity: function awpToken() view returns(address)
-func (_AWPDAO *AWPDAOSession) AwpToken() (common.Address, error) {
-	return _AWPDAO.Contract.AwpToken(&_AWPDAO.CallOpts)
+// Solidity: function UPGRADE_INTERFACE_VERSION() view returns(string)
+func (_AWPDAO *AWPDAOSession) UPGRADEINTERFACEVERSION() (string, error) {
+	return _AWPDAO.Contract.UPGRADEINTERFACEVERSION(&_AWPDAO.CallOpts)
 }
 
-// AwpToken is a free data retrieval call binding the contract method 0x41a578cf.
+// UPGRADEINTERFACEVERSION is a free data retrieval call binding the contract method 0xad3cb1cc.
 //
-// Solidity: function awpToken() view returns(address)
-func (_AWPDAO *AWPDAOCallerSession) AwpToken() (common.Address, error) {
-	return _AWPDAO.Contract.AwpToken(&_AWPDAO.CallOpts)
+// Solidity: function UPGRADE_INTERFACE_VERSION() view returns(string)
+func (_AWPDAO *AWPDAOCallerSession) UPGRADEINTERFACEVERSION() (string, error) {
+	return _AWPDAO.Contract.UPGRADEINTERFACEVERSION(&_AWPDAO.CallOpts)
 }
 
 // CastVote is a free data retrieval call binding the contract method 0x56781388.
@@ -364,6 +364,37 @@ func (_AWPDAO *AWPDAOSession) CastVote(arg0 *big.Int, arg1 uint8) (*big.Int, err
 // Solidity: function castVote(uint256 , uint8 ) pure returns(uint256)
 func (_AWPDAO *AWPDAOCallerSession) CastVote(arg0 *big.Int, arg1 uint8) (*big.Int, error) {
 	return _AWPDAO.Contract.CastVote(&_AWPDAO.CallOpts, arg0, arg1)
+}
+
+// CastVoteBySig is a free data retrieval call binding the contract method 0x8ff262e3.
+//
+// Solidity: function castVoteBySig(uint256 , uint8 , address , bytes ) pure returns(uint256)
+func (_AWPDAO *AWPDAOCaller) CastVoteBySig(opts *bind.CallOpts, arg0 *big.Int, arg1 uint8, arg2 common.Address, arg3 []byte) (*big.Int, error) {
+	var out []interface{}
+	err := _AWPDAO.contract.Call(opts, &out, "castVoteBySig", arg0, arg1, arg2, arg3)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// CastVoteBySig is a free data retrieval call binding the contract method 0x8ff262e3.
+//
+// Solidity: function castVoteBySig(uint256 , uint8 , address , bytes ) pure returns(uint256)
+func (_AWPDAO *AWPDAOSession) CastVoteBySig(arg0 *big.Int, arg1 uint8, arg2 common.Address, arg3 []byte) (*big.Int, error) {
+	return _AWPDAO.Contract.CastVoteBySig(&_AWPDAO.CallOpts, arg0, arg1, arg2, arg3)
+}
+
+// CastVoteBySig is a free data retrieval call binding the contract method 0x8ff262e3.
+//
+// Solidity: function castVoteBySig(uint256 , uint8 , address , bytes ) pure returns(uint256)
+func (_AWPDAO *AWPDAOCallerSession) CastVoteBySig(arg0 *big.Int, arg1 uint8, arg2 common.Address, arg3 []byte) (*big.Int, error) {
+	return _AWPDAO.Contract.CastVoteBySig(&_AWPDAO.CallOpts, arg0, arg1, arg2, arg3)
 }
 
 // CastVoteWithReason is a free data retrieval call binding the contract method 0x7b3c71d3.
@@ -498,6 +529,37 @@ func (_AWPDAO *AWPDAOCallerSession) Eip712Domain() (struct {
 	return _AWPDAO.Contract.Eip712Domain(&_AWPDAO.CallOpts)
 }
 
+// GetProposalId is a free data retrieval call binding the contract method 0xa8f8a668.
+//
+// Solidity: function getProposalId(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) view returns(uint256)
+func (_AWPDAO *AWPDAOCaller) GetProposalId(opts *bind.CallOpts, targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash [32]byte) (*big.Int, error) {
+	var out []interface{}
+	err := _AWPDAO.contract.Call(opts, &out, "getProposalId", targets, values, calldatas, descriptionHash)
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// GetProposalId is a free data retrieval call binding the contract method 0xa8f8a668.
+//
+// Solidity: function getProposalId(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) view returns(uint256)
+func (_AWPDAO *AWPDAOSession) GetProposalId(targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash [32]byte) (*big.Int, error) {
+	return _AWPDAO.Contract.GetProposalId(&_AWPDAO.CallOpts, targets, values, calldatas, descriptionHash)
+}
+
+// GetProposalId is a free data retrieval call binding the contract method 0xa8f8a668.
+//
+// Solidity: function getProposalId(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) view returns(uint256)
+func (_AWPDAO *AWPDAOCallerSession) GetProposalId(targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash [32]byte) (*big.Int, error) {
+	return _AWPDAO.Contract.GetProposalId(&_AWPDAO.CallOpts, targets, values, calldatas, descriptionHash)
+}
+
 // GetVotes is a free data retrieval call binding the contract method 0xeb9019d4.
 //
 // Solidity: function getVotes(address account, uint256 timepoint) view returns(uint256)
@@ -558,6 +620,37 @@ func (_AWPDAO *AWPDAOSession) GetVotesWithParams(account common.Address, timepoi
 // Solidity: function getVotesWithParams(address account, uint256 timepoint, bytes params) view returns(uint256)
 func (_AWPDAO *AWPDAOCallerSession) GetVotesWithParams(account common.Address, timepoint *big.Int, params []byte) (*big.Int, error) {
 	return _AWPDAO.Contract.GetVotesWithParams(&_AWPDAO.CallOpts, account, timepoint, params)
+}
+
+// Guardian is a free data retrieval call binding the contract method 0x452a9320.
+//
+// Solidity: function guardian() view returns(address)
+func (_AWPDAO *AWPDAOCaller) Guardian(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _AWPDAO.contract.Call(opts, &out, "guardian")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// Guardian is a free data retrieval call binding the contract method 0x452a9320.
+//
+// Solidity: function guardian() view returns(address)
+func (_AWPDAO *AWPDAOSession) Guardian() (common.Address, error) {
+	return _AWPDAO.Contract.Guardian(&_AWPDAO.CallOpts)
+}
+
+// Guardian is a free data retrieval call binding the contract method 0x452a9320.
+//
+// Solidity: function guardian() view returns(address)
+func (_AWPDAO *AWPDAOCallerSession) Guardian() (common.Address, error) {
+	return _AWPDAO.Contract.Guardian(&_AWPDAO.CallOpts)
 }
 
 // HasVoted is a free data retrieval call binding the contract method 0x43859632.
@@ -682,6 +775,37 @@ func (_AWPDAO *AWPDAOSession) IsSignalProposal(proposalId *big.Int) (bool, error
 // Solidity: function isSignalProposal(uint256 proposalId) view returns(bool)
 func (_AWPDAO *AWPDAOCallerSession) IsSignalProposal(proposalId *big.Int) (bool, error) {
 	return _AWPDAO.Contract.IsSignalProposal(&_AWPDAO.CallOpts, proposalId)
+}
+
+// LateQuorumVoteExtension is a free data retrieval call binding the contract method 0x32b8113e.
+//
+// Solidity: function lateQuorumVoteExtension() view returns(uint48)
+func (_AWPDAO *AWPDAOCaller) LateQuorumVoteExtension(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _AWPDAO.contract.Call(opts, &out, "lateQuorumVoteExtension")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// LateQuorumVoteExtension is a free data retrieval call binding the contract method 0x32b8113e.
+//
+// Solidity: function lateQuorumVoteExtension() view returns(uint48)
+func (_AWPDAO *AWPDAOSession) LateQuorumVoteExtension() (*big.Int, error) {
+	return _AWPDAO.Contract.LateQuorumVoteExtension(&_AWPDAO.CallOpts)
+}
+
+// LateQuorumVoteExtension is a free data retrieval call binding the contract method 0x32b8113e.
+//
+// Solidity: function lateQuorumVoteExtension() view returns(uint48)
+func (_AWPDAO *AWPDAOCallerSession) LateQuorumVoteExtension() (*big.Int, error) {
+	return _AWPDAO.Contract.LateQuorumVoteExtension(&_AWPDAO.CallOpts)
 }
 
 // Name is a free data retrieval call binding the contract method 0x06fdde03.
@@ -1075,12 +1199,43 @@ func (_AWPDAO *AWPDAOCallerSession) Propose(arg0 []common.Address, arg1 []*big.I
 	return _AWPDAO.Contract.Propose(&_AWPDAO.CallOpts, arg0, arg1, arg2, arg3)
 }
 
+// ProxiableUUID is a free data retrieval call binding the contract method 0x52d1902d.
+//
+// Solidity: function proxiableUUID() view returns(bytes32)
+func (_AWPDAO *AWPDAOCaller) ProxiableUUID(opts *bind.CallOpts) ([32]byte, error) {
+	var out []interface{}
+	err := _AWPDAO.contract.Call(opts, &out, "proxiableUUID")
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// ProxiableUUID is a free data retrieval call binding the contract method 0x52d1902d.
+//
+// Solidity: function proxiableUUID() view returns(bytes32)
+func (_AWPDAO *AWPDAOSession) ProxiableUUID() ([32]byte, error) {
+	return _AWPDAO.Contract.ProxiableUUID(&_AWPDAO.CallOpts)
+}
+
+// ProxiableUUID is a free data retrieval call binding the contract method 0x52d1902d.
+//
+// Solidity: function proxiableUUID() view returns(bytes32)
+func (_AWPDAO *AWPDAOCallerSession) ProxiableUUID() ([32]byte, error) {
+	return _AWPDAO.Contract.ProxiableUUID(&_AWPDAO.CallOpts)
+}
+
 // Quorum is a free data retrieval call binding the contract method 0xf8ce560a.
 //
-// Solidity: function quorum(uint256 ) view returns(uint256)
-func (_AWPDAO *AWPDAOCaller) Quorum(opts *bind.CallOpts, arg0 *big.Int) (*big.Int, error) {
+// Solidity: function quorum(uint256 proposalId) view returns(uint256)
+func (_AWPDAO *AWPDAOCaller) Quorum(opts *bind.CallOpts, proposalId *big.Int) (*big.Int, error) {
 	var out []interface{}
-	err := _AWPDAO.contract.Call(opts, &out, "quorum", arg0)
+	err := _AWPDAO.contract.Call(opts, &out, "quorum", proposalId)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -1094,16 +1249,16 @@ func (_AWPDAO *AWPDAOCaller) Quorum(opts *bind.CallOpts, arg0 *big.Int) (*big.In
 
 // Quorum is a free data retrieval call binding the contract method 0xf8ce560a.
 //
-// Solidity: function quorum(uint256 ) view returns(uint256)
-func (_AWPDAO *AWPDAOSession) Quorum(arg0 *big.Int) (*big.Int, error) {
-	return _AWPDAO.Contract.Quorum(&_AWPDAO.CallOpts, arg0)
+// Solidity: function quorum(uint256 proposalId) view returns(uint256)
+func (_AWPDAO *AWPDAOSession) Quorum(proposalId *big.Int) (*big.Int, error) {
+	return _AWPDAO.Contract.Quorum(&_AWPDAO.CallOpts, proposalId)
 }
 
 // Quorum is a free data retrieval call binding the contract method 0xf8ce560a.
 //
-// Solidity: function quorum(uint256 ) view returns(uint256)
-func (_AWPDAO *AWPDAOCallerSession) Quorum(arg0 *big.Int) (*big.Int, error) {
-	return _AWPDAO.Contract.Quorum(&_AWPDAO.CallOpts, arg0)
+// Solidity: function quorum(uint256 proposalId) view returns(uint256)
+func (_AWPDAO *AWPDAOCallerSession) Quorum(proposalId *big.Int) (*big.Int, error) {
+	return _AWPDAO.Contract.Quorum(&_AWPDAO.CallOpts, proposalId)
 }
 
 // QuorumPercent is a free data retrieval call binding the contract method 0xf81cbd26.
@@ -1135,37 +1290,6 @@ func (_AWPDAO *AWPDAOSession) QuorumPercent() (*big.Int, error) {
 // Solidity: function quorumPercent() view returns(uint256)
 func (_AWPDAO *AWPDAOCallerSession) QuorumPercent() (*big.Int, error) {
 	return _AWPDAO.Contract.QuorumPercent(&_AWPDAO.CallOpts)
-}
-
-// StakeNFT is a free data retrieval call binding the contract method 0xb48509e6.
-//
-// Solidity: function stakeNFT() view returns(address)
-func (_AWPDAO *AWPDAOCaller) StakeNFT(opts *bind.CallOpts) (common.Address, error) {
-	var out []interface{}
-	err := _AWPDAO.contract.Call(opts, &out, "stakeNFT")
-
-	if err != nil {
-		return *new(common.Address), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
-
-	return out0, err
-
-}
-
-// StakeNFT is a free data retrieval call binding the contract method 0xb48509e6.
-//
-// Solidity: function stakeNFT() view returns(address)
-func (_AWPDAO *AWPDAOSession) StakeNFT() (common.Address, error) {
-	return _AWPDAO.Contract.StakeNFT(&_AWPDAO.CallOpts)
-}
-
-// StakeNFT is a free data retrieval call binding the contract method 0xb48509e6.
-//
-// Solidity: function stakeNFT() view returns(address)
-func (_AWPDAO *AWPDAOCallerSession) StakeNFT() (common.Address, error) {
-	return _AWPDAO.Contract.StakeNFT(&_AWPDAO.CallOpts)
 }
 
 // State is a free data retrieval call binding the contract method 0x3e4f49e6.
@@ -1259,6 +1383,37 @@ func (_AWPDAO *AWPDAOSession) Timelock() (common.Address, error) {
 // Solidity: function timelock() view returns(address)
 func (_AWPDAO *AWPDAOCallerSession) Timelock() (common.Address, error) {
 	return _AWPDAO.Contract.Timelock(&_AWPDAO.CallOpts)
+}
+
+// VeAWP is a free data retrieval call binding the contract method 0x7bb8431f.
+//
+// Solidity: function veAWP() view returns(address)
+func (_AWPDAO *AWPDAOCaller) VeAWP(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _AWPDAO.contract.Call(opts, &out, "veAWP")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// VeAWP is a free data retrieval call binding the contract method 0x7bb8431f.
+//
+// Solidity: function veAWP() view returns(address)
+func (_AWPDAO *AWPDAOSession) VeAWP() (common.Address, error) {
+	return _AWPDAO.Contract.VeAWP(&_AWPDAO.CallOpts)
+}
+
+// VeAWP is a free data retrieval call binding the contract method 0x7bb8431f.
+//
+// Solidity: function veAWP() view returns(address)
+func (_AWPDAO *AWPDAOCallerSession) VeAWP() (common.Address, error) {
+	return _AWPDAO.Contract.VeAWP(&_AWPDAO.CallOpts)
 }
 
 // Version is a free data retrieval call binding the contract method 0x54fd4d50.
@@ -1375,27 +1530,6 @@ func (_AWPDAO *AWPDAOTransactorSession) Cancel(targets []common.Address, values 
 	return _AWPDAO.Contract.Cancel(&_AWPDAO.TransactOpts, targets, values, calldatas, descriptionHash)
 }
 
-// CastVoteBySig is a paid mutator transaction binding the contract method 0x8ff262e3.
-//
-// Solidity: function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature) returns(uint256)
-func (_AWPDAO *AWPDAOTransactor) CastVoteBySig(opts *bind.TransactOpts, proposalId *big.Int, support uint8, voter common.Address, signature []byte) (*types.Transaction, error) {
-	return _AWPDAO.contract.Transact(opts, "castVoteBySig", proposalId, support, voter, signature)
-}
-
-// CastVoteBySig is a paid mutator transaction binding the contract method 0x8ff262e3.
-//
-// Solidity: function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature) returns(uint256)
-func (_AWPDAO *AWPDAOSession) CastVoteBySig(proposalId *big.Int, support uint8, voter common.Address, signature []byte) (*types.Transaction, error) {
-	return _AWPDAO.Contract.CastVoteBySig(&_AWPDAO.TransactOpts, proposalId, support, voter, signature)
-}
-
-// CastVoteBySig is a paid mutator transaction binding the contract method 0x8ff262e3.
-//
-// Solidity: function castVoteBySig(uint256 proposalId, uint8 support, address voter, bytes signature) returns(uint256)
-func (_AWPDAO *AWPDAOTransactorSession) CastVoteBySig(proposalId *big.Int, support uint8, voter common.Address, signature []byte) (*types.Transaction, error) {
-	return _AWPDAO.Contract.CastVoteBySig(&_AWPDAO.TransactOpts, proposalId, support, voter, signature)
-}
-
 // CastVoteWithReasonAndParams is a paid mutator transaction binding the contract method 0x5f398a14.
 //
 // Solidity: function castVoteWithReasonAndParams(uint256 proposalId, uint8 support, string reason, bytes params) returns(uint256)
@@ -1457,6 +1591,48 @@ func (_AWPDAO *AWPDAOSession) Execute(targets []common.Address, values []*big.In
 // Solidity: function execute(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) payable returns(uint256)
 func (_AWPDAO *AWPDAOTransactorSession) Execute(targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash [32]byte) (*types.Transaction, error) {
 	return _AWPDAO.Contract.Execute(&_AWPDAO.TransactOpts, targets, values, calldatas, descriptionHash)
+}
+
+// GuardianCancel is a paid mutator transaction binding the contract method 0xb5474918.
+//
+// Solidity: function guardianCancel(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) returns(uint256)
+func (_AWPDAO *AWPDAOTransactor) GuardianCancel(opts *bind.TransactOpts, targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash [32]byte) (*types.Transaction, error) {
+	return _AWPDAO.contract.Transact(opts, "guardianCancel", targets, values, calldatas, descriptionHash)
+}
+
+// GuardianCancel is a paid mutator transaction binding the contract method 0xb5474918.
+//
+// Solidity: function guardianCancel(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) returns(uint256)
+func (_AWPDAO *AWPDAOSession) GuardianCancel(targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash [32]byte) (*types.Transaction, error) {
+	return _AWPDAO.Contract.GuardianCancel(&_AWPDAO.TransactOpts, targets, values, calldatas, descriptionHash)
+}
+
+// GuardianCancel is a paid mutator transaction binding the contract method 0xb5474918.
+//
+// Solidity: function guardianCancel(address[] targets, uint256[] values, bytes[] calldatas, bytes32 descriptionHash) returns(uint256)
+func (_AWPDAO *AWPDAOTransactorSession) GuardianCancel(targets []common.Address, values []*big.Int, calldatas [][]byte, descriptionHash [32]byte) (*types.Transaction, error) {
+	return _AWPDAO.Contract.GuardianCancel(&_AWPDAO.TransactOpts, targets, values, calldatas, descriptionHash)
+}
+
+// Initialize is a paid mutator transaction binding the contract method 0x8fa61899.
+//
+// Solidity: function initialize(address timelock_, uint48 votingDelay_, uint32 votingPeriod_, uint48 lateQuorumExtension_, uint256 quorumPercent_, address guardian_) returns()
+func (_AWPDAO *AWPDAOTransactor) Initialize(opts *bind.TransactOpts, timelock_ common.Address, votingDelay_ *big.Int, votingPeriod_ uint32, lateQuorumExtension_ *big.Int, quorumPercent_ *big.Int, guardian_ common.Address) (*types.Transaction, error) {
+	return _AWPDAO.contract.Transact(opts, "initialize", timelock_, votingDelay_, votingPeriod_, lateQuorumExtension_, quorumPercent_, guardian_)
+}
+
+// Initialize is a paid mutator transaction binding the contract method 0x8fa61899.
+//
+// Solidity: function initialize(address timelock_, uint48 votingDelay_, uint32 votingPeriod_, uint48 lateQuorumExtension_, uint256 quorumPercent_, address guardian_) returns()
+func (_AWPDAO *AWPDAOSession) Initialize(timelock_ common.Address, votingDelay_ *big.Int, votingPeriod_ uint32, lateQuorumExtension_ *big.Int, quorumPercent_ *big.Int, guardian_ common.Address) (*types.Transaction, error) {
+	return _AWPDAO.Contract.Initialize(&_AWPDAO.TransactOpts, timelock_, votingDelay_, votingPeriod_, lateQuorumExtension_, quorumPercent_, guardian_)
+}
+
+// Initialize is a paid mutator transaction binding the contract method 0x8fa61899.
+//
+// Solidity: function initialize(address timelock_, uint48 votingDelay_, uint32 votingPeriod_, uint48 lateQuorumExtension_, uint256 quorumPercent_, address guardian_) returns()
+func (_AWPDAO *AWPDAOTransactorSession) Initialize(timelock_ common.Address, votingDelay_ *big.Int, votingPeriod_ uint32, lateQuorumExtension_ *big.Int, quorumPercent_ *big.Int, guardian_ common.Address) (*types.Transaction, error) {
+	return _AWPDAO.Contract.Initialize(&_AWPDAO.TransactOpts, timelock_, votingDelay_, votingPeriod_, lateQuorumExtension_, quorumPercent_, guardian_)
 }
 
 // OnERC1155BatchReceived is a paid mutator transaction binding the contract method 0xbc197c81.
@@ -1585,6 +1761,48 @@ func (_AWPDAO *AWPDAOTransactorSession) Relay(target common.Address, value *big.
 	return _AWPDAO.Contract.Relay(&_AWPDAO.TransactOpts, target, value, data)
 }
 
+// SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
+//
+// Solidity: function setGuardian(address g) returns()
+func (_AWPDAO *AWPDAOTransactor) SetGuardian(opts *bind.TransactOpts, g common.Address) (*types.Transaction, error) {
+	return _AWPDAO.contract.Transact(opts, "setGuardian", g)
+}
+
+// SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
+//
+// Solidity: function setGuardian(address g) returns()
+func (_AWPDAO *AWPDAOSession) SetGuardian(g common.Address) (*types.Transaction, error) {
+	return _AWPDAO.Contract.SetGuardian(&_AWPDAO.TransactOpts, g)
+}
+
+// SetGuardian is a paid mutator transaction binding the contract method 0x8a0dac4a.
+//
+// Solidity: function setGuardian(address g) returns()
+func (_AWPDAO *AWPDAOTransactorSession) SetGuardian(g common.Address) (*types.Transaction, error) {
+	return _AWPDAO.Contract.SetGuardian(&_AWPDAO.TransactOpts, g)
+}
+
+// SetLateQuorumVoteExtension is a paid mutator transaction binding the contract method 0x330df7ff.
+//
+// Solidity: function setLateQuorumVoteExtension(uint48 newVoteExtension) returns()
+func (_AWPDAO *AWPDAOTransactor) SetLateQuorumVoteExtension(opts *bind.TransactOpts, newVoteExtension *big.Int) (*types.Transaction, error) {
+	return _AWPDAO.contract.Transact(opts, "setLateQuorumVoteExtension", newVoteExtension)
+}
+
+// SetLateQuorumVoteExtension is a paid mutator transaction binding the contract method 0x330df7ff.
+//
+// Solidity: function setLateQuorumVoteExtension(uint48 newVoteExtension) returns()
+func (_AWPDAO *AWPDAOSession) SetLateQuorumVoteExtension(newVoteExtension *big.Int) (*types.Transaction, error) {
+	return _AWPDAO.Contract.SetLateQuorumVoteExtension(&_AWPDAO.TransactOpts, newVoteExtension)
+}
+
+// SetLateQuorumVoteExtension is a paid mutator transaction binding the contract method 0x330df7ff.
+//
+// Solidity: function setLateQuorumVoteExtension(uint48 newVoteExtension) returns()
+func (_AWPDAO *AWPDAOTransactorSession) SetLateQuorumVoteExtension(newVoteExtension *big.Int) (*types.Transaction, error) {
+	return _AWPDAO.Contract.SetLateQuorumVoteExtension(&_AWPDAO.TransactOpts, newVoteExtension)
+}
+
 // SetProposalThreshold is a paid mutator transaction binding the contract method 0xece40cc1.
 //
 // Solidity: function setProposalThreshold(uint256 newProposalThreshold) returns()
@@ -1604,6 +1822,27 @@ func (_AWPDAO *AWPDAOSession) SetProposalThreshold(newProposalThreshold *big.Int
 // Solidity: function setProposalThreshold(uint256 newProposalThreshold) returns()
 func (_AWPDAO *AWPDAOTransactorSession) SetProposalThreshold(newProposalThreshold *big.Int) (*types.Transaction, error) {
 	return _AWPDAO.Contract.SetProposalThreshold(&_AWPDAO.TransactOpts, newProposalThreshold)
+}
+
+// SetQuorumPercent is a paid mutator transaction binding the contract method 0x797294ac.
+//
+// Solidity: function setQuorumPercent(uint256 newQuorumPercent) returns()
+func (_AWPDAO *AWPDAOTransactor) SetQuorumPercent(opts *bind.TransactOpts, newQuorumPercent *big.Int) (*types.Transaction, error) {
+	return _AWPDAO.contract.Transact(opts, "setQuorumPercent", newQuorumPercent)
+}
+
+// SetQuorumPercent is a paid mutator transaction binding the contract method 0x797294ac.
+//
+// Solidity: function setQuorumPercent(uint256 newQuorumPercent) returns()
+func (_AWPDAO *AWPDAOSession) SetQuorumPercent(newQuorumPercent *big.Int) (*types.Transaction, error) {
+	return _AWPDAO.Contract.SetQuorumPercent(&_AWPDAO.TransactOpts, newQuorumPercent)
+}
+
+// SetQuorumPercent is a paid mutator transaction binding the contract method 0x797294ac.
+//
+// Solidity: function setQuorumPercent(uint256 newQuorumPercent) returns()
+func (_AWPDAO *AWPDAOTransactorSession) SetQuorumPercent(newQuorumPercent *big.Int) (*types.Transaction, error) {
+	return _AWPDAO.Contract.SetQuorumPercent(&_AWPDAO.TransactOpts, newQuorumPercent)
 }
 
 // SetVotingDelay is a paid mutator transaction binding the contract method 0x79051887.
@@ -1688,6 +1927,27 @@ func (_AWPDAO *AWPDAOSession) UpdateTimelock(newTimelock common.Address) (*types
 // Solidity: function updateTimelock(address newTimelock) returns()
 func (_AWPDAO *AWPDAOTransactorSession) UpdateTimelock(newTimelock common.Address) (*types.Transaction, error) {
 	return _AWPDAO.Contract.UpdateTimelock(&_AWPDAO.TransactOpts, newTimelock)
+}
+
+// UpgradeToAndCall is a paid mutator transaction binding the contract method 0x4f1ef286.
+//
+// Solidity: function upgradeToAndCall(address newImplementation, bytes data) payable returns()
+func (_AWPDAO *AWPDAOTransactor) UpgradeToAndCall(opts *bind.TransactOpts, newImplementation common.Address, data []byte) (*types.Transaction, error) {
+	return _AWPDAO.contract.Transact(opts, "upgradeToAndCall", newImplementation, data)
+}
+
+// UpgradeToAndCall is a paid mutator transaction binding the contract method 0x4f1ef286.
+//
+// Solidity: function upgradeToAndCall(address newImplementation, bytes data) payable returns()
+func (_AWPDAO *AWPDAOSession) UpgradeToAndCall(newImplementation common.Address, data []byte) (*types.Transaction, error) {
+	return _AWPDAO.Contract.UpgradeToAndCall(&_AWPDAO.TransactOpts, newImplementation, data)
+}
+
+// UpgradeToAndCall is a paid mutator transaction binding the contract method 0x4f1ef286.
+//
+// Solidity: function upgradeToAndCall(address newImplementation, bytes data) payable returns()
+func (_AWPDAO *AWPDAOTransactorSession) UpgradeToAndCall(newImplementation common.Address, data []byte) (*types.Transaction, error) {
+	return _AWPDAO.Contract.UpgradeToAndCall(&_AWPDAO.TransactOpts, newImplementation, data)
 }
 
 // Receive is a paid mutator transaction binding the contract receive function.
@@ -1838,6 +2098,419 @@ func (_AWPDAO *AWPDAOFilterer) WatchEIP712DomainChanged(opts *bind.WatchOpts, si
 func (_AWPDAO *AWPDAOFilterer) ParseEIP712DomainChanged(log types.Log) (*AWPDAOEIP712DomainChanged, error) {
 	event := new(AWPDAOEIP712DomainChanged)
 	if err := _AWPDAO.contract.UnpackLog(event, "EIP712DomainChanged", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// AWPDAOGuardianUpdatedIterator is returned from FilterGuardianUpdated and is used to iterate over the raw logs and unpacked data for GuardianUpdated events raised by the AWPDAO contract.
+type AWPDAOGuardianUpdatedIterator struct {
+	Event *AWPDAOGuardianUpdated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *AWPDAOGuardianUpdatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(AWPDAOGuardianUpdated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(AWPDAOGuardianUpdated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *AWPDAOGuardianUpdatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *AWPDAOGuardianUpdatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// AWPDAOGuardianUpdated represents a GuardianUpdated event raised by the AWPDAO contract.
+type AWPDAOGuardianUpdated struct {
+	NewGuardian common.Address
+	Raw         types.Log // Blockchain specific contextual infos
+}
+
+// FilterGuardianUpdated is a free log retrieval operation binding the contract event 0x6bb7ff33e730289800c62ad882105a144a74010d2bdbb9a942544a3005ad55bf.
+//
+// Solidity: event GuardianUpdated(address indexed newGuardian)
+func (_AWPDAO *AWPDAOFilterer) FilterGuardianUpdated(opts *bind.FilterOpts, newGuardian []common.Address) (*AWPDAOGuardianUpdatedIterator, error) {
+
+	var newGuardianRule []interface{}
+	for _, newGuardianItem := range newGuardian {
+		newGuardianRule = append(newGuardianRule, newGuardianItem)
+	}
+
+	logs, sub, err := _AWPDAO.contract.FilterLogs(opts, "GuardianUpdated", newGuardianRule)
+	if err != nil {
+		return nil, err
+	}
+	return &AWPDAOGuardianUpdatedIterator{contract: _AWPDAO.contract, event: "GuardianUpdated", logs: logs, sub: sub}, nil
+}
+
+// WatchGuardianUpdated is a free log subscription operation binding the contract event 0x6bb7ff33e730289800c62ad882105a144a74010d2bdbb9a942544a3005ad55bf.
+//
+// Solidity: event GuardianUpdated(address indexed newGuardian)
+func (_AWPDAO *AWPDAOFilterer) WatchGuardianUpdated(opts *bind.WatchOpts, sink chan<- *AWPDAOGuardianUpdated, newGuardian []common.Address) (event.Subscription, error) {
+
+	var newGuardianRule []interface{}
+	for _, newGuardianItem := range newGuardian {
+		newGuardianRule = append(newGuardianRule, newGuardianItem)
+	}
+
+	logs, sub, err := _AWPDAO.contract.WatchLogs(opts, "GuardianUpdated", newGuardianRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(AWPDAOGuardianUpdated)
+				if err := _AWPDAO.contract.UnpackLog(event, "GuardianUpdated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseGuardianUpdated is a log parse operation binding the contract event 0x6bb7ff33e730289800c62ad882105a144a74010d2bdbb9a942544a3005ad55bf.
+//
+// Solidity: event GuardianUpdated(address indexed newGuardian)
+func (_AWPDAO *AWPDAOFilterer) ParseGuardianUpdated(log types.Log) (*AWPDAOGuardianUpdated, error) {
+	event := new(AWPDAOGuardianUpdated)
+	if err := _AWPDAO.contract.UnpackLog(event, "GuardianUpdated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// AWPDAOInitializedIterator is returned from FilterInitialized and is used to iterate over the raw logs and unpacked data for Initialized events raised by the AWPDAO contract.
+type AWPDAOInitializedIterator struct {
+	Event *AWPDAOInitialized // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *AWPDAOInitializedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(AWPDAOInitialized)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(AWPDAOInitialized)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *AWPDAOInitializedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *AWPDAOInitializedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// AWPDAOInitialized represents a Initialized event raised by the AWPDAO contract.
+type AWPDAOInitialized struct {
+	Version uint64
+	Raw     types.Log // Blockchain specific contextual infos
+}
+
+// FilterInitialized is a free log retrieval operation binding the contract event 0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2.
+//
+// Solidity: event Initialized(uint64 version)
+func (_AWPDAO *AWPDAOFilterer) FilterInitialized(opts *bind.FilterOpts) (*AWPDAOInitializedIterator, error) {
+
+	logs, sub, err := _AWPDAO.contract.FilterLogs(opts, "Initialized")
+	if err != nil {
+		return nil, err
+	}
+	return &AWPDAOInitializedIterator{contract: _AWPDAO.contract, event: "Initialized", logs: logs, sub: sub}, nil
+}
+
+// WatchInitialized is a free log subscription operation binding the contract event 0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2.
+//
+// Solidity: event Initialized(uint64 version)
+func (_AWPDAO *AWPDAOFilterer) WatchInitialized(opts *bind.WatchOpts, sink chan<- *AWPDAOInitialized) (event.Subscription, error) {
+
+	logs, sub, err := _AWPDAO.contract.WatchLogs(opts, "Initialized")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(AWPDAOInitialized)
+				if err := _AWPDAO.contract.UnpackLog(event, "Initialized", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseInitialized is a log parse operation binding the contract event 0xc7f505b2f371ae2175ee4913f4499e1f2633a7b5936321eed1cdaeb6115181d2.
+//
+// Solidity: event Initialized(uint64 version)
+func (_AWPDAO *AWPDAOFilterer) ParseInitialized(log types.Log) (*AWPDAOInitialized, error) {
+	event := new(AWPDAOInitialized)
+	if err := _AWPDAO.contract.UnpackLog(event, "Initialized", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// AWPDAOLateQuorumVoteExtensionSetIterator is returned from FilterLateQuorumVoteExtensionSet and is used to iterate over the raw logs and unpacked data for LateQuorumVoteExtensionSet events raised by the AWPDAO contract.
+type AWPDAOLateQuorumVoteExtensionSetIterator struct {
+	Event *AWPDAOLateQuorumVoteExtensionSet // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *AWPDAOLateQuorumVoteExtensionSetIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(AWPDAOLateQuorumVoteExtensionSet)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(AWPDAOLateQuorumVoteExtensionSet)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *AWPDAOLateQuorumVoteExtensionSetIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *AWPDAOLateQuorumVoteExtensionSetIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// AWPDAOLateQuorumVoteExtensionSet represents a LateQuorumVoteExtensionSet event raised by the AWPDAO contract.
+type AWPDAOLateQuorumVoteExtensionSet struct {
+	OldVoteExtension uint64
+	NewVoteExtension uint64
+	Raw              types.Log // Blockchain specific contextual infos
+}
+
+// FilterLateQuorumVoteExtensionSet is a free log retrieval operation binding the contract event 0x7ca4ac117ed3cdce75c1161d8207c440389b1a15d69d096831664657c07dafc2.
+//
+// Solidity: event LateQuorumVoteExtensionSet(uint64 oldVoteExtension, uint64 newVoteExtension)
+func (_AWPDAO *AWPDAOFilterer) FilterLateQuorumVoteExtensionSet(opts *bind.FilterOpts) (*AWPDAOLateQuorumVoteExtensionSetIterator, error) {
+
+	logs, sub, err := _AWPDAO.contract.FilterLogs(opts, "LateQuorumVoteExtensionSet")
+	if err != nil {
+		return nil, err
+	}
+	return &AWPDAOLateQuorumVoteExtensionSetIterator{contract: _AWPDAO.contract, event: "LateQuorumVoteExtensionSet", logs: logs, sub: sub}, nil
+}
+
+// WatchLateQuorumVoteExtensionSet is a free log subscription operation binding the contract event 0x7ca4ac117ed3cdce75c1161d8207c440389b1a15d69d096831664657c07dafc2.
+//
+// Solidity: event LateQuorumVoteExtensionSet(uint64 oldVoteExtension, uint64 newVoteExtension)
+func (_AWPDAO *AWPDAOFilterer) WatchLateQuorumVoteExtensionSet(opts *bind.WatchOpts, sink chan<- *AWPDAOLateQuorumVoteExtensionSet) (event.Subscription, error) {
+
+	logs, sub, err := _AWPDAO.contract.WatchLogs(opts, "LateQuorumVoteExtensionSet")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(AWPDAOLateQuorumVoteExtensionSet)
+				if err := _AWPDAO.contract.UnpackLog(event, "LateQuorumVoteExtensionSet", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseLateQuorumVoteExtensionSet is a log parse operation binding the contract event 0x7ca4ac117ed3cdce75c1161d8207c440389b1a15d69d096831664657c07dafc2.
+//
+// Solidity: event LateQuorumVoteExtensionSet(uint64 oldVoteExtension, uint64 newVoteExtension)
+func (_AWPDAO *AWPDAOFilterer) ParseLateQuorumVoteExtensionSet(log types.Log) (*AWPDAOLateQuorumVoteExtensionSet, error) {
+	event := new(AWPDAOLateQuorumVoteExtensionSet)
+	if err := _AWPDAO.contract.UnpackLog(event, "LateQuorumVoteExtensionSet", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
@@ -2254,6 +2927,151 @@ func (_AWPDAO *AWPDAOFilterer) ParseProposalExecuted(log types.Log) (*AWPDAOProp
 	return event, nil
 }
 
+// AWPDAOProposalExtendedIterator is returned from FilterProposalExtended and is used to iterate over the raw logs and unpacked data for ProposalExtended events raised by the AWPDAO contract.
+type AWPDAOProposalExtendedIterator struct {
+	Event *AWPDAOProposalExtended // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *AWPDAOProposalExtendedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(AWPDAOProposalExtended)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(AWPDAOProposalExtended)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *AWPDAOProposalExtendedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *AWPDAOProposalExtendedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// AWPDAOProposalExtended represents a ProposalExtended event raised by the AWPDAO contract.
+type AWPDAOProposalExtended struct {
+	ProposalId       *big.Int
+	ExtendedDeadline uint64
+	Raw              types.Log // Blockchain specific contextual infos
+}
+
+// FilterProposalExtended is a free log retrieval operation binding the contract event 0x541f725fb9f7c98a30cc9c0ff32fbb14358cd7159c847a3aa20a2bdc442ba511.
+//
+// Solidity: event ProposalExtended(uint256 indexed proposalId, uint64 extendedDeadline)
+func (_AWPDAO *AWPDAOFilterer) FilterProposalExtended(opts *bind.FilterOpts, proposalId []*big.Int) (*AWPDAOProposalExtendedIterator, error) {
+
+	var proposalIdRule []interface{}
+	for _, proposalIdItem := range proposalId {
+		proposalIdRule = append(proposalIdRule, proposalIdItem)
+	}
+
+	logs, sub, err := _AWPDAO.contract.FilterLogs(opts, "ProposalExtended", proposalIdRule)
+	if err != nil {
+		return nil, err
+	}
+	return &AWPDAOProposalExtendedIterator{contract: _AWPDAO.contract, event: "ProposalExtended", logs: logs, sub: sub}, nil
+}
+
+// WatchProposalExtended is a free log subscription operation binding the contract event 0x541f725fb9f7c98a30cc9c0ff32fbb14358cd7159c847a3aa20a2bdc442ba511.
+//
+// Solidity: event ProposalExtended(uint256 indexed proposalId, uint64 extendedDeadline)
+func (_AWPDAO *AWPDAOFilterer) WatchProposalExtended(opts *bind.WatchOpts, sink chan<- *AWPDAOProposalExtended, proposalId []*big.Int) (event.Subscription, error) {
+
+	var proposalIdRule []interface{}
+	for _, proposalIdItem := range proposalId {
+		proposalIdRule = append(proposalIdRule, proposalIdItem)
+	}
+
+	logs, sub, err := _AWPDAO.contract.WatchLogs(opts, "ProposalExtended", proposalIdRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(AWPDAOProposalExtended)
+				if err := _AWPDAO.contract.UnpackLog(event, "ProposalExtended", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseProposalExtended is a log parse operation binding the contract event 0x541f725fb9f7c98a30cc9c0ff32fbb14358cd7159c847a3aa20a2bdc442ba511.
+//
+// Solidity: event ProposalExtended(uint256 indexed proposalId, uint64 extendedDeadline)
+func (_AWPDAO *AWPDAOFilterer) ParseProposalExtended(log types.Log) (*AWPDAOProposalExtended, error) {
+	event := new(AWPDAOProposalExtended)
+	if err := _AWPDAO.contract.UnpackLog(event, "ProposalExtended", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
 // AWPDAOProposalQueuedIterator is returned from FilterProposalQueued and is used to iterate over the raw logs and unpacked data for ProposalQueued events raised by the AWPDAO contract.
 type AWPDAOProposalQueuedIterator struct {
 	Event *AWPDAOProposalQueued // Event containing the contract specifics and raw log
@@ -2524,6 +3342,140 @@ func (_AWPDAO *AWPDAOFilterer) ParseProposalThresholdSet(log types.Log) (*AWPDAO
 	return event, nil
 }
 
+// AWPDAOQuorumPercentUpdatedIterator is returned from FilterQuorumPercentUpdated and is used to iterate over the raw logs and unpacked data for QuorumPercentUpdated events raised by the AWPDAO contract.
+type AWPDAOQuorumPercentUpdatedIterator struct {
+	Event *AWPDAOQuorumPercentUpdated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *AWPDAOQuorumPercentUpdatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(AWPDAOQuorumPercentUpdated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(AWPDAOQuorumPercentUpdated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *AWPDAOQuorumPercentUpdatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *AWPDAOQuorumPercentUpdatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// AWPDAOQuorumPercentUpdated represents a QuorumPercentUpdated event raised by the AWPDAO contract.
+type AWPDAOQuorumPercentUpdated struct {
+	NewQuorumPercent *big.Int
+	Raw              types.Log // Blockchain specific contextual infos
+}
+
+// FilterQuorumPercentUpdated is a free log retrieval operation binding the contract event 0xf665483bf5f5da211e09b151b41c579eb21dd460fdd6d7a1429efa7ee6af7229.
+//
+// Solidity: event QuorumPercentUpdated(uint256 newQuorumPercent)
+func (_AWPDAO *AWPDAOFilterer) FilterQuorumPercentUpdated(opts *bind.FilterOpts) (*AWPDAOQuorumPercentUpdatedIterator, error) {
+
+	logs, sub, err := _AWPDAO.contract.FilterLogs(opts, "QuorumPercentUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return &AWPDAOQuorumPercentUpdatedIterator{contract: _AWPDAO.contract, event: "QuorumPercentUpdated", logs: logs, sub: sub}, nil
+}
+
+// WatchQuorumPercentUpdated is a free log subscription operation binding the contract event 0xf665483bf5f5da211e09b151b41c579eb21dd460fdd6d7a1429efa7ee6af7229.
+//
+// Solidity: event QuorumPercentUpdated(uint256 newQuorumPercent)
+func (_AWPDAO *AWPDAOFilterer) WatchQuorumPercentUpdated(opts *bind.WatchOpts, sink chan<- *AWPDAOQuorumPercentUpdated) (event.Subscription, error) {
+
+	logs, sub, err := _AWPDAO.contract.WatchLogs(opts, "QuorumPercentUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(AWPDAOQuorumPercentUpdated)
+				if err := _AWPDAO.contract.UnpackLog(event, "QuorumPercentUpdated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseQuorumPercentUpdated is a log parse operation binding the contract event 0xf665483bf5f5da211e09b151b41c579eb21dd460fdd6d7a1429efa7ee6af7229.
+//
+// Solidity: event QuorumPercentUpdated(uint256 newQuorumPercent)
+func (_AWPDAO *AWPDAOFilterer) ParseQuorumPercentUpdated(log types.Log) (*AWPDAOQuorumPercentUpdated, error) {
+	event := new(AWPDAOQuorumPercentUpdated)
+	if err := _AWPDAO.contract.UnpackLog(event, "QuorumPercentUpdated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
 // AWPDAOTimelockChangeIterator is returned from FilterTimelockChange and is used to iterate over the raw logs and unpacked data for TimelockChange events raised by the AWPDAO contract.
 type AWPDAOTimelockChangeIterator struct {
 	Event *AWPDAOTimelockChange // Event containing the contract specifics and raw log
@@ -2653,6 +3605,150 @@ func (_AWPDAO *AWPDAOFilterer) WatchTimelockChange(opts *bind.WatchOpts, sink ch
 func (_AWPDAO *AWPDAOFilterer) ParseTimelockChange(log types.Log) (*AWPDAOTimelockChange, error) {
 	event := new(AWPDAOTimelockChange)
 	if err := _AWPDAO.contract.UnpackLog(event, "TimelockChange", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// AWPDAOUpgradedIterator is returned from FilterUpgraded and is used to iterate over the raw logs and unpacked data for Upgraded events raised by the AWPDAO contract.
+type AWPDAOUpgradedIterator struct {
+	Event *AWPDAOUpgraded // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *AWPDAOUpgradedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(AWPDAOUpgraded)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(AWPDAOUpgraded)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *AWPDAOUpgradedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *AWPDAOUpgradedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// AWPDAOUpgraded represents a Upgraded event raised by the AWPDAO contract.
+type AWPDAOUpgraded struct {
+	Implementation common.Address
+	Raw            types.Log // Blockchain specific contextual infos
+}
+
+// FilterUpgraded is a free log retrieval operation binding the contract event 0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b.
+//
+// Solidity: event Upgraded(address indexed implementation)
+func (_AWPDAO *AWPDAOFilterer) FilterUpgraded(opts *bind.FilterOpts, implementation []common.Address) (*AWPDAOUpgradedIterator, error) {
+
+	var implementationRule []interface{}
+	for _, implementationItem := range implementation {
+		implementationRule = append(implementationRule, implementationItem)
+	}
+
+	logs, sub, err := _AWPDAO.contract.FilterLogs(opts, "Upgraded", implementationRule)
+	if err != nil {
+		return nil, err
+	}
+	return &AWPDAOUpgradedIterator{contract: _AWPDAO.contract, event: "Upgraded", logs: logs, sub: sub}, nil
+}
+
+// WatchUpgraded is a free log subscription operation binding the contract event 0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b.
+//
+// Solidity: event Upgraded(address indexed implementation)
+func (_AWPDAO *AWPDAOFilterer) WatchUpgraded(opts *bind.WatchOpts, sink chan<- *AWPDAOUpgraded, implementation []common.Address) (event.Subscription, error) {
+
+	var implementationRule []interface{}
+	for _, implementationItem := range implementation {
+		implementationRule = append(implementationRule, implementationItem)
+	}
+
+	logs, sub, err := _AWPDAO.contract.WatchLogs(opts, "Upgraded", implementationRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(AWPDAOUpgraded)
+				if err := _AWPDAO.contract.UnpackLog(event, "Upgraded", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseUpgraded is a log parse operation binding the contract event 0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b.
+//
+// Solidity: event Upgraded(address indexed implementation)
+func (_AWPDAO *AWPDAOFilterer) ParseUpgraded(log types.Log) (*AWPDAOUpgraded, error) {
+	event := new(AWPDAOUpgraded)
+	if err := _AWPDAO.contract.UnpackLog(event, "Upgraded", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log

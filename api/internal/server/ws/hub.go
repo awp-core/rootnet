@@ -15,13 +15,27 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// allocationWatch subscribes to allocation changes for a specific (agent, worknetId)
+type allocationWatch struct {
+	Agent    string `json:"agent"`
+	SubnetID string `json:"worknetId"`
+}
+
 // Client represents a WebSocket client connection
 type Client struct {
-	hub     *Hub
-	conn    *websocket.Conn
-	send    chan []byte
-	filters map[string]bool // event type filters
-	ip      string          // client IP for connection limit tracking
+	hub              *Hub
+	conn             *websocket.Conn
+	send             chan []byte
+	filters          map[string]bool // event type filters
+	allocWatches     map[string]bool // "agent:worknetId" exact match
+	subnetWatches    map[string]bool // "worknetId" whole-subnet match (when agent is omitted)
+	watchAddresses   map[string]bool // user-level address filter (lowercase address)
+	ip               string          // client IP for connection limit tracking
+}
+
+// AllocationQuerier queries current allocation for (agent, worknetId) (injected by handler layer)
+type AllocationQuerier interface {
+	GetAgentSubnetStakeWS(ctx context.Context, chainID int64, agent string, subnetID string) (string, error)
 }
 
 // Hub maintains all active WebSocket clients and broadcasts Redis messages to them
@@ -33,18 +47,30 @@ type Hub struct {
 	mu         sync.RWMutex
 	rdb        *redis.Client
 	logger     *slog.Logger
-	connsByIP map[string]int // per-IP WebSocket connection counter
-	ipMu      sync.Mutex    // guards connsByIP
+	connsByIP  map[string]int // per-IP WebSocket connection counter
+	ipMu       sync.Mutex    // guards connsByIP
+	allocQuery AllocationQuerier // optional: for enriching allocation push
+	chainID    int64             // chain ID for DB queries
 }
 
 // filterMessage represents a subscription filter message sent by a client
 type filterMessage struct {
-	Subscribe []string `json:"subscribe"`
+	Subscribe        []string          `json:"subscribe,omitempty"`
+	WatchAllocations []allocationWatch `json:"watchAllocations,omitempty"`
+	WatchAddresses   []string          `json:"watchAddresses,omitempty"`
 }
 
-// broadcastEvent is used to parse the event type from a broadcast message
+// broadcastEvent is used to parse the event type, chainId, and data from a broadcast message
 type broadcastEvent struct {
-	Type string `json:"type"`
+	Type    string                 `json:"type"`
+	ChainID int64                  `json:"chainId"`
+	Data    map[string]interface{} `json:"data,omitempty"`
+}
+
+// broadcastEventType parses only the type field (for scenarios where data is not needed)
+type broadcastEventType struct {
+	Type    string `json:"type"`
+	ChainID int64  `json:"chainId"`
 }
 
 // NewHub creates a new WebSocket Hub instance
@@ -58,6 +84,15 @@ func NewHub(rdb *redis.Client, logger *slog.Logger) *Hub {
 		logger:     logger,
 		connsByIP:  make(map[string]int),
 	}
+}
+
+// SetAllocationQuerier injects the allocation query interface (used to include current balance in push)
+// Must be called before Hub.Run()
+func (h *Hub) SetAllocationQuerier(q AllocationQuerier, chainID int64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.allocQuery = q
+	h.chainID = chainID
 }
 
 // Run starts the Hub's main loop, subscribes to the Redis channel, and handles client register/unregister/broadcast
@@ -114,7 +149,9 @@ func (h *Hub) Run(ctx context.Context) {
 			if !ok {
 				h.logger.Warn("Redis subscription channel closed, attempting reconnect...")
 				_ = pubsub.Close()
-				// Reconnect loop with backoff — keep existing client connections alive
+				// Reconnect loop with exponential backoff — keep client connections alive
+				backoff := time.Second
+				const maxBackoff = 30 * time.Second
 				for {
 					select {
 					case <-ctx.Done():
@@ -135,11 +172,25 @@ func (h *Hub) Run(ctx context.Context) {
 						return
 					default:
 					}
-					time.Sleep(3 * time.Second)
+					time.Sleep(backoff)
 					pubsub = h.rdb.Subscribe(ctx, "chain_events")
-					redisCh = pubsub.Channel()
-					h.logger.Info("Redis Pub/Sub reconnected")
-					break
+					// Verify the connection actually succeeded
+					pingCtx, pingCancel := context.WithTimeout(ctx, 3*time.Second)
+					err := pubsub.Ping(pingCtx)
+					pingCancel()
+					if err == nil {
+						redisCh = pubsub.Channel()
+						h.logger.Info("Redis Pub/Sub reconnected")
+						break
+					}
+					h.logger.Warn("Redis reconnect failed, retrying", "backoff", backoff, "error", err)
+					_ = pubsub.Close()
+					if backoff < maxBackoff {
+						backoff *= 2
+						if backoff > maxBackoff {
+							backoff = maxBackoff
+						}
+					}
 				}
 				continue // restart the main select loop with new redisCh
 			}
@@ -149,34 +200,231 @@ func (h *Hub) Run(ctx context.Context) {
 	}
 }
 
+// allocEventTypes are event types that trigger allocation push
+var allocEventTypes = map[string]bool{
+	"Allocated":   true,
+	"Deallocated": true,
+	"Reallocated": true,
+}
+
+// allocDelivery records allocation changes to push (collected outside lock, DB queried outside lock, sent outside lock)
+type allocDelivery struct {
+	client *Client
+	key    string // "agent:worknetId"
+}
+
 // broadcastToClients sends a message to all connected clients (respecting filter settings)
 func (h *Hub) broadcastToClients(msg []byte) {
-	// Parse event type for filtering
-	var evt broadcastEvent
+	// Parse type first (ignoring data type to avoid unmarshal failures from type mismatch)
+	var evtType broadcastEventType
 	eventType := ""
-	if err := json.Unmarshal(msg, &evt); err == nil {
-		eventType = evt.Type
+	if err := json.Unmarshal(msg, &evtType); err == nil {
+		eventType = evtType.Type
 	}
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	// Only parse full data for allocation events
+	var evt broadcastEvent
+	var allocKeys []string
+	if allocEventTypes[eventType] {
+		if err := json.Unmarshal(msg, &evt); err == nil && evt.Data != nil {
+			allocKeys = extractAllocKeys(eventType, evt.Data)
+		}
+	}
 
+	// Extract involved worknetId list (for subnet-level matching)
+	var allocSubnets []string
+	if len(allocKeys) > 0 {
+		seen := make(map[string]bool)
+		for _, key := range allocKeys {
+			if parts := strings.SplitN(key, ":", 2); len(parts) == 2 {
+				if !seen[parts[1]] {
+					allocSubnets = append(allocSubnets, parts[1])
+					seen[parts[1]] = true
+				}
+			}
+		}
+	}
+
+	// Phase 1: Collect client list to push while holding lock (no DB queries)
+	var deliveries []allocDelivery
+
+	h.mu.Lock()
 	for client := range h.clients {
-		// If the client has filters set, check whether the event type matches
-		if len(client.filters) > 0 && eventType != "" {
-			if !client.filters[eventType] {
-				continue
+		hasWatches := len(client.allocWatches) > 0 || len(client.subnetWatches) > 0
+		matched := false
+
+		// 1. Allocation subscription push (collect matching keys, do not send)
+		if hasWatches && len(allocKeys) > 0 {
+			matchedKeys := make(map[string]bool)
+
+			// 1a. Exact match agent:worknetId (no break, collect all matches)
+			for _, key := range allocKeys {
+				if client.allocWatches[key] {
+					matchedKeys[key] = true
+				}
+			}
+
+			// 1b. Subnet-level match (collect all keys matching the subnet)
+			for _, sid := range allocSubnets {
+				if client.subnetWatches[sid] {
+					for _, key := range allocKeys {
+						if strings.HasSuffix(key, ":"+sid) && !matchedKeys[key] {
+							matchedKeys[key] = true
+						}
+					}
+				}
+			}
+
+			for key := range matchedKeys {
+				deliveries = append(deliveries, allocDelivery{client: client, key: key})
+				matched = true
 			}
 		}
 
-		select {
-		case client.send <- msg:
-		default:
-			// Send buffer is full; close this client
-			delete(h.clients, client)
-			close(client.send)
+		// 2. Regular type-filtered push (send original message directly, no DB query needed)
+		if !matched {
+			// 2a. Address-level filter: if client set watchAddresses, only push events involving those addresses
+			if len(client.watchAddresses) > 0 {
+				if evt.Data == nil && allocEventTypes[eventType] {
+					// Already parsed above
+				} else if evt.Data == nil {
+					// Need to parse data to check address fields
+					var addrEvt broadcastEvent
+					if err := json.Unmarshal(msg, &addrEvt); err == nil {
+						evt = addrEvt
+					}
+				}
+				if !matchesWatchAddresses(evt.Data, client.watchAddresses) {
+					continue
+				}
+			}
+
+			if len(client.filters) > 0 && eventType != "" {
+				if !client.filters[eventType] {
+					continue
+				}
+			}
+			select {
+			case client.send <- msg:
+			default:
+				delete(h.clients, client)
+				close(client.send)
+			}
 		}
 	}
+	h.mu.Unlock()
+
+	// Phase 2: Do DB queries and send enriched messages outside lock (deduplicated by key)
+	if len(deliveries) > 0 {
+		// 2a: Deduplicate by watchKey, query DB only once per key
+		enrichCache := make(map[string][]byte)
+		for _, d := range deliveries {
+			if _, ok := enrichCache[d.key]; !ok {
+				enriched := h.enrichAllocEvent(evt, d.key)
+				if data, err := json.Marshal(enriched); err == nil {
+					enrichCache[d.key] = data
+				}
+			}
+		}
+
+		// 2b: Send cached results to all matching clients
+		for _, d := range deliveries {
+			data, ok := enrichCache[d.key]
+			if !ok {
+				continue
+			}
+			select {
+			case d.client.send <- data:
+			default:
+				h.mu.Lock()
+				if _, ok := h.clients[d.client]; ok {
+					delete(h.clients, d.client)
+					close(d.client.send)
+				}
+				h.mu.Unlock()
+			}
+		}
+	}
+}
+
+// addressFields are field names in event data that may contain addresses
+var addressFields = []string{"staker", "user", "agent", "owner", "from", "to", "proposer", "recipient", "fromAgent", "toAgent"}
+
+// matchesWatchAddresses checks if address fields in event data match the client watchAddresses
+func matchesWatchAddresses(data map[string]interface{}, watchAddresses map[string]bool) bool {
+	if data == nil || len(watchAddresses) == 0 {
+		return false
+	}
+	for _, field := range addressFields {
+		if v, ok := data[field]; ok {
+			if addr, ok := v.(string); ok && len(addr) == 42 {
+				if watchAddresses[strings.ToLower(addr)] {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// extractAllocKeys extracts the involved "agent:worknetId" key list from event data
+func extractAllocKeys(eventType string, data map[string]interface{}) []string {
+	var keys []string
+	agent, _ := data["agent"].(string)
+	subnetID, _ := data["worknetId"].(string)
+	if agent != "" && subnetID != "" {
+		keys = append(keys, strings.ToLower(agent)+":"+subnetID)
+	}
+	// Reallocated involves two (agent, subnet) pairs
+	if eventType == "Reallocated" {
+		fromAgent, _ := data["fromAgent"].(string)
+		fromSubnet, _ := data["fromSubnet"].(string)
+		toAgent, _ := data["toAgent"].(string)
+		toSubnet, _ := data["toSubnet"].(string)
+		if fromAgent != "" && fromSubnet != "" {
+			keys = append(keys, strings.ToLower(fromAgent)+":"+fromSubnet)
+		}
+		if toAgent != "" && toSubnet != "" {
+			keys = append(keys, strings.ToLower(toAgent)+":"+toSubnet)
+		}
+	}
+	return keys
+}
+
+// enrichAllocEvent enriches an allocation event with current balance (called outside lock)
+func (h *Hub) enrichAllocEvent(evt broadcastEvent, watchKey string) map[string]interface{} {
+	result := map[string]interface{}{
+		"type":        "AllocationChanged",
+		"chainId":     evt.ChainID,
+		"sourceEvent": evt.Type,
+		"data":        evt.Data,
+	}
+
+	parts := strings.SplitN(watchKey, ":", 2)
+	if len(parts) == 2 {
+		agent, subnetID := parts[0], parts[1]
+		result["agent"] = agent
+		result["worknetId"] = subnetID
+
+		// Use chainID from event; if 0, fall back to Hub default chainID
+		cid := evt.ChainID
+		h.mu.RLock()
+		q := h.allocQuery
+		if cid == 0 {
+			cid = h.chainID
+		}
+		h.mu.RUnlock()
+
+		if q != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if currentStake, err := q.GetAgentSubnetStakeWS(ctx, cid, agent, subnetID); err == nil {
+				result["currentStake"] = currentStake
+			}
+		}
+	}
+
+	return result
 }
 
 // HandleConnect handles the WebSocket connection upgrade request
@@ -222,11 +470,14 @@ func (h *Hub) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	conn.SetReadLimit(4096)
 
 	client := &Client{
-		hub:     h,
-		conn:    conn,
-		send:    make(chan []byte, 256),
-		filters: make(map[string]bool),
-		ip:      ip,
+		hub:            h,
+		conn:           conn,
+		send:           make(chan []byte, 256),
+		filters:        make(map[string]bool),
+		allocWatches:   make(map[string]bool),
+		subnetWatches:  make(map[string]bool),
+		watchAddresses: make(map[string]bool),
+		ip:             ip,
 	}
 
 	h.register <- client
@@ -272,6 +523,41 @@ func (h *Hub) readPump(ctx context.Context, client *Client) {
 			}
 			h.mu.Unlock()
 			h.logger.Debug("client updated filters", "filters", fm.Subscribe)
+		}
+
+		// Handle address-level filter subscription
+		if len(fm.WatchAddresses) > 0 && len(fm.WatchAddresses) <= 50 {
+			h.mu.Lock()
+			client.watchAddresses = make(map[string]bool, len(fm.WatchAddresses))
+			for _, addr := range fm.WatchAddresses {
+				if len(addr) == 42 && addr[:2] == "0x" {
+					client.watchAddresses[strings.ToLower(addr)] = true
+				}
+			}
+			h.mu.Unlock()
+			h.logger.Debug("client updated address watches", "count", len(client.watchAddresses))
+		}
+
+		// Handle allocation watch subscription
+		if len(fm.WatchAllocations) > 0 && len(fm.WatchAllocations) <= 100 {
+			h.mu.Lock()
+			client.allocWatches = make(map[string]bool)
+			client.subnetWatches = make(map[string]bool)
+			for _, w := range fm.WatchAllocations {
+				if w.SubnetID == "" || len(w.SubnetID) > 30 {
+					continue
+				}
+				if w.Agent == "" {
+					// Omitting agent = subscribe to entire subnet
+					client.subnetWatches[w.SubnetID] = true
+				} else if len(w.Agent) == 42 {
+					key := strings.ToLower(w.Agent) + ":" + w.SubnetID
+					client.allocWatches[key] = true
+				}
+			}
+			h.mu.Unlock()
+			h.logger.Debug("client updated allocation watches",
+				"exact", len(client.allocWatches), "subnet", len(client.subnetWatches))
 		}
 	}
 }

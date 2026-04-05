@@ -13,7 +13,7 @@ import (
 
 const claimRandomSalt = `-- name: ClaimRandomSalt :one
 WITH locked AS (
-  SELECT id FROM vanity_salts WHERE used = FALSE ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED
+  SELECT id FROM vanity_salts WHERE chain_id = $1::BIGINT AND used = FALSE ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED
 )
 UPDATE vanity_salts SET used = TRUE
 WHERE id = (SELECT id FROM locked)
@@ -25,26 +25,26 @@ type ClaimRandomSaltRow struct {
 	Address string `json:"address"`
 }
 
-func (q *Queries) ClaimRandomSalt(ctx context.Context) (ClaimRandomSaltRow, error) {
-	row := q.db.QueryRow(ctx, claimRandomSalt)
+func (q *Queries) ClaimRandomSalt(ctx context.Context, chainID int64) (ClaimRandomSaltRow, error) {
+	row := q.db.QueryRow(ctx, claimRandomSalt, chainID)
 	var i ClaimRandomSaltRow
 	err := row.Scan(&i.Salt, &i.Address)
 	return i, err
 }
 
 const countAvailableSalts = `-- name: CountAvailableSalts :one
-SELECT COUNT(*) FROM vanity_salts WHERE used = FALSE
+SELECT COUNT(*) FROM vanity_salts WHERE chain_id = $1 AND used = FALSE
 `
 
-func (q *Queries) CountAvailableSalts(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countAvailableSalts)
+func (q *Queries) CountAvailableSalts(ctx context.Context, chainID int64) (int64, error) {
+	row := q.db.QueryRow(ctx, countAvailableSalts, chainID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
 const getRandomAvailableSalt = `-- name: GetRandomAvailableSalt :one
-SELECT salt, address FROM vanity_salts WHERE used = FALSE ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED
+SELECT salt, address FROM vanity_salts WHERE chain_id = $1 AND used = FALSE ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED
 `
 
 type GetRandomAvailableSaltRow struct {
@@ -52,48 +52,50 @@ type GetRandomAvailableSaltRow struct {
 	Address string `json:"address"`
 }
 
-func (q *Queries) GetRandomAvailableSalt(ctx context.Context) (GetRandomAvailableSaltRow, error) {
-	row := q.db.QueryRow(ctx, getRandomAvailableSalt)
+func (q *Queries) GetRandomAvailableSalt(ctx context.Context, chainID int64) (GetRandomAvailableSaltRow, error) {
+	row := q.db.QueryRow(ctx, getRandomAvailableSalt, chainID)
 	var i GetRandomAvailableSaltRow
 	err := row.Scan(&i.Salt, &i.Address)
 	return i, err
 }
 
 const insertVanitySalt = `-- name: InsertVanitySalt :exec
-INSERT INTO vanity_salts (salt, address)
-VALUES ($1, $2)
-ON CONFLICT (salt) DO NOTHING
+INSERT INTO vanity_salts (chain_id, salt, address)
+VALUES ($1, $2, $3)
+ON CONFLICT (chain_id, salt) DO NOTHING
 `
 
 type InsertVanitySaltParams struct {
+	ChainID int64  `json:"chain_id"`
 	Salt    string `json:"salt"`
 	Address string `json:"address"`
 }
 
 func (q *Queries) InsertVanitySalt(ctx context.Context, arg InsertVanitySaltParams) error {
-	_, err := q.db.Exec(ctx, insertVanitySalt, arg.Salt, arg.Address)
+	_, err := q.db.Exec(ctx, insertVanitySalt, arg.ChainID, arg.Salt, arg.Address)
 	return err
 }
 
 const listAllSalts = `-- name: ListAllSalts :many
-SELECT salt, address, used, subnet_id, created_at FROM vanity_salts ORDER BY id LIMIT $1 OFFSET $2
+SELECT salt, address, used, subnet_id, created_at FROM vanity_salts WHERE chain_id = $1 ORDER BY id LIMIT $2 OFFSET $3
 `
 
 type ListAllSaltsParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	ChainID int64 `json:"chain_id"`
+	Limit   int32 `json:"limit"`
+	Offset  int32 `json:"offset"`
 }
 
 type ListAllSaltsRow struct {
 	Salt      string           `json:"salt"`
 	Address   string           `json:"address"`
 	Used      bool             `json:"used"`
-	SubnetID  pgtype.Int8      `json:"subnet_id"`
+	SubnetID  pgtype.Numeric   `json:"subnet_id"`
 	CreatedAt pgtype.Timestamp `json:"created_at"`
 }
 
 func (q *Queries) ListAllSalts(ctx context.Context, arg ListAllSaltsParams) ([]ListAllSaltsRow, error) {
-	rows, err := q.db.Query(ctx, listAllSalts, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, listAllSalts, arg.ChainID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -119,16 +121,21 @@ func (q *Queries) ListAllSalts(ctx context.Context, arg ListAllSaltsParams) ([]L
 }
 
 const listAvailableSalts = `-- name: ListAvailableSalts :many
-SELECT salt, address FROM vanity_salts WHERE used = FALSE ORDER BY id LIMIT $1
+SELECT salt, address FROM vanity_salts WHERE chain_id = $1 AND used = FALSE ORDER BY id LIMIT $2
 `
+
+type ListAvailableSaltsParams struct {
+	ChainID int64 `json:"chain_id"`
+	Limit   int32 `json:"limit"`
+}
 
 type ListAvailableSaltsRow struct {
 	Salt    string `json:"salt"`
 	Address string `json:"address"`
 }
 
-func (q *Queries) ListAvailableSalts(ctx context.Context, limit int32) ([]ListAvailableSaltsRow, error) {
-	rows, err := q.db.Query(ctx, listAvailableSalts, limit)
+func (q *Queries) ListAvailableSalts(ctx context.Context, arg ListAvailableSaltsParams) ([]ListAvailableSaltsRow, error) {
+	rows, err := q.db.Query(ctx, listAvailableSalts, arg.ChainID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -148,16 +155,17 @@ func (q *Queries) ListAvailableSalts(ctx context.Context, limit int32) ([]ListAv
 }
 
 const markSaltUsedByAddress = `-- name: MarkSaltUsedByAddress :exec
-UPDATE vanity_salts SET used = TRUE, subnet_id = $1
-WHERE address = LOWER($2) AND used = FALSE
+UPDATE vanity_salts SET used = TRUE, subnet_id = $2
+WHERE chain_id = $1 AND address = LOWER($3) AND used = FALSE
 `
 
 type MarkSaltUsedByAddressParams struct {
-	SubnetID pgtype.Int8 `json:"subnet_id"`
-	Lower    string      `json:"lower"`
+	ChainID  int64          `json:"chain_id"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
+	Lower    string         `json:"lower"`
 }
 
 func (q *Queries) MarkSaltUsedByAddress(ctx context.Context, arg MarkSaltUsedByAddressParams) error {
-	_, err := q.db.Exec(ctx, markSaltUsedByAddress, arg.SubnetID, arg.Lower)
+	_, err := q.db.Exec(ctx, markSaltUsedByAddress, arg.ChainID, arg.SubnetID, arg.Lower)
 	return err
 }

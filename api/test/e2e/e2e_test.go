@@ -39,17 +39,17 @@ type e2eEnv struct {
 
 	// Contract bindings (created from addresses)
 	awpRegistry *bindings.AWPRegistry
-	awpToken *bindings.AWPToken
-	stakeNFT *bindings.StakeNFT
+	awpToken    *bindings.AWPToken
+	veAWP       *bindings.VeAWP
 
 	// Contract addresses
-	awpRegistryAddr  common.Address
-	awpAddr      common.Address
-	svAddr       common.Address
-	emAddr       common.Address
-	nftAddr      common.Address
-	trsAddr      common.Address
-	stakeNFTAddr common.Address
+	awpRegistryAddr common.Address
+	awpAddr         common.Address
+	allocatorAddr   common.Address
+	emAddr          common.Address
+	worknetAddr     common.Address
+	trsAddr         common.Address
+	veAWPAddr       common.Address
 
 	// Backend
 	pool    *pgxpool.Pool
@@ -92,16 +92,16 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 
 	awpRegistryAddr := common.HexToAddress(addresses["AWPRegistry"])
 	awpAddr := common.HexToAddress(addresses["AWPToken"])
-	svAddr := common.HexToAddress(addresses["StakingVault"])
+	allocatorAddr := common.HexToAddress(addresses["AWPAllocator"])
 	emAddr := common.HexToAddress(addresses["AWPEmission"])
-	nftAddr := common.HexToAddress(addresses["SubnetNFT"])
+	worknetAddr := common.HexToAddress(addresses["AWPWorkNet"])
 	trsAddr := common.HexToAddress(addresses["Treasury"])
 
-	stakeNFTAddr := common.HexToAddress(addresses["StakeNFT"])
+	veAWPAddr := common.HexToAddress(addresses["VeAWP"])
 
 	awpRegistry, _ := bindings.NewAWPRegistry(awpRegistryAddr, client)
 	awpToken, _ := bindings.NewAWPToken(awpAddr, client)
-	stakeNFT, _ := bindings.NewStakeNFT(stakeNFTAddr, client)
+	veAWP, _ := bindings.NewVeAWP(veAWPAddr, client)
 
 	// Connect to DB
 	pool, err := pgxpool.New(context.Background(), dbURL)
@@ -122,23 +122,23 @@ func newE2EEnv(t *testing.T) *e2eEnv {
 	}
 
 	env := &e2eEnv{
-		client:      client,
-		deployer:    deployerKey,
-		chainID:     chainID,
-		awpRegistry:  awpRegistry,
-		awpToken:     awpToken,
-		stakeNFT:     stakeNFT,
-		awpRegistryAddr:  awpRegistryAddr,
-		awpAddr:      awpAddr,
-		svAddr:       svAddr,
-		emAddr:       emAddr,
-		nftAddr:      nftAddr,
-		trsAddr:      trsAddr,
-		stakeNFTAddr: stakeNFTAddr,
-		pool:        pool,
-		rdb:         rdb,
-		queries:     gen.New(pool),
-		t:           t,
+		client:          client,
+		deployer:        deployerKey,
+		chainID:         chainID,
+		awpRegistry:     awpRegistry,
+		awpToken:        awpToken,
+		veAWP:           veAWP,
+		awpRegistryAddr: awpRegistryAddr,
+		awpAddr:         awpAddr,
+		allocatorAddr:   allocatorAddr,
+		emAddr:          emAddr,
+		worknetAddr:     worknetAddr,
+		trsAddr:         trsAddr,
+		veAWPAddr:       veAWPAddr,
+		pool:            pool,
+		rdb:             rdb,
+		queries:         gen.New(pool),
+		t:               t,
 	}
 
 	env.cleanDB()
@@ -184,7 +184,7 @@ func readDeployedAddresses(t *testing.T, contractsDir string) map[string]string 
 		}
 	}
 
-	required := []string{"AWPRegistry", "AWPToken", "StakingVault", "AWPEmission", "SubnetNFT", "Treasury", "StakeNFT"}
+	required := []string{"AWPRegistry", "AWPToken", "AWPAllocator", "AWPEmission", "AWPWorkNet", "Treasury", "VeAWP"}
 	for _, name := range required {
 		if addrs[name] == "" {
 			t.Fatalf("deployment result missing contract: %s (found: %v)", name, addrs)
@@ -213,16 +213,16 @@ func (e *e2eEnv) setupIndexer() {
 		"AWPRegistry":  e.awpRegistryAddr.Hex(),
 		"AWPToken":     e.awpAddr.Hex(),
 		"AWPEmission":  e.emAddr.Hex(),
-		"StakingVault": e.svAddr.Hex(),
-		"SubnetNFT":    e.nftAddr.Hex(),
+		"AWPAllocator": e.allocatorAddr.Hex(),
+		"AWPWorkNet":   e.worknetAddr.Hex(),
 		"AWPDAO":       common.Address{}.Hex(),
-		"StakeNFT":     e.stakeNFTAddr.Hex(),
+		"VeAWP":        e.veAWPAddr.Hex(),
 	}
 	chainClient, err := chain.NewClient(context.Background(), "http://127.0.0.1:18545", addrs)
 	if err != nil {
 		e.t.Fatalf("failed to create chain.Client: %v", err)
 	}
-	e.indexer, _ = chain.NewIndexer(chainClient, e.pool, e.rdb, 0)
+	e.indexer, _ = chain.NewIndexer(chainClient, e.pool, e.rdb, 31337, 0)
 }
 
 func (e *e2eEnv) setupRouter() {
@@ -230,14 +230,14 @@ func (e *e2eEnv) setupRouter() {
 	cfg := &config.Config{
 		AWPRegistryAddress:  e.awpRegistryAddr.Hex(),
 		AWPTokenAddress:     e.awpAddr.Hex(),
-		StakingVaultAddress: e.svAddr.Hex(),
+		AWPAllocatorAddress: e.allocatorAddr.Hex(),
 		AWPEmissionAddress:  e.emAddr.Hex(),
-		SubnetNFTAddress:    e.nftAddr.Hex(),
+		AWPWorkNetAddress:   e.worknetAddr.Hex(),
 		TreasuryAddress:     e.trsAddr.Hex(),
-		StakeNFTAddress:     e.stakeNFTAddr.Hex(),
+		VeAWPAddress:        e.veAWPAddr.Hex(),
 	}
 	limiter := ratelimit.NewLimiter(e.rdb, logger)
-	h := handler.NewHandler(e.queries, e.rdb, cfg, logger, limiter)
+	h := handler.NewHandler(e.queries, e.pool, e.rdb, cfg, logger, limiter)
 	hub := ws.NewHub(e.rdb, logger)
 	e.router = server.NewRouter(server.RouterParams{Handler: h, Hub: hub})
 }
@@ -270,11 +270,7 @@ func TestE2E_Chain_RegisterUser(t *testing.T) {
 	env := newE2EEnv(t)
 	deployer := crypto.PubkeyToAddress(env.deployer.PublicKey)
 
-	// Register on-chain
-	_, err := env.awpRegistry.Register(env.auth())
-	if err != nil {
-		t.Fatalf("register failed: %v", err)
-	}
+	// No explicit registration needed — every address is implicitly a root
 	time.Sleep(500 * time.Millisecond) // wait for auto-mine
 
 	// Indexer processes
@@ -314,15 +310,14 @@ func TestE2E_Chain_DepositAWP(t *testing.T) {
 	deployer := crypto.PubkeyToAddress(env.deployer.PublicKey)
 	addr := strings.ToLower(deployer.Hex())
 
-	// Register
-	_, _ = env.awpRegistry.Register(env.auth())
+	// No explicit registration needed
 	time.Sleep(300 * time.Millisecond)
 
-	// Approve + Deposit via StakeNFT
+	// Approve + Deposit via VeAWP
 	deposit := new(big.Int).Mul(big.NewInt(1000), new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))
-	_, _ = env.awpToken.Approve(env.auth(), env.stakeNFTAddr, deposit)
+	_, _ = env.awpToken.Approve(env.auth(), env.veAWPAddr, deposit)
 	time.Sleep(300 * time.Millisecond)
-	_, err := env.stakeNFT.Deposit(env.auth(), deposit, 10) // lock for 10 epochs
+	_, err := env.veAWP.Deposit(env.auth(), deposit, 10) // lock for 10 epochs
 	if err != nil {
 		t.Fatalf("deposit failed: %v", err)
 	}
@@ -348,8 +343,7 @@ func TestE2E_Chain_RegisterAgent(t *testing.T) {
 	env := newE2EEnv(t)
 	deployer := crypto.PubkeyToAddress(env.deployer.PublicKey)
 
-	// Register user
-	_, _ = env.awpRegistry.Register(env.auth())
+	// No explicit registration needed
 	time.Sleep(300 * time.Millisecond)
 
 	// Use Anvil's 2nd account as Agent

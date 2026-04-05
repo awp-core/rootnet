@@ -11,12 +11,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const getActiveSubnets = `-- name: GetActiveSubnets :many
-SELECT subnet_id, owner, name, symbol, subnet_contract, skills_uri, min_stake, alpha_token, lp_pool, status, created_at, activated_at, immunity_ends_at, burned FROM subnets WHERE status = 'Active' AND burned = FALSE ORDER BY subnet_id
+const countAllSubnets = `-- name: CountAllSubnets :one
+SELECT COUNT(*) FROM subnets WHERE burned = FALSE
 `
 
-func (q *Queries) GetActiveSubnets(ctx context.Context) ([]Subnet, error) {
-	rows, err := q.db.Query(ctx, getActiveSubnets)
+func (q *Queries) CountAllSubnets(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countAllSubnets)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getActiveSubnets = `-- name: GetActiveSubnets :many
+SELECT subnet_id, chain_id, owner, name, symbol, subnet_contract, skills_uri, metadata_uri, min_stake, worknet_token, lp_pool, status, created_at, activated_at, immunity_ends_at, burned FROM subnets WHERE chain_id = $1 AND status = 'Active' AND burned = FALSE ORDER BY subnet_id
+`
+
+func (q *Queries) GetActiveSubnets(ctx context.Context, chainID int64) ([]Subnet, error) {
+	rows, err := q.db.Query(ctx, getActiveSubnets, chainID)
 	if err != nil {
 		return nil, err
 	}
@@ -26,13 +37,15 @@ func (q *Queries) GetActiveSubnets(ctx context.Context) ([]Subnet, error) {
 		var i Subnet
 		if err := rows.Scan(
 			&i.SubnetID,
+			&i.ChainID,
 			&i.Owner,
 			&i.Name,
 			&i.Symbol,
 			&i.SubnetContract,
 			&i.SkillsUri,
+			&i.MetadataUri,
 			&i.MinStake,
-			&i.AlphaToken,
+			&i.WorknetToken,
 			&i.LpPool,
 			&i.Status,
 			&i.CreatedAt,
@@ -51,21 +64,23 @@ func (q *Queries) GetActiveSubnets(ctx context.Context) ([]Subnet, error) {
 }
 
 const getSubnet = `-- name: GetSubnet :one
-SELECT subnet_id, owner, name, symbol, subnet_contract, skills_uri, min_stake, alpha_token, lp_pool, status, created_at, activated_at, immunity_ends_at, burned FROM subnets WHERE subnet_id = $1
+SELECT subnet_id, chain_id, owner, name, symbol, subnet_contract, skills_uri, metadata_uri, min_stake, worknet_token, lp_pool, status, created_at, activated_at, immunity_ends_at, burned FROM subnets WHERE subnet_id = $1
 `
 
-func (q *Queries) GetSubnet(ctx context.Context, subnetID int64) (Subnet, error) {
+func (q *Queries) GetSubnet(ctx context.Context, subnetID pgtype.Numeric) (Subnet, error) {
 	row := q.db.QueryRow(ctx, getSubnet, subnetID)
 	var i Subnet
 	err := row.Scan(
 		&i.SubnetID,
+		&i.ChainID,
 		&i.Owner,
 		&i.Name,
 		&i.Symbol,
 		&i.SubnetContract,
 		&i.SkillsUri,
+		&i.MetadataUri,
 		&i.MinStake,
-		&i.AlphaToken,
+		&i.WorknetToken,
 		&i.LpPool,
 		&i.Status,
 		&i.CreatedAt,
@@ -80,7 +95,7 @@ const getSubnetSkills = `-- name: GetSubnetSkills :one
 SELECT skills_uri FROM subnets WHERE subnet_id = $1
 `
 
-func (q *Queries) GetSubnetSkills(ctx context.Context, subnetID int64) (pgtype.Text, error) {
+func (q *Queries) GetSubnetSkills(ctx context.Context, subnetID pgtype.Numeric) (pgtype.Text, error) {
 	row := q.db.QueryRow(ctx, getSubnetSkills, subnetID)
 	var skills_uri pgtype.Text
 	err := row.Scan(&skills_uri)
@@ -88,20 +103,21 @@ func (q *Queries) GetSubnetSkills(ctx context.Context, subnetID int64) (pgtype.T
 }
 
 const insertSubnet = `-- name: InsertSubnet :exec
-INSERT INTO subnets (subnet_id, owner, name, symbol, subnet_contract, skills_uri, min_stake, alpha_token, lp_pool, status, created_at, immunity_ends_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'Pending', $10, $11)
+INSERT INTO subnets (subnet_id, chain_id, owner, name, symbol, subnet_contract, skills_uri, min_stake, worknet_token, lp_pool, status, created_at, immunity_ends_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Pending', $11, $12)
 ON CONFLICT (subnet_id) DO NOTHING
 `
 
 type InsertSubnetParams struct {
-	SubnetID       int64          `json:"subnet_id"`
+	SubnetID       pgtype.Numeric `json:"subnet_id"`
+	ChainID        int64          `json:"chain_id"`
 	Owner          string         `json:"owner"`
 	Name           string         `json:"name"`
 	Symbol         string         `json:"symbol"`
 	SubnetContract string         `json:"subnet_contract"`
 	SkillsUri      pgtype.Text    `json:"skills_uri"`
 	MinStake       pgtype.Numeric `json:"min_stake"`
-	AlphaToken     string         `json:"alpha_token"`
+	WorknetToken     string         `json:"worknet_token"`
 	LpPool         pgtype.Text    `json:"lp_pool"`
 	CreatedAt      int64          `json:"created_at"`
 	ImmunityEndsAt pgtype.Int8    `json:"immunity_ends_at"`
@@ -110,13 +126,14 @@ type InsertSubnetParams struct {
 func (q *Queries) InsertSubnet(ctx context.Context, arg InsertSubnetParams) error {
 	_, err := q.db.Exec(ctx, insertSubnet,
 		arg.SubnetID,
+		arg.ChainID,
 		arg.Owner,
 		arg.Name,
 		arg.Symbol,
 		arg.SubnetContract,
 		arg.SkillsUri,
 		arg.MinStake,
-		arg.AlphaToken,
+		arg.WorknetToken,
 		arg.LpPool,
 		arg.CreatedAt,
 		arg.ImmunityEndsAt,
@@ -124,17 +141,71 @@ func (q *Queries) InsertSubnet(ctx context.Context, arg InsertSubnetParams) erro
 	return err
 }
 
+const listActiveWorknetTokens = `-- name: ListActiveWorknetTokens :many
+SELECT worknet_token FROM subnets WHERE chain_id = $1 AND status = 'Active' AND worknet_token != ''
+`
+
+func (q *Queries) ListActiveWorknetTokens(ctx context.Context, chainID int64) ([]string, error) {
+	rows, err := q.db.Query(ctx, listActiveWorknetTokens, chainID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var worknet_token string
+		if err := rows.Scan(&worknet_token); err != nil {
+			return nil, err
+		}
+		items = append(items, worknet_token)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveWorknetTokensWithSubnetID = `-- name: ListActiveWorknetTokensWithSubnetID :many
+SELECT subnet_id, worknet_token FROM subnets WHERE chain_id = $1 AND status = 'Active' AND worknet_token != ''
+`
+
+type ListActiveWorknetTokensWithSubnetIDRow struct {
+	SubnetID   pgtype.Numeric `json:"subnet_id"`
+	WorknetToken string         `json:"worknet_token"`
+}
+
+func (q *Queries) ListActiveWorknetTokensWithSubnetID(ctx context.Context, chainID int64) ([]ListActiveWorknetTokensWithSubnetIDRow, error) {
+	rows, err := q.db.Query(ctx, listActiveWorknetTokensWithSubnetID, chainID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveWorknetTokensWithSubnetIDRow{}
+	for rows.Next() {
+		var i ListActiveWorknetTokensWithSubnetIDRow
+		if err := rows.Scan(&i.SubnetID, &i.WorknetToken); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubnets = `-- name: ListSubnets :many
-SELECT subnet_id, owner, name, symbol, subnet_contract, skills_uri, min_stake, alpha_token, lp_pool, status, created_at, activated_at, immunity_ends_at, burned FROM subnets WHERE burned = FALSE ORDER BY subnet_id DESC LIMIT $1 OFFSET $2
+SELECT subnet_id, chain_id, owner, name, symbol, subnet_contract, skills_uri, metadata_uri, min_stake, worknet_token, lp_pool, status, created_at, activated_at, immunity_ends_at, burned FROM subnets WHERE chain_id = $1 AND burned = FALSE ORDER BY subnet_id DESC LIMIT $2 OFFSET $3
 `
 
 type ListSubnetsParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	ChainID int64 `json:"chain_id"`
+	Limit   int32 `json:"limit"`
+	Offset  int32 `json:"offset"`
 }
 
 func (q *Queries) ListSubnets(ctx context.Context, arg ListSubnetsParams) ([]Subnet, error) {
-	rows, err := q.db.Query(ctx, listSubnets, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, listSubnets, arg.ChainID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -144,13 +215,15 @@ func (q *Queries) ListSubnets(ctx context.Context, arg ListSubnetsParams) ([]Sub
 		var i Subnet
 		if err := rows.Scan(
 			&i.SubnetID,
+			&i.ChainID,
 			&i.Owner,
 			&i.Name,
 			&i.Symbol,
 			&i.SubnetContract,
 			&i.SkillsUri,
+			&i.MetadataUri,
 			&i.MinStake,
-			&i.AlphaToken,
+			&i.WorknetToken,
 			&i.LpPool,
 			&i.Status,
 			&i.CreatedAt,
@@ -169,17 +242,23 @@ func (q *Queries) ListSubnets(ctx context.Context, arg ListSubnetsParams) ([]Sub
 }
 
 const listSubnetsByStatus = `-- name: ListSubnetsByStatus :many
-SELECT subnet_id, owner, name, symbol, subnet_contract, skills_uri, min_stake, alpha_token, lp_pool, status, created_at, activated_at, immunity_ends_at, burned FROM subnets WHERE status = $1 AND burned = FALSE ORDER BY subnet_id DESC LIMIT $2 OFFSET $3
+SELECT subnet_id, chain_id, owner, name, symbol, subnet_contract, skills_uri, metadata_uri, min_stake, worknet_token, lp_pool, status, created_at, activated_at, immunity_ends_at, burned FROM subnets WHERE chain_id = $1 AND status = $2 AND burned = FALSE ORDER BY subnet_id DESC LIMIT $3 OFFSET $4
 `
 
 type ListSubnetsByStatusParams struct {
-	Status string `json:"status"`
-	Limit  int32  `json:"limit"`
-	Offset int32  `json:"offset"`
+	ChainID int64  `json:"chain_id"`
+	Status  string `json:"status"`
+	Limit   int32  `json:"limit"`
+	Offset  int32  `json:"offset"`
 }
 
 func (q *Queries) ListSubnetsByStatus(ctx context.Context, arg ListSubnetsByStatusParams) ([]Subnet, error) {
-	rows, err := q.db.Query(ctx, listSubnetsByStatus, arg.Status, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, listSubnetsByStatus,
+		arg.ChainID,
+		arg.Status,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -189,13 +268,15 @@ func (q *Queries) ListSubnetsByStatus(ctx context.Context, arg ListSubnetsByStat
 		var i Subnet
 		if err := rows.Scan(
 			&i.SubnetID,
+			&i.ChainID,
 			&i.Owner,
 			&i.Name,
 			&i.Symbol,
 			&i.SubnetContract,
 			&i.SkillsUri,
+			&i.MetadataUri,
 			&i.MinStake,
-			&i.AlphaToken,
+			&i.WorknetToken,
 			&i.LpPool,
 			&i.Status,
 			&i.CreatedAt,
@@ -213,13 +294,80 @@ func (q *Queries) ListSubnetsByStatus(ctx context.Context, arg ListSubnetsByStat
 	return items, nil
 }
 
+const listAllSubnets = `-- name: ListAllSubnets :many
+SELECT subnet_id, chain_id, owner, name, symbol, subnet_contract, skills_uri, metadata_uri, min_stake, worknet_token, lp_pool, status, created_at, activated_at, immunity_ends_at, burned FROM subnets WHERE burned = FALSE ORDER BY subnet_id DESC LIMIT $1 OFFSET $2
+`
+
+type ListAllSubnetsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListAllSubnets(ctx context.Context, arg ListAllSubnetsParams) ([]Subnet, error) {
+	rows, err := q.db.Query(ctx, listAllSubnets, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Subnet{}
+	for rows.Next() {
+		var i Subnet
+		if err := rows.Scan(
+			&i.SubnetID, &i.ChainID, &i.Owner, &i.Name, &i.Symbol, &i.SubnetContract,
+			&i.SkillsUri, &i.MetadataUri, &i.MinStake, &i.WorknetToken, &i.LpPool, &i.Status,
+			&i.CreatedAt, &i.ActivatedAt, &i.ImmunityEndsAt, &i.Burned,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAllSubnetsByStatus = `-- name: ListAllSubnetsByStatus :many
+SELECT subnet_id, chain_id, owner, name, symbol, subnet_contract, skills_uri, metadata_uri, min_stake, worknet_token, lp_pool, status, created_at, activated_at, immunity_ends_at, burned FROM subnets WHERE status = $1 AND burned = FALSE ORDER BY subnet_id DESC LIMIT $2 OFFSET $3
+`
+
+type ListAllSubnetsByStatusParams struct {
+	Status string `json:"status"`
+	Limit  int32  `json:"limit"`
+	Offset int32  `json:"offset"`
+}
+
+func (q *Queries) ListAllSubnetsByStatus(ctx context.Context, arg ListAllSubnetsByStatusParams) ([]Subnet, error) {
+	rows, err := q.db.Query(ctx, listAllSubnetsByStatus, arg.Status, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Subnet{}
+	for rows.Next() {
+		var i Subnet
+		if err := rows.Scan(
+			&i.SubnetID, &i.ChainID, &i.Owner, &i.Name, &i.Symbol, &i.SubnetContract,
+			&i.SkillsUri, &i.MetadataUri, &i.MinStake, &i.WorknetToken, &i.LpPool, &i.Status,
+			&i.CreatedAt, &i.ActivatedAt, &i.ImmunityEndsAt, &i.Burned,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateSubnetActivated = `-- name: UpdateSubnetActivated :exec
 UPDATE subnets SET status = 'Active', activated_at = $2 WHERE subnet_id = $1
 `
 
 type UpdateSubnetActivatedParams struct {
-	SubnetID    int64       `json:"subnet_id"`
-	ActivatedAt pgtype.Int8 `json:"activated_at"`
+	SubnetID    pgtype.Numeric `json:"subnet_id"`
+	ActivatedAt pgtype.Int8    `json:"activated_at"`
 }
 
 func (q *Queries) UpdateSubnetActivated(ctx context.Context, arg UpdateSubnetActivatedParams) error {
@@ -231,7 +379,7 @@ const updateSubnetBurned = `-- name: UpdateSubnetBurned :exec
 UPDATE subnets SET burned = TRUE WHERE subnet_id = $1
 `
 
-func (q *Queries) UpdateSubnetBurned(ctx context.Context, subnetID int64) error {
+func (q *Queries) UpdateSubnetBurned(ctx context.Context, subnetID pgtype.Numeric) error {
 	_, err := q.db.Exec(ctx, updateSubnetBurned, subnetID)
 	return err
 }
@@ -241,8 +389,8 @@ UPDATE subnets SET lp_pool = $2 WHERE subnet_id = $1
 `
 
 type UpdateSubnetLPParams struct {
-	SubnetID int64       `json:"subnet_id"`
-	LpPool   pgtype.Text `json:"lp_pool"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
+	LpPool   pgtype.Text    `json:"lp_pool"`
 }
 
 func (q *Queries) UpdateSubnetLP(ctx context.Context, arg UpdateSubnetLPParams) error {
@@ -255,7 +403,7 @@ UPDATE subnets SET min_stake = $2 WHERE subnet_id = $1
 `
 
 type UpdateSubnetMinStakeParams struct {
-	SubnetID int64          `json:"subnet_id"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
 	MinStake pgtype.Numeric `json:"min_stake"`
 }
 
@@ -264,13 +412,27 @@ func (q *Queries) UpdateSubnetMinStake(ctx context.Context, arg UpdateSubnetMinS
 	return err
 }
 
+const updateSubnetMetadataURI = `-- name: UpdateSubnetMetadataURI :exec
+UPDATE subnets SET metadata_uri = $2 WHERE subnet_id = $1
+`
+
+type UpdateSubnetMetadataURIParams struct {
+	SubnetID    pgtype.Numeric `json:"subnet_id"`
+	MetadataUri string         `json:"metadata_uri"`
+}
+
+func (q *Queries) UpdateSubnetMetadataURI(ctx context.Context, arg UpdateSubnetMetadataURIParams) error {
+	_, err := q.db.Exec(ctx, updateSubnetMetadataURI, arg.SubnetID, arg.MetadataUri)
+	return err
+}
+
 const updateSubnetOwner = `-- name: UpdateSubnetOwner :exec
 UPDATE subnets SET owner = $2 WHERE subnet_id = $1
 `
 
 type UpdateSubnetOwnerParams struct {
-	SubnetID int64  `json:"subnet_id"`
-	Owner    string `json:"owner"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
+	Owner    string         `json:"owner"`
 }
 
 func (q *Queries) UpdateSubnetOwner(ctx context.Context, arg UpdateSubnetOwnerParams) error {
@@ -283,8 +445,8 @@ UPDATE subnets SET skills_uri = $2 WHERE subnet_id = $1
 `
 
 type UpdateSubnetSkillsURIParams struct {
-	SubnetID  int64       `json:"subnet_id"`
-	SkillsUri pgtype.Text `json:"skills_uri"`
+	SubnetID  pgtype.Numeric `json:"subnet_id"`
+	SkillsUri pgtype.Text    `json:"skills_uri"`
 }
 
 func (q *Queries) UpdateSubnetSkillsURI(ctx context.Context, arg UpdateSubnetSkillsURIParams) error {
@@ -297,8 +459,8 @@ UPDATE subnets SET status = $2 WHERE subnet_id = $1
 `
 
 type UpdateSubnetStatusParams struct {
-	SubnetID int64  `json:"subnet_id"`
-	Status   string `json:"status"`
+	SubnetID pgtype.Numeric `json:"subnet_id"`
+	Status   string         `json:"status"`
 }
 
 func (q *Queries) UpdateSubnetStatus(ctx context.Context, arg UpdateSubnetStatusParams) error {

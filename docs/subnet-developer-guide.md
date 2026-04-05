@@ -1,6 +1,6 @@
-# Subnet Developer Guide — AWP
+# Worknet Developer Guide — AWP
 
-> This document is intended for subnet developers (Coordinator / Subnet Contract), providing all the information needed to interact with AWPRegistry contracts and APIs.
+> This document is intended for worknet developers (Coordinator / Worknet Contract), providing all the information needed to interact with AWP protocol contracts and APIs.
 
 ---
 
@@ -8,86 +8,120 @@
 
 ```
 User
-  │
-  ├── bind(target) → Tree-based binding (optional, every address is implicitly a root)
-  ├── stakeNFT.deposit(AWP, lockDuration) → Deposit AWP, receive position NFT
-  ├── allocate(staker, agent, subnetId, amount) → Allocate stake to a subnet (via AWPRegistry)
-  └── registerSubnet(params) → Register new subnet (deploy Alpha + create LP)
-        │
-        ▼
-AWPRegistry (Unified Entry Point — account system + allocation + subnet management)
-  │
-  ├── StakingVault — Pure allocation logic (no deposit/withdraw)
-  ├── StakeNFT — ERC721 position NFT (deposit/withdraw AWP)
-  ├── SubnetNFT — Subnet NFT (ownership)
-  └── LPManager — PancakeSwap V4 CL pool, permanently locked LP
-        │
-        ▼
-AWPEmission (UUPS Proxy — Independent Emission Engine)
-  │
-  ├── Oracle multi-sig → submitAllocations(recipients[], weights[], signatures[], effectiveEpoch)
-  ├── settleEpoch(limit) → Batch-mint AWP to recipients and DAO
-  └── emergencySetWeight(epoch, index, addr, weight) → DAO override via Timelock
-        │
-        ▼
-Subnet Contract (What you develop)
-  │
-  ├── Receive AWP emission (minted to your contract address each epoch)
-  ├── Mint Alpha tokens (you are the sole minter)
-  └── Distribute rewards to miners (based on contribution)
+  |
+  +-- bind(target) --> Tree-based binding (optional, every address is implicitly a root)
+  +-- stakeNFT.deposit(AWP, lockDuration) --> Deposit AWP, receive position NFT
+  +-- stakingVault.allocate(staker, agent, worknetId, amount) --> Allocate stake to a worknet
+  +-- awpRegistry.registerWorknet(params) --> Register new worknet (deploy Alpha + create LP)
+        |
+        v
+AWPRegistry (Unified Entry Point -- account system + worknet management)
+  |
+  +-- StakingVault (UUPS proxy) -- Allocation logic + gasless EIP-712 support
+  +-- StakeNFT -- ERC721 position NFT (deposit/withdraw AWP)
+  +-- WorknetNFT -- Worknet identity NFT (on-chain metadata)
+  +-- LPManager -- DEX V4 CL pool, permanently locked LP
+        |
+        v
+AWPEmission (UUPS Proxy -- Independent Emission Engine)
+  |
+  +-- Guardian multi-sig --> submitAllocations(recipients[], weights[], effectiveEpoch)
+  +-- settleEpoch(limit) --> Batch-mint AWP to recipients via mintAndCall
+        |
+        v
+Worknet Contract (What you develop)
+  |
+  +-- Receive AWP emission (minted to your contract address each epoch)
+  +-- Mint Alpha tokens (you are the sole minter)
+  +-- Distribute rewards to miners (based on contribution)
 ```
 
-**Key design:** AWPEmission is a generic address→weight distribution engine. It does not know about subnets — it simply mints AWP to addresses proportional to their oracle-assigned weights. Your subnet contract receives AWP because the oracle network includes your contract address in the allocation list.
+**Key design:** AWPEmission is a generic address-to-weight distribution engine. It does not know about worknets -- it simply mints AWP to addresses proportional to their Guardian-assigned weights. Your worknet contract receives AWP because the Guardian includes your contract address in the allocation list.
 
 ---
 
-## 2. Subnet Registration Flow
+## 2. Worknet Registration Flow
 
 ### 2.1 Prerequisites
 
-1. **Option A**: Deploy your own subnet manager contract, OR use `address(0)` to auto-deploy the default `SubnetManager` proxy
-2. Prepare AWP — LP creation cost = `INITIAL_ALPHA_MINT × initialAlphaPrice / 1e18` (default: 100M × 0.01 = 1M AWP)
-3. Query current price: `awpRegistry.initialAlphaPrice()` → calculate the actual AWP amount needed
+1. **Option A**: Deploy your own worknet manager contract, OR use `address(0)` to auto-deploy the default `WorknetManager` proxy
+2. Prepare AWP -- LP creation cost = `initialAlphaMint * initialAlphaPrice / 1e18` (default: 100M * 0.001 = 100,000 AWP)
+3. Query current price: `awpRegistry.initialAlphaPrice()` -- calculate the actual AWP amount needed
 4. Call `AWPToken.approve(awpRegistry, awpAmount)` to authorize AWPRegistry for the transfer
-5. No mandatory registration needed — every address can register subnets directly
+5. No mandatory registration needed -- every address can register worknets directly
 
 ### 2.2 Registration
 
+Three methods are available:
+
+**Method 1: Direct registration (user pays gas + AWP)**
+
 ```solidity
-// Solidity — auto-deploy SubnetManager (subnetManager = address(0))
-IAWPRegistry.SubnetParams memory params = IAWPRegistry.SubnetParams({
-    name: "My Subnet Alpha",     // Alpha Token name (1-64 bytes)
-    symbol: "MSALPHA",           // Alpha Token symbol (1-16 bytes)
-    subnetManager: address(0),   // address(0) = auto-deploy SubnetManager proxy
-    salt: bytes32(0),            // 0 = use subnetId as CREATE2 salt (default)
-    minStake: 0                  // Minimum stake for agents (0 = no minimum)
+IAWPRegistry.WorknetParams memory params = IAWPRegistry.WorknetParams({
+    name: "My Worknet Alpha",      // Alpha Token name (1-64 bytes)
+    symbol: "MWALPHA",             // Alpha Token symbol (1-16 bytes)
+    worknetManager: address(0),    // address(0) = auto-deploy WorknetManager proxy
+    salt: bytes32(0),              // 0 = use worknetId as CREATE2 salt (default)
+    minStake: 0,                   // Minimum stake for agents (0 = no minimum)
+    skillsURI: ""                  // Skills file URI (updatable later via WorknetNFT)
 });
-uint256 subnetId = awpRegistry.registerSubnet(params);
+uint256 worknetId = awpRegistry.registerWorknet(params);
 ```
 
+**Method 2: Gasless registration (`registerWorknetFor`) -- relayer pays gas, user signs EIP-712 and pays AWP**
+
+```solidity
+awpRegistry.registerWorknetFor(
+    user,          // Signer address
+    params,        // WorknetParams (same struct as above)
+    deadline,      // Signature expiry timestamp
+    v, r, s        // EIP-712 signature
+);
+```
+
+**Method 3: Fully gasless (`registerWorknetForWithPermit`) -- relayer pays gas, user signs two messages (ERC-2612 permit + EIP-712), zero gas**
+
+```solidity
+awpRegistry.registerWorknetForWithPermit(
+    user,          // Signer address
+    params,        // WorknetParams
+    deadline,      // Shared deadline for both signatures
+    permitV, permitR, permitS,     // ERC-2612 AWP permit signature
+    registerV, registerR, registerS // EIP-712 registerWorknet signature
+);
+```
+
+**Frontend (wagmi/viem):**
+
 ```javascript
-// Frontend (wagmi/viem)
 const { writeContract } = useWriteContract();
 await writeContract({
   address: AWP_REGISTRY_ADDRESS,
   abi: awpRegistryABI,
-  functionName: 'registerSubnet',
-  args: [{ name, symbol, subnetManager: '0x0000000000000000000000000000000000000000',
-            salt: '0x00...00', minStake: 0n }]
+  functionName: 'registerWorknet',
+  args: [{
+    name, symbol,
+    worknetManager: '0x0000000000000000000000000000000000000000',
+    salt: '0x00...00',
+    minStake: 0n,
+    skillsURI: ''
+  }]
 });
 ```
 
-> **Gasless registration**: Users can also register via `POST /api/relay/register-subnet` — the relayer pays gas, the user signs an EIP-712 message and pays AWP.
+> **Gasless relay**: Users can also register via `POST /api/relay/register-worknet` -- the relayer pays gas, the user signs an EIP-712 message and pays AWP.
 
 ### 2.2b Vanity Alpha Token Address (optional)
 
 If the factory was deployed with a non-zero `vanityRule`, you can pre-mine a CREATE2 salt off-chain to get a custom-looking Alpha token address.
 
-**Step 1 — Understand the vanity rule**
+**Step 1 -- Understand the vanity rule**
 
 Query `AlphaTokenFactory.vanityRule()` to see what pattern is enforced. A value of `0` means no validation is performed and you can skip this section.
 
-**Step 2 — Get a salt via API (recommended)**
+The vanity rule is a `uint64` encoding 8 hex positions (4 prefix + 4 suffix). Per position: 0-9 = digit, 10-15 = lowercase a-f, 16-21 = uppercase A-F (EIP-55), >= 22 = wildcard.
+
+**Step 2 -- Get a salt via API (recommended)**
 
 The API maintains a pre-mined salt pool. Request a salt:
 ```bash
@@ -111,12 +145,13 @@ curl -X POST https://tapi.awp.sh/api/vanity/upload-salts \
   -d '{"salts": [{"salt": "0x...", "address": "0x..."}]}'
 ```
 
-**Step 3 — Pass the salt in SubnetParams**
+**Step 3 -- Pass the salt in WorknetParams**
 
 ```solidity
-IAWPRegistry.SubnetParams memory params = IAWPRegistry.SubnetParams({
+IAWPRegistry.WorknetParams memory params = IAWPRegistry.WorknetParams({
     // ... other fields ...
-    salt: 0xYourMinedSalt000000000000000000000000000000000000000000000000
+    salt: 0xYourMinedSalt000000000000000000000000000000000000000000000000,
+    // ...
 });
 ```
 
@@ -126,38 +161,57 @@ The factory will deploy the Alpha token at the vanity address and then validate 
 
 | Step | Action | Result |
 |------|--------|--------|
-| 1 | Calculate LP cost | `INITIAL_ALPHA_MINT × initialAlphaPrice / 1e18` |
+| 1 | Calculate LP cost | `initialAlphaMint * initialAlphaPrice / 1e18` |
 | 2 | Transfer AWP from user to LPManager | `safeTransferFrom(user, lpManager, awpAmount)` |
-| 3 | Deploy AlphaToken (CREATE2) | Standalone contract via factory; salt from params (or subnetId if 0); admin = AWPRegistry |
-| 4 | Create PancakeSwap V4 CL pool | Full-range liquidity, 1% fee, permanently locked |
-| 5 | Auto-deploy SubnetManager proxy (if subnetManager=0) | ERC1967Proxy → defaultSubnetManagerImpl, admin = user |
-| 6 | Set subnet manager as sole Alpha minter | `setSubnetMinter(sc)` permanently locked |
-| 7 | Mint SubnetNFT with identity data | name, subnetManager, alphaToken, minStake stored on-chain |
+| 3 | Deploy AlphaToken (CREATE2) | Standalone contract via factory; salt from params (or worknetId if 0); admin = AWPRegistry |
+| 4 | Create DEX V4 CL pool | Full-range liquidity, 1% fee, permanently locked |
+| 5 | Auto-deploy WorknetManager proxy (if worknetManager=0) | ERC1967Proxy with defaultWorknetManagerImpl, admin = user |
+| 6 | Set worknet manager as sole Alpha minter | `setWorknetMinter(sc)` permanently locked |
+| 7 | Mint WorknetNFT with identity data | name, worknetManager, alphaToken, minStake, skillsURI stored on-chain |
 | 8 | Store lifecycle state | lpPool, status=Pending, createdAt |
 
-### 2.4 Activate Subnet
+### 2.4 Activate Worknet
 
-After registration, the subnet status is `Pending`. The NFT Owner must manually activate it:
+After registration, the worknet status is `Pending`. The NFT Owner must manually activate it:
 
 ```solidity
-awpRegistry.activateSubnet(subnetId);
-// Status: Pending → Active
-// Added to AWPRegistry's activeSubnetIds set
+awpRegistry.activateWorknet(worknetId);
+// Status: Pending -> Active
+// Added to AWPRegistry's activeWorknetIds set
 ```
 
-**Note:** Activation makes the subnet visible as "Active" in the protocol, but it does NOT automatically include it in AWP emission. To receive emissions, the oracle network must include your subnet contract address in their `submitAllocations` submission. Contact the oracle operators or DAO to request inclusion.
+Gasless activation is also available via `activateWorknetFor(user, worknetId, deadline, v, r, s)` or `POST /api/relay/activate-worknet`.
+
+**Note:** Activation makes the worknet visible as "Active" in the protocol, but it does NOT automatically include it in AWP emission. To receive emissions, the Guardian multi-sig must include your worknet contract address in their `submitAllocations` submission.
+
+### 2.5 Worknet Lifecycle
+
+```
+Pending --> Active    (activateWorknet by NFT owner)
+Active  --> Paused    (pauseWorknet by NFT owner)
+Paused  --> Active    (resumeWorknet by NFT owner)
+Active  --> Banned    (banWorknet by Timelock/DAO)
+Banned  --> Active    (unbanWorknet by Timelock/DAO, checks MAX_ACTIVE_WORKNETS)
+Active  --> Deregistered  (deregisterWorknet by Timelock, after immunity period)
+Paused  --> Deregistered  (deregisterWorknet by Timelock, after immunity period)
+Banned  --> Deregistered  (deregisterWorknet by Timelock)
+```
+
+### 2.6 Multi-Chain
+
+WorknetId is globally unique: `(block.chainid << 64) | localCounter`. Users can allocate stake on their staking chain to any chain's worknet. Each chain has its own AWPEmission, and the Guardian coordinates emission quotas across chains.
 
 ---
 
-## 3. SubnetManager — Default Subnet Contract API
+## 3. WorknetManager -- Default Worknet Contract API
 
-> When `subnetManager = address(0)` is passed to `registerSubnet`, AWPRegistry auto-deploys a `SubnetManager` proxy. The registrant (`msg.sender` or the EIP-712 signer for gasless) becomes `DEFAULT_ADMIN_ROLE`.
+> When `worknetManager = address(0)` is passed to `registerWorknet`, AWPRegistry auto-deploys a `WorknetManager` proxy. The registrant (`msg.sender` or the EIP-712 signer for gasless) becomes `DEFAULT_ADMIN_ROLE`.
 
 ### 3.0 Roles
 
 | Role | Bytes32 | Purpose |
 |------|---------|---------|
-| `DEFAULT_ADMIN_ROLE` | `0x00` | Grant/revoke all roles. Assigned to subnet registrant at deployment. |
+| `DEFAULT_ADMIN_ROLE` | `0x00` | Grant/revoke all roles. Assigned to worknet registrant at deployment. |
 | `MERKLE_ROLE` | `keccak256("MERKLE_ROLE")` | Submit Merkle roots for Alpha distribution |
 | `STRATEGY_ROLE` | `keccak256("STRATEGY_ROLE")` | Choose AWP handling strategy + manually execute |
 | `TRANSFER_ROLE` | `keccak256("TRANSFER_ROLE")` | Transfer any ERC20 held by the contract |
@@ -165,14 +219,14 @@ awpRegistry.activateSubnet(subnetId);
 **Post-registration setup:**
 ```solidity
 // Grant operator roles (admin calls these)
-IAccessControl(subnetManager).grantRole(MERKLE_ROLE, merkleOperator);
-IAccessControl(subnetManager).grantRole(STRATEGY_ROLE, strategyOperator);
-IAccessControl(subnetManager).grantRole(TRANSFER_ROLE, treasuryMultisig);
+IAccessControl(worknetManager).grantRole(MERKLE_ROLE, merkleOperator);
+IAccessControl(worknetManager).grantRole(STRATEGY_ROLE, strategyOperator);
+IAccessControl(worknetManager).grantRole(TRANSFER_ROLE, treasuryMultisig);
 ```
 
 ### 3.1 Merkle Distribution (MERKLE_ROLE)
 
-Distribute Alpha tokens to users via Merkle proofs. The contract mints directly — no pre-funding needed.
+Distribute Alpha tokens to users via Merkle proofs. The contract mints directly -- no pre-funding needed.
 
 ```
 setMerkleRoot(uint32 epoch, bytes32 root)     // Submit root for an epoch (e.g. 20260318)
@@ -189,7 +243,7 @@ const values = [
 ];
 const tree = StandardMerkleTree.of(values, ["address", "uint256"]);
 const root = tree.root;
-// Submit: subnetManager.setMerkleRoot(20260318, root);
+// Submit: worknetManager.setMerkleRoot(20260318, root);
 
 // Get proof for Alice:
 const proof = tree.getProof(["0xAlice...", "1000000000000000000000"]);
@@ -197,13 +251,15 @@ const proof = tree.getProof(["0xAlice...", "1000000000000000000000"]);
 
 **User claiming:**
 ```
-claim(uint32 epoch, uint256 amount, bytes32[] proof)  // Anyone; mints Alpha to msg.sender
-isClaimed(uint32 epoch, address account) → bool        // Check claim status
+claim(uint32 epoch, uint256 amount, bytes32[] proof)  // Anyone; mints Alpha to resolved recipient
+isClaimed(uint32 epoch, address account) -> bool       // Check claim status
 ```
+
+The `claim` function resolves the recipient via `awpRegistry.resolveRecipient(msg.sender)`, walking the bind chain to the root address.
 
 ```javascript
 // Frontend claim
-await subnetManager.claim(20260318, parseEther("1000"), proof);
+await worknetManager.claim(20260318, parseEther("1000"), proof);
 ```
 
 ### 3.2 AWP Strategy (STRATEGY_ROLE)
@@ -218,133 +274,172 @@ executeStrategy(uint256 amount)                // Manually execute on AWP held b
 | Strategy | Enum Value | Behavior |
 |----------|-----------|----------|
 | `Reserve` | 0 | AWP stays in contract; distribute manually or via Merkle |
-| `AddLiquidity` | 1 | Add AWP as single-sided liquidity (0 ~ current price range) |
-| `BuybackBurn` | 2 | Swap AWP → Alpha via PancakeSwap V4, then burn Alpha |
+| `AddLiquidity` | 1 | Add AWP as single-sided liquidity (0 to current price range) |
+| `BuybackBurn` | 2 | Swap AWP to Alpha via DEX V4, then burn Alpha |
 
 ```javascript
 // Set strategy to BuybackBurn
-await subnetManager.setStrategy(2);
+await worknetManager.setStrategy(2);
 
 // AWP emission now auto-triggers BuybackBurn via ERC1363 onTransferReceived
-// No manual executeStrategy needed — AWPEmission.settleEpoch uses mintAndCall
+// No manual executeStrategy needed -- AWPEmission.settleEpoch uses mintAndCall
 ```
 
-**Auto-trigger flow:**
+**Auto-trigger flow (ERC1363):**
 ```
 AWPEmission.settleEpoch(limit)
-  → awpToken.mintAndCall(subnetManager, amount, "")
-    → SubnetManager.onTransferReceived()
-      → if strategy == AddLiquidity → PancakeSwap V4 single-sided LP
-      → if strategy == BuybackBurn  → swap AWP→Alpha, burn Alpha
-      → if strategy == Reserve      → no-op (AWP stays in contract)
+  -> awpToken.mintAndCall(worknetManager, amount, "")
+    -> WorknetManager.onTransferReceived()
+      -> if strategy == AddLiquidity -> DEX V4 single-sided LP
+      -> if strategy == BuybackBurn  -> swap AWP to Alpha, burn Alpha
+      -> if strategy == Reserve      -> no-op (AWP stays in contract)
 ```
+
+**Additional configuration:**
+- `setSlippageTolerance(uint256 bps)` -- set slippage for buyback swaps (default 500 = 5%, max 5000 = 50%)
+- `setStrategyPaused(bool paused)` -- emergency pause strategy execution (DEFAULT_ADMIN_ROLE)
+- `setMinStrategyAmount(uint256 amount)` -- minimum AWP for strategy execution; below this, onTransferReceived defaults to Reserve
 
 ### 3.3 Token Transfer (TRANSFER_ROLE)
 
 ```
 transferToken(address token, address to, uint256 amount)  // Transfer any ERC20 out
+batchTransferToken(address token, address[] recipients, uint256[] amounts)  // Batch transfer
 ```
 
 ```javascript
 // Send reserved AWP to a multisig
-await subnetManager.transferToken(AWP_TOKEN, multisig, parseEther("10000"));
+await worknetManager.transferToken(AWP_TOKEN, multisig, parseEther("10000"));
 ```
 
 ### 3.4 View Functions
 
 ```
-alphaToken() → address                        // Alpha token for this subnet
-awpToken() → address                          // AWP token
-poolId() → bytes32                            // PancakeSwap V4 pool ID
-currentStrategy() → AWPStrategy               // Current AWP handling strategy (0/1/2)
-merkleRoots(uint32 epoch) → bytes32           // Merkle root for an epoch
-claimed(uint32 epoch, address account) → bool  // Alias for isClaimed
+alphaToken() -> address                        // Alpha token for this worknet
+awpToken() -> address                          // AWP token
+poolId() -> bytes32                            // DEX V4 pool ID
+currentStrategy() -> AWPStrategy               // Current AWP handling strategy (0/1/2)
+merkleRoots(uint32 epoch) -> bytes32           // Merkle root for an epoch
+claimed(uint32 epoch, address account) -> bool // Alias for isClaimed
+slippageBps() -> uint256                       // Current slippage tolerance in bps
+strategyPaused() -> bool                       // Whether strategy execution is paused
+minStrategyAmount() -> uint256                 // Minimum AWP for auto-strategy
 ```
 
 ### 3.5 Complete Operator Workflow
 
 ```
-1. Register subnet → auto-deploy SubnetManager → you are admin
+1. Register worknet -> auto-deploy WorknetManager -> you are admin
 2. Grant roles:
    - MERKLE_ROLE to your backend that computes reward distributions
    - STRATEGY_ROLE to your governance multisig
    - TRANSFER_ROLE to your treasury multisig
 3. Set AWP strategy (default: Reserve):
-   - subnetManager.setStrategy(2)  // BuybackBurn
+   - worknetManager.setStrategy(2)  // BuybackBurn
 4. Each epoch, AWP emission arrives automatically via mintAndCall
 5. Periodically compute Merkle tree of Alpha rewards:
-   - subnetManager.setMerkleRoot(epoch, root)
+   - worknetManager.setMerkleRoot(epoch, root)
 6. Users claim Alpha tokens:
-   - subnetManager.claim(epoch, amount, proof)
+   - worknetManager.claim(epoch, amount, proof)
 7. Monitor via WebSocket:
    - Subscribe to: SkillsURIUpdated, MinStakeUpdated, Allocated, Deallocated
-8. Update subnet settings:
-   - subnetNFT.setSkillsURI(subnetId, "ipfs://...")
-   - subnetNFT.setMinStake(subnetId, 100e18)
+8. Update worknet settings (NFT owner only):
+   - worknetNFT.setSkillsURI(worknetId, "ipfs://...")
+   - worknetNFT.setMinStake(worknetId, 100e18)
+   - worknetNFT.setMetadataURI(worknetId, "https://...")
 ```
 
 ---
 
-## 4. Subnet Contract Development
+## 4. Worknet Contract Development
 
-### 4.1 Default SubnetManager (auto-deployed)
+### 4.1 Default WorknetManager (auto-deployed)
 
-If you pass `subnetManager = address(0)` during registration, AWPRegistry auto-deploys a **SubnetManager** proxy with built-in features:
+If you pass `worknetManager = address(0)` during registration, AWPRegistry auto-deploys a **WorknetManager** proxy with built-in features:
 
 - **Merkle Distribution**: Submit Merkle roots per epoch, users claim Alpha tokens via proof
 - **AWP Strategy**: Choose how incoming AWP is handled:
-  - `Reserve` — keep in contract for manual distribution
-  - `AddLiquidity` — add single-sided liquidity to PancakeSwap V4
-  - `BuybackBurn` — buy Alpha from pool and burn it
+  - `Reserve` -- keep in contract for manual distribution
+  - `AddLiquidity` -- add single-sided liquidity to DEX V4
+  - `BuybackBurn` -- buy Alpha from pool and burn it
 - **ERC1363 Receiver**: AWP received via `mintAndCall` (from AWPEmission) auto-triggers the current strategy
-- **Token Transfer**: Move any ERC20 held by the contract
-- **AccessControl**: Three roles — `MERKLE_ROLE`, `STRATEGY_ROLE`, `TRANSFER_ROLE` (you are the admin)
+- **Token Transfer**: Move any ERC20 held by the contract (single or batch)
+- **AccessControl**: Three roles -- `MERKLE_ROLE`, `STRATEGY_ROLE`, `TRANSFER_ROLE` (you are the admin)
+- **UUPS Upgradeable**: The worknet owner (DEFAULT_ADMIN_ROLE) can upgrade the implementation
 
 After registration, grant roles to your operator addresses:
 ```solidity
-IAccessControl(subnetManager).grantRole(MERKLE_ROLE, operatorAddress);
-IAccessControl(subnetManager).grantRole(STRATEGY_ROLE, operatorAddress);
+IAccessControl(worknetManager).grantRole(MERKLE_ROLE, operatorAddress);
+IAccessControl(worknetManager).grantRole(STRATEGY_ROLE, operatorAddress);
 ```
 
-### 4.2 Custom Subnet Contract (advanced)
+### 4.2 Custom Worknet Contract (advanced)
 
-If you need custom logic, deploy your own contract and pass its address as `subnetManager`:
+If you need custom logic, deploy your own contract and pass its address as `worknetManager`:
 
 ```solidity
-contract MySubnetContract {
+contract MyWorknetContract is IERC1363Receiver {
     IAlphaToken public alphaToken;
     IERC20 public awpToken;
 
-    // AWP emission arrives via mintAndCall — implement IERC1363Receiver to auto-process
+    // AWP emission arrives via mintAndCall -- implement IERC1363Receiver to auto-process
     function onTransferReceived(address, address, uint256 amount, bytes calldata)
         external returns (bytes4) {
         // Your custom AWP handling logic
         return IERC1363Receiver.onTransferReceived.selector;
     }
 
-    // Mint Alpha to miners (you are the sole minter)
+    // Mint Alpha to miners (you are the sole minter after setWorknetMinter)
     function mintAlphaToMiner(address miner, uint256 amount) external {
         alphaToken.mint(miner, amount);
     }
 }
 ```
 
-### 4.3 Key Permissions
+**Important:** After registration, `setWorknetMinter` permanently locks the Alpha minter to your worknet contract. This cannot be changed. If your contract has a bug, use `minterPaused` (set by AWPRegistry admin) to halt minting.
+
+### 4.3 WorknetNFT -- On-Chain Identity
+
+Each worknet is represented by an NFT (`tokenId = worknetId`) that stores both immutable and updatable data.
+
+**Immutable fields (set at mint, never changed):**
+- `name` -- worknet / Alpha token name
+- `worknetManager` -- worknet contract address
+- `alphaToken` -- Alpha token address
+
+**Owner-updatable fields:**
+- `skillsURI` -- skills file URI for agent discovery (`setSkillsURI`)
+- `minStake` -- minimum stake requirement for agents (`setMinStake`). Stored on-chain but NOT enforced by StakingVault.allocate; used as off-chain/coordinator reference only.
+- `metadataURI` -- custom metadata JSON URI (`setMetadataURI`). Overrides on-chain JSON generation.
+
+**tokenURI resolution (3-tier):**
+1. Per-token `metadataURI` (if set by worknet owner)
+2. Global `baseURI` (if set by AWPRegistry governance)
+3. On-chain generated Base64 JSON with attributes (Worknet Manager, Alpha Token, Min Stake, Chain ID, Local ID)
+
+### 4.4 Key Permissions
 
 | Permission | Who Holds It | Description |
 |------------|-------------|-------------|
-| Alpha minting | **Your subnet contract** | `setSubnetMinter` permanently locked — only you can mint Alpha |
+| Alpha minting | **Your worknet contract** | `setWorknetMinter` permanently locked -- only you can mint Alpha |
 | Alpha minting pause | AWPRegistry (admin) | `setMinterPaused(true)` pauses your minting when banned |
-| AWP emission receipt | Oracle-assigned | Your address must be in the oracle's `submitAllocations` list to receive AWP |
-| Alpha MAX_SUPPLY | 10B | Independent cap per subnet |
+| AWP emission receipt | Guardian-assigned | Your address must be in the Guardian's `submitAllocations` list to receive AWP |
+| Alpha MAX_SUPPLY | 10B | Independent cap per worknet |
 
-### 4.4 Ban and Unban
+### 4.5 Ban and Unban
 
-- **Ban**: After a DAO proposal passes, Treasury (Timelock) calls `banSubnet(subnetId)` → your Alpha minting is paused, subnet removed from AWPRegistry's active list
-- **Unban**: Treasury calls `unbanSubnet(subnetId)` → status restores to **Active**, re-added to active list
-- During a ban, your existing AWP and Alpha holdings are **unaffected** — only new Alpha minting is blocked
+- **Ban**: After a DAO proposal passes, Treasury (Timelock) calls `banWorknet(worknetId)` -- your Alpha minting is paused, worknet removed from AWPRegistry's active list
+- **Unban**: Treasury calls `unbanWorknet(worknetId)` -- status restores to **Active**, re-added to active list (checks MAX_ACTIVE_WORKNETS = 10,000)
+- During a ban, your existing AWP and Alpha holdings are **unaffected** -- only new Alpha minting is blocked
 - Note: The direct caller is the Treasury contract (Timelock), not the DAO contract
-- Oracle operators typically exclude banned subnets from their allocation submissions
+- Guardian typically excludes banned worknets from their allocation submissions
+
+### 4.6 Deregistration
+
+- Treasury (Timelock) calls `deregisterWorknet(worknetId)` after the immunity period expires
+- Users must manually deallocate from deregistered worknets (deallocate has no status check)
+- Frontend should alert users on `WorknetDeregistered` events
+- WorknetNFT is burned on deregistration
 
 ---
 
@@ -360,7 +455,7 @@ contract MySubnetContract {
 ```
 
 #### `GET /api/registry`
-Returns all 9 protocol contract addresses (excludes implementation contracts):
+Returns all protocol contract addresses (excludes implementation contracts), plus EIP-712 domain info:
 ```json
 {
   "awpRegistry": "0x...",
@@ -368,11 +463,18 @@ Returns all 9 protocol contract addresses (excludes implementation contracts):
   "awpEmission": "0x...",
   "stakingVault": "0x...",
   "stakeNFT": "0x...",
-  "subnetNFT": "0x...",
+  "worknetNFT": "0x...",
   "lpManager": "0x...",
   "alphaTokenFactory": "0x...",
   "dao": "0x...",
-  "treasury": "0x..."
+  "treasury": "0x...",
+  "chainId": 8453,
+  "eip712Domain": {
+    "name": "AWPRegistry",
+    "version": "1",
+    "chainId": 8453,
+    "verifyingContract": "0x..."
+  }
 }
 ```
 
@@ -383,8 +485,7 @@ Returns all 9 protocol contract addresses (excludes implementation contracts):
 {
   "user": { "address": "0x...", "registered_at": 1710000000 },
   "balance": { "user_address": "0x...", "total_staked": "5000", "total_allocated": "3000" },
-  "rewardRecipient": { "user_address": "0x...", "recipient_address": "0x..." },
-  "agents": [{ "agent_address": "0x...", "owner_address": "0x...", "is_manager": false, "removed": false }]
+  "rewardRecipient": { "user_address": "0x...", "recipient_address": "0x..." }
 }
 ```
 
@@ -405,7 +506,15 @@ Paginated user list.
 }
 ```
 
-### 5.3 Staking
+### 5.3 Nonces
+
+#### `GET /api/nonce/{address}`
+AWPRegistry nonce (for bind/setRecipient/registerWorknet EIP-712 signatures).
+
+#### `GET /api/staking-nonce/{address}`
+StakingVault nonce (for allocate/deallocate EIP-712 signatures).
+
+### 5.4 Staking
 
 #### `GET /api/staking/user/{address}/balance`
 ```json
@@ -428,37 +537,37 @@ Paginated user list.
 #### `GET /api/staking/user/{address}/allocations?page=1&limit=20`
 ```json
 [
-  {"user_address": "0x...", "agent_address": "0x...", "subnet_id": 1, "amount": "5000", "frozen": false}
+  {"user_address": "0x...", "agent_address": "0x...", "worknet_id": 1, "amount": "5000", "frozen": false}
 ]
 ```
 
-#### `GET /api/staking/agent/{agent}/subnet/{subnetId}`
-**Commonly used by Coordinators** — query total stake of an agent on a specific subnet:
+#### `GET /api/staking/agent/{agent}/worknet/{worknetId}`
+**Commonly used by Coordinators** -- query total stake of an agent on a specific worknet:
 ```json
 {"amount": "5000000000000000000000"}
 ```
 
-#### `GET /api/staking/agent/{agent}/subnets`
+#### `GET /api/staking/agent/{agent}/worknets`
 ```json
-[{"subnet_id": 1, "amount": "5000"}, {"subnet_id": 3, "amount": "2000"}]
+[{"worknet_id": 1, "amount": "5000"}, {"worknet_id": 3, "amount": "2000"}]
 ```
 
-#### `GET /api/staking/subnet/{subnetId}/total`
+#### `GET /api/staking/worknet/{worknetId}/total`
 ```json
 {"total": "50000000000000000000000"}
 ```
 
-### 5.4 Subnets
+### 5.5 Worknets
 
-#### `GET /api/subnets/?status=Active&page=1&limit=20`
+#### `GET /api/worknets/?status=Active&page=1&limit=20`
 ```json
 [
   {
-    "subnet_id": 1,
+    "worknet_id": 1,
     "owner": "0x...",
-    "name": "My Subnet",
-    "symbol": "MSUB",
-    "subnet_contract": "0x...",
+    "name": "My Worknet",
+    "symbol": "MWRK",
+    "worknet_contract": "0x...",
     "alpha_token": "0x...",
     "lp_pool": "0x...",
     "status": "Active",
@@ -468,24 +577,24 @@ Paginated user list.
 ]
 ```
 
-#### `GET /api/subnets/{subnetId}`
-Single subnet detail.
+#### `GET /api/worknets/{worknetId}`
+Single worknet detail.
 
-#### `GET /api/subnets/{subnetId}/earnings?page=1&limit=20`
-Subnet AWP emission history (queried by subnet contract address from `recipient_awp_distributions`):
+#### `GET /api/worknets/{worknetId}/earnings?page=1&limit=20`
+Worknet AWP emission history (queried by worknet contract address from `recipient_awp_distributions`):
 ```json
 [
   {"epoch_id": 5, "recipient": "0x1234...", "awp_amount": "7900000000000000000000000"}
 ]
 ```
 
-#### `GET /api/subnets/{subnetId}/agents/{agent}`
-**Used by Coordinators** — query agent stake info on a subnet:
+#### `GET /api/worknets/{worknetId}/agents/{agent}`
+**Used by Coordinators** -- query agent stake info on a worknet:
 ```json
-{"agent": "0x...", "subnetId": 1, "stake": "5000000000000000000000"}
+{"agent": "0x...", "worknetId": 1, "stake": "5000000000000000000000"}
 ```
 
-### 5.5 Emission
+### 5.6 Emission
 
 #### `GET /api/emission/current`
 Read from Redis cache (updated by Keeper every 30 seconds):
@@ -509,28 +618,28 @@ Projected emissions for 30/90/365 days:
 #### `GET /api/emission/epochs?page=1&limit=20`
 ```json
 [
-  {"epoch_id": 42, "start_time": 1710000000, "daily_emission": "15000000...", "dao_emission": "7500000..."}
+  {"epoch_id": 42, "start_time": 1710000000, "daily_emission": "15000000..."}
 ]
 ```
 
-### 5.6 Tokens
+### 5.7 Tokens
 
 #### `GET /api/tokens/awp`
 ```json
 {"totalSupply": "5015800000000000000000000000", "maxSupply": "10000000000000000000000000000"}
 ```
 
-#### `GET /api/tokens/alpha/{subnetId}`
+#### `GET /api/tokens/alpha/{worknetId}`
 ```json
-{"subnetId": 1, "name": "My Subnet Alpha", "symbol": "MSALPHA", "alphaToken": "0x..."}
+{"worknetId": 1, "name": "My Worknet Alpha", "symbol": "MWALPHA", "alphaToken": "0x..."}
 ```
 
-#### `GET /api/tokens/alpha/{subnetId}/price`
+#### `GET /api/tokens/alpha/{worknetId}/price`
 ```json
 {"priceInAWP": "0.015", "reserve0": "...", "reserve1": "...", "updatedAt": "..."}
 ```
 
-### 5.7 Governance
+### 5.8 Governance
 
 #### `GET /api/governance/proposals?status=Active&page=1&limit=20`
 #### `GET /api/governance/proposals/{proposalId}`
@@ -539,9 +648,9 @@ Projected emissions for 30/90/365 days:
 {"treasuryAddress": "0x..."}
 ```
 
-### 5.8 Relay (Gasless Transactions)
+### 5.9 Relay (Gasless Transactions)
 
-> Rate limit: 100 requests per IP per 1 hour. Requires `RELAYER_PRIVATE_KEY` configured on the server.
+> Rate limit: 100 requests per IP per 1 hour (configurable via Redis). Requires `RELAYER_PRIVATE_KEY` configured on the server.
 
 #### `POST /api/relay/bind`
 Relayer submits `bindFor()` on-chain (tree-based binding, user signs EIP-712, relayer pays gas):
@@ -561,20 +670,60 @@ Relayer submits `setRecipientFor()` on-chain for the user:
 {"txHash": "0x..."}
 ```
 
-#### `POST /api/relay/register-subnet`
-Fully gasless subnet registration — user signs two messages (ERC-2612 permit + EIP-712), relayer pays all gas:
+#### `POST /api/relay/register-worknet`
+Fully gasless worknet registration -- user signs two messages (ERC-2612 permit + EIP-712), relayer pays all gas:
 ```json
 // Request
 {"user": "0x...", "name": "EVO Alpha", "symbol": "EVO",
- "subnetManager": "0x0000...0000",
- "salt": "0x...", "minStake": "0", "deadline": 1742400000,
+ "worknetManager": "0x0000...0000",
+ "salt": "0x...", "minStake": "0", "skillsURI": "", "deadline": 1742400000,
  "permitSignature": "0x...(ERC-2612 AWP permit)",
- "registerSignature": "0x...(EIP-712 registerSubnet)"}
+ "registerSignature": "0x...(EIP-712 registerWorknet)"}
 // Response
 {"txHash": "0x..."}
 ```
 
-### 5.9 WebSocket
+#### `POST /api/relay/allocate`
+Gasless allocation via StakingVault EIP-712:
+```json
+{"user": "0x...", "agent": "0x...", "worknetId": "1", "amount": "5000", "deadline": 1742400000, "signature": "0x..."}
+```
+
+#### `POST /api/relay/deallocate`
+Gasless deallocation via StakingVault EIP-712:
+```json
+{"user": "0x...", "agent": "0x...", "worknetId": "1", "amount": "5000", "deadline": 1742400000, "signature": "0x..."}
+```
+
+#### `POST /api/relay/activate-worknet`
+Gasless worknet activation:
+```json
+{"user": "0x...", "worknetId": "1", "deadline": 1742400000, "signature": "0x..."}
+```
+
+### 5.10 Vanity
+
+#### `GET /api/vanity/mining-params`
+```json
+{"factoryAddress": "0x...", "initCodeHash": "0x...", "vanityRule": "0x..."}
+```
+
+#### `POST /api/vanity/compute-salt`
+Request a pre-mined vanity salt from the pool (DB pool first, `cast` fallback):
+```json
+{"salt": "0x...", "address": "0x...", "source": "pool", "elapsed": "1ms"}
+```
+
+#### `POST /api/vanity/upload-salts`
+Upload mined salts to the pool (rate limited: 5/hr/IP).
+
+#### `GET /api/vanity/salts`
+List available salts.
+
+#### `GET /api/vanity/salts/count`
+Count of available salts in pool.
+
+### 5.11 WebSocket
 
 #### `WS /ws/live`
 
@@ -599,32 +748,29 @@ ws.onmessage = (event) => {
 
 | Event | Data | Coordinator Relevant |
 |-------|------|:---:|
-| `Bound` | `{user, target, oldTarget}` | ✅ |
+| `Bound` | `{user, target, oldTarget}` | Yes |
 | `RecipientUpdated` | `{user, recipient}` | |
-| `DelegateGranted` | `{user, delegate}` | ✅ |
-| `DelegateRevoked` | `{user, delegate}` | ✅ |
+| `DelegateGranted` | `{user, delegate}` | Yes |
+| `DelegateRevoked` | `{user, delegate}` | Yes |
 | `Deposited` (StakeNFT) | `{user, tokenId, amount, lockEndTime}` | |
 | `PositionIncreased` (StakeNFT) | `{tokenId, addedAmount, newLockEndTime}` | |
 | `Withdrawn` (StakeNFT) | `{user, tokenId, amount}` | |
-| `Allocated` | `{user, agent, subnetId, amount}` | ✅ |
-| `Deallocated` | `{user, agent, subnetId, amount}` | ✅ |
-| `Reallocated` | `{user, fromAgent, fromSubnet, toAgent, toSubnet, amount}` | ✅ |
-| `SubnetRegistered` | `{subnetId, owner, name, symbol, subnetManager, alphaToken}` | |
-| `LPCreated` | `{subnetId, poolId, awpAmount, alphaAmount}` | |
-| `SkillsURIUpdated` | `{subnetId, skillsURI}` | ✅ |
-| `MinStakeUpdated` | `{subnetId, minStake}` | ✅ |
-| `SubnetActivated` | `{subnetId}` | ✅ |
-| `SubnetPaused` | `{subnetId}` | ✅ |
-| `SubnetResumed` | `{subnetId}` | ✅ |
-| `SubnetBanned` | `{subnetId}` | ✅ |
-| `SubnetUnbanned` | `{subnetId}` | ✅ |
-| `SubnetDeregistered` | `{subnetId}` | ✅ |
-| `GovernanceWeightUpdated` | `{addr, weight}` | ✅ |
-| `RecipientAWPDistributed` | `{epoch, recipient, awpAmount}` | ✅ |
-| `DAOMatchDistributed` | `{epoch, amount}` | |
-| `EpochSettled` | `{epoch, totalEmission, recipientCount}` | ✅ |
-| `AllocationsSubmitted` | `{nonce, recipients, weights}` | ✅ |
-| `OracleConfigUpdated` | `{oracles, threshold}` | |
+| `Allocated` | `{user, agent, worknetId, amount}` | Yes |
+| `Deallocated` | `{user, agent, worknetId, amount}` | Yes |
+| `Reallocated` | `{user, fromAgent, fromWorknet, toAgent, toWorknet, amount}` | Yes |
+| `WorknetRegistered` | `{worknetId, owner, name, symbol, worknetManager, alphaToken}` | |
+| `LPCreated` | `{worknetId, poolId, awpAmount, alphaAmount}` | |
+| `SkillsURIUpdated` | `{worknetId, skillsURI}` | Yes |
+| `MinStakeUpdated` | `{worknetId, minStake}` | Yes |
+| `WorknetActivated` | `{worknetId}` | Yes |
+| `WorknetPaused` | `{worknetId}` | Yes |
+| `WorknetResumed` | `{worknetId}` | Yes |
+| `WorknetBanned` | `{worknetId}` | Yes |
+| `WorknetUnbanned` | `{worknetId}` | Yes |
+| `WorknetDeregistered` | `{worknetId}` | Yes |
+| `RecipientAWPDistributed` | `{epoch, recipient, awpAmount}` | Yes |
+| `EpochSettled` | `{epoch, totalEmission, recipientCount}` | Yes |
+| `AllocationsSubmitted` | `{nonce, recipients, weights}` | Yes |
 
 ---
 
@@ -633,73 +779,69 @@ ws.onmessage = (event) => {
 ### 6.1 On-Chain Reads (view functions, no gas)
 
 ```solidity
-// Query full subnet info (combines AWPRegistry state + SubnetNFT identity)
-IAWPRegistry.SubnetFullInfo memory subnet = awpRegistry.getSubnetFull(subnetId);
-// subnet.subnetManager, subnet.alphaToken, subnet.status, subnet.owner, subnet.minStake
-
-// Query single agent info
-AWPRegistry.AgentInfo memory info = awpRegistry.getAgentInfo(agentAddress, subnetId);
-
-// Batch query (Coordinator cold start)
-AWPRegistry.AgentInfo[] memory infos = awpRegistry.getAgentsInfo(agents, subnetId);
+// Query full worknet info (combines AWPRegistry state + WorknetNFT identity)
+IAWPRegistry.WorknetFullInfo memory worknet = awpRegistry.getWorknetFull(worknetId);
+// worknet.worknetManager, worknet.alphaToken, worknet.status, worknet.owner, worknet.minStake
 
 // Query current epoch
 uint256 epoch = awpEmission.currentEpoch();
 
-// Check if subnet is active
-bool active = awpRegistry.isSubnetActive(subnetId);
+// Check if worknet is active
+bool active = awpRegistry.isWorknetActive(worknetId);
 
 // Query emission weight
-uint96 weight = awpEmission.getWeight(subnetManagerAddress);
+uint96 weight = awpEmission.getWeight(worknetManagerAddress);
 uint256 totalWeight = awpEmission.getTotalWeight();
 
-// SubnetNFT: update skills URI or minStake (NFT owner only)
-subnetNFT.setSkillsURI(subnetId, "ipfs://QmNewSkills...");
-subnetNFT.setMinStake(subnetId, 100e18); // 100 AWP minimum
+// WorknetNFT: get full worknet data
+WorknetNFT.WorknetData memory data = worknetNFT.getWorknetData(worknetId);
+
+// WorknetNFT: update skills URI or minStake (NFT owner only)
+worknetNFT.setSkillsURI(worknetId, "ipfs://QmNewSkills...");
+worknetNFT.setMinStake(worknetId, 100e18); // 100 AWP minimum
+worknetNFT.setMetadataURI(worknetId, "https://metadata.example.com/1");
 ```
 
 ### 6.2 Recommended Coordinator Data Sync Pattern
 
 ```
 Cold Start:
-  1. GET /api/subnets/{subnetId} → Subnet basic info
-  2. POST /api/agents/batch-info → Batch query all known agents' stakes
-  3. Or on-chain: awpRegistry.getAgentsInfo(allAgents, subnetId)
+  1. GET /api/worknets/{worknetId} --> Worknet basic info
+  2. GET /api/staking/worknet/{worknetId}/total --> Total stake on worknet
+  3. GET /api/staking/agent/{agent}/worknet/{worknetId} --> Per-agent stake
 
 Runtime Incremental Updates:
-  1. WebSocket subscribe: ["Bound", "Allocated", "Deallocated", "Reallocated", "DelegateGranted", "DelegateRevoked"]
+  1. WebSocket subscribe: ["Bound", "Allocated", "Deallocated", "Reallocated",
+                           "DelegateGranted", "DelegateRevoked"]
   2. Update local agent cache on each event
-  3. Periodically GET /api/staking/subnet/{subnetId}/total to verify total stake
+  3. Periodically GET /api/staking/worknet/{worknetId}/total to verify total stake
 
 Reward Distribution:
   1. Calculate reward ratio based on agent stake and contribution score
-  2. Query rewardRecipient: POST /api/agents/batch-info or on-chain awpRegistry.getAgentInfo(agent, subnetId)
-  3. Transfer AWP/Alpha to the rewardRecipient address
+  2. Resolve recipients: awpRegistry.resolveRecipient(agent) or
+     awpRegistry.batchResolveRecipients(agents)
+  3. Transfer AWP/Alpha to the resolved recipient addresses
 ```
 
-### 6.3 Emission Timeline [DRAFT]
-
-> **The emission mechanism has not been finalized. The timeline below is preliminary.**
+### 6.3 Emission Timeline
 
 ```
 Each Epoch (1 day / daily):
-  1. Keeper (or anyone) calls AWPEmission.settleEpoch(limit) — initializes epoch on first call
+  1. Keeper (or anyone) calls AWPEmission.settleEpoch(limit)
   2. Processes up to `limit` recipients per call, using mintAndCall to send AWP
   3. If your contract implements IERC1363Receiver, onTransferReceived is called automatically
-  4. SubnetManager auto-executes the configured AWP strategy (Reserve/AddLiquidity/BuybackBurn)
-  5. Final call mints DAO share and advances epoch counter
+  4. WorknetManager auto-executes the configured AWP strategy (Reserve/AddLiquidity/BuybackBurn)
+  5. Multiple calls may be needed if there are more recipients than the limit
 
-Your subnet receives: epochEmission × 50% × (yourWeight / totalWeight)
+Your worknet receives: epochEmission * (yourWeight / totalWeight)
 
-Decay: each epoch emission × 0.996844 (~99% released in 4 years)
-Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
+Decay: each epoch emission *= 0.996844 (~99% released in 4 years)
 ```
 
-**How your subnet gets weight:**
-- Oracle network assigns weights to recipient addresses via `submitAllocations(recipients[], weights[], signatures[], effectiveEpoch)`
-- Multiple oracles must sign the same allocation (EIP-712 multi-sig threshold)
-- DAO can override a single recipient's entry via `emergencySetWeight(epoch, index, addr, weight)` through Timelock governance
-- Your subnet contract address must be included in the oracle's recipient list to receive AWP
+**How your worknet gets weight:**
+- Guardian multi-sig submits epoch-versioned packed allocations via `submitAllocations(recipients[], weights[], effectiveEpoch)`
+- 100% of emission goes to recipients by weight; Guardian includes treasury address for DAO share
+- Your worknet contract address must be included in the Guardian's recipient list to receive AWP
 
 ---
 
@@ -707,14 +849,16 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 
 | Contract | Address | Description |
 |----------|---------|-------------|
-| AWPToken | `0x0000d0e38e9c6ba147b0098bb42007b942ef00a1` | Main token (ERC20Votes) |
-| AWPRegistry | `0x00003a7fa04c3af3adba2dc3c6622277501400b1` | Unified entry point (allocation + subnet management) |
-| SubnetNFT | `0x0f86ec2f2fbf234b00b18e66e7c5e00518091cda` | Subnet NFT (ERC721) |
-| AlphaTokenFactory | `0x3ebe3168c898f4b05ebf0c0d17f4739e111e5164` | Alpha token deployer (CREATE2) |
-| StakeNFT | `0x4f7e8d4487c0c514b72ed0e35ed707cb8acdce39` | Position NFT (ERC721, deposit/withdraw AWP) |
-| AWPDAO | `0x7171211da849a2c569643fb1e8f5399ddd71939a` | Governor |
-| Treasury | `0x9ee82684e4214edb405d930001e9058d1913d994` | Treasury (TimelockController) |
-| SubnetManager (impl) | `0xE5771dC2a5a577CDFa6b939Af4F32Ad13CFc6D92` | Default subnet contract implementation |
+| AWPToken | `0x...` | Main token (ERC20) |
+| AWPRegistry | `0x...` | Unified entry point (account system + worknet management) |
+| WorknetNFT | `0x...` | Worknet identity NFT (ERC721) |
+| AlphaTokenFactory | `0x...` | Alpha token deployer (CREATE2) |
+| StakeNFT | `0x...` | Position NFT (ERC721, deposit/withdraw AWP) |
+| StakingVault | `0x...` | Allocation management (UUPS proxy) |
+| AWPEmission | `0x...` | Emission engine (UUPS proxy) |
+| AWPDAO | `0x...` | Governor |
+| Treasury | `0x...` | Treasury (TimelockController) |
+| WorknetManager (impl) | `0x...` | Default worknet contract implementation |
 
 ---
 
@@ -724,28 +868,27 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 
 | Error | Contract | Trigger Condition |
 |-------|----------|-------------------|
-| `InvalidSubnetParams()` | AWPRegistry | name/symbol length invalid |
-| `SubnetManagerRequired()` | AWPRegistry | subnetManager is zero and no defaultSubnetManagerImpl set |
+| `InvalidWorknetParams()` | AWPRegistry | name/symbol length invalid |
+| `WorknetManagerRequired()` | AWPRegistry | worknetManager is zero and no defaultWorknetManagerImpl set |
 | `NotTimelock()` | AWPRegistry | Caller is not the Treasury (Timelock) |
 | `NotGuardian()` | AWPRegistry | Caller is not the Guardian |
-| `PositionExpired()` | StakeNFT | Cannot add tokens to an expired lock position |
 | `NotOwner()` | AWPRegistry | Non-NFT holder calling lifecycle function |
-| `InvalidSubnetStatus()` | AWPRegistry | Status does not meet precondition |
-| `MaxActiveSubnetsReached()` | AWPRegistry | Active subnet count exceeds 10000 |
+| `InvalidWorknetStatus()` | AWPRegistry | Status does not meet precondition |
+| `MaxActiveWorknetsReached()` | AWPRegistry | Active worknet count exceeds 10,000 |
 | `ImmunityNotExpired()` | AWPRegistry | Attempt to deregister during immunity period |
-| `InvalidAgent()` | AWPRegistry | Agent does not belong to the user |
-| `NotRegistered()` | AWPRegistry | Caller is not a registered user |
-| `ExpiredSignature()` | AWPRegistry | Gasless signature has expired |
-| `InvalidSignature()` | AWPRegistry | Gasless signature verification failed |
+| `PositionExpired()` | StakeNFT | Cannot add tokens to an expired lock position |
 | `InsufficientUnallocated()` | StakingVault | Insufficient unallocated balance |
 | `InsufficientAllocation()` | StakingVault | Allocation insufficient for the reduction |
-| `MinterPaused()` | AlphaToken | Alpha minting paused (subnet is banned) |
+| `MinterPaused()` | AlphaToken | Alpha minting paused (worknet is banned) |
 | `ExceedsMaxSupply()` | AlphaToken | Alpha minting exceeds 10B cap |
 | `NotMinter()` | AlphaToken | Caller is not an authorized minter |
-| `SettlementInProgress()` | AWPEmission | Cannot modify allocations during epoch settlement |
-| `OracleNotConfigured()` | AWPEmission | Oracle is not yet configured |
-| `InvalidSignatureCount()` | AWPEmission | Not enough valid oracle signatures |
+| `ExpiredSignature()` | AWPRegistry | Gasless signature has expired |
+| `InvalidSignature()` | AWPRegistry | Gasless signature verification failed |
 | `EpochNotReady()` | AWPEmission | All epochs up to the current time-based epoch have been settled |
+| `StrategyIsPaused()` | WorknetManager | Strategy execution is paused |
+| `AlreadyClaimed()` | WorknetManager | User already claimed for this epoch |
+| `InvalidProof()` | WorknetManager | Merkle proof verification failed |
+| `RootAlreadySet()` | WorknetManager | Merkle root already submitted for this epoch |
 
 ### API HTTP Status Codes
 
@@ -754,20 +897,23 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 | 200 | Success |
 | 400 | Bad request (missing/invalid parameters) |
 | 404 | Resource not found |
+| 429 | Rate limit exceeded |
 | 500 | Internal server error |
 
 ---
 
 ## 9. Development Checklist
 
-### Subnet Contract Development
+### Worknet Contract Development
 
-- [ ] Deploy subnet contract
-- [ ] Implement AWP reward distribution logic
-- [ ] Implement Alpha minting logic (proof of contribution)
-- [ ] Call `awpRegistry.registerSubnet(params)` to register
-- [ ] Call `awpRegistry.activateSubnet(subnetId)` to activate
-- [ ] Contact oracle operators to include your subnet contract address in `submitAllocations` weight submissions
+- [ ] Deploy worknet contract (or use auto-deploy with `worknetManager = address(0)`)
+- [ ] Implement AWP reward distribution logic (or use default WorknetManager strategies)
+- [ ] Implement Alpha minting logic (proof of contribution via Merkle, or custom)
+- [ ] Implement IERC1363Receiver.onTransferReceived for automatic AWP handling
+- [ ] Call `awpRegistry.registerWorknet(params)` to register
+- [ ] Call `awpRegistry.activateWorknet(worknetId)` to activate
+- [ ] Configure WorknetNFT metadata: setSkillsURI, setMinStake
+- [ ] Request Guardian inclusion of your worknet contract address in `submitAllocations` weight submissions
 - [ ] Verify your contract receives AWP after the first epoch settlement
 
 ### Coordinator Development
@@ -777,4 +923,5 @@ Initial daily emission: 15,800,000 AWP per epoch (1 epoch = 1 day)
 - [ ] Implement task assignment logic
 - [ ] Implement contribution evaluation and scoring
 - [ ] Implement reward calculation and distribution
-- [ ] Implement cold-start data synchronization (batch-info API)
+- [ ] Implement cold-start data synchronization (API + on-chain reads)
+- [ ] Handle worknet lifecycle events (Paused, Banned, Deregistered)

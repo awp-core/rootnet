@@ -3,12 +3,14 @@
 ## Table of Contents
 
 1. [Prerequisites](#1-prerequisites)
-2. [Contract Deployment (Base / BSC)](#2-contract-deployment-base--bsc)
-3. [Database Setup](#3-database-setup)
-4. [Backend Services](#4-backend-services)
-5. [Configuration Reference](#5-configuration-reference)
-6. [Post-Deployment Setup](#6-post-deployment-setup)
-7. [Monitoring & Maintenance](#7-monitoring--maintenance)
+2. [Vanity Salt Mining](#2-vanity-salt-mining)
+3. [Guardian Safe Deployment](#3-guardian-safe-deployment)
+4. [Contract Deployment (Multi-Chain)](#4-contract-deployment-multi-chain)
+5. [Database Setup](#5-database-setup)
+6. [Backend Services](#6-backend-services)
+7. [Configuration Reference](#7-configuration-reference)
+8. [Post-Deployment Setup](#8-post-deployment-setup)
+9. [Monitoring & Maintenance](#9-monitoring--maintenance)
 
 ---
 
@@ -17,12 +19,13 @@
 ### System Requirements
 
 - **Go** 1.26+
-- **Foundry** (forge, cast)
+- **Foundry** (forge, cast) — Solidity 0.8.33, optimizer_runs=800, via_ir=true, evm_version=cancun
 - **PostgreSQL** 15+
 - **Redis** 7+
 - **Node.js** 18+ (for frontend, optional)
 - **abigen** (go-ethereum code generator)
 - **sqlc** (SQL code generator)
+- **yq** (YAML processor, for `deploy-multichain.sh`)
 
 ### Tool Installation
 
@@ -46,142 +49,264 @@ forge install
 |-----|---------|---------------|
 | Deployer private key | One-time contract deployment, then discarded | Hot wallet (use only for deploy) |
 | Keeper private key | Signs `settleEpoch` transactions every 30s | Hot wallet on server |
-| Guardian address | Emergency pause (no private key needed on server) | Cold wallet / multisig |
+| Guardian (Safe multisig) | Emergency pause, UUPS upgrades, emission management | 3/5 Safe multisig (cold) |
 
-### BSC PancakeSwap V4 Addresses (Mainnet)
+### Supported Chains
 
+| Chain | Chain ID | DEX | Explorer |
+|-------|----------|-----|----------|
+| Base | 8453 | Uniswap V4 | basescan.org |
+| Ethereum | 1 | Uniswap V4 | etherscan.io |
+| Arbitrum One | 42161 | Uniswap V4 | arbiscan.io |
+| BNB Smart Chain | 56 | PancakeSwap V4 | bscscan.com |
+
+All chains are configured in `chains.yaml`. DEX router addresses, Permit2, PoolManager, PositionManager, and StateView are specified per chain.
+
+> **Note:** LPManager and WorknetManager bytecode differs by DEX (Uniswap vs PancakeSwap), so BSC addresses for these two contracts will differ from the other three chains. All other contracts share identical CREATE2 addresses across chains.
+
+---
+
+## 2. Vanity Salt Mining
+
+Contract addresses are deterministic (CREATE2 via `0x4e59b44847b379578588920cA78FbF26c0B4956C`). Vanity address rules are defined in `contracts/.env` via `VANITY_PREFIX_*` / `VANITY_SUFFIX_*` variables (e.g., AWPToken: `0000`/`00a1`, AWPRegistry: `0000`/`00b1`).
+
+**You MUST mine vanity salts before first deployment.** Changing constructor arguments or init params invalidates the `initCodeHash`, requiring re-mining.
+
+### Mine Protocol Contract Salts
+
+```bash
+# Mine salts for all protocol contracts
+cd contracts
+./scripts/vanity/mine.sh
+
+# Output: per-contract SALT_* values written to .env
+# These salts produce addresses matching the vanity rules
 ```
-CLPoolManager:      0xa0FfB9c1CE1Fe56963B0321B32E7A0302114058b
-CLPositionManager:  0x55f4c8abA71A1e923edC303eb4fEfF14608cC226
-Permit2:            0x31c2F6fcFf4F8759b3Bd5Bf0e1084A055615c768
+
+### Mine Alpha Token Salts (Pool)
+
+```bash
+# Pre-mine Alpha token salts for the vanity salt DB pool
+./scripts/vanity/mine-alpha-salts.sh
+```
+
+### Verify InitCodeHash
+
+If constructor parameters change, regenerate hashes first:
+
+```bash
+forge script script/InitCodeHashes.s.sol --rpc-url $RPC_URL
 ```
 
 ---
 
-## 2. Contract Deployment (Base / BSC)
+## 3. Guardian Safe Deployment
 
-### 2.1 Prepare Environment
+The Guardian is a Gnosis Safe multisig (3/5 threshold) that controls:
+- All UUPS proxy upgrades (AWPRegistry, AWPEmission, StakingVault)
+- AWPEmission weight submissions (`submitAllocations`)
+- Emergency pause on AWPRegistry
+- `setGuardian` on AWPRegistry
+- Treasury DEFAULT_ADMIN_ROLE (emergency backstop if DAO is broken)
+
+### Deploy Safe
+
+The Safe is deployed to the same address on all chains using `scripts/deploy_safe.json`:
+
+```
+Safe address:  0x000002bEfa6A1C99A710862Feb6dB50525dF00A3
+Version:       1.4.1
+Threshold:     3 of 5 owners
+```
+
+Safe deployment records (deploy_tx, setup_tx) for each chain are stored in `scripts/deploy_safe.json`.
+
+---
+
+## 4. Contract Deployment (Multi-Chain)
+
+### 4.1 Prepare Environment
 
 Create `.env` in the `contracts/` directory:
 
 ```bash
-# RPC endpoint
-ETH_RPC_URL=https://bsc-mainnet.example.com
-
 # Deployer key (remove after deployment!)
 DEPLOYER_PRIVATE_KEY=0x...
 
-# Guardian address (cold wallet / multisig)
-GUARDIAN=0x...
+# Guardian Safe address (same on all chains)
+GUARDIAN=0x000002bEfa6A1C99A710862Feb6dB50525dF00A3
 
 # Token distribution addresses
 LIQUIDITY_POOL=0x...
 AIRDROP=0x...
 
-# PancakeSwap V4 (BSC Mainnet)
-POOL_MANAGER=0xa0FfB9c1CE1Fe56963B0321B32E7A0302114058b
-POSITION_MANAGER=0x55f4c8abA71A1e923edC303eb4fEfF14608cC226
-PERMIT2=0x31c2F6fcFf4F8759b3Bd5Bf0e1084A055615c768
+# GENESIS_TIME — must be set explicitly (no block.timestamp fallback)
+# Use the same value across all chains for consistent epoch alignment
+GENESIS_TIME=1712188800
+
+# Initial mint amount per chain (in whole tokens, default 200M)
+INITIAL_MINT=200000000
+
+# Distribution amounts (in whole tokens)
+DIST_TREASURY=90000000
+DIST_LIQUIDITY=10000000
+DIST_AIRDROP=100000000
+
+# Vanity salts (generated by scripts/vanity/mine.sh)
+SALT_AWP_TOKEN=0x...
+SALT_ALPHA_FACTORY=0x...
+SALT_TREASURY=0x...
+SALT_AWP_REGISTRY_IMPL=0x...
+SALT_AWP_REGISTRY=0x...
+SALT_WORKNET_NFT=0x...
+SALT_LP_MANAGER=0x...
+SALT_EMISSION_IMPL=0x...
+SALT_EMISSION_PROXY=0x...
+SALT_STAKING_VAULT_IMPL=0x...
+SALT_STAKING_VAULT=0x...
+SALT_STAKE_NFT=0x...
+SALT_DAO=0x...
+SALT_WORKNET_MANAGER_IMPL=0x...
+
+# Vanity rule (uint64, 0 to disable)
+VANITY_RULE=0x...
+
+# DEX addresses are read from chains.yaml per chain (no need to set here)
 ```
 
-### 2.2 Deploy
+### 4.2 Deploy (Multi-Chain)
+
+The recommended deployment method is `scripts/deploy-multichain.sh`, which reads `chains.yaml` and deploys to one or all chains:
+
+```bash
+# List available chains
+./scripts/deploy-multichain.sh --list
+
+# Deploy to a single chain
+./scripts/deploy-multichain.sh base
+
+# Deploy to all chains
+./scripts/deploy-multichain.sh --all
+```
+
+For manual single-chain deployment:
 
 ```bash
 cd contracts
 
-# Dry run (simulation)
+# Set chain-specific RPC and DEX addresses
+export ETH_RPC_URL=...
+export POOL_MANAGER=0x...
+export POSITION_MANAGER=0x...
+export PERMIT2=0x...
+export CL_SWAP_ROUTER=0x...
+export STATE_VIEW=0x...  # Uniswap chains only; omit for BSC
+
+# Dry run
 forge script script/Deploy.s.sol --rpc-url $ETH_RPC_URL --broadcast --dry-run
 
 # Actual deployment
 forge script script/Deploy.s.sol --rpc-url $ETH_RPC_URL --broadcast --verify
 ```
 
-> **AlphaTokenFactory vanity rule:** The factory is constructed with a `vanityRule` (uint64) that enforces a pattern on all Alpha token addresses. Set `vanityRule=0` to disable validation (default / testnet). For mainnet, configure the desired pattern before deployment — it is **immutable** after construction. See section 4.3 of `docs/architecture.md` for the encoding format.
-
-### 2.3 Deployment Steps (22 steps, automated)
+### 4.3 Deployment Steps (13 steps, automated)
 
 | Step | Contract | Notes |
 |------|----------|-------|
-| 1 | AWPToken | 200M minted to deployer |
-| 2 | AlphaToken (impl not needed) | No longer deployed separately — CREATE2 full deployment |
-| 3 | AlphaTokenFactory | CREATE2 deployer with optional vanity rule |
-| 4 | Treasury | TimelockController (2-day delay) |
-| 5 | AWPDAO | Custom NFT-based voting (6 params, no awpRegistry dependency) |
-| 6 | Grant roles | DAO gets PROPOSER + CANCELLER on Treasury |
-| 7 | Renounce admin | Treasury admin permanently locked |
-| 8 | AWPRegistry | Unified entry (deployer, treasury, guardian) |
-| 9 | SubnetNFT | ERC721, only AWPRegistry can mint/burn |
-| 10 | StakingVault | Pure allocation logic |
-| 10b | StakeNFT | ERC721 position NFT (awpToken, stakingVault, awpRegistry) |
-| 12 | LPManager | PancakeSwap V4 CL integration |
-| 13 | AWPEmission | UUPS proxy (impl + ERC1967Proxy + initialize(awpToken, treasury, initialDailyEmission, genesisTime_, epochDuration_=86400)) |
-| 14 | Add minter | AWPEmission added as sole AWP minter |
-| 15 | Renounce admin | AWP minter list permanently locked |
-| 16 | Configure factory | `factory.setAddresses(awpRegistry)` — links to AWPRegistry and renounces ownership |
-| 17 | Initialize registry | All module addresses injected into AWPRegistry |
-| 18-22 | Distribute AWP | Treasury 90M, LP 10M, Airdrop 100M |
+| 1 | AWPToken | CREATE2; `initialMint()` called post-deploy with per-chain amount |
+| 2 | AlphaTokenFactory | CREATE2 deployer with optional vanity rule (immutable) |
+| 3 | Treasury | TimelockController (2-day delay), open execution |
+| 4 | AWPRegistry | UUPS proxy (impl + ERC1967Proxy), initialized with deployer/treasury/guardian |
+| 5 | WorknetNFT | ERC721 with on-chain identity storage, only AWPRegistry can mint/burn |
+| 6 | LPManager | Auto-selects: PancakeSwap (BSC) or Uniswap V4 (Base/ETH/Arbitrum) |
+| 7 | AWPEmission | UUPS proxy; `GENESIS_TIME` must be set explicitly for CREATE2 consistency |
+| 8 | StakingVault + StakeNFT | StakingVault = UUPS proxy; StakeNFT = ERC721 position NFT |
+| 9 | WorknetManager impl | Auto-selects: PancakeSwap (BSC) or Uniswap V4 (others) |
+| 10 | AWPDAO | Custom StakeNFT-based voting (6 params, no awpRegistry dependency) |
+| 11 | Roles + Admin | DAO gets PROPOSER+CANCELLER on Treasury; Guardian gets DEFAULT_ADMIN; AWP minter set + admin locked; Factory configured |
+| 12 | Initialize registry | `initializeRegistry` with 8 addresses + dexConfig bytes (6-field PancakeSwap, 7-field Uniswap) |
+| 13 | Token distribution | Treasury, LP, Airdrop (configurable via DIST_* env vars) |
 
-### 2.4 Verify Deployment
+### 4.4 Verify Deployment
 
 ```bash
-# Verify all contracts on BSCScan
-forge verify-contract <address> <ContractName> --chain bsc
+# Verify all contracts on block explorer
+forge verify-contract <address> <ContractName> --chain <chainName>
 
 # Check key invariants
-cast call <AWPToken> "admin()" --rpc-url $ETH_RPC_URL
+cast call <AWPToken> "admin()" --rpc-url $RPC_URL
 # Should return 0x0000000000000000000000000000000000000000
 
-cast call <AWPToken> "minters(address)" <AWPEmission> --rpc-url $ETH_RPC_URL
+cast call <AWPToken> "minters(address)" <AWPEmission> --rpc-url $RPC_URL
 # Should return true
 
-cast call <AWPRegistry> "registryInitialized()" --rpc-url $ETH_RPC_URL
+cast call <AWPRegistry> "registryInitialized()" --rpc-url $RPC_URL
 # Should return true
+
+cast call <AlphaTokenFactory> "owner()" --rpc-url $RPC_URL
+# Should return 0x0000000000000000000000000000000000000000
+
+cast call <StakingVault> "stakeNFT()" --rpc-url $RPC_URL
+# Should return the StakeNFT address
 ```
 
-### 2.5 Record Deployed Addresses
+### 4.5 Record Deployed Addresses
 
 After deployment, save all addresses for backend configuration:
 
 ```bash
 # Output format from Deploy.s.sol console.log:
-# Step 1: AWPToken deployed at 0x...
-# Step 8: AWPRegistry at 0x...
-# Step 9: SubnetNFT at 0x...
-# Step 13: AWPEmission proxy at 0x...
-# ...
+# AWPToken: 0x...
+# AlphaTokenFactory: 0x...
+# Treasury: 0x...
+# AWPRegistry impl: 0x...
+# AWPRegistry proxy: 0x...
+# WorknetNFT: 0x...
+# LPManager (Uniswap/PancakeSwap): 0x...
+# AWPEmission impl: 0x...
+# AWPEmission proxy: 0x...
+# StakingVault impl: 0x...
+# StakingVault proxy: 0x...
+# StakeNFT: 0x...
+# WorknetManager impl (Uniswap/PancakeSwap): 0x...
+# AWPDAO: 0x...
 ```
 
 ---
 
-## 3. Database Setup
+## 5. Database Setup
 
-### 3.1 Create Database
+### 5.1 Create Database
 
 ```bash
 createdb awp
 ```
 
-### 3.2 Apply Schema
+### 5.2 Apply Schema
 
 ```bash
 psql awp < api/internal/db/schema.sql
 ```
 
-### 3.3 Schema Overview
+### 5.3 Schema Overview
 
 | Table | Purpose |
 |-------|---------|
 | `users` | User addresses with `bound_to` and `recipient` columns |
-| `subnets` | Subnet metadata and status |
-| `stake_allocations` | (user, agent, subnet) stake allocations |
+| `subnets` | Worknet metadata, status, and chain_id |
+| `stake_allocations` | (user, agent, worknet) stake allocations per chain |
 | `user_balances` | User allocation totals (total_allocated only) |
 | `stake_positions` | StakeNFT positions (tokenId, owner, amount, lockEndTime, createdAt) |
+| `vanity_salts` | CREATE2 salt pool with vanityRule verification; FOR UPDATE SKIP LOCKED on claim |
 | `epochs` | Epoch settlement records |
 | `recipient_awp_distributions` | Per-recipient AWP emission history |
 | `proposals` | DAO governance proposals |
 | `sync_states` | Indexer block sync progress |
+| `chains` | Multi-chain configuration (populated from chains.yaml or env) |
+| `indexed_blocks` | Block hash chain for reorg detection |
+| `announcements` | Protocol announcements |
 
-### 3.4 Regenerate Go Code (after schema changes)
+### 5.4 Regenerate Go Code (after schema changes)
 
 ```bash
 cd api
@@ -190,17 +315,17 @@ sqlc generate
 
 ---
 
-## 4. Backend Services
+## 6. Backend Services
 
-Three independent Go processes:
+Three independent Go processes, deployed on `api.awp.sh`:
 
 | Process | Purpose | Frequency |
 |---------|---------|-----------|
 | **api** | HTTP + WebSocket server | Always running |
-| **indexer** | Scans chain events → PostgreSQL + Redis Pub/Sub | Polls every 3s |
+| **indexer** | Scans chain events -> PostgreSQL + Redis Pub/Sub | Polls every 3s |
 | **keeper** | Calls `settleEpoch`, updates Redis caches | Cron: 30s (settle), 5m (prices) |
 
-### 4.1 Build
+### 6.1 Build
 
 ```bash
 cd api
@@ -215,15 +340,15 @@ go build -o bin/indexer ./cmd/indexer
 go build -o bin/keeper ./cmd/keeper
 ```
 
-### 4.2 Regenerate Bindings (after contract changes)
+### 6.2 Regenerate Bindings (after contract changes)
 
 ```bash
 cd api
 make generate
-# Runs: forge build → abigen (all contracts) → sqlc generate
+# Runs: forge build -> abigen (all contracts) -> sqlc generate
 ```
 
-### 4.3 Configure Environment
+### 6.3 Configure Environment
 
 Create `.env` for the backend (or export variables):
 
@@ -237,8 +362,15 @@ REDIS_URL=redis://localhost:6379/0
 # HTTP server (api only)
 HTTP_ADDR=:8080
 
-# BSC RPC
-RPC_URL=https://bsc-mainnet.example.com
+# ──── Multi-chain mode (recommended) ────
+# Set CHAINS_FILE to enable multi-chain indexing/keeping.
+# When set, indexer and keeper spawn one goroutine per chain from chains.yaml.
+CHAINS_FILE=/opt/awp/chains.yaml
+
+# ──── Single-chain mode (alternative) ────
+# If CHAINS_FILE is not set, CHAIN_ID and RPC_URL are required.
+# CHAIN_ID=8453
+# RPC_URL=https://base-mainnet.example.com
 
 # Contract addresses (from deployment output)
 AWP_REGISTRY_ADDRESS=0x...
@@ -246,11 +378,12 @@ AWP_TOKEN_ADDRESS=0x...
 AWP_EMISSION_ADDRESS=0x...
 STAKING_VAULT_ADDRESS=0x...
 STAKE_NFT_ADDRESS=0x...
-SUBNETNFT_ADDRESS=0x...
+SUBNETNFT_ADDRESS=0x...       # WorknetNFT address (env var name kept for compatibility)
 LP_MANAGER_ADDRESS=0x...
 ALPHA_FACTORY_ADDRESS=0x...
 DAO_ADDRESS=0x...
 TREASURY_ADDRESS=0x...
+POOL_MANAGER=0x...            # DEX V4 PoolManager (for alpha price reads)
 
 # Relay (optional — enables /api/relay/*)
 RELAYER_PRIVATE_KEY=abcdef1234...  # No 0x prefix
@@ -259,28 +392,23 @@ RELAYER_PRIVATE_KEY=abcdef1234...  # No 0x prefix
 ALPHA_INITCODE_HASH=0x...
 VANITY_RULE=0x...
 
-# Keeper only
+# Keeper
 KEEPER_PRIVATE_KEY=abcdef1234...  # No 0x prefix
+KEEPER_SKIP_SETTLE=false          # Set to true to disable epoch settlement (useful during initial setup)
+
+# Indexer start block (deploy block); used only on first run when sync_states is empty
+DEPLOY_BLOCK=0
+
+# Admin API (optional — enables /api/admin/*)
+ADMIN_TOKEN=...                   # Bearer token for admin endpoints
+
+# Reverse proxy
+TRUST_PROXY=true                  # Set to true ONLY behind a trusted reverse proxy (nginx/caddy)
 ```
 
-### 4.4 Start Services
+### 6.4 Systemd Services
 
-```bash
-# Start all three (use systemd, supervisor, or screen in production)
-
-# 1. API server
-./bin/api
-
-# 2. Indexer
-./bin/indexer
-
-# 3. Keeper
-./bin/keeper
-```
-
-### 4.5 Systemd Service Examples
-
-#### API Service
+#### API Service (`awp-api`)
 
 ```ini
 # /etc/systemd/system/awp-api.service
@@ -301,7 +429,7 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-#### Indexer Service
+#### Indexer Service (`awp-indexer`)
 
 ```ini
 # /etc/systemd/system/awp-indexer.service
@@ -322,7 +450,7 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-#### Keeper Service
+#### Keeper Service (`awp-keeper`)
 
 ```ini
 # /etc/systemd/system/awp-keeper.service
@@ -350,148 +478,157 @@ sudo systemctl start awp-api awp-indexer awp-keeper
 
 ---
 
-## 5. Configuration Reference
+## 7. Configuration Reference
 
-### 5.1 Environment Variables
+### 7.1 Environment Variables
 
 | Variable | Required By | Default | Description |
 |----------|------------|---------|-------------|
 | `DATABASE_URL` | api, indexer | `postgres://postgres:postgres@localhost:5432/awp?sslmode=disable` | PostgreSQL connection string |
 | `REDIS_URL` | api, indexer, keeper | `redis://localhost:6379/0` | Redis connection string |
 | `HTTP_ADDR` | api | `:8080` | HTTP listen address |
-| `RPC_URL` | indexer, keeper | — | BSC JSON-RPC endpoint (required, no default) |
-| `AWP_REGISTRY_ADDRESS` | indexer | — | AWPRegistry contract address |
+| `CHAINS_FILE` | indexer, keeper | (empty) | Path to `chains.yaml`; empty = single-chain mode |
+| `CHAIN_ID` | indexer, keeper | — | Chain ID (required if `CHAINS_FILE` is not set) |
+| `RPC_URL` | indexer, keeper | — | JSON-RPC endpoint (required if `CHAINS_FILE` is not set) |
+| `AWP_REGISTRY_ADDRESS` | indexer | — | AWPRegistry proxy address |
 | `AWP_TOKEN_ADDRESS` | keeper | — | AWP token address |
 | `AWP_EMISSION_ADDRESS` | indexer, keeper | — | AWPEmission proxy address |
-| `STAKING_VAULT_ADDRESS` | indexer | — | StakingVault address |
+| `STAKING_VAULT_ADDRESS` | indexer | — | StakingVault proxy address |
 | `STAKE_NFT_ADDRESS` | indexer | — | StakeNFT address |
-| `SUBNETNFT_ADDRESS` | indexer | — | SubnetNFT address |
+| `SUBNETNFT_ADDRESS` | indexer | — | WorknetNFT address |
 | `DAO_ADDRESS` | indexer | — | AWPDAO address |
 | `TREASURY_ADDRESS` | api | — | Treasury (Timelock) address |
 | `LP_MANAGER_ADDRESS` | indexer | — | LPManager contract address |
 | `ALPHA_FACTORY_ADDRESS` | api | — | AlphaTokenFactory contract address |
-| `CHAIN_ID` | api, indexer, keeper | — | Chain ID (e.g., 8453 for Base, 56 for BSC) |
+| `POOL_MANAGER` | keeper | — | DEX V4 PoolManager (for alpha price reads) |
 | `TRUST_PROXY` | api | `false` | Trust reverse proxy headers (X-Forwarded-For) |
 | `DEPLOY_BLOCK` | indexer | `0` | Block number to start indexing from |
 | `KEEPER_PRIVATE_KEY` | keeper | — | Hex private key for signing settle transactions |
+| `KEEPER_SKIP_SETTLE` | keeper | `false` | Skip epoch settlement (useful during initial setup) |
 | `RELAYER_PRIVATE_KEY` | api | — | Hex private key for gasless relay (enables `/api/relay/*`) |
 | `ALPHA_INITCODE_HASH` | api | — | `keccak256(AlphaToken.creationCode)` hex (enables vanity mining) |
-| `VANITY_RULE` | api | — | `AlphaTokenFactory.vanityRule()` uint64 hex (e.g. `0x0A01FFFF0C0A0F0E`) |
+| `VANITY_RULE` | api | — | `AlphaTokenFactory.vanityRule()` uint64 hex (e.g. `0x1001FFFF0C0A0F0E`) |
+| `ADMIN_TOKEN` | api | — | Bearer token for admin API endpoints |
 
-### 5.2 Contract Constants
+### 7.2 Contract Constants
 
 | Constant | Value | Location |
 |----------|-------|----------|
-| `INITIAL_DAILY_EMISSION` | 15,800,000 AWP | Deploy.s.sol |
+| `INITIAL_DAILY_EMISSION` | 31,600,000 AWP | Deploy.s.sol |
 | `EPOCH_DURATION` | 1 day (86400s) | AWPEmission (initialized via Deploy.s.sol) |
 | `TIMELOCK_DELAY` | 2 days (172800s) | Deploy.s.sol |
-| `POOL_FEE` | 1% (10000) | LPManager.sol |
-| `TICK_SPACING` | 200 | LPManager.sol |
-| `MAX_ACTIVE_SUBNETS` | 10,000 | AWPRegistry.sol |
+| `POOL_FEE` | 1% (10000) | Deploy.s.sol / LPManager.sol |
+| `TICK_SPACING` | 200 | Deploy.s.sol / LPManager.sol |
+| `MAX_ACTIVE_WORKNETS` | 10,000 | AWPRegistry.sol |
 | `maxRecipients` | 10,000 | AWPEmission.sol |
 | `DECAY_FACTOR` | 996844 / 1000000 | AWPEmission.sol |
-| `EMISSION_SPLIT_BPS` | 5000 (50%) | AWPEmission.sol |
 
-### 5.3 Redis Key Spec
+### 7.3 Redis Key Spec
 
 | Key | Type | TTL | Updated By |
 |-----|------|-----|------------|
-| `emission_current` | JSON | 30s | Keeper (every 5m) |
-| `awp_info` | JSON | 1m | Keeper (every 5m) |
-| `alpha_price:{subnetId}` | JSON | 10m | External |
+| `emission_current:{chainId}` | JSON | 30s | Keeper (every 5m) |
+| `awp_info:{chainId}` | JSON | 1m | Keeper (every 5m) |
+| `alpha_price:{worknetId}` | JSON | 10m | External |
+| `ratelimit:config` | Hash | persistent | Admin (hot-updatable via `scripts/admin.sh`) |
+| `rl:relay:{ip}` | Counter | 1h | API (atomic Lua INCR+EXPIRE) |
+| `rl:upload_salts:{ip}` | Counter | 1h | API (5 uploads/hr/IP) |
+| `rl:compute_salt:{ip}` | Counter | 1h | API (20 compute/hr/IP) |
 | `chain_events` | Pub/Sub channel | — | Indexer |
 
 ---
 
-## 6. Post-Deployment Setup
+## 8. Post-Deployment Setup
 
-### 6.1 Configure Oracle Network
+### 8.1 Configure Guardian Emission Weights
 
-After deployment, AWPEmission has no oracle configured. Weights cannot be submitted until oracles are set up.
-
-**Via DAO Governance Proposal:**
-
-```solidity
-// Create a proposal to call setOracleConfig on AWPEmission
-targets = [awpEmissionProxy];
-calldatas = [abi.encodeCall(
-    AWPEmission.setOracleConfig,
-    (oracleAddresses, threshold)  // e.g., 5 oracles, threshold 3
-)];
-```
-
-**For Testing (direct Timelock call):**
+AWPEmission uses Guardian-only weight submission (no Oracle network). The Guardian Safe multisig submits epoch-versioned packed allocations directly.
 
 ```bash
-cast send <AWPEmission> "setOracleConfig(address[],uint256)" \
-  "[0xOracle1,0xOracle2,0xOracle3]" 2 \
-  --private-key $TIMELOCK_KEY \
-  --rpc-url $RPC_URL
+# Submit allocations via Guardian Safe (requires 3/5 signatures)
+# Typically done through the Safe UI or safe-tx-service
+#
+# Function: submitAllocations(address[] recipients, uint96[] weights, uint256 effectiveEpoch)
+# - recipients: array of worknet manager addresses (include treasury for DAO share)
+# - weights: relative weights per recipient
+# - effectiveEpoch: must be >= settledEpoch
 ```
 
-### 6.2 Verify Indexer Sync
+There is no warmup epoch. Epoch 0 can be settled immediately once weights are submitted. 100% of emission goes to recipients by weight; the Guardian includes the treasury address in the recipients array for the DAO share.
+
+### 8.2 Verify Indexer Sync
 
 ```bash
 # Check sync progress
 psql awp -c "SELECT * FROM sync_states;"
-# Should show: indexer | <recent_block_number>
+# Should show: one row per chain with recent block numbers
 
 # Verify events are being indexed
 psql awp -c "SELECT COUNT(*) FROM users;"
 ```
 
-### 6.3 Verify Keeper Operation
+### 8.3 Verify Keeper Operation
 
 ```bash
-# Check if epoch is settling
-cast call <AWPEmission> "settleProgress()" --rpc-url $RPC_URL
-# 0 = idle, >0 = in progress
-
 # Check current epoch (on AWPEmission)
 cast call <AWPEmission> "currentEpoch()" --rpc-url $RPC_URL
 
 # Check settlement progress
 cast call <AWPEmission> "settledEpoch()" --rpc-url $RPC_URL
 
-# Verify epoch duration (on AWPEmission)
+# Verify epoch duration
 cast call <AWPEmission> "epochDuration()" --rpc-url $RPC_URL
 
 # Check Redis cache
-redis-cli GET emission_current
-redis-cli GET awp_info
+redis-cli GET emission_current:8453
+redis-cli GET awp_info:8453
 ```
 
-### 6.4 First Subnet Registration
+### 8.4 First Worknet Registration
 
 ```bash
-# 1. Approve AWP for LP (no mandatory registration needed)
+# 1. Approve AWP for registry
 cast send <AWPToken> "approve(address,uint256)" <AWPRegistry> 1000000000000000000000000 \
   --private-key $USER_KEY --rpc-url $RPC_URL
 
-# 2. Register subnet (salt=0x00..00 uses subnetId as CREATE2 salt)
-cast send <AWPRegistry> "registerSubnet((string,string,address,bytes32,uint128,string))" \
-  "(\"My Subnet\",\"MSUB\",0x0000000000000000000000000000000000000000,0x0000000000000000000000000000000000000000000000000000000000000000,0,\"ipfs://QmSkills...\")" \
+# 2. Register worknet (salt=0x00..00 uses worknetId as CREATE2 salt)
+# WorknetParams: (name, symbol, worknetManager, salt, minStake, skillsURI)
+# worknetManager=address(0) auto-deploys WorknetManager proxy if defaultWorknetManagerImpl is set
+cast send <AWPRegistry> \
+  "registerWorknet((string,string,address,bytes32,uint128,string))" \
+  "(\"My Worknet\",\"MWN\",0x0000000000000000000000000000000000000000,0x0000000000000000000000000000000000000000000000000000000000000000,0,\"ipfs://QmSkills...\")" \
   --private-key $USER_KEY --rpc-url $RPC_URL
 
 # 3. Activate
-cast send <AWPRegistry> "activateSubnet(uint256)" 1 \
+cast send <AWPRegistry> "activateWorknet(uint256)" <worknetId> \
   --private-key $USER_KEY --rpc-url $RPC_URL
 ```
 
+### 8.5 Gasless Registration (EIP-712 Relay)
+
+The API supports fully gasless worknet registration via two relay endpoints:
+
+- `POST /api/relay/register-worknet` — requires prior AWP approve; user signs EIP-712 message
+- `POST /api/relay/register-worknet` with permit — fully gasless via ERC-2612 permit + EIP-712 (user signs two messages, zero gas)
+
+Other relay endpoints: `bind`, `set-recipient`, `register`, `allocate`, `deallocate`, `activate-worknet`.
+
+Rate limited to 100 requests per IP per hour (configurable via Redis `ratelimit:config`).
+
 ---
 
-## 7. Monitoring & Maintenance
+## 9. Monitoring & Maintenance
 
-### 7.1 Health Checks
+### 9.1 Health Checks
 
 ```bash
 # API health
-curl http://localhost:8080/api/health
+curl https://api.awp.sh/api/health
 # {"status": "ok"}
 
-# Indexer: check sync lag
+# Indexer: check sync lag (per chain)
 LATEST=$(cast block-number --rpc-url $RPC_URL)
-SYNCED=$(psql awp -t -c "SELECT last_block FROM sync_states WHERE contract_name='indexer'")
+SYNCED=$(psql awp -t -c "SELECT last_block FROM sync_states WHERE chain_id=8453")
 echo "Lag: $(($LATEST - $SYNCED)) blocks"
 
 # Keeper: check epoch currency
@@ -499,29 +636,48 @@ cast call <AWPEmission> "currentEpoch()" --rpc-url $RPC_URL
 cast call <AWPEmission> "settledEpoch()" --rpc-url $RPC_URL
 ```
 
-### 7.2 Common Operations
+### 9.2 Admin Operations
 
-**Emergency Pause (Guardian):**
+Use `scripts/admin.sh` to hot-update rate limits, manage the salt pool, and view system status:
+
 ```bash
-cast send <AWPRegistry> "pause()" --private-key $GUARDIAN_KEY --rpc-url $RPC_URL
+# View system status
+./scripts/admin.sh status
+
+# Update rate limits
+./scripts/admin.sh ratelimit relay 200:3600  # 200 requests per hour
+
+# Manage vanity salt pool
+./scripts/admin.sh salts count
+```
+
+### 9.3 Common Operations
+
+**Emergency Pause (Guardian Safe — requires 3/5 signatures):**
+```bash
+# Submit via Safe UI or CLI
+cast send <AWPRegistry> "pause()" --rpc-url $RPC_URL
 ```
 
 **Resume (via DAO/Timelock):**
 ```bash
-cast send <AWPRegistry> "unpause()" --private-key $TIMELOCK_KEY --rpc-url $RPC_URL
+cast send <AWPRegistry> "unpause()" --rpc-url $RPC_URL
 ```
 
-**Upgrade AWPEmission (via DAO Proposal):**
+**UUPS Upgrade (Guardian Safe — requires 3/5 signatures):**
+
+All UUPS upgrades (AWPRegistry, AWPEmission, StakingVault) are controlled by the Guardian Safe multisig:
+
 ```bash
 # 1. Deploy new implementation
 forge create AWPEmission --rpc-url $RPC_URL --private-key $DEPLOYER_KEY
 
-# 2. Create DAO proposal to upgrade
+# 2. Submit upgrade via Guardian Safe (3/5 multisig)
 # targets = [awpEmissionProxy]
 # calldatas = [abi.encodeCall(UUPSUpgradeable.upgradeToAndCall, (newImpl, ""))]
 ```
 
-### 7.3 Log Monitoring
+### 9.4 Log Monitoring
 
 All three services output structured JSON logs:
 
@@ -536,12 +692,25 @@ journalctl -u awp-indexer -f | jq 'select(.msg == "scan complete")'
 journalctl -u awp-keeper -f | jq 'select(.msg | contains("SettleEpoch"))'
 ```
 
-### 7.4 Backup
+### 9.5 Backup
 
 ```bash
 # Database backup
-pg_dump awp > cortexia_backup_$(date +%Y%m%d).sql
+pg_dump awp > awp_backup_$(date +%Y%m%d).sql
 
 # No need to backup Redis (caches are rebuilt by Keeper)
 # No need to backup indexer state (re-indexable from chain)
 ```
+
+### 9.6 Multi-Chain Operations
+
+When running in multi-chain mode (`CHAINS_FILE` set):
+
+- The indexer spawns one goroutine per chain, each polling independently
+- The keeper spawns one goroutine per chain for settlement and cache updates
+- Use `KEEPER_SKIP_SETTLE=true` to disable settlement during initial setup or maintenance
+- `GENESIS_TIME` must be identical across all chains for consistent epoch alignment
+- WorknetId is globally unique: `(block.chainid << 64) | localCounter`
+- Allocation is local: users allocate on their staking chain to any chain's worknet
+- Emission is per-chain: each chain has its own AWPEmission; Guardian coordinates quotas
+- DAO is per-chain: each chain has its own AWPDAO + Treasury; off-chain aggregated voting

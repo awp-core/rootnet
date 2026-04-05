@@ -47,7 +47,7 @@ echo "  Contracts: $COUNT"
 echo "  Threads:   $THREADS (cast create2)"
 echo ""
 
-# ─── Helper: pattern 含字母则需要 EIP-55 ───
+# ─── Helper: pattern with letters needs EIP-55 ---
 pattern_needs_eip55() {
     echo "$1" | grep -qE '[a-fA-F]'
 }
@@ -141,12 +141,12 @@ name_to_env_key() {
         AWPEmission_proxy)  echo "EMISSION_PROXY" ;;
         Treasury)           echo "TREASURY" ;;
         AWPRegistry)        echo "AWP_REGISTRY" ;;
-        SubnetNFT)          echo "SUBNET_NFT" ;;
+        WorknetNFT)          echo "WORKNET_NFT" ;;
         LPManager)          echo "LP_MANAGER" ;;
         StakingVault)       echo "STAKING_VAULT" ;;
         StakeNFT)           echo "STAKE_NFT" ;;
         AWPDAO)             echo "DAO" ;;
-        SubnetManager_impl) echo "SUBNET_MANAGER_IMPL" ;;
+        WorknetManager_impl) echo "WORKNET_MANAGER_IMPL" ;;
         *)                  echo "$1" | tr '[:lower:]' '[:upper:]' ;;
     esac
 }

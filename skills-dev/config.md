@@ -74,6 +74,7 @@
 | `RELAYER_PRIVATE_KEY` | No | Private key for gasless relay (enables `/api/relay/*`) |
 | `ALPHA_INITCODE_HASH` | No | `keccak256(AlphaToken.creationCode)` hex (enables vanity mining) |
 | `VANITY_RULE` | No | `AlphaTokenFactory.vanityRule()` uint64 hex (e.g. `0x0A01FFFF0C0A0F0E`) |
+| `CHAINS_FILE` | No | Path to chains.yaml for multi-chain mode (empty = single-chain) |
 
 ## DEX Integration
 
@@ -115,8 +116,8 @@ All tokens use **18 decimals**. Amounts in the API and contracts are in **wei** 
 
 | Key | TTL | Updated By | Content |
 |-----|-----|------------|---------|
-| `emission_current` | 30s | Keeper (25s interval) | `{epoch, settledEpoch, dailyEmission, totalWeight}` |
-| `awp_info` | 1m | Keeper (25s interval) | `{totalSupply, maxSupply}` |
+| `emission_current:{chainId}` | 30s | Keeper (25s interval) | `{epoch, settledEpoch, dailyEmission, totalWeight}` |
+| `awp_info:{chainId}` | 1m | Keeper (25s interval) | `{totalSupply, maxSupply}` |
 | `alpha_price:{subnetId}` | 10m | External | `{priceInAWP, reserve0, reserve1, updatedAt}` |
 | `ratelimit:config` | — | admin.sh / Redis CLI | Rate limit configs (hash: name → "limit:window_seconds") |
 | `rl:relay:{ip}` | 1h | Relay handler | Relay IP request counter |
