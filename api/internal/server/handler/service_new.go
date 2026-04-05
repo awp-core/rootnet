@@ -238,7 +238,7 @@ func (h *Handler) svcSearchWorknets(ctx context.Context, chainID int64, query st
 
 	sql := `
 		SELECT subnet_id, chain_id, owner, name, symbol, subnet_contract, skills_uri,
-		       metadata_uri, min_stake, alpha_token, lp_pool, status, created_at,
+		       metadata_uri, min_stake, worknet_token, lp_pool, status, created_at,
 		       activated_at, immunity_ends_at, burned
 		FROM subnets
 		WHERE chain_id = $1 AND burned = FALSE AND (name ILIKE $2 OR symbol ILIKE $2)
@@ -257,7 +257,7 @@ func (h *Handler) svcSearchWorknets(ctx context.Context, chainID int64, query st
 		var s gen.Subnet
 		if err := rows.Scan(
 			&s.SubnetID, &s.ChainID, &s.Owner, &s.Name, &s.Symbol, &s.SubnetContract,
-			&s.SkillsUri, &s.MetadataUri, &s.MinStake, &s.AlphaToken, &s.LpPool, &s.Status,
+			&s.SkillsUri, &s.MetadataUri, &s.MinStake, &s.WorknetToken, &s.LpPool, &s.Status,
 			&s.CreatedAt, &s.ActivatedAt, &s.ImmunityEndsAt, &s.Burned,
 		); err != nil {
 			h.logger.Error("failed to scan search result", "error", err)
@@ -276,7 +276,7 @@ func (h *Handler) svcSearchWorknets(ctx context.Context, chainID int64, query st
 func (h *Handler) svcGetWorknetsByOwner(ctx context.Context, chainID int64, owner string, limit, offset int32) (any, error) {
 	sql := `
 		SELECT subnet_id, chain_id, owner, name, symbol, subnet_contract, skills_uri,
-		       metadata_uri, min_stake, alpha_token, lp_pool, status, created_at,
+		       metadata_uri, min_stake, worknet_token, lp_pool, status, created_at,
 		       activated_at, immunity_ends_at, burned
 		FROM subnets
 		WHERE chain_id = $1 AND owner = $2 AND burned = FALSE
@@ -295,7 +295,7 @@ func (h *Handler) svcGetWorknetsByOwner(ctx context.Context, chainID int64, owne
 		var s gen.Subnet
 		if err := rows.Scan(
 			&s.SubnetID, &s.ChainID, &s.Owner, &s.Name, &s.Symbol, &s.SubnetContract,
-			&s.SkillsUri, &s.MetadataUri, &s.MinStake, &s.AlphaToken, &s.LpPool, &s.Status,
+			&s.SkillsUri, &s.MetadataUri, &s.MinStake, &s.WorknetToken, &s.LpPool, &s.Status,
 			&s.CreatedAt, &s.ActivatedAt, &s.ImmunityEndsAt, &s.Burned,
 		); err != nil {
 			h.logger.Error("failed to scan owner worknet", "error", err)
@@ -312,7 +312,7 @@ func (h *Handler) svcGetWorknetsByOwner(ctx context.Context, chainID int64, owne
 
 // ── HIGH #9: staking.getPositionsGlobal ──
 
-// svcGetPositionsGlobal fetches user StakeNFT positions across all chains
+// svcGetPositionsGlobal fetches user veAWP positions across all chains
 func (h *Handler) svcGetPositionsGlobal(ctx context.Context, address string) (map[string]any, error) {
 	sql := `
 		SELECT chain_id, token_id, owner, amount, lock_end_time, created_at, burned

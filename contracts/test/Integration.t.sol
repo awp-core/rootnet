@@ -69,9 +69,9 @@ contract IntegrationTest is DeployHelper {
             address(daoImpl),
             abi.encodeCall(AWPDAO.initialize, (
                 timelock,
-                1,       // votingDelay: 1 block
-                100,     // votingPeriod: 100 blocks (short for testing)
-                1,       // lateQuorumExtension
+                1,       // votingDelay: 1 second
+                100,     // votingPeriod: 100 seconds
+                1,       // lateQuorumExtension: 1 second
                 4,       // quorumPercent: 4%
                 guardian
             ))
@@ -93,7 +93,7 @@ contract IntegrationTest is DeployHelper {
         awp.transfer(address(timelock), 1_000e18);
 
         // Advance to block 10 to ensure createdAt < proposalCreatedAt
-        vm.roll(10);
+        vm.warp(block.timestamp + 10);
         vm.warp(block.timestamp + 10);
 
         // Build proposal: timelock transfers 500 AWP to alice
@@ -112,7 +112,7 @@ contract IntegrationTest is DeployHelper {
         uint256 proposalId = dao.proposeWithTokens(targets, values, calldatas, description, propTokens);
 
         // Advance past votingDelay (block > 11)
-        vm.roll(20);
+        vm.warp(block.timestamp + 20);
 
         // Alice votes For
         uint256[] memory aliceTokens = new uint256[](1);
@@ -131,7 +131,7 @@ contract IntegrationTest is DeployHelper {
         assertTrue(forVotes > 0);
 
         // Advance past votingPeriod (voteEnd = 10 + 1 + 100 = 111)
-        vm.roll(200);
+        vm.warp(block.timestamp + 200);
 
         // Queue proposal (minDelay=0, can execute immediately)
         dao.queue(targets, values, calldatas, keccak256(bytes(description)));
@@ -251,7 +251,7 @@ contract IntegrationTest is DeployHelper {
         assertEq(awp.balanceOf(address(timelock)), depositAmount);
 
         // Advance to ensure stake createdAt < proposalCreatedAt
-        vm.roll(10);
+        vm.warp(block.timestamp + 10);
         vm.warp(block.timestamp + 10);
 
         // Build proposal: Treasury transfers 5000 AWP to bob
@@ -269,7 +269,7 @@ contract IntegrationTest is DeployHelper {
         uint256 proposalId = dao.proposeWithTokens(targets, values, calldatas, description, propTokens);
 
         // Advance past votingDelay (block > 11)
-        vm.roll(20);
+        vm.warp(block.timestamp + 20);
 
         // Alice + Bob both vote For
         uint256[] memory aliceTokens = new uint256[](1);
@@ -283,7 +283,7 @@ contract IntegrationTest is DeployHelper {
         dao.castVoteWithReasonAndParams(proposalId, 1, "", abi.encode(bobTokens));
 
         // Advance past votingPeriod (voteEnd = 111)
-        vm.roll(200);
+        vm.warp(block.timestamp + 200);
 
         // Queue
         dao.queue(targets, values, calldatas, keccak256(bytes(description)));
@@ -301,7 +301,7 @@ contract IntegrationTest is DeployHelper {
     // ═══════════════════════════════════════════════
 
     function test_dao_signalProposal() public {
-        vm.roll(10);
+        vm.warp(block.timestamp + 10);
         vm.warp(block.timestamp + 10);
 
         uint256[] memory propTokens = new uint256[](1);
@@ -312,7 +312,7 @@ contract IntegrationTest is DeployHelper {
         assertTrue(dao.isSignalProposal(proposalId));
 
         // Advance past votingDelay
-        vm.roll(20);
+        vm.warp(block.timestamp + 20);
 
         // Vote
         uint256[] memory aliceTokens = new uint256[](1);
@@ -329,7 +329,7 @@ contract IntegrationTest is DeployHelper {
         assertTrue(forVotes > 0);
 
         // Advance past votingPeriod
-        vm.roll(200);
+        vm.warp(block.timestamp + 200);
 
         // Signal proposal doesn't need queue/execute
         assertFalse(dao.proposalNeedsQueuing(proposalId));
@@ -340,7 +340,7 @@ contract IntegrationTest is DeployHelper {
     // ═══════════════════════════════════════════════
 
     function test_dao_guardianCancelActiveProposal() public {
-        vm.roll(10);
+        vm.warp(block.timestamp + 10);
         vm.warp(block.timestamp + 10);
 
         address[] memory targets = new address[](1);
@@ -893,7 +893,7 @@ contract IntegrationTest is DeployHelper {
         uint256 tokenIdAlice2 = veAwp.deposit(1_000_000e18, 54 weeks);
         vm.stopPrank();
 
-        vm.roll(10);
+        vm.warp(block.timestamp + 10);
         vm.warp(block.timestamp + 10);
 
         // Build proposal
@@ -912,7 +912,7 @@ contract IntegrationTest is DeployHelper {
         uint256 proposalId = dao.proposeWithTokens(targets, values, calldatas, description, propTokens);
 
         // Advance past votingDelay
-        vm.roll(20);
+        vm.warp(block.timestamp + 20);
 
         // Alice votes with 2 tokenIds together
         uint256[] memory aliceTokens = new uint256[](2);

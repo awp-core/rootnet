@@ -214,7 +214,7 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 	logs, err := idx.chain.Eth.FilterLogs(ctx, ethereum.FilterQuery{
 		FromBlock: new(big.Int).SetUint64(fromBlock),
 		ToBlock:   new(big.Int).SetUint64(toBlock),
-		Addresses: []common.Address{idx.chain.AWPRegistryAddr, idx.chain.AWPEmissionAddr, idx.chain.StakeNFTAddr, idx.chain.WorknetNFTAddr, idx.chain.AWPDAOAddr, idx.chain.StakingVaultAddr},
+		Addresses: []common.Address{idx.chain.AWPRegistryAddr, idx.chain.AWPEmissionAddr, idx.chain.VeAWPAddr, idx.chain.AWPWorkNetAddr, idx.chain.AWPDAOAddr, idx.chain.AWPAllocatorAddr},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to filter logs: %w", err)
@@ -284,40 +284,40 @@ func (idx *Indexer) poll(parentCtx context.Context) error {
 		}
 	}
 
-	// 7. Refresh active alpha tokens cache for keeper compoundFees (every poll, cheap DB query)
-	idx.refreshActiveAlphaTokens(ctx, gen.New(idx.pool))
+	// 7. Refresh active worknet tokens cache for keeper compoundFees (every poll, cheap DB query)
+	idx.refreshActiveWorknetTokens(ctx, gen.New(idx.pool))
 
 	slog.Info("scan complete", "blocks", toBlock-fromBlock+1, "logs", len(logs), "events", len(events))
 	return nil
 }
 
-// refreshActiveAlphaTokens caches active alpha tokens in Redis.
+// refreshActiveWorknetTokens caches active worknet tokens in Redis.
 // Stores both the flat token list (for compoundFees) and the worknetId→token map (for price keying by worknetId).
-func (idx *Indexer) refreshActiveAlphaTokens(ctx context.Context, q *gen.Queries) {
-	rows, err := q.ListActiveAlphaTokensWithSubnetID(ctx, idx.chainID)
+func (idx *Indexer) refreshActiveWorknetTokens(ctx context.Context, q *gen.Queries) {
+	rows, err := q.ListActiveWorknetTokensWithSubnetID(ctx, idx.chainID)
 	if err != nil {
 		return // non-critical, skip silently
 	}
 
 	// Build flat token list (backward compat for compoundFees) and worknetId→token map
 	tokens := make([]string, 0, len(rows))
-	subnetMap := make(map[string]string, len(rows)) // worknetId (decimal string) → alphaToken
+	subnetMap := make(map[string]string, len(rows)) // worknetId (decimal string) → worknetToken
 	for _, r := range rows {
-		tokens = append(tokens, r.AlphaToken)
+		tokens = append(tokens, r.WorknetToken)
 		if r.SubnetID.Valid && r.SubnetID.Int != nil {
-			subnetMap[r.SubnetID.Int.String()] = r.AlphaToken
+			subnetMap[r.SubnetID.Int.String()] = r.WorknetToken
 		}
 	}
 
 	pipe := idx.rds.Pipeline()
 	if data, err := json.Marshal(tokens); err == nil {
-		pipe.Set(ctx, fmt.Sprintf("active_alpha_tokens:%d", idx.chainID), data, 25*time.Hour)
+		pipe.Set(ctx, fmt.Sprintf("active_worknet_tokens:%d", idx.chainID), data, 25*time.Hour)
 	}
 	if data, err := json.Marshal(subnetMap); err == nil {
-		pipe.Set(ctx, fmt.Sprintf("active_alpha_subnet_map:%d", idx.chainID), data, 25*time.Hour)
+		pipe.Set(ctx, fmt.Sprintf("active_worknet_subnet_map:%d", idx.chainID), data, 25*time.Hour)
 	}
 	if _, err := pipe.Exec(ctx); err != nil {
-		slog.Error("failed to cache active alpha tokens", "error", err)
+		slog.Error("failed to cache active worknet tokens", "error", err)
 	}
 }
 
@@ -431,8 +431,8 @@ func (idx *Indexer) recordBlockHashes(ctx context.Context, q *gen.Queries, fromB
 func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log) ([]redisEvent, error) {
 	awpRegistry := idx.chain.AWPRegistry
 	awpEmission := idx.chain.AWPEmission
-	stakeNFT := idx.chain.StakeNFT
-	stakingVault := idx.chain.StakingVault
+	veAWP := idx.chain.VeAWP
+	awpAllocator := idx.chain.AWPAllocator
 
 	// ── AWPRegistry Account System V2 events ──
 
@@ -519,10 +519,10 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// StakeNFT.Deposited — new stake position created
-	if evt, err := stakeNFT.ParseDeposited(lg); err == nil {
+	// VeAWP.Deposited — new stake position created
+	if evt, err := veAWP.ParseDeposited(lg); err == nil {
 		// Read position from chain to get the actual createdAt timestamp
-		pos, err := idx.chain.StakeNFT.Positions(&bind.CallOpts{Context: ctx}, evt.TokenId)
+		pos, err := idx.chain.VeAWP.Positions(&bind.CallOpts{Context: ctx}, evt.TokenId)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read position for createdAt: %w", err)
 		}
@@ -544,10 +544,10 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// StakeNFT.PositionIncreased — position amount/lock updated
-	if evt, err := stakeNFT.ParsePositionIncreased(lg); err == nil {
+	// VeAWP.PositionIncreased — position amount/lock updated
+	if evt, err := veAWP.ParsePositionIncreased(lg); err == nil {
 		// Read updated position from chain to get new total amount
-		pos, err := idx.chain.StakeNFT.Positions(&bind.CallOpts{Context: ctx}, evt.TokenId)
+		pos, err := idx.chain.VeAWP.Positions(&bind.CallOpts{Context: ctx}, evt.TokenId)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read position: %w", err)
 		}
@@ -566,8 +566,8 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// StakeNFT.Withdrawn — position burned
-	if evt, err := stakeNFT.ParseWithdrawn(lg); err == nil {
+	// VeAWP.Withdrawn — position burned
+	if evt, err := veAWP.ParseWithdrawn(lg); err == nil {
 		if err := q.BurnStakePosition(ctx, gen.BurnStakePositionParams{
 			ChainID: idx.chainID,
 			TokenID: evt.TokenId.Int64(),
@@ -581,10 +581,10 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// StakeNFT.Transfer — NFT ownership transfer (ERC721 Transfer event)
-	// Guard on address to avoid matching WorknetNFT Transfer (same event signature)
-	if lg.Address == idx.chain.StakeNFTAddr {
-		if evt, err := stakeNFT.ParseTransfer(lg); err == nil {
+	// VeAWP.Transfer — NFT ownership transfer (ERC721 Transfer event)
+	// Guard on address to avoid matching AWPWorkNet Transfer (same event signature)
+	if lg.Address == idx.chain.VeAWPAddr {
+		if evt, err := veAWP.ParseTransfer(lg); err == nil {
 			// Skip mint (from=0) and burn (to=0) — handled by Deposited/Withdrawn
 			zeroAddr := common.Address{}
 			if evt.From != zeroAddr && evt.To != zeroAddr {
@@ -595,7 +595,7 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 				}); err != nil {
 					return nil, fmt.Errorf("UpdateStakePositionOwner: %w", err)
 				}
-				return []redisEvent{makeEvent("StakeNFTTransfer", idx.chainID, lg, map[string]interface{}{
+				return []redisEvent{makeEvent("VeAWPTransfer", idx.chainID, lg, map[string]interface{}{
 					"from":    evt.From.Hex(),
 					"to":      evt.To.Hex(),
 					"tokenId": evt.TokenId.String(),
@@ -605,8 +605,8 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		}
 	}
 
-	// Allocated (V2: staker instead of user, now emitted by StakingVault)
-	if evt, err := stakingVault.ParseAllocated(lg); err == nil {
+	// Allocated (V2: staker instead of user, now emitted by AWPAllocator)
+	if evt, err := awpAllocator.ParseAllocated(lg); err == nil {
 		if err := q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
@@ -634,8 +634,8 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// Deallocated (V2: staker instead of user, now emitted by StakingVault)
-	if evt, err := stakingVault.ParseDeallocated(lg); err == nil {
+	// Deallocated (V2: staker instead of user, now emitted by AWPAllocator)
+	if evt, err := awpAllocator.ParseDeallocated(lg); err == nil {
 		if err := q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
@@ -663,8 +663,8 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// Reallocated (V2: staker instead of user, now emitted by StakingVault)
-	if evt, err := stakingVault.ParseReallocated(lg); err == nil {
+	// Reallocated (V2: staker instead of user, now emitted by AWPAllocator)
+	if evt, err := awpAllocator.ParseReallocated(lg); err == nil {
 		// Subtract from source allocation
 		if err := q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
 			ChainID:      idx.chainID,
@@ -698,18 +698,22 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// AgentAllocationsFrozen removed — freezeAgentAllocations deleted from StakingVault
+	// AgentAllocationsFrozen removed — freezeAgentAllocations deleted from AWPAllocator
 
-	// SubnetRegistered
+	// WorknetRegistered
 	if evt, err := awpRegistry.ParseWorknetRegistered(lg); err == nil {
-		// Read skillsURI and minStake from WorknetNFT on-chain (not included in event)
+		// Read full worknet data from AWPWorkNet on-chain (not included in event)
 		skillsURI := ""
 		minStake := big.NewInt(0)
-		if nftData, nftErr := idx.chain.WorknetNFT.GetWorknetData(&bind.CallOpts{Context: ctx}, evt.WorknetId); nftErr == nil {
+		worknetManager := ""
+		worknetToken := ""
+		if nftData, nftErr := idx.chain.AWPWorkNet.GetWorknetData(&bind.CallOpts{Context: ctx}, evt.WorknetId); nftErr == nil {
 			skillsURI = nftData.SkillsURI
 			if nftData.MinStake != nil {
 				minStake = nftData.MinStake
 			}
+			worknetManager = strings.ToLower(nftData.WorknetManager.Hex())
+			worknetToken = strings.ToLower(nftData.WorknetToken.Hex())
 		}
 		// Read on-chain createdAt (block.timestamp, not block number)
 		var createdAtTs int64
@@ -724,10 +728,10 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			Owner:          strings.ToLower(evt.Owner.Hex()),
 			Name:           evt.Name,
 			Symbol:         evt.Symbol,
-			SubnetContract: strings.ToLower(evt.WorknetManager.Hex()),
+			SubnetContract: worknetManager,
 			SkillsUri:      pgtype.Text{String: skillsURI, Valid: skillsURI != ""},
 			MinStake:       bigIntToNumeric(minStake),
-			AlphaToken:     strings.ToLower(evt.AlphaToken.Hex()),
+			WorknetToken:   worknetToken,
 			LpPool:         pgtype.Text{Valid: false},
 			CreatedAt:      createdAtTs,
 			ImmunityEndsAt: pgtype.Int8{Valid: false},
@@ -738,17 +742,17 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		if markErr := q.MarkSaltUsedByAddress(ctx, gen.MarkSaltUsedByAddressParams{
 			ChainID:  idx.chainID,
 			SubnetID: bigIntToNumeric(evt.WorknetId),
-			Lower:    strings.ToLower(evt.AlphaToken.Hex()),
+			Lower:    worknetToken,
 		}); markErr != nil {
-			slog.Warn("mark salt used failed (non-critical)", "error", markErr, "alphaToken", evt.AlphaToken.Hex())
+			slog.Warn("mark salt used failed (non-critical)", "error", markErr, "worknetToken", worknetToken)
 		}
-		return []redisEvent{makeEvent("SubnetRegistered", idx.chainID, lg, map[string]interface{}{
+		return []redisEvent{makeEvent("WorknetRegistered", idx.chainID, lg, map[string]interface{}{
 			"worknetId":      evt.WorknetId.String(),
-			"owner":         evt.Owner.Hex(),
-			"name":          evt.Name,
-			"symbol":        evt.Symbol,
-			"worknetManager": evt.WorknetManager.Hex(),
-			"alphaToken":    evt.AlphaToken.Hex(),
+			"owner":          evt.Owner.Hex(),
+			"name":           evt.Name,
+			"symbol":         evt.Symbol,
+			"worknetManager": worknetManager,
+			"worknetToken":   worknetToken,
 		})}, nil
 	}
 
@@ -762,10 +766,10 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return nil, fmt.Errorf("UpdateSubnetLP: %w", err)
 		}
 		return []redisEvent{makeEvent("LPCreated", idx.chainID, lg, map[string]interface{}{
-			"worknetId":    evt.WorknetId.String(),
-			"poolId":      poolIdHex,
-			"awpAmount":   evt.AwpAmount.String(),
-			"alphaAmount": evt.AlphaAmount.String(),
+			"worknetId":          evt.WorknetId.String(),
+			"poolId":             poolIdHex,
+			"awpAmount":          evt.AwpAmount.String(),
+			"worknetTokenAmount": evt.WorknetTokenAmount.String(),
 		})}, nil
 	}
 
@@ -841,8 +845,8 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// SubnetDeregistered
-	if evt, err := awpRegistry.ParseWorknetDeregistered(lg); err == nil {
+	// SubnetDeregistered (WorknetCancelled in new contract)
+	if evt, err := awpRegistry.ParseWorknetCancelled(lg); err == nil {
 		if err := q.UpdateSubnetBurned(ctx, bigIntToNumeric(evt.WorknetId)); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetBurned: %w", err)
 		}
@@ -851,12 +855,12 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// ── WorknetNFT events ──
+	// ── AWPWorkNet events ──
 
-	worknetNFT := idx.chain.WorknetNFT
+	awpWorkNet := idx.chain.AWPWorkNet
 
-	// SkillsURIUpdated (emitted from WorknetNFT)
-	if evt, err := worknetNFT.ParseSkillsURIUpdated(lg); err == nil {
+	// SkillsURIUpdated (emitted from AWPWorkNet)
+	if evt, err := awpWorkNet.ParseSkillsURIUpdated(lg); err == nil {
 		if err := q.UpdateSubnetSkillsURI(ctx, gen.UpdateSubnetSkillsURIParams{
 			SubnetID:  bigIntToNumeric(evt.TokenId),
 			SkillsUri: pgtype.Text{String: evt.SkillsURI, Valid: evt.SkillsURI != ""},
@@ -869,8 +873,8 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// MinStakeUpdated (emitted from WorknetNFT)
-	if evt, err := worknetNFT.ParseMinStakeUpdated(lg); err == nil {
+	// MinStakeUpdated (emitted from AWPWorkNet)
+	if evt, err := awpWorkNet.ParseMinStakeUpdated(lg); err == nil {
 		if err := q.UpdateSubnetMinStake(ctx, gen.UpdateSubnetMinStakeParams{
 			SubnetID: bigIntToNumeric(evt.TokenId),
 			MinStake: bigIntToNumeric(evt.MinStake),
@@ -883,8 +887,8 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// MetadataURIUpdated (emitted from WorknetNFT)
-	if evt, err := idx.chain.WorknetNFT.ParseMetadataURIUpdated(lg); err == nil {
+	// MetadataURIUpdated (emitted from AWPWorkNet)
+	if evt, err := idx.chain.AWPWorkNet.ParseMetadataURIUpdated(lg); err == nil {
 		if err := q.UpdateSubnetMetadataURI(ctx, gen.UpdateSubnetMetadataURIParams{
 			SubnetID:    bigIntToNumeric(evt.TokenId),
 			MetadataUri: evt.MetadataURI,
@@ -897,10 +901,10 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// WorknetNFT.Transfer — subnet ownership transfer (ERC721 Transfer event)
-	// Guard on address to avoid matching StakeNFT Transfer (same event signature)
-	if lg.Address == idx.chain.WorknetNFTAddr {
-		if evt, err := worknetNFT.ParseTransfer(lg); err == nil {
+	// AWPWorkNet.Transfer — subnet ownership transfer (ERC721 Transfer event)
+	// Guard on address to avoid matching VeAWP Transfer (same event signature)
+	if lg.Address == idx.chain.AWPWorkNetAddr {
+		if evt, err := awpWorkNet.ParseTransfer(lg); err == nil {
 			// Skip mint (from=0) and burn (to=0) — handled by SubnetRegistered/SubnetDeregistered
 			zeroAddr := common.Address{}
 			if evt.From != zeroAddr && evt.To != zeroAddr {
@@ -995,10 +999,10 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return []redisEvent{makeEvent("GuardianUpdated", idx.chainID, lg, map[string]interface{}{
 				"newGuardian": newGuardian.Hex(),
 			})}, nil
-		// InitialAlphaPriceUpdated(uint256 newPrice)
+		// InitialTokenPriceUpdated(uint256 newPrice)
 		case common.HexToHash("0xab7ee876750d22d253d0b38988caea5f6285a832697e4889d9beb36515dde34e"):
 			newPrice := new(big.Int).SetBytes(lg.Data)
-			return []redisEvent{makeEvent("InitialAlphaPriceUpdated", idx.chainID, lg, map[string]interface{}{
+			return []redisEvent{makeEvent("InitialTokenPriceUpdated", idx.chainID, lg, map[string]interface{}{
 				"newPrice": newPrice.String(),
 			})}, nil
 		// ImmunityPeriodUpdated(uint256 newPeriod)
@@ -1007,10 +1011,10 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return []redisEvent{makeEvent("ImmunityPeriodUpdated", idx.chainID, lg, map[string]interface{}{
 				"newPeriod": newPeriod.String(),
 			})}, nil
-		// AlphaTokenFactoryUpdated(address indexed newFactory)
+		// WorknetTokenFactoryUpdated(address indexed newFactory)
 		case common.HexToHash("0xca3b5054bdfbf81973dd36029b7ef8c5479d0739433700df6b2e6d690ead4a3e"):
 			newFactory := common.BytesToAddress(lg.Topics[1].Bytes())
-			return []redisEvent{makeEvent("AlphaTokenFactoryUpdated", idx.chainID, lg, map[string]interface{}{
+			return []redisEvent{makeEvent("WorknetTokenFactoryUpdated", idx.chainID, lg, map[string]interface{}{
 				"newFactory": newFactory.Hex(),
 			})}, nil
 		// DefaultWorknetManagerImplUpdated(address indexed newImpl)
@@ -1018,6 +1022,17 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			newImpl := common.BytesToAddress(lg.Topics[1].Bytes())
 			return []redisEvent{makeEvent("DefaultWorknetManagerImplUpdated", idx.chainID, lg, map[string]interface{}{
 				"newImpl": newImpl.Hex(),
+			})}, nil
+		// LPManagerUpdated(address indexed newLPManager)
+		case common.HexToHash("0x4018a62a1d80db1bdbd23a612bdd131f51bbf83eb97f51072afc74de3e55437d"):
+			newLP := common.BytesToAddress(lg.Topics[1].Bytes())
+			if err := q.UpdateChainLPManager(ctx, gen.UpdateChainLPManagerParams{
+				ChainID: idx.chainID, LpManager: strings.ToLower(newLP.Hex()),
+			}); err != nil {
+				return nil, fmt.Errorf("UpdateChainLPManager: %w", err)
+			}
+			return []redisEvent{makeEvent("LPManagerUpdated", idx.chainID, lg, map[string]interface{}{
+				"newLPManager": newLP.Hex(),
 			})}, nil
 		// DexConfigUpdated()
 		case common.HexToHash("0xaf06d41ee280e7c0649c5447e17c66f71908440d4a6a8ab4f5210b89c640925b"):

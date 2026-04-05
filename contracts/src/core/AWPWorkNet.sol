@@ -161,7 +161,6 @@ contract AWPWorkNet is UUPSUpgradeable, ERC721Upgradeable {
     /// @notice Initialize the NFT collection (called once via proxy)
     function initialize(string memory name_, string memory symbol_, address guardian_) external initializer {
         __ERC721_init(name_, symbol_);
-        __UUPSUpgradeable_init();
         if (guardian_ == address(0)) revert ZeroAddress();
         guardian = guardian_;
     }

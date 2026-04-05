@@ -61,9 +61,9 @@ contract AWPDAOTest is DeployHelper {
             address(daoImpl),
             abi.encodeCall(AWPDAO.initialize, (
                 timelock,
-                1,       // votingDelay: 1 block
-                50400,   // votingPeriod: ~7 days in blocks
-                1,       // lateQuorumExtension: 1 block
+                1,        // votingDelay: 1 second
+                60 days,  // votingPeriod: 60 days (long for testing lock expiry)
+                1,        // lateQuorumExtension: 1 second
                 4,       // quorumPercent: 4%
                 guardian
             ))
@@ -87,7 +87,7 @@ contract AWPDAOTest is DeployHelper {
         assertEq(dao.guardian(), guardian);
         assertEq(address(dao.veAWP()), address(veAwp));
         assertEq(dao.votingDelay(), 1);
-        assertEq(dao.votingPeriod(), 50400);
+        assertEq(dao.votingPeriod(), 60 days);
     }
 
     function test_COUNTING_MODE() public view {
@@ -95,7 +95,7 @@ contract AWPDAOTest is DeployHelper {
     }
 
     function test_CLOCK_MODE() public view {
-        assertEq(dao.CLOCK_MODE(), "mode=blocknumber&from=default");
+        assertEq(dao.CLOCK_MODE(), "mode=timestamp");
     }
 
     // ═══════════════════════════════════════════════
@@ -132,7 +132,7 @@ contract AWPDAOTest is DeployHelper {
 
     function test_proposeWithTokens() public {
         // Need to advance one block so createdAt < proposalCreatedAt
-        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
         vm.warp(block.timestamp + 2);
 
         address[] memory targets = new address[](1);
@@ -153,7 +153,7 @@ contract AWPDAOTest is DeployHelper {
     }
 
     function test_proposeWithTokens_insufficientPower_reverts() public {
-        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
         vm.warp(block.timestamp + 2);
 
         // Create a tiny stake that won't meet proposalThreshold
@@ -164,7 +164,7 @@ contract AWPDAOTest is DeployHelper {
         uint256 tinyTokenId = veAwp.deposit(100e18, 30 days);
         vm.stopPrank();
 
-        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
         vm.warp(block.timestamp + 2);
 
         address[] memory targets = new address[](1);
@@ -186,7 +186,7 @@ contract AWPDAOTest is DeployHelper {
         uint256 proposalId = _createProposal();
 
         // Advance past voting delay
-        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
 
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = tokenIdBob;
@@ -201,7 +201,7 @@ contract AWPDAOTest is DeployHelper {
 
     function test_vote_against() public {
         uint256 proposalId = _createProposal();
-        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
 
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = tokenIdBob;
@@ -215,7 +215,7 @@ contract AWPDAOTest is DeployHelper {
 
     function test_vote_abstain() public {
         uint256 proposalId = _createProposal();
-        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
 
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = tokenIdBob;
@@ -229,7 +229,7 @@ contract AWPDAOTest is DeployHelper {
 
     function test_vote_notOwner_reverts() public {
         uint256 proposalId = _createProposal();
-        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
 
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = tokenIdAlice; // alice's token
@@ -241,7 +241,7 @@ contract AWPDAOTest is DeployHelper {
 
     function test_vote_doubleVote_reverts() public {
         uint256 proposalId = _createProposal();
-        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
 
         uint256[] memory tokenIds = new uint256[](1);
         tokenIds[0] = tokenIdBob;
@@ -256,7 +256,7 @@ contract AWPDAOTest is DeployHelper {
 
     function test_vote_noTokens_reverts() public {
         uint256 proposalId = _createProposal();
-        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
 
         uint256[] memory tokenIds = new uint256[](0);
 
@@ -267,7 +267,7 @@ contract AWPDAOTest is DeployHelper {
 
     function test_vote_mintedAfterProposal_reverts() public {
         uint256 proposalId = _createProposal();
-        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
 
         // Charlie deposits after proposal
         address charlie = makeAddr("charlie");
@@ -287,9 +287,9 @@ contract AWPDAOTest is DeployHelper {
 
     function test_vote_expiredLock_reverts() public {
         uint256 proposalId = _createProposal();
-        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
 
-        // Warp past bob's lock
+        // Warp past bob's 30-day lock (votingPeriod=60 days, proposal still active)
         vm.warp(block.timestamp + 31 days);
 
         uint256[] memory tokenIds = new uint256[](1);
@@ -313,7 +313,7 @@ contract AWPDAOTest is DeployHelper {
     // ═══════════════════════════════════════════════
 
     function test_signalPropose() public {
-        vm.roll(block.number + 2);
+        vm.warp(block.timestamp + 2);
         vm.warp(block.timestamp + 2);
 
         uint256[] memory tokenIds = new uint256[](1);
@@ -400,7 +400,6 @@ contract AWPDAOTest is DeployHelper {
     // ═══════════════════════════════════════════════
 
     function _createProposal() internal returns (uint256) {
-        vm.roll(block.number + 2);
         vm.warp(block.timestamp + 2);
 
         address[] memory targets = new address[](1);

@@ -558,10 +558,10 @@ else
     # ── DEX-specific LP Manager (auto-detect chain) ──
     if [[ "$CHAIN_ID" == "56" || "$CHAIN_ID" == "97" ]]; then
         [[ -n "$POOL_MANAGER" ]] && vc "$LP_MANAGER_ADDRESS" "src/core/LPManager.sol:LPManager" \
-            "$(cast abi-encode 'c(address,address,address,address,address)' "$AWP_REGISTRY_ADDRESS" "$POOL_MANAGER" "$POSITION_MANAGER" "$PERMIT2" "$AWP_TOKEN_ADDRESS")" "LPManager (PancakeSwap)"
+            "$(""  # UUPS proxy, no constructor args for impl)" "LPManager (PancakeSwap)"
     else
         [[ -n "$POOL_MANAGER" ]] && vc "$LP_MANAGER_ADDRESS" "src/core/LPManagerUni.sol:LPManagerUni" \
-            "$(cast abi-encode 'c(address,address,address,address,address)' "$AWP_REGISTRY_ADDRESS" "$POOL_MANAGER" "$POSITION_MANAGER" "$PERMIT2" "$AWP_TOKEN_ADDRESS")" "LPManager (Uniswap)"
+            "$(""  # UUPS proxy, no constructor args for impl)" "LPManager (Uniswap)"
     fi
 
     # ── UUPS implementation contracts (no constructor args — _disableInitializers only) ──

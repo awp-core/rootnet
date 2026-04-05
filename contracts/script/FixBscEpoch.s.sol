@@ -5,7 +5,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {AWPEmission} from "../src/token/AWPEmission.sol";
 
 /// @title AWPEmissionFix — Temporary impl: reset settledEpoch + upgrade back to normal impl in one tx
-contract AWPEmissionFix is AWPEmission {
+contract AWPEmissionFix is AWPEmission(0x0000A1050AcF9DEA8af9c2E74f0D7CF43f1000A1) {
     function fixAndUpgrade(uint256 epoch, address newImpl) external {
         if (msg.sender != guardian) revert NotGuardian();
         settledEpoch = epoch;

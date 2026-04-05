@@ -95,9 +95,7 @@ abstract contract LPManagerBase is Initializable, UUPSUpgradeable {
     }
 
     /// @notice Initialize (called once via proxy, no params — protocol addresses hardcoded)
-    function initialize() external initializer {
-        __UUPSUpgradeable_init();
-    }
+    function initialize() external initializer {}
 
     /// @dev UUPS upgrade authorization — reads guardian from AWPRegistry
     function _authorizeUpgrade(address) internal view override {
@@ -108,7 +106,7 @@ abstract contract LPManagerBase is Initializable, UUPSUpgradeable {
     //  Pool Creation
     // ══════════════════════════════════════════════
 
-    function createPoolAndAddLiquidity(address worknetToken, uint256 awpAmount, uint256 alphaAmount)
+    function createPoolAndAddLiquidity(address worknetToken, uint256 awpAmount, uint256 worknetTokenAmount)
         external
         onlyAWPRegistry
         returns (bytes32 poolId, uint256 lpTokenId)
@@ -117,7 +115,7 @@ abstract contract LPManagerBase is Initializable, UUPSUpgradeable {
 
         address awp = awpToken;
         (address c0, address c1) = awp < worknetToken ? (awp, worknetToken) : (worknetToken, awp);
-        (uint256 amt0, uint256 amt1) = awp < worknetToken ? (awpAmount, alphaAmount) : (alphaAmount, awpAmount);
+        (uint256 amt0, uint256 amt1) = awp < worknetToken ? (awpAmount, worknetTokenAmount) : (worknetTokenAmount, awpAmount);
 
         uint256 ratioX192 = FullMath.mulDiv(amt1, FixedPoint96.Q96 * FixedPoint96.Q96, amt0);
         uint160 sqrtPriceX96 = uint160(Math.sqrt(ratioX192));

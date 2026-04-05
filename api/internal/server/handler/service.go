@@ -117,27 +117,38 @@ func (h *Handler) svcGetRegistry(chainID int64) registryResponse {
 		}
 	}
 	// Fall back to cfg configuration
+	allocatorAddr := h.cfg.AWPAllocatorAddress
 	return registryResponse{
-		ChainID:           chainID,
-		AWPRegistry:       h.cfg.AWPRegistryAddress,
-		AWPToken:          h.cfg.AWPTokenAddress,
-		AWPEmission:       h.cfg.AWPEmissionAddress,
-		StakingVault:      h.cfg.StakingVaultAddress,
-		StakeNFT:          h.cfg.StakeNFTAddress,
-		WorknetNFT:         h.cfg.WorknetNFTAddress,
-		LPManager:         h.cfg.LPManagerAddress,
-		AlphaTokenFactory: h.cfg.AlphaFactoryAddress,
-		DAO:               h.cfg.DAOAddress,
-		Treasury:          h.cfg.TreasuryAddress,
+		ChainID:             chainID,
+		AWPRegistry:         h.cfg.AWPRegistryAddress,
+		AWPToken:            h.cfg.AWPTokenAddress,
+		AWPEmission:         h.cfg.AWPEmissionAddress,
+		AWPAllocator:        allocatorAddr,
+		VeAWP:               h.cfg.VeAWPAddress,
+		AWPWorkNet:          h.cfg.AWPWorkNetAddress,
+		LPManager:           h.cfg.LPManagerAddress,
+		WorknetTokenFactory: h.cfg.WorknetTokenFactoryAddress,
+		DAO:                 h.cfg.DAOAddress,
+		Treasury:            h.cfg.TreasuryAddress,
 		EIP712Domain: eip712DomainResponse{
 			Name: "AWPRegistry", Version: "1",
 			ChainID: chainID, VerifyingContract: h.cfg.AWPRegistryAddress,
 		},
-		StakingVaultEIP712: eip712DomainResponse{
-			Name: "StakingVault", Version: "1",
-			ChainID: chainID, VerifyingContract: h.cfg.StakingVaultAddress,
+		AllocatorEIP712: eip712DomainResponse{
+			Name: "AWPAllocator", Version: "1",
+			ChainID: chainID, VerifyingContract: allocatorAddr,
 		},
 	}
+}
+
+// svcGetRegistryAll returns registry info for all configured chains
+func (h *Handler) svcGetRegistryAll() []registryResponse {
+	chainIDs := h.getActiveChainIDs()
+	results := make([]registryResponse, 0, len(chainIDs))
+	for _, id := range chainIDs {
+		results = append(results, h.svcGetRegistry(id))
+	}
+	return results
 }
 
 // registryFromChainRow builds a registryResponse from a DB Chain record
@@ -150,26 +161,26 @@ func (h *Handler) registryFromChainRow(c gen.Chain) registryResponse {
 		return cfgVal
 	}
 	registry := resolve(c.AwpRegistry, h.cfg.AWPRegistryAddress)
-	vault := resolve(c.StakingVault, h.cfg.StakingVaultAddress)
+	allocator := resolve(c.AwpAllocator, h.cfg.AWPAllocatorAddress)
 	return registryResponse{
-		ChainID:           c.ChainID,
-		AWPRegistry:       registry,
-		AWPToken:          resolve(c.AwpToken, h.cfg.AWPTokenAddress),
-		AWPEmission:       resolve(c.AwpEmission, h.cfg.AWPEmissionAddress),
-		StakingVault:      vault,
-		StakeNFT:          resolve(c.StakeNft, h.cfg.StakeNFTAddress),
-		WorknetNFT:         resolve(c.WorknetNft, h.cfg.WorknetNFTAddress),
-		LPManager:         resolve(c.LpManager, h.cfg.LPManagerAddress),
-		AlphaTokenFactory: h.cfg.AlphaFactoryAddress,
-		DAO:               resolve(c.DaoAddress, h.cfg.DAOAddress),
-		Treasury:          h.cfg.TreasuryAddress,
+		ChainID:             c.ChainID,
+		AWPRegistry:         registry,
+		AWPToken:            resolve(c.AwpToken, h.cfg.AWPTokenAddress),
+		AWPEmission:         resolve(c.AwpEmission, h.cfg.AWPEmissionAddress),
+		AWPAllocator:        allocator,
+		VeAWP:               resolve(c.Veawp, h.cfg.VeAWPAddress),
+		AWPWorkNet:          resolve(c.AwpWorknet, h.cfg.AWPWorkNetAddress),
+		LPManager:           resolve(c.LpManager, h.cfg.LPManagerAddress),
+		WorknetTokenFactory: h.cfg.WorknetTokenFactoryAddress,
+		DAO:                 resolve(c.DaoAddress, h.cfg.DAOAddress),
+		Treasury:            h.cfg.TreasuryAddress,
 		EIP712Domain: eip712DomainResponse{
 			Name: "AWPRegistry", Version: "1",
 			ChainID: c.ChainID, VerifyingContract: registry,
 		},
-		StakingVaultEIP712: eip712DomainResponse{
-			Name: "StakingVault", Version: "1",
-			ChainID: c.ChainID, VerifyingContract: vault,
+		AllocatorEIP712: eip712DomainResponse{
+			Name: "AWPAllocator", Version: "1",
+			ChainID: c.ChainID, VerifyingContract: allocator,
 		},
 	}
 }
@@ -233,18 +244,41 @@ func (h *Handler) svcGetUser(ctx context.Context, chainID int64, address string)
 	return resp, nil
 }
 
-// svcCheckAddress checks address registration status, binding, and recipient address
+// svcCheckAddress checks address registration status, binding, and recipient address.
+// When chainID is 0 (caller did not specify), returns registration info across all chains.
 func (h *Handler) svcCheckAddress(ctx context.Context, chainID int64, address string) (checkAddressResponse, error) {
 	resp := checkAddressResponse{}
-	if user, err := h.queries.GetUser(ctx, gen.GetUserParams{
-		Address: address, ChainID: chainID,
-	}); err == nil {
-		resp.IsRegistered = user.RegisteredAt != 0 || user.BoundTo != "" || user.Recipient != ""
-		resp.BoundTo = user.BoundTo
-		resp.Recipient = user.Recipient
-	} else if !errors.Is(err, pgx.ErrNoRows) {
-		h.logger.Error("failed to check address", "error", err, "address", address)
-		return resp, newSvcErr(errInternal, "failed to check address")
+
+	if chainID > 0 {
+		// Specific chain requested
+		if user, err := h.queries.GetUser(ctx, gen.GetUserParams{
+			Address: address, ChainID: chainID,
+		}); err == nil {
+			resp.IsRegistered = user.RegisteredAt != 0 || user.BoundTo != "" || user.Recipient != ""
+			resp.BoundTo = user.BoundTo
+			resp.Recipient = user.Recipient
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			h.logger.Error("failed to check address", "error", err, "address", address)
+			return resp, newSvcErr(errInternal, "failed to check address")
+		}
+	} else {
+		// No chain specified — return all chains where user is registered
+		rows, err := h.queries.GetUserAllChains(ctx, address)
+		if err != nil {
+			h.logger.Error("failed to check address", "error", err, "address", address)
+			return resp, newSvcErr(errInternal, "failed to check address")
+		}
+		if len(rows) > 0 {
+			resp.IsRegistered = true
+			for _, r := range rows {
+				resp.Chains = append(resp.Chains, chainRegistration{
+					ChainID:      r.ChainID,
+					IsRegistered: true,
+					BoundTo:      r.BoundTo,
+					Recipient:    r.Recipient,
+				})
+			}
+		}
 	}
 	return resp, nil
 }
@@ -320,7 +354,7 @@ func (h *Handler) svcGetFrozen(ctx context.Context, chainID int64, address strin
 	return frozen, nil
 }
 
-// svcGetStakePositions fetches the user's StakeNFT position list
+// svcGetStakePositions fetches the user's veAWP position list
 func (h *Handler) svcGetStakePositions(ctx context.Context, chainID int64, address string) (any, error) {
 	positions, err := h.queries.GetUserStakePositions(ctx, gen.GetUserStakePositionsParams{
 		ChainID: chainID, Owner: address,
@@ -836,8 +870,8 @@ func (h *Handler) svcListAllProposals(ctx context.Context, status string, limit,
 	return proposals, nil
 }
 
-// svcGetAlphaInfo fetches subnet Alpha token info
-func (h *Handler) svcGetAlphaInfo(ctx context.Context, subnetID pgtype.Numeric) (map[string]any, error) {
+// svcGetWorknetTokenInfo fetches worknet token info
+func (h *Handler) svcGetWorknetTokenInfo(ctx context.Context, subnetID pgtype.Numeric) (map[string]any, error) {
 	subnet, err := h.queries.GetSubnet(ctx, subnetID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -848,13 +882,13 @@ func (h *Handler) svcGetAlphaInfo(ctx context.Context, subnetID pgtype.Numeric) 
 	}
 	return map[string]any{
 		"worknetId": subnet.SubnetID, "name": subnet.Name,
-		"symbol": subnet.Symbol, "alphaToken": subnet.AlphaToken,
+		"symbol": subnet.Symbol, "worknetToken": subnet.WorknetToken,
 	}, nil
 }
 
-// svcGetAlphaPrice fetches the subnet Alpha token price
-func (h *Handler) svcGetAlphaPrice(ctx context.Context, subnetIDRaw string) (any, error) {
-	data, err := h.svcReadRedisJSON(ctx, fmt.Sprintf("alpha_price:%s", subnetIDRaw))
+// svcGetWorknetTokenPrice fetches the worknet token price
+func (h *Handler) svcGetWorknetTokenPrice(ctx context.Context, subnetIDRaw string) (any, error) {
+	data, err := h.svcReadRedisJSON(ctx, fmt.Sprintf("worknet_token_price:%s", subnetIDRaw))
 	if err != nil {
 		return nil, err
 	}

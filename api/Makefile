@@ -15,18 +15,18 @@ generate-bindings:
 	$(ABIGEN) --abi /tmp/AWPRegistry_abi.json --pkg bindings --type AWPRegistry --out internal/chain/bindings/awp_registry.go
 	jq '.abi' $(OUT)/AWPToken.sol/AWPToken.json > /tmp/AWPToken_abi.json
 	$(ABIGEN) --abi /tmp/AWPToken_abi.json --pkg bindings --type AWPToken --out internal/chain/bindings/a_w_p_token.go
-	jq '.abi' $(OUT)/AlphaToken.sol/AlphaToken.json > /tmp/AlphaToken_abi.json
-	$(ABIGEN) --abi /tmp/AlphaToken_abi.json --pkg bindings --type AlphaToken --out internal/chain/bindings/alpha_token.go
-	jq '.abi' $(OUT)/WorknetNFT.sol/WorknetNFT.json > /tmp/WorknetNFT_abi.json
-	$(ABIGEN) --abi /tmp/WorknetNFT_abi.json --pkg bindings --type WorknetNFT --out internal/chain/bindings/worknet_n_f_t.go
-	jq '.abi' $(OUT)/StakingVault.sol/StakingVault.json > /tmp/StakingVault_abi.json
-	$(ABIGEN) --abi /tmp/StakingVault_abi.json --pkg bindings --type StakingVault --out internal/chain/bindings/staking_vault.go
+	jq '.abi' $(OUT)/WorknetToken.sol/WorknetToken.json > /tmp/WorknetToken_abi.json
+	$(ABIGEN) --abi /tmp/WorknetToken_abi.json --pkg bindings --type WorknetToken --out internal/chain/bindings/worknet_token.go
+	jq '.abi' $(OUT)/AWPWorkNet.sol/AWPWorkNet.json > /tmp/AWPWorkNet_abi.json
+	$(ABIGEN) --abi /tmp/AWPWorkNet_abi.json --pkg bindings --type AWPWorkNet --out internal/chain/bindings/awp_work_net.go
+	jq '.abi' $(OUT)/AWPAllocator.sol/AWPAllocator.json > /tmp/AWPAllocator_abi.json
+	$(ABIGEN) --abi /tmp/AWPAllocator_abi.json --pkg bindings --type AWPAllocator --out internal/chain/bindings/awp_allocator.go
 	jq '.abi' $(OUT)/AWPEmission.sol/AWPEmission.json > /tmp/AWPEmission_abi.json
 	$(ABIGEN) --abi /tmp/AWPEmission_abi.json --pkg bindings --type AWPEmission --out internal/chain/bindings/a_w_p_emission.go
 	jq '.abi' $(OUT)/AWPDAO.sol/AWPDAO.json > /tmp/AWPDAO_abi.json
 	$(ABIGEN) --abi /tmp/AWPDAO_abi.json --pkg bindings --type AWPDAO --out internal/chain/bindings/a_w_p_d_a_o.go
-	jq '.abi' $(OUT)/StakeNFT.sol/StakeNFT.json > /tmp/StakeNFT_abi.json
-	$(ABIGEN) --abi /tmp/StakeNFT_abi.json --pkg bindings --type StakeNFT --out internal/chain/bindings/stake_n_f_t.go
+	jq '.abi' $(OUT)/veAWP.sol/veAWP.json > /tmp/veAWP_abi.json
+	$(ABIGEN) --abi /tmp/veAWP_abi.json --pkg bindings --type VeAWP --out internal/chain/bindings/ve_awp.go
 
 generate-sqlc:
 	$(SQLC) generate

@@ -18,21 +18,19 @@ type Client struct {
 	AWPRegistryAddr  common.Address
 	AWPTokenAddr     common.Address
 	AWPEmissionAddr  common.Address
-	StakingVaultAddr common.Address
-	WorknetNFTAddr    common.Address
-	AlphaTokenAddr   common.Address
+	AWPAllocatorAddr common.Address
+	AWPWorkNetAddr   common.Address
 	AWPDAOAddr       common.Address
-	StakeNFTAddr     common.Address
+	VeAWPAddr        common.Address
 
 	// Contract binding instances
 	AWPRegistry  *bindings.AWPRegistry
 	AWPToken     *bindings.AWPToken
 	AWPEmission  *bindings.AWPEmission
-	StakingVault *bindings.StakingVault
-	WorknetNFT    *bindings.WorknetNFT
-	AlphaToken   *bindings.AlphaToken
+	AWPAllocator *bindings.AWPAllocator
+	AWPWorkNet   *bindings.AWPWorkNet
 	AWPDAO       *bindings.AWPDAO
-	StakeNFT     *bindings.StakeNFT
+	VeAWP        *bindings.VeAWP
 }
 
 // NewClient creates a chain client, connects to RPC, and initializes all contract binding instances.
@@ -87,33 +85,24 @@ func NewClient(ctx context.Context, rpcURL string, addresses map[string]string) 
 		return nil, fmt.Errorf("failed to bind AWPEmission: %w", err)
 	}
 
-	// StakingVault
-	c.StakingVaultAddr, err = parseAddr("StakingVault")
+	// AWPAllocator
+	c.AWPAllocatorAddr, err = parseAddr("AWPAllocator")
 	if err != nil {
 		return nil, err
 	}
-	c.StakingVault, err = bindings.NewStakingVault(c.StakingVaultAddr, eth)
+	c.AWPAllocator, err = bindings.NewAWPAllocator(c.AWPAllocatorAddr, eth)
 	if err != nil {
-		return nil, fmt.Errorf("failed to bind StakingVault: %w", err)
+		return nil, fmt.Errorf("failed to bind AWPAllocator: %w", err)
 	}
 
-	// WorknetNFT
-	c.WorknetNFTAddr, err = parseAddr("WorknetNFT")
+	// AWPWorkNet
+	c.AWPWorkNetAddr, err = parseAddr("AWPWorkNet")
 	if err != nil {
 		return nil, err
 	}
-	c.WorknetNFT, err = bindings.NewWorknetNFT(c.WorknetNFTAddr, eth)
+	c.AWPWorkNet, err = bindings.NewAWPWorkNet(c.AWPWorkNetAddr, eth)
 	if err != nil {
-		return nil, fmt.Errorf("failed to bind WorknetNFT: %w", err)
-	}
-
-	// AlphaToken (optional)
-	if raw, ok := addresses["AlphaToken"]; ok && common.IsHexAddress(raw) {
-		c.AlphaTokenAddr = common.HexToAddress(raw)
-		c.AlphaToken, err = bindings.NewAlphaToken(c.AlphaTokenAddr, eth)
-		if err != nil {
-			return nil, fmt.Errorf("failed to bind AlphaToken: %w", err)
-		}
+		return nil, fmt.Errorf("failed to bind AWPWorkNet: %w", err)
 	}
 
 	// AWPDAO
@@ -126,14 +115,14 @@ func NewClient(ctx context.Context, rpcURL string, addresses map[string]string) 
 		return nil, fmt.Errorf("failed to bind AWPDAO: %w", err)
 	}
 
-	// StakeNFT
-	c.StakeNFTAddr, err = parseAddr("StakeNFT")
+	// VeAWP
+	c.VeAWPAddr, err = parseAddr("VeAWP")
 	if err != nil {
 		return nil, err
 	}
-	c.StakeNFT, err = bindings.NewStakeNFT(c.StakeNFTAddr, eth)
+	c.VeAWP, err = bindings.NewVeAWP(c.VeAWPAddr, eth)
 	if err != nil {
-		return nil, fmt.Errorf("failed to bind StakeNFT: %w", err)
+		return nil, fmt.Errorf("failed to bind VeAWP: %w", err)
 	}
 
 	return c, nil
@@ -144,7 +133,7 @@ func (c *Client) BlockNumber(ctx context.Context) (uint64, error) {
 	return c.Eth.BlockNumber(ctx)
 }
 
-// GetNonce reads the EIP-712 nonce for an address from AWPRegistry (for bind/setRecipient/registerSubnet)
+// GetNonce reads the EIP-712 nonce for an address from AWPRegistry (for bind/setRecipient/registerWorknet)
 func (c *Client) GetNonce(addr string) (uint64, error) {
 	nonce, err := c.AWPRegistry.Nonces(nil, common.HexToAddress(addr))
 	if err != nil {
@@ -153,9 +142,9 @@ func (c *Client) GetNonce(addr string) (uint64, error) {
 	return nonce.Uint64(), nil
 }
 
-// GetStakingNonce reads the EIP-712 nonce for an address from StakingVault (for allocate/deallocate)
-func (c *Client) GetStakingNonce(addr string) (uint64, error) {
-	nonce, err := c.StakingVault.Nonces(nil, common.HexToAddress(addr))
+// GetAllocatorNonce reads the EIP-712 nonce for an address from AWPAllocator (for allocate/deallocate)
+func (c *Client) GetAllocatorNonce(addr string) (uint64, error) {
+	nonce, err := c.AWPAllocator.Nonces(nil, common.HexToAddress(addr))
 	if err != nil {
 		return 0, err
 	}

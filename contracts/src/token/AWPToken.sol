@@ -12,7 +12,7 @@ import {IERC1363Receiver, IERC1363Spender} from "../interfaces/IERC1363Receiver.
 ///      Constructor pre-mints INITIAL_MINT to the deployer for distribution; remainder minted on-demand by AWPEmission.
 ///      Minter management flow: admin → addMinter(awpEmission) → renounceAdmin(); minter list is then permanently immutable.
 ///      Inherits ERC20Permit for gasless approvals (ERC-2612); inherits ERC20Burnable for token burns.
-///      NOTE: ERC20Votes intentionally omitted — AWPDAO uses StakeNFT position-based voting, not ERC20 checkpoints.
+///      NOTE: ERC20Votes intentionally omitted — AWPDAO uses veAWP position-based voting, not ERC20 checkpoints.
 contract AWPToken is ERC20, ERC20Permit, ERC20Burnable {
     /// @notice AWP maximum supply: 10 billion tokens (18 decimals)
     uint256 public constant MAX_SUPPLY = 10_000_000_000 * 1e18;

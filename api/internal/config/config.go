@@ -25,7 +25,7 @@ type Config struct {
 	ChainID         int64  `env:"CHAIN_ID" envDefault:"0"`
 	RPCURL          string `env:"RPC_URL" envDefault:""`
 	AWPRegistryAddress string `env:"AWP_REGISTRY_ADDRESS"`
-	WorknetNFTAddress string `env:"SUBNETNFT_ADDRESS"`
+	AWPWorkNetAddress string `env:"AWP_WORKNET_ADDRESS"`
 	DAOAddress      string `env:"DAO_ADDRESS"`
 	AWPTokenAddress string `env:"AWP_TOKEN_ADDRESS"`
 
@@ -39,17 +39,17 @@ type Config struct {
 	// Defaults are compiled into the ratelimit.Limiter package
 
 	// Contract address registry (protocol contracts)
-	StakingVaultAddress string `env:"STAKING_VAULT_ADDRESS"`
-	AWPEmissionAddress  string `env:"AWP_EMISSION_ADDRESS"`
-	TreasuryAddress     string `env:"TREASURY_ADDRESS"`
-	StakeNFTAddress     string `env:"STAKE_NFT_ADDRESS"`
-	LPManagerAddress    string `env:"LP_MANAGER_ADDRESS"`
-	PoolManagerAddress  string `env:"POOL_MANAGER" envDefault:""` // DEX V4 PoolManager (for alpha price reads)
-	AlphaFactoryAddress string `env:"ALPHA_FACTORY_ADDRESS"`
+	AWPAllocatorAddress        string `env:"AWP_ALLOCATOR_ADDRESS"`
+	AWPEmissionAddress         string `env:"AWP_EMISSION_ADDRESS"`
+	TreasuryAddress            string `env:"TREASURY_ADDRESS"`
+	VeAWPAddress               string `env:"VEAWP_ADDRESS"`
+	LPManagerAddress           string `env:"LP_MANAGER_ADDRESS"`
+	PoolManagerAddress         string `env:"POOL_MANAGER" envDefault:""` // DEX V4 PoolManager (for worknet token price reads)
+	WorknetTokenFactoryAddress string `env:"WORKNET_TOKEN_FACTORY_ADDRESS"`
 
 	// Vanity address mining config
-	AlphaInitCodeHash string `env:"ALPHA_INITCODE_HASH"` // keccak256(AlphaToken.creationCode), hex
-	VanityRule        string `env:"VANITY_RULE"`          // AlphaTokenFactory.vanityRule(), uint64 hex (e.g. "0x1001FFFF0C0A0F0E")
+	WorknetTokenBytecodeHash string `env:"WORKNET_TOKEN_BYTECODE_HASH"` // keccak256(WorknetToken.creationCode), hex
+	VanityRule               string `env:"VANITY_RULE"`                 // WorknetTokenFactory.vanityRule(), uint64 hex (e.g. "0x1001FFFF0C0A0F0E")
 
 	// Indexer start block (deploy block); used only on first run when sync_states is empty
 	DeployBlock int64 `env:"DEPLOY_BLOCK" envDefault:"0"`

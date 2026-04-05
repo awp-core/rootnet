@@ -116,7 +116,7 @@ func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, rdb *redis.Client, lim
 	type chainRPC struct {
 		rpcURL       string
 		awpRegistry  string
-		stakingVault string
+		awpAllocator string
 	}
 	var rpcs []chainRPC
 
@@ -129,14 +129,14 @@ func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, rdb *redis.Client, lim
 			rpcs = append(rpcs, chainRPC{
 				rpcURL:       ch.RPCURL,
 				awpRegistry:  config.ResolveAddress(ch.AWPRegistry, cfg.AWPRegistryAddress),
-				stakingVault: config.ResolveAddress(ch.StakingVault, cfg.StakingVaultAddress),
+				awpAllocator: config.ResolveAddress(ch.AWPAllocator, cfg.AWPAllocatorAddress),
 			})
 		}
 	} else if cfg.RPCURL != "" {
 		rpcs = append(rpcs, chainRPC{
 			rpcURL:       cfg.RPCURL,
 			awpRegistry:  cfg.AWPRegistryAddress,
-			stakingVault: cfg.StakingVaultAddress,
+			awpAllocator: cfg.AWPAllocatorAddress,
 		})
 	}
 
@@ -159,8 +159,8 @@ func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, rdb *redis.Client, lim
 		}
 
 		awpRegistryAddr := common.HexToAddress(rpc.awpRegistry)
-		stakingVaultAddr := common.HexToAddress(rpc.stakingVault)
-		rl, rlErr := chain.NewRelayer(client, awpRegistryAddr, stakingVaultAddr, key, chainID, rdb, logger)
+		awpAllocatorAddr := common.HexToAddress(rpc.awpAllocator)
+		rl, rlErr := chain.NewRelayer(client, awpRegistryAddr, awpAllocatorAddr, key, chainID, rdb, logger)
 		if rlErr != nil {
 			client.Close()
 			logger.Warn("relay: failed to create relayer, skipping", "chainId", chainID, "error", rlErr)
@@ -191,15 +191,15 @@ func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, rdb *redis.Client, lim
 
 // newVanityHandler creates VanityHandler (optional: returns nil if not configured)
 func newVanityHandler(cfg *config.Config, queries *gen.Queries, limiter *ratelimit.Limiter, logger *slog.Logger) *handler.VanityHandler {
-	if cfg.AlphaFactoryAddress == "" || cfg.AlphaInitCodeHash == "" || cfg.VanityRule == "" {
-		logger.Info("ALPHA_FACTORY_ADDRESS, ALPHA_INITCODE_HASH or VANITY_RULE not set, vanity endpoint disabled")
+	if cfg.WorknetTokenFactoryAddress == "" || cfg.WorknetTokenBytecodeHash == "" || cfg.VanityRule == "" {
+		logger.Info("WORKNET_TOKEN_FACTORY_ADDRESS, WORKNET_TOKEN_BYTECODE_HASH or VANITY_RULE not set, vanity endpoint disabled")
 		return nil
 	}
 
-	// Validate initCodeHash format
-	hashHex := strings.TrimPrefix(cfg.AlphaInitCodeHash, "0x")
+	// Validate bytecodeHash format
+	hashHex := strings.TrimPrefix(cfg.WorknetTokenBytecodeHash, "0x")
 	if _, err := hex.DecodeString(hashHex); err != nil || len(hashHex) != 64 {
-		logger.Error("invalid ALPHA_INITCODE_HASH", "value", cfg.AlphaInitCodeHash)
+		logger.Error("invalid WORKNET_TOKEN_BYTECODE_HASH", "value", cfg.WorknetTokenBytecodeHash)
 		return nil
 	}
 
@@ -214,7 +214,7 @@ func newVanityHandler(cfg *config.Config, queries *gen.Queries, limiter *ratelim
 		return nil
 	}
 
-	logger.Info("vanity compute-salt endpoint enabled", "factory", cfg.AlphaFactoryAddress, "vanityRule", cfg.VanityRule)
+	logger.Info("vanity compute-salt endpoint enabled", "factory", cfg.WorknetTokenFactoryAddress, "vanityRule", cfg.VanityRule)
 	// Default chainID: use first chain in multi-chain mode, cfg.ChainID in single-chain mode
 	vanityChainID := cfg.ChainID
 	if cfg.ChainsFile != "" {
@@ -222,7 +222,7 @@ func newVanityHandler(cfg *config.Config, queries *gen.Queries, limiter *ratelim
 			vanityChainID = chains[0].ChainID
 		}
 	}
-	return handler.NewVanityHandler(cfg.AlphaFactoryAddress, cfg.AlphaInitCodeHash, rule, vanityChainID, queries, limiter, logger)
+	return handler.NewVanityHandler(cfg.WorknetTokenFactoryAddress, cfg.WorknetTokenBytecodeHash, rule, vanityChainID, queries, limiter, logger)
 }
 
 // wireChainReader creates a lightweight chain client for on-chain reads (nonce, etc.)
@@ -248,10 +248,10 @@ func wireChainReader(lc fx.Lifecycle, h *handler.Handler, hub *ws.Hub, queries *
 					"AWPRegistry":  config.ResolveAddress(ch.AWPRegistry, cfg.AWPRegistryAddress),
 					"AWPToken":     config.ResolveAddress(ch.AWPToken, cfg.AWPTokenAddress),
 					"AWPEmission":  config.ResolveAddress(ch.AWPEmission, cfg.AWPEmissionAddress),
-					"StakingVault": config.ResolveAddress(ch.StakingVault, cfg.StakingVaultAddress),
-					"WorknetNFT":    config.ResolveAddress(ch.WorknetNFT, cfg.WorknetNFTAddress),
+					"AWPAllocator": config.ResolveAddress(ch.AWPAllocator, cfg.AWPAllocatorAddress),
+					"AWPWorkNet":   config.ResolveAddress(ch.AWPWorkNet, cfg.AWPWorkNetAddress),
 					"AWPDAO":       config.ResolveAddress(ch.DAOAddress, cfg.DAOAddress),
-					"StakeNFT":     config.ResolveAddress(ch.StakeNFT, cfg.StakeNFTAddress),
+					"VeAWP":        config.ResolveAddress(ch.VeAWP, cfg.VeAWPAddress),
 				}
 				dialCtx, dialCancel := context.WithTimeout(context.Background(), 10*time.Second)
 				client, dialErr := chain.NewClient(dialCtx, ch.RPCURL, addrs)
@@ -273,10 +273,10 @@ func wireChainReader(lc fx.Lifecycle, h *handler.Handler, hub *ws.Hub, queries *
 			"AWPRegistry":  cfg.AWPRegistryAddress,
 			"AWPToken":     cfg.AWPTokenAddress,
 			"AWPEmission":  cfg.AWPEmissionAddress,
-			"StakingVault": cfg.StakingVaultAddress,
-			"WorknetNFT":    cfg.WorknetNFTAddress,
+			"AWPAllocator": cfg.AWPAllocatorAddress,
+			"AWPWorkNet":   cfg.AWPWorkNetAddress,
 			"AWPDAO":       cfg.DAOAddress,
-			"StakeNFT":     cfg.StakeNFTAddress,
+			"VeAWP":        cfg.VeAWPAddress,
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()

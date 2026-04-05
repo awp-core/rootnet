@@ -38,7 +38,7 @@ type Handler struct {
 // ChainReader provides read-only access to on-chain state (optional dependency)
 type ChainReader interface {
 	GetNonce(addr string) (uint64, error)
-	GetStakingNonce(addr string) (uint64, error)
+	GetAllocatorNonce(addr string) (uint64, error)
 	ResolveRecipient(addr string) (string, error)
 	BatchResolveRecipients(addrs []string) ([]string, error)
 }
@@ -258,32 +258,47 @@ type eip712DomainResponse struct {
 
 // registryResponse is the response type for the contract address registry
 type registryResponse struct {
-	ChainID           int64               `json:"chainId"`
-	AWPRegistry       string              `json:"awpRegistry"`
-	AWPToken          string              `json:"awpToken"`
-	AWPEmission       string              `json:"awpEmission"`
-	StakingVault      string              `json:"stakingVault"`
-	StakeNFT          string              `json:"stakeNFT"`
-	WorknetNFT         string              `json:"worknetNFT"`
-	LPManager         string              `json:"lpManager"`
-	AlphaTokenFactory string              `json:"alphaTokenFactory"`
-	DAO               string              `json:"dao"`
-	Treasury          string              `json:"treasury"`
-	EIP712Domain      eip712DomainResponse `json:"eip712Domain"`
-	StakingVaultEIP712 eip712DomainResponse `json:"stakingVaultEip712Domain"`
+	ChainID             int64                `json:"chainId"`
+	AWPRegistry         string               `json:"awpRegistry"`
+	AWPToken            string               `json:"awpToken"`
+	AWPEmission         string               `json:"awpEmission"`
+	AWPAllocator        string               `json:"awpAllocator"`
+	VeAWP               string               `json:"veAWP"`
+	AWPWorkNet          string               `json:"awpWorkNet"`
+	LPManager           string               `json:"lpManager"`
+	WorknetTokenFactory string               `json:"worknetTokenFactory"`
+	DAO                 string               `json:"dao"`
+	Treasury            string               `json:"treasury"`
+	EIP712Domain        eip712DomainResponse `json:"eip712Domain"`
+	AllocatorEIP712     eip712DomainResponse `json:"allocatorEip712Domain"`
 }
 
-// GetRegistry returns the contract address registry with chain ID
+// GetRegistry returns contract address registry. Without ?chainId, returns all chains.
 func (h *Handler) GetRegistry(w http.ResponseWriter, r *http.Request) {
-	chainID := h.resolveChainID(r)
-	h.writeJSON(w, http.StatusOK, h.svcGetRegistry(chainID))
+	if v := r.URL.Query().Get("chainId"); v != "" {
+		if id, err := strconv.ParseInt(v, 10, 64); err == nil && id > 0 {
+			h.writeJSON(w, http.StatusOK, h.svcGetRegistry(id))
+			return
+		}
+	}
+	// No chainId — return all chains
+	h.writeJSON(w, http.StatusOK, h.svcGetRegistryAll())
+}
+
+// chainRegistration represents registration info on a single chain
+type chainRegistration struct {
+	ChainID      int64  `json:"chainId"`
+	IsRegistered bool   `json:"isRegistered"`
+	BoundTo      string `json:"boundTo,omitempty"`
+	Recipient    string `json:"recipient,omitempty"`
 }
 
 // checkAddressResponse is the response type for an address lookup check (V2)
 type checkAddressResponse struct {
-	IsRegistered bool   `json:"isRegistered"`
-	BoundTo      string `json:"boundTo"`
-	Recipient    string `json:"recipient"`
+	IsRegistered bool                `json:"isRegistered"`
+	BoundTo      string              `json:"boundTo,omitempty"`
+	Recipient    string              `json:"recipient,omitempty"`
+	Chains       []chainRegistration `json:"chains,omitempty"`
 }
 
 // GetNonce returns the EIP-712 nonce for an address (used for gasless relay signature construction)
@@ -318,8 +333,8 @@ func (h *Handler) GetNonce(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, map[string]uint64{"nonce": nonce})
 }
 
-// GetStakingNonce returns the EIP-712 nonce from StakingVault (for gasless allocate/deallocate)
-func (h *Handler) GetStakingNonce(w http.ResponseWriter, r *http.Request) {
+// GetAllocatorNonce returns the EIP-712 nonce from AWPAllocator (for gasless allocate/deallocate)
+func (h *Handler) GetAllocatorNonce(w http.ResponseWriter, r *http.Request) {
 	ip := ratelimit.GetClientIP(r)
 	if exceeded, err := h.limiter.CheckAndIncrement(r.Context(), "nonce", ip); exceeded {
 		h.writeError(w, http.StatusTooManyRequests, h.limiter.FormatError(r.Context(), "nonce"))
@@ -340,10 +355,10 @@ func (h *Handler) GetStakingNonce(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusServiceUnavailable, "chain reader not available for chainId")
 		return
 	}
-	nonce, err := cr.GetStakingNonce(address)
+	nonce, err := cr.GetAllocatorNonce(address)
 	if err != nil {
-		h.logger.Error("failed to read staking nonce", "error", err, "address", address, "chainId", chainID)
-		h.writeError(w, http.StatusInternalServerError, "failed to read staking nonce")
+		h.logger.Error("failed to read allocator nonce", "error", err, "address", address, "chainId", chainID)
+		h.writeError(w, http.StatusInternalServerError, "failed to read allocator nonce")
 		return
 	}
 	h.writeJSON(w, http.StatusOK, map[string]uint64{"nonce": nonce})

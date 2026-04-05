@@ -71,10 +71,10 @@ func newTestEnv(t *testing.T) *testEnv {
 		ChainID:             31337,
 		TreasuryAddress:     "0x1234567890abcdef1234567890abcdef12345678",
 		AWPRegistryAddress:  "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		WorknetNFTAddress:    "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		AWPWorkNetAddress:   "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
 		DAOAddress:          "0xcccccccccccccccccccccccccccccccccccccccc",
 		AWPTokenAddress:     "0xdddddddddddddddddddddddddddddddddddddd",
-		StakingVaultAddress: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+		AWPAllocatorAddress: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
 		AWPEmissionAddress:  "0xffffffffffffffffffffffffffffffffffffffff",
 	}
 
@@ -177,8 +177,8 @@ func TestGetRegistry(t *testing.T) {
 	if resp["awpToken"] != "0xdddddddddddddddddddddddddddddddddddddd" {
 		t.Errorf("unexpected awpToken: %s", resp["awpToken"])
 	}
-	if resp["stakingVault"] != "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" {
-		t.Errorf("unexpected stakingVault: %s", resp["stakingVault"])
+	if resp["awpAllocator"] != "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee" {
+		t.Errorf("unexpected awpAllocator: %s", resp["awpAllocator"])
 	}
 	if resp["awpEmission"] != "0xffffffffffffffffffffffffffffffffffffffff" {
 		t.Errorf("unexpected awpEmission: %s", resp["awpEmission"])
@@ -834,7 +834,7 @@ func insertSubnet(t *testing.T, pool *pgxpool.Pool, id int64, owner, name, symbo
 	t.Helper()
 	ctx := context.Background()
 	_, err := pool.Exec(ctx,
-		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at)
 		 VALUES (31337, $1, $2, $3, $4, $5, $6, $7, $8)`,
 		id, owner, name, symbol,
 		"0x00000000000000000000000000000000000000c1",
@@ -982,7 +982,7 @@ func TestGetSubnetAgentInfo(t *testing.T) {
 
 	// Insert subnet
 	_, _ = env.pool.Exec(ctx,
-		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at)
 		 VALUES (31337, $1, $2, $3, $4, $5, $6, $7, $8)`,
 		1, "0xowner", "Sub1", "S1", "0xsc1", "0xalpha1", "Active", 1000)
 
@@ -1188,8 +1188,8 @@ func TestGetAlphaInfo(t *testing.T) {
 	if resp["symbol"] != "AN" {
 		t.Errorf("expected symbol=AN, got %v", resp["symbol"])
 	}
-	if resp["alphaToken"] == nil {
-		t.Error("expected alphaToken in response")
+	if resp["worknetToken"] == nil {
+		t.Error("expected worknetToken in response")
 	}
 }
 
@@ -1768,7 +1768,7 @@ func TestJSONRPC_SubnetsGet(t *testing.T) {
 	ctx := context.Background()
 
 	_, _ = env.pool.Exec(ctx,
-		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at)
 		 VALUES (31337, 1, '0xowner', 'TestSubnet', 'TS', '0xsc', '0xat', 'Active', 100)`)
 
 	body := `{"jsonrpc":"2.0","method":"subnets.get","params":{"worknetId":"1"},"id":7}`
@@ -2138,13 +2138,13 @@ func TestJSONRPC_SubnetsList(t *testing.T) {
 
 	// Insert subnets with different statuses
 	_, _ = env.pool.Exec(ctx,
-		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at)
 		 VALUES (31337, 1001, '0xowner1', 'Sub1', 'S1', '0xsc1', '0xat1', 'Active', 100)`)
 	_, _ = env.pool.Exec(ctx,
-		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at)
 		 VALUES (31337, 1002, '0xowner2', 'Sub2', 'S2', '0xsc2', '0xat2', 'Pending', 200)`)
 	_, _ = env.pool.Exec(ctx,
-		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at)
 		 VALUES (31337, 1003, '0xowner3', 'Sub3', 'S3', '0xsc3', '0xat3', 'Active', 300)`)
 
 	// Test without filter
@@ -2179,7 +2179,7 @@ func TestJSONRPC_SubnetsGetSkills(t *testing.T) {
 	ctx := context.Background()
 
 	_, _ = env.pool.Exec(ctx,
-		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at, skills_uri)
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at, skills_uri)
 		 VALUES (31337, 2001, '0xowner', 'SkillSub', 'SK', '0xsc', '0xat', 'Active', 100, 'ipfs://QmSkillsHash')`)
 
 	body := `{"jsonrpc":"2.0","method":"subnets.getSkills","params":{"worknetId":"2001"},"id":1}`
@@ -2205,7 +2205,7 @@ func TestJSONRPC_SubnetsGetEarnings(t *testing.T) {
 	ctx := context.Background()
 
 	_, _ = env.pool.Exec(ctx,
-		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, alpha_token, status, created_at)
+		`INSERT INTO subnets (chain_id, subnet_id, owner, name, symbol, subnet_contract, worknet_token, status, created_at)
 		 VALUES (31337, 3001, '0xowner', 'EarnSub', 'ES', '0xsc', '0xat', 'Active', 100)`)
 
 	// Verify empty result (no epoch data)

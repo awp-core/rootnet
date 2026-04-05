@@ -29,16 +29,16 @@ type saltCountResponse struct {
 }
 
 type miningParamsResponse struct {
-	FactoryAddress string `json:"factoryAddress"` // AlphaTokenFactory contract address
-	InitCodeHash   string `json:"initCodeHash"`   // keccak256(AlphaToken.creationCode)
+	FactoryAddress string `json:"factoryAddress"` // WorknetTokenFactory contract address
+	InitCodeHash   string `json:"initCodeHash"`   // keccak256(WorknetToken.creationCode)
 	VanityRule     string `json:"vanityRule"`      // uint64 hex-encoded vanity rule
 }
 
 // GetMiningParams GET /api/vanity/mining-params — returns params needed for offline salt mining
 func (h *Handler) GetMiningParams(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, miningParamsResponse{
-		FactoryAddress: h.cfg.AlphaFactoryAddress,
-		InitCodeHash:   h.cfg.AlphaInitCodeHash,
+		FactoryAddress: h.cfg.WorknetTokenFactoryAddress,
+		InitCodeHash:   h.cfg.WorknetTokenBytecodeHash,
 		VanityRule:     h.cfg.VanityRule,
 	})
 }
@@ -70,7 +70,7 @@ func (h *Handler) UploadSalts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.cfg.AlphaFactoryAddress == "" || h.cfg.AlphaInitCodeHash == "" {
+	if h.cfg.WorknetTokenFactoryAddress == "" || h.cfg.WorknetTokenBytecodeHash == "" {
 		h.writeError(w, http.StatusInternalServerError, "vanity mining not configured")
 		return
 	}
@@ -92,7 +92,7 @@ func (h *Handler) UploadSalts(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Verify CREATE2 address correctness (using go-ethereum crypto.CreateAddress2)
-		expectedAddr := computeCreate2Address(h.cfg.AlphaFactoryAddress, s.Salt, h.cfg.AlphaInitCodeHash)
+		expectedAddr := computeCreate2Address(h.cfg.WorknetTokenFactoryAddress, s.Salt, h.cfg.WorknetTokenBytecodeHash)
 		if !strings.EqualFold(expectedAddr, s.Address) {
 			rejected++
 			continue

@@ -107,6 +107,37 @@ func (q *Queries) GetUserCount(ctx context.Context, chainID int64) (int64, error
 	return count, err
 }
 
+const getUserAllChains = `-- name: GetUserAllChains :many
+SELECT address, bound_to, recipient, registered_at, chain_id FROM users
+WHERE address = $1 AND (registered_at != 0 OR bound_to != '' OR recipient != '')
+ORDER BY chain_id
+`
+
+type GetUserAllChainsRow struct {
+	Address      string `json:"address"`
+	BoundTo      string `json:"bound_to"`
+	Recipient    string `json:"recipient"`
+	RegisteredAt int64  `json:"registered_at"`
+	ChainID      int64  `json:"chain_id"`
+}
+
+func (q *Queries) GetUserAllChains(ctx context.Context, address string) ([]GetUserAllChainsRow, error) {
+	rows, err := q.db.Query(ctx, getUserAllChains, address)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUserAllChainsRow{}
+	for rows.Next() {
+		var i GetUserAllChainsRow
+		if err := rows.Scan(&i.Address, &i.BoundTo, &i.Recipient, &i.RegisteredAt, &i.ChainID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	return items, rows.Err()
+}
+
 const getUsersByBoundTo = `-- name: GetUsersByBoundTo :many
 SELECT address, bound_to, recipient, registered_at FROM users
 WHERE bound_to = $1 AND chain_id = $2 ORDER BY address LIMIT 500

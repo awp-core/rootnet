@@ -10,7 +10,7 @@ import (
 )
 
 const listChains = `-- name: ListChains :many
-SELECT chain_id, name, rpc_url, dex, explorer, status, awp_registry, awp_token, awp_emission, staking_vault, stake_nft, subnet_nft, dao_address, lp_manager, pool_manager, deploy_block, created_at FROM chains WHERE status = 'active' ORDER BY chain_id
+SELECT chain_id, name, rpc_url, dex, explorer, status, awp_registry, awp_token, awp_emission, awp_allocator, veawp, awp_worknet, dao_address, lp_manager, pool_manager, deploy_block, created_at FROM chains WHERE status = 'active' ORDER BY chain_id
 `
 
 func (q *Queries) ListChains(ctx context.Context) ([]Chain, error) {
@@ -32,9 +32,9 @@ func (q *Queries) ListChains(ctx context.Context) ([]Chain, error) {
 			&i.AwpRegistry,
 			&i.AwpToken,
 			&i.AwpEmission,
-			&i.StakingVault,
-			&i.StakeNft,
-			&i.WorknetNft,
+			&i.AwpAllocator,
+			&i.Veawp,
+			&i.AwpWorknet,
 			&i.DaoAddress,
 			&i.LpManager,
 			&i.PoolManager,
@@ -49,7 +49,7 @@ func (q *Queries) ListChains(ctx context.Context) ([]Chain, error) {
 }
 
 const getChain = `-- name: GetChain :one
-SELECT chain_id, name, rpc_url, dex, explorer, status, awp_registry, awp_token, awp_emission, staking_vault, stake_nft, subnet_nft, dao_address, lp_manager, pool_manager, deploy_block, created_at FROM chains WHERE chain_id = $1
+SELECT chain_id, name, rpc_url, dex, explorer, status, awp_registry, awp_token, awp_emission, awp_allocator, veawp, awp_worknet, dao_address, lp_manager, pool_manager, deploy_block, created_at FROM chains WHERE chain_id = $1
 `
 
 func (q *Queries) GetChain(ctx context.Context, chainID int64) (Chain, error) {
@@ -65,9 +65,9 @@ func (q *Queries) GetChain(ctx context.Context, chainID int64) (Chain, error) {
 		&i.AwpRegistry,
 		&i.AwpToken,
 		&i.AwpEmission,
-		&i.StakingVault,
-		&i.StakeNft,
-		&i.WorknetNft,
+		&i.AwpAllocator,
+		&i.Veawp,
+		&i.AwpWorknet,
 		&i.DaoAddress,
 		&i.LpManager,
 		&i.PoolManager,
@@ -78,7 +78,7 @@ func (q *Queries) GetChain(ctx context.Context, chainID int64) (Chain, error) {
 }
 
 const insertChain = `-- name: InsertChain :exec
-INSERT INTO chains (chain_id, name, rpc_url, dex, explorer, awp_registry, awp_token, awp_emission, staking_vault, stake_nft, subnet_nft, dao_address, lp_manager, pool_manager, deploy_block)
+INSERT INTO chains (chain_id, name, rpc_url, dex, explorer, awp_registry, awp_token, awp_emission, awp_allocator, veawp, awp_worknet, dao_address, lp_manager, pool_manager, deploy_block)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 `
 
@@ -91,9 +91,9 @@ type InsertChainParams struct {
 	AwpRegistry  string `json:"awp_registry"`
 	AwpToken     string `json:"awp_token"`
 	AwpEmission  string `json:"awp_emission"`
-	StakingVault string `json:"staking_vault"`
-	StakeNft     string `json:"stake_nft"`
-	WorknetNft    string `json:"subnet_nft"`
+	AwpAllocator string `json:"awp_allocator"`
+	Veawp     string `json:"veawp"`
+	AwpWorknet    string `json:"awp_worknet"`
 	DaoAddress   string `json:"dao_address"`
 	LpManager    string `json:"lp_manager"`
 	PoolManager  string `json:"pool_manager"`
@@ -110,9 +110,9 @@ func (q *Queries) InsertChain(ctx context.Context, arg InsertChainParams) error 
 		arg.AwpRegistry,
 		arg.AwpToken,
 		arg.AwpEmission,
-		arg.StakingVault,
-		arg.StakeNft,
-		arg.WorknetNft,
+		arg.AwpAllocator,
+		arg.Veawp,
+		arg.AwpWorknet,
 		arg.DaoAddress,
 		arg.LpManager,
 		arg.PoolManager,
@@ -130,8 +130,22 @@ func (q *Queries) DeleteChain(ctx context.Context, chainID int64) error {
 	return err
 }
 
+const updateChainLPManager = `-- name: UpdateChainLPManager :exec
+UPDATE chains SET lp_manager = $2 WHERE chain_id = $1
+`
+
+type UpdateChainLPManagerParams struct {
+	ChainID   int64  `json:"chain_id"`
+	LpManager string `json:"lp_manager"`
+}
+
+func (q *Queries) UpdateChainLPManager(ctx context.Context, arg UpdateChainLPManagerParams) error {
+	_, err := q.db.Exec(ctx, updateChainLPManager, arg.ChainID, arg.LpManager)
+	return err
+}
+
 const listAllChains = `-- name: ListAllChains :many
-SELECT chain_id, name, rpc_url, dex, explorer, status, awp_registry, awp_token, awp_emission, staking_vault, stake_nft, subnet_nft, dao_address, lp_manager, pool_manager, deploy_block, created_at FROM chains ORDER BY chain_id
+SELECT chain_id, name, rpc_url, dex, explorer, status, awp_registry, awp_token, awp_emission, awp_allocator, veawp, awp_worknet, dao_address, lp_manager, pool_manager, deploy_block, created_at FROM chains ORDER BY chain_id
 `
 
 func (q *Queries) ListAllChains(ctx context.Context) ([]Chain, error) {
@@ -153,9 +167,9 @@ func (q *Queries) ListAllChains(ctx context.Context) ([]Chain, error) {
 			&i.AwpRegistry,
 			&i.AwpToken,
 			&i.AwpEmission,
-			&i.StakingVault,
-			&i.StakeNft,
-			&i.WorknetNft,
+			&i.AwpAllocator,
+			&i.Veawp,
+			&i.AwpWorknet,
 			&i.DaoAddress,
 			&i.LpManager,
 			&i.PoolManager,

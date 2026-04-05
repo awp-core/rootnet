@@ -17,12 +17,12 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// Relayer submits gasless transactions using a relayer private key (bindFor / setRecipientFor / registerSubnetFor)
+// Relayer submits gasless transactions using a relayer private key (bindFor / setRecipientFor / registerWorknetFor)
 // Uses mutex to serialize tx submissions, preventing nonce collisions
 type Relayer struct {
 	client       *ethclient.Client
 	awpRegistry  *bindings.AWPRegistry
-	stakingVault *bindings.StakingVault
+	awpAllocator *bindings.AWPAllocator
 	key          *ecdsa.PrivateKey
 	chainID      *big.Int
 	logger       *slog.Logger
@@ -42,7 +42,7 @@ type RelayTxStatus struct {
 func NewRelayer(
 	client *ethclient.Client,
 	awpRegistryAddr common.Address,
-	stakingVaultAddr common.Address,
+	awpAllocatorAddr common.Address,
 	key *ecdsa.PrivateKey,
 	chainID *big.Int,
 	rdb *redis.Client,
@@ -52,14 +52,14 @@ func NewRelayer(
 	if err != nil {
 		return nil, fmt.Errorf("bind AWPRegistry: %w", err)
 	}
-	stakingVault, err := bindings.NewStakingVault(stakingVaultAddr, client)
+	awpAllocator, err := bindings.NewAWPAllocator(awpAllocatorAddr, client)
 	if err != nil {
-		return nil, fmt.Errorf("bind StakingVault: %w", err)
+		return nil, fmt.Errorf("bind AWPAllocator: %w", err)
 	}
 	return &Relayer{
 		client:       client,
 		awpRegistry:  awpRegistry,
-		stakingVault: stakingVault,
+		awpAllocator: awpAllocator,
 		key:          key,
 		chainID:      chainID,
 		rdb:          rdb,
@@ -203,7 +203,7 @@ func (r *Relayer) RelayAllocate(ctx context.Context, staker common.Address, agen
 		return "", err
 	}
 
-	tx, err := r.stakingVault.AllocateFor(auth, staker, agent, worknetId, amount, deadline, v, rs, ss)
+	tx, err := r.awpAllocator.AllocateFor(auth, staker, agent, worknetId, amount, deadline, v, rs, ss)
 	if err != nil {
 		return "", fmt.Errorf("AllocateFor tx: %w", err)
 	}
@@ -226,7 +226,7 @@ func (r *Relayer) RelayDeallocate(ctx context.Context, staker common.Address, ag
 		return "", err
 	}
 
-	tx, err := r.stakingVault.DeallocateFor(auth, staker, agent, worknetId, amount, deadline, v, rs, ss)
+	tx, err := r.awpAllocator.DeallocateFor(auth, staker, agent, worknetId, amount, deadline, v, rs, ss)
 	if err != nil {
 		return "", fmt.Errorf("DeallocateFor tx: %w", err)
 	}
@@ -249,12 +249,12 @@ func (r *Relayer) RelayActivateSubnet(ctx context.Context, user common.Address, 
 		return "", err
 	}
 
-	tx, err := r.awpRegistry.ActivateWorknetFor(auth, user, worknetId, deadline, v, rs, ss)
+	tx, err := r.awpRegistry.ActivateWorknet(auth, worknetId)
 	if err != nil {
-		return "", fmt.Errorf("ActivateWorknetFor tx: %w", err)
+		return "", fmt.Errorf("ActivateWorknet tx: %w", err)
 	}
 
-	r.logger.Info("relay activateSubnetFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "worknetId", worknetId.String())
+	r.logger.Info("relay activateWorknet sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "worknetId", worknetId.String())
 	r.trackTx(tx.Hash().Hex())
 	return tx.Hash().Hex(), nil
 }

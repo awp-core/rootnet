@@ -1,44 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title IStakingVault — Staking vault interface (UUPS proxy with EIP-712 gasless support)
-/// @notice Deposit/withdraw moved to StakeNFT. StakingVault manages allocations only.
-///         Allocations are immediate — no pending/dual-slot mechanism.
-interface IStakingVault {
-    // ── Setup ──
-    function initialize(address awpRegistry_, address guardian_) external;
-    function setStakeNFT(address stakeNFT_) external;
-
-    // ── Write (public with delegate auth) ──
+/// @title IAWPAllocator — Allocation management interface (UUPS proxy with EIP-712 gasless support)
+/// @notice Pure bookkeeping — holds no tokens. Deposit/withdraw are in veAWP.
+interface IAWPAllocator {
+    // ── Write ──
     function allocate(address staker, address agent, uint256 worknetId, uint256 amount) external;
     function deallocate(address staker, address agent, uint256 worknetId, uint256 amount) external;
+    function deallocateAll(address staker, address agent, uint256 worknetId) external;
     function reallocate(
         address staker, address fromAgent, uint256 fromWorknetId,
         address toAgent, uint256 toWorknetId, uint256 amount
     ) external;
 
+    // ── Batch ──
+    function batchAllocate(address staker, address[] calldata agents, uint256[] calldata worknetIds, uint256[] calldata amounts) external;
+    function batchDeallocate(address staker, address[] calldata agents, uint256[] calldata worknetIds, uint256[] calldata amounts) external;
+
     // ── Gasless (EIP-712) ──
-    function allocateFor(
-        address staker, address agent, uint256 worknetId, uint256 amount, uint256 deadline,
-        uint8 v, bytes32 r, bytes32 s
-    ) external;
-    function deallocateFor(
-        address staker, address agent, uint256 worknetId, uint256 amount, uint256 deadline,
-        uint8 v, bytes32 r, bytes32 s
-    ) external;
+    function allocateFor(address staker, address agent, uint256 worknetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
+    function deallocateFor(address staker, address agent, uint256 worknetId, uint256 amount, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external;
 
     // ── Events ──
     event Allocated(address indexed staker, address indexed agent, uint256 worknetId, uint256 amount, address operator);
     event Deallocated(address indexed staker, address indexed agent, uint256 worknetId, uint256 amount, address operator);
-    event Reallocated(
-        address indexed staker,
-        address fromAgent,
-        uint256 fromWorknetId,
-        address toAgent,
-        uint256 toWorknetId,
-        uint256 amount,
-        address operator
-    );
+    event Reallocated(address indexed staker, address fromAgent, uint256 fromWorknetId, address toAgent, uint256 toWorknetId, uint256 amount, address operator);
 
     // ── Query ──
     function nonces(address user) external view returns (uint256);

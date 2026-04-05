@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -23,9 +23,9 @@ import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.s
 /// @author AWP Team
 /// @notice Account System V2: tree-based binding, optional registration, explicit staker parameter.
 /// @dev Inheritance: UUPSUpgradeable (UUPS proxy pattern), PausableUpgradeable (emergency pause),
-///      ReentrancyGuardUpgradeable (reentrancy protection), EIP712Upgradeable (EIP-712 signing domain, domain name "AWPRegistry" v1).
+///      ReentrancyGuardTransient (reentrancy protection), EIP712Upgradeable (EIP-712 signing domain, domain name "AWPRegistry" v1).
 ///      8 immutable addresses baked into impl bytecode. Storage-mutable: guardian, defaultWorknetManagerImpl, initialAlphaPrice/Mint.
-contract AWPRegistry is UUPSUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable, EIP712Upgradeable, IAWPRegistry {
+contract AWPRegistry is UUPSUpgradeable, PausableUpgradeable, ReentrancyGuardTransient, EIP712Upgradeable, IAWPRegistry {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.UintSet;
 
@@ -275,9 +275,8 @@ contract AWPRegistry is UUPSUpgradeable, PausableUpgradeable, ReentrancyGuardUpg
         address treasury_,
         address guardian_
     ) external initializer {
-        __UUPSUpgradeable_init();
         __Pausable_init();
-        __ReentrancyGuard_init();
+        // ReentrancyGuardTransient — no init needed (uses TSTORE)
         __EIP712_init("AWPRegistry", "1");
 
         if (guardian_ == address(0)) revert ZeroAddress();

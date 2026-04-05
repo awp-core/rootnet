@@ -77,8 +77,11 @@ func (h *Handler) rpcRegistryGet(_ context.Context, raw json.RawMessage) (any, *
 		ChainID int64 `json:"chainId"`
 	}
 	_ = json.Unmarshal(raw, &p)
-	chainID := h.resolveRPCChainID(p.ChainID)
-	return h.svcGetRegistry(chainID), nil
+	if p.ChainID > 0 {
+		return h.svcGetRegistry(p.ChainID), nil
+	}
+	// No chainId — return all chains
+	return h.svcGetRegistryAll(), nil
 }
 
 // ═══════════════════════════════════════════════
@@ -160,8 +163,8 @@ func (h *Handler) rpcAddressCheck(ctx context.Context, raw json.RawMessage) (any
 	if rpcErr != nil {
 		return nil, rpcErr
 	}
-	chainID := h.resolveRPCChainID(p.ChainID)
-	resp, err := h.svcCheckAddress(ctx, chainID, address)
+	// Pass chainID as-is: 0 means "search all chains", >0 means specific chain
+	resp, err := h.svcCheckAddress(ctx, p.ChainID, address)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -276,9 +279,9 @@ func (h *Handler) rpcNonceGetStaking(ctx context.Context, raw json.RawMessage) (
 	if cr == nil {
 		return nil, &RPCErr{Code: rpcInternalError, Message: "chain reader not available for chainId"}
 	}
-	nonce, err := cr.GetStakingNonce(address)
+	nonce, err := cr.GetAllocatorNonce(address)
 	if err != nil {
-		return nil, internalErr("failed to read staking nonce")
+		return nil, internalErr("failed to read allocator nonce")
 	}
 	return map[string]uint64{"nonce": nonce}, nil
 }
@@ -691,7 +694,7 @@ func (h *Handler) rpcTokensGetAlphaInfo(ctx context.Context, raw json.RawMessage
 	if rpcErr != nil {
 		return nil, rpcErr
 	}
-	result, err := h.svcGetAlphaInfo(ctx, subnetNum)
+	result, err := h.svcGetWorknetTokenInfo(ctx, subnetNum)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}
@@ -706,7 +709,7 @@ func (h *Handler) rpcTokensGetAlphaPrice(ctx context.Context, raw json.RawMessag
 	if _, rpcErr := parseSubnetNum(p.SubnetID); rpcErr != nil {
 		return nil, rpcErr
 	}
-	data, err := h.svcGetAlphaPrice(ctx, p.SubnetID)
+	data, err := h.svcGetWorknetTokenPrice(ctx, p.SubnetID)
 	if err != nil {
 		return nil, svcToRPC(err)
 	}

@@ -4,8 +4,7 @@ pragma solidity ^0.8.20;
 import {Test} from "forge-std/Test.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {MerkleProof} from "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
-import {WorknetManager, IERC1363Receiver} from "../src/worknets/WorknetManager.sol";
-import {WorknetToken} from "../src/token/WorknetToken.sol";
+import {WorknetManagerBase, IERC1363Receiver} from "../src/worknets/WorknetManagerBase.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @title MockAlphaForWM — Minimal mock for WorknetToken used by WorknetManager tests
@@ -37,19 +36,21 @@ contract MockAlphaForWM {
     }
 }
 
-/// @title TestableWorknetManager — Override DEX interactions for unit testing
-contract TestableWorknetManager is WorknetManager {
-    constructor() WorknetManager(address(1), address(2), address(3), address(4)) {}
+/// @title TestableWorknetManager — Minimal concrete impl for unit testing (no DEX)
+contract TestableWorknetManager is WorknetManagerBase {
+    constructor() { _disableInitializers(); }
 
-    // Override DEX-dependent functions to no-op in tests
+    function initialize(address worknetToken_, bytes32 poolId_, address admin_) external initializer {
+        __WorknetManagerBase_init(worknetToken_, poolId_, admin_);
+    }
+
     function _addSingleSidedLiquidity(uint256) internal pure override {}
-    function _buybackAndBurn(uint256) internal pure override {}
-    function _getSlot0() internal pure override returns (uint160, int24) { return (1 << 96, 0); }
+    function _buybackAndBurn(uint256, uint256) internal pure override {}
 }
 
 contract WorknetManagerTest is Test {
     TestableWorknetManager public wmImpl;
-    WorknetManager public wm;
+    WorknetManagerBase public wm;
     MockAlphaForWM public alpha;
     address public admin = address(this);
     address public merkleAdmin = makeAddr("merkleAdmin");
@@ -64,9 +65,9 @@ contract WorknetManagerTest is Test {
         alpha = new MockAlphaForWM();
 
         wmImpl = new TestableWorknetManager();
-        wm = WorknetManager(address(new ERC1967Proxy(
+        wm = WorknetManagerBase(address(new ERC1967Proxy(
             address(wmImpl),
-            abi.encodeCall(WorknetManager.initialize, (address(alpha), POOL_ID, admin))
+            abi.encodeCall(TestableWorknetManager.initialize, (address(alpha), POOL_ID, admin))
         )));
 
         // Grant additional roles
@@ -104,7 +105,7 @@ contract WorknetManagerTest is Test {
 
     function test_setMerkleRoot_zeroRoot_reverts() public {
         vm.prank(merkleAdmin);
-        vm.expectRevert(WorknetManager.ZeroRoot.selector);
+        vm.expectRevert(WorknetManagerBase.ZeroRoot.selector);
         wm.setMerkleRoot(0, bytes32(0));
     }
 
@@ -114,7 +115,7 @@ contract WorknetManagerTest is Test {
         wm.setMerkleRoot(0, root);
 
         vm.prank(merkleAdmin);
-        vm.expectRevert(WorknetManager.RootAlreadySet.selector);
+        vm.expectRevert(WorknetManagerBase.RootAlreadySet.selector);
         wm.setMerkleRoot(0, keccak256("another"));
     }
 
@@ -166,14 +167,14 @@ contract WorknetManagerTest is Test {
         wm.claim(0, amount, proof);
 
         vm.prank(alice);
-        vm.expectRevert(WorknetManager.AlreadyClaimed.selector);
+        vm.expectRevert(WorknetManagerBase.AlreadyClaimed.selector);
         wm.claim(0, amount, proof);
     }
 
     function test_claim_noRoot_reverts() public {
         bytes32[] memory proof = new bytes32[](0);
         vm.prank(alice);
-        vm.expectRevert(WorknetManager.NoRootForEpoch.selector);
+        vm.expectRevert(WorknetManagerBase.NoRootForEpoch.selector);
         wm.claim(0, 100e18, proof);
     }
 
@@ -190,7 +191,7 @@ contract WorknetManagerTest is Test {
 
         bytes32[] memory proof = new bytes32[](0);
         vm.prank(alice);
-        vm.expectRevert(WorknetManager.InvalidProof.selector);
+        vm.expectRevert(WorknetManagerBase.InvalidProof.selector);
         wm.claim(0, 100e18, proof);
     }
 
@@ -248,20 +249,20 @@ contract WorknetManagerTest is Test {
 
     function test_setStrategy() public {
         vm.prank(strategyAdmin);
-        wm.setStrategy(WorknetManager.AWPStrategy.BuybackBurn);
-        assertEq(uint8(wm.currentStrategy()), uint8(WorknetManager.AWPStrategy.BuybackBurn));
+        wm.setStrategy(WorknetManagerBase.AWPStrategy.BuybackBurn);
+        assertEq(uint8(wm.currentStrategy()), uint8(WorknetManagerBase.AWPStrategy.BuybackBurn));
     }
 
     function test_setStrategy_notRole_reverts() public {
         vm.prank(alice);
         vm.expectRevert();
-        wm.setStrategy(WorknetManager.AWPStrategy.AddLiquidity);
+        wm.setStrategy(WorknetManagerBase.AWPStrategy.AddLiquidity);
     }
 
     function test_executeStrategy_reserve_noOp() public {
         // Default strategy is Reserve
         vm.prank(strategyAdmin);
-        wm.executeStrategy(100e18);
+        wm.executeStrategy(100e18, 0);
         // No revert = success (Reserve does nothing)
     }
 
@@ -269,14 +270,14 @@ contract WorknetManagerTest is Test {
         wm.setStrategyPaused(true);
 
         vm.prank(strategyAdmin);
-        vm.expectRevert(WorknetManager.StrategyIsPaused.selector);
-        wm.executeStrategy(100e18);
+        vm.expectRevert(WorknetManagerBase.StrategyIsPaused.selector);
+        wm.executeStrategy(100e18, 0);
     }
 
     function test_executeStrategy_zeroAmount_reverts() public {
         vm.prank(strategyAdmin);
-        vm.expectRevert(WorknetManager.ZeroAmount.selector);
-        wm.executeStrategy(0);
+        vm.expectRevert(WorknetManagerBase.ZeroAmount.selector);
+        wm.executeStrategy(0, 0);
     }
 
     // ═══════════════════════════════════════════════
@@ -324,7 +325,7 @@ contract WorknetManagerTest is Test {
         uint256[] memory amounts = new uint256[](1);
 
         vm.prank(transferAdmin);
-        vm.expectRevert(WorknetManager.ArrayLengthMismatch.selector);
+        vm.expectRevert(WorknetManagerBase.ArrayLengthMismatch.selector);
         wm.batchTransferToken(address(0x1234), recipients, amounts);
     }
 
@@ -340,13 +341,13 @@ contract WorknetManagerTest is Test {
 
     function test_setSlippageTolerance_zero_reverts() public {
         vm.prank(strategyAdmin);
-        vm.expectRevert(WorknetManager.InvalidSlippage.selector);
+        vm.expectRevert(WorknetManagerBase.InvalidSlippage.selector);
         wm.setSlippageTolerance(0);
     }
 
     function test_setSlippageTolerance_over5000_reverts() public {
         vm.prank(strategyAdmin);
-        vm.expectRevert(WorknetManager.InvalidSlippage.selector);
+        vm.expectRevert(WorknetManagerBase.InvalidSlippage.selector);
         wm.setSlippageTolerance(5001);
     }
 

@@ -44,9 +44,9 @@ type adminChainResponse struct {
 	AwpRegistry  string `json:"awpRegistry"`
 	AwpToken     string `json:"awpToken"`
 	AwpEmission  string `json:"awpEmission"`
-	StakingVault string `json:"stakingVault"`
-	StakeNft     string `json:"stakeNft"`
-	WorknetNft    string `json:"subnetNft"`
+	AwpAllocator string `json:"awpAllocator"`
+	VeAWP        string `json:"veAWP"`
+	AwpWorkNet   string `json:"awpWorkNet"`
 	DaoAddress   string `json:"daoAddress"`
 	LpManager    string `json:"lpManager"`
 	PoolManager  string `json:"poolManager"`
@@ -70,9 +70,9 @@ func toAdminChainResponse(c gen.Chain) adminChainResponse {
 		AwpRegistry:  c.AwpRegistry,
 		AwpToken:     c.AwpToken,
 		AwpEmission:  c.AwpEmission,
-		StakingVault: c.StakingVault,
-		StakeNft:     c.StakeNft,
-		WorknetNft:    c.WorknetNft,
+		AwpAllocator: c.AwpAllocator,
+		VeAWP:        c.Veawp,
+		AwpWorkNet:   c.AwpWorknet,
 		DaoAddress:   c.DaoAddress,
 		LpManager:    c.LpManager,
 		PoolManager:  c.PoolManager,
@@ -109,9 +109,9 @@ type adminAddChainRequest struct {
 	AwpRegistry  string `json:"awpRegistry"`
 	AwpToken     string `json:"awpToken"`
 	AwpEmission  string `json:"awpEmission"`
-	StakingVault string `json:"stakingVault"`
-	StakeNft     string `json:"stakeNft"`
-	WorknetNft    string `json:"subnetNft"`
+	AwpAllocator string `json:"awpAllocator"`
+	VeAWP        string `json:"veAWP"`
+	AwpWorkNet   string `json:"awpWorkNet"`
 	DaoAddress   string `json:"daoAddress"`
 	LpManager    string `json:"lpManager"`
 	PoolManager  string `json:"poolManager"`
@@ -147,9 +147,9 @@ func (h *Handler) AdminAddChain(w http.ResponseWriter, r *http.Request) {
 		AwpRegistry:  req.AwpRegistry,
 		AwpToken:     req.AwpToken,
 		AwpEmission:  req.AwpEmission,
-		StakingVault: req.StakingVault,
-		StakeNft:     req.StakeNft,
-		WorknetNft:    req.WorknetNft,
+		AwpAllocator: req.AwpAllocator,
+		Veawp:        req.VeAWP,
+		AwpWorknet:   req.AwpWorkNet,
 		DaoAddress:   req.DaoAddress,
 		LpManager:    req.LpManager,
 		PoolManager:  req.PoolManager,

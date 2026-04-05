@@ -86,15 +86,13 @@ verify_chain() {
     [[ -n "${AWP_EMISSION_IMPL:-}" ]] && vc "$AWP_EMISSION_IMPL" "src/token/AWPEmission.sol:AWPEmission" "" "AWPEmission (impl)"
     [[ -n "${STAKING_VAULT_IMPL:-}" ]] && vc "$STAKING_VAULT_IMPL" "src/core/StakingVault.sol:StakingVault" "" "StakingVault (impl)"
 
-    # DEX-specific (auto-detect chain)
+    # DEX-specific LP + WorknetManager impls (no constructor args — UUPS pattern)
     if [[ "$chain_id" == "56" || "$chain_id" == "97" ]]; then
-        vc "$LP_MANAGER_ADDRESS" "src/core/LPManager.sol:LPManager" \
-            "$(cast abi-encode 'c(address,address,address,address,address)' "$AWP_REGISTRY_ADDRESS" "${POOL_MANAGER:-}" "${POSITION_MANAGER:-}" "${PERMIT2:-}" "$AWP_TOKEN_ADDRESS")" "LPManager (PancakeSwap)"
-        [[ -n "${WORKNET_MANAGER_IMPL:-}" ]] && vc "$WORKNET_MANAGER_IMPL" "src/worknets/WorknetManager.sol:WorknetManager" "" "WorknetManager (impl)"
+        [[ -n "${LP_MANAGER_IMPL:-}" ]] && vc "$LP_MANAGER_IMPL" "src/core/LPManager.sol:LPManager" "" "LPManager impl (PCS)"
+        [[ -n "${WORKNET_MANAGER_IMPL:-}" ]] && vc "$WORKNET_MANAGER_IMPL" "src/worknets/WorknetManager.sol:WorknetManager" "" "WorknetManager impl (PCS)"
     else
-        vc "$LP_MANAGER_ADDRESS" "src/core/LPManagerUni.sol:LPManagerUni" \
-            "$(cast abi-encode 'c(address,address,address,address,address)' "$AWP_REGISTRY_ADDRESS" "${POOL_MANAGER:-}" "${POSITION_MANAGER:-}" "${PERMIT2:-}" "$AWP_TOKEN_ADDRESS")" "LPManagerUni (Uniswap)"
-        [[ -n "${WORKNET_MANAGER_IMPL:-}" ]] && vc "$WORKNET_MANAGER_IMPL" "src/worknets/WorknetManagerUni.sol:WorknetManagerUni" "" "WorknetManagerUni (impl)"
+        [[ -n "${LP_MANAGER_IMPL:-}" ]] && vc "$LP_MANAGER_IMPL" "src/core/LPManagerUni.sol:LPManagerUni" "" "LPManager impl (Uni)"
+        [[ -n "${WORKNET_MANAGER_IMPL:-}" ]] && vc "$WORKNET_MANAGER_IMPL" "src/worknets/WorknetManagerUni.sol:WorknetManagerUni" "" "WorknetManager impl (Uni)"
     fi
 
     echo "  ✓ $chain_name verification complete"

@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/big"
@@ -13,8 +14,9 @@ import (
 	"github.com/cortexia/rootnet/api/internal/chain"
 	"github.com/cortexia/rootnet/api/internal/chain/bindings"
 	"github.com/cortexia/rootnet/api/internal/ratelimit"
-	"github.com/go-chi/chi/v5"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/go-chi/chi/v5"
 )
 
 // revertErrors maps 4-byte Solidity error selectors to user-friendly messages.
@@ -68,7 +70,7 @@ var revertErrors = map[string]string{
 	"0xe07c8dba": "unauthorized UUPS upgrade caller",
 	"0xaa1d49a4": "unsupported proxiable UUID",
 
-	// ── StakeNFT errors ──
+	// ── veAWP errors ──
 	"0x2c5211c6": "invalid amount",
 	"0xd4005715": "lock duration too short",
 	"0x59dc379f": "not the token owner",
@@ -81,7 +83,7 @@ var revertErrors = map[string]string{
 	"0xd0bfc8d2": "not authorized (onlyAWPRegistry)",
 	"0xa13bdd4f": "cannot rescue staked AWP token",
 
-	// ── StakingVault errors ──
+	// ── AWPAllocator errors ──
 	"0xdf2d4774": "insufficient allocation",
 	"0x1f2a2005": "amount cannot be zero",
 	"0x54ada055": "amount exceeds uint128 max",
@@ -89,9 +91,9 @@ var revertErrors = map[string]string{
 	"0x2fe6f8a8": "allocation would overflow uint128",
 	"0xa741a045": "already set",
 
-	// ── AlphaToken errors ──
+	// ── WorknetToken errors ──
 	"0xc30436e9": "exceeds AWP max supply",
-	"0x1c04203f": "exceeds Alpha mintable limit",
+	"0x1c04203f": "exceeds worknet token mintable limit",
 	"0x7bfa4b9f": "not admin",
 	"0xf8d2906c": "not minter",
 	"0x69b757d8": "minter paused",
@@ -99,7 +101,7 @@ var revertErrors = map[string]string{
 	"0xf7a632f5": "invalid callback",
 	"0xddefae28": "initial mint already called",
 
-	// ── AlphaTokenFactory errors ──
+	// ── WorknetTokenFactory errors ──
 	"0x16a1ae75": "invalid vanity address (EIP-55 mismatch)",
 
 	// ── LPManager errors ──
@@ -145,15 +147,30 @@ var revertErrors = map[string]string{
 	"0xbf5bbc9c": "invalid quorum percent",
 	"0x2721b57b": "zero total voting power",
 
-	// ── WorknetNFT errors ──
+	// ── AWPWorkNet errors ──
 	"0x44943622": "token does not exist",
 }
 
 // decodeRelayError extracts a user-friendly message from an on-chain revert error
 func decodeRelayError(err error) string {
+	// First, try to extract revert data from go-ethereum's rpc.DataError interface.
+	// In go-ethereum v1.17+, EstimateGas returns jsonError where ErrorData()
+	// contains the actual revert data (e.g. "0x8baa579f") while Error() only
+	// has the message ("execution reverted").
+	var dataErr rpc.DataError
+	if errors.As(err, &dataErr) {
+		if data, ok := dataErr.ErrorData().(string); ok && strings.HasPrefix(data, "0x") && len(data) >= 10 {
+			selector := data[:10]
+			if msg, ok := revertErrors[selector]; ok {
+				return msg
+			}
+			return "on-chain revert: " + selector
+		}
+	}
+
 	s := err.Error()
 
-	// Try to extract 4-byte error selector from various go-ethereum error formats:
+	// Fallback: try to extract 4-byte error selector from error string formats:
 	// - "execution reverted: 0x{selector}{args...}"
 	// - "error code 3: execution reverted, data: \"0x{selector}{args...}\""
 	// - "VM Exception: revert 0x{selector}"

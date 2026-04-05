@@ -43,6 +43,11 @@ INSERT INTO users (chain_id, address, registered_at) VALUES ($1, $2, $3)
 ON CONFLICT (chain_id, address) DO UPDATE SET registered_at = EXCLUDED.registered_at
 WHERE users.registered_at = 0;
 
+-- name: GetUserAllChains :many
+SELECT address, bound_to, recipient, registered_at, chain_id FROM users
+WHERE address = $1 AND (registered_at != 0 OR bound_to != '' OR recipient != '')
+ORDER BY chain_id;
+
 -- name: GetUsersByBoundTo :many
 SELECT address, bound_to, recipient, registered_at FROM users
 WHERE bound_to = $1 AND chain_id = $2 ORDER BY address LIMIT 500;

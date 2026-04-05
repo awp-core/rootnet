@@ -27,14 +27,14 @@ func (h *Handler) GetAWPInfoGlobal(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, data)
 }
 
-// GetAlphaInfo retrieves subnet Alpha token info from the database
-func (h *Handler) GetAlphaInfo(w http.ResponseWriter, r *http.Request) {
+// GetWorknetTokenInfo retrieves worknet token info from the database
+func (h *Handler) GetWorknetTokenInfo(w http.ResponseWriter, r *http.Request) {
 	subnetID, err := parseSubnetID(r)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	result, svcErr := h.svcGetAlphaInfo(r.Context(), subnetID)
+	result, svcErr := h.svcGetWorknetTokenInfo(r.Context(), subnetID)
 	if svcErr != nil {
 		h.writeSvcError(w, svcErr)
 		return
@@ -42,9 +42,9 @@ func (h *Handler) GetAlphaInfo(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, result)
 }
 
-// GetAlphaPrice retrieves the Alpha token price from the Redis cache.
-// Reads directly from alpha_price:{worknetId} — no DB lookup needed.
-func (h *Handler) GetAlphaPrice(w http.ResponseWriter, r *http.Request) {
+// GetWorknetTokenPrice retrieves the worknet token price from the Redis cache.
+// Reads directly from worknet_token_price:{worknetId} — no DB lookup needed.
+func (h *Handler) GetWorknetTokenPrice(w http.ResponseWriter, r *http.Request) {
 	subnetIDRaw := chi.URLParam(r, "worknetId")
 	if subnetIDRaw == "" {
 		h.writeError(w, http.StatusBadRequest, "missing worknetId parameter")
@@ -54,7 +54,7 @@ func (h *Handler) GetAlphaPrice(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	data, svcErr := h.svcGetAlphaPrice(r.Context(), subnetIDRaw)
+	data, svcErr := h.svcGetWorknetTokenPrice(r.Context(), subnetIDRaw)
 	if svcErr != nil {
 		h.writeSvcError(w, svcErr)
 		return

@@ -18,9 +18,9 @@ type Chain struct {
 	AwpRegistry  string           `json:"awp_registry"`
 	AwpToken     string           `json:"awp_token"`
 	AwpEmission  string           `json:"awp_emission"`
-	StakingVault string           `json:"staking_vault"`
-	StakeNft     string           `json:"stake_nft"`
-	WorknetNft    string           `json:"subnet_nft"`
+	AwpAllocator string           `json:"awp_allocator"`
+	Veawp        string           `json:"veawp"`
+	AwpWorknet   string           `json:"awp_worknet"`
 	DaoAddress   string           `json:"dao_address"`
 	LpManager    string           `json:"lp_manager"`
 	PoolManager  string           `json:"pool_manager"`
@@ -90,7 +90,7 @@ type Subnet struct {
 	SkillsUri      pgtype.Text    `json:"skills_uri"`
 	MetadataUri    pgtype.Text    `json:"metadata_uri"`
 	MinStake       pgtype.Numeric `json:"min_stake"`
-	AlphaToken     string         `json:"alpha_token"`
+	WorknetToken   string         `json:"worknet_token"`
 	LpPool         pgtype.Text    `json:"lp_pool"`
 	Status         string         `json:"status"`
 	CreatedAt      int64          `json:"created_at"`

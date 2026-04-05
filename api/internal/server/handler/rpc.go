@@ -292,7 +292,7 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 			},
 		}},
 		"nonce.getStaking": {fn: h.rpcNonceGetStaking, info: methodInfo{
-			Name: "nonce.getStaking", Description: "Get StakingVault EIP-712 nonce",
+			Name: "nonce.getStaking", Description: "Get AWPAllocator EIP-712 nonce",
 			Params: []paramInfo{
 				{Name: "address", Type: "string", Required: true, Description: "Address (0x...)"},
 			},
@@ -339,7 +339,7 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 			},
 		}},
 		"staking.getPositions": {fn: h.rpcStakingGetPositions, info: methodInfo{
-			Name: "staking.getPositions", Description: "Get user StakeNFT positions",
+			Name: "staking.getPositions", Description: "Get user veAWP positions",
 			Params: []paramInfo{
 				{Name: "address", Type: "string", Required: true, Description: "User address (0x...)"},
 			},
@@ -548,7 +548,7 @@ func (h *Handler) rpcMethods() map[string]methodEntry {
 
 		// ── staking (new) ──
 		"staking.getPositionsGlobal": {fn: h.rpcStakingGetPositionsGlobal, info: methodInfo{
-			Name: "staking.getPositionsGlobal", Description: "Get user StakeNFT positions across all chains",
+			Name: "staking.getPositionsGlobal", Description: "Get user veAWP positions across all chains",
 			Params: []paramInfo{
 				{Name: "address", Type: "string", Required: true, Description: "User address (0x...)"},
 			},

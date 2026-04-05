@@ -181,7 +181,7 @@ func TestIndexerScenario_BindAndLookup(t *testing.T) {
 	}
 }
 
-func TestIndexerScenario_StakeNFTDeposited(t *testing.T) {
+func TestIndexerScenario_VeAWPDeposited(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 	userAddr := "0xdddddddddddddddddddddddddddddddddddddd"
@@ -189,7 +189,7 @@ func TestIndexerScenario_StakeNFTDeposited(t *testing.T) {
 	// Register user
 	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: userAddr, BoundTo: ""})
 
-	// Simulate StakeNFT.Deposited event: create stake position
+	// Simulate VeAWP.Deposited event: create stake position
 	err := db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID:      1,
 		Owner:        userAddr,
@@ -230,7 +230,7 @@ func TestIndexerScenario_StakeNFTDeposited(t *testing.T) {
 	assertNumericEqual(t, "cumulative total staked", total, 1500)
 }
 
-func TestIndexerScenario_StakeNFTPositionIncreased(t *testing.T) {
+func TestIndexerScenario_VeAWPPositionIncreased(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 	userAddr := "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
@@ -261,7 +261,7 @@ func TestIndexerScenario_StakeNFTPositionIncreased(t *testing.T) {
 	}
 }
 
-func TestIndexerScenario_StakeNFTWithdrawn(t *testing.T) {
+func TestIndexerScenario_VeAWPWithdrawn(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 	userAddr := "0xffffffffffffffffffffffffffffffffffffffff"
@@ -303,7 +303,7 @@ func TestIndexerScenario_StakeNFTWithdrawn(t *testing.T) {
 	assertNumericEqual(t, "total staked after burn", total, 0)
 }
 
-func TestIndexerScenario_StakeNFTTransfer(t *testing.T) {
+func TestIndexerScenario_VeAWPTransfer(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 	aliceAddr := "0x1111111111111111111111111111111111111111"
@@ -482,7 +482,7 @@ func TestIndexerScenario_SubnetRegistered(t *testing.T) {
 		Symbol:         "TST",
 		SubnetContract: "0xbbbb000000000000000000000000000000000001",
 		MinStake:       pgtype.Numeric{Int: big.NewInt(0), Exp: 0, Valid: true},
-		AlphaToken:     "0xcccc000000000000000000000000000000000001",
+		WorknetToken:     "0xcccc000000000000000000000000000000000001",
 		LpPool:         pgtype.Text{Valid: false},
 		CreatedAt:      200,
 		ImmunityEndsAt: pgtype.Int8{Valid: false},
@@ -528,7 +528,7 @@ func TestIndexerScenario_SubnetLifecycle(t *testing.T) {
 		Symbol:         "LCN",
 		SubnetContract: "0xbbbb000000000000000000000000000000000010",
 		MinStake:       pgtype.Numeric{Int: big.NewInt(0), Exp: 0, Valid: true},
-		AlphaToken:     "0xcccc000000000000000000000000000000000010",
+		WorknetToken:     "0xcccc000000000000000000000000000000000010",
 		LpPool:         pgtype.Text{Valid: false},
 		CreatedAt:      300,
 		ImmunityEndsAt: pgtype.Int8{Valid: false},
@@ -649,7 +649,7 @@ func TestIndexerScenario_SubnetLP(t *testing.T) {
 		Symbol:         "LPT",
 		SubnetContract: "0xbbbb000000000000000000000000000000000020",
 		MinStake:       pgtype.Numeric{Int: big.NewInt(0), Exp: 0, Valid: true},
-		AlphaToken:     "0xcccc000000000000000000000000000000000020",
+		WorknetToken:     "0xcccc000000000000000000000000000000000020",
 		LpPool:         pgtype.Text{Valid: false},
 		CreatedAt:      400,
 		ImmunityEndsAt: pgtype.Int8{Valid: false},
@@ -1057,7 +1057,7 @@ func TestIntegration_FullUserLifecycle(t *testing.T) {
 	// 2. Bind agent to alice
 	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: agentA, BoundTo: alice})
 
-	// 3. Simulate StakeNFT.Deposited: create stake position of 10000
+	// 3. Simulate VeAWP.Deposited: create stake position of 10000
 	err = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID: 1, Owner: alice, Amount: numericFromInt64(10000),
 		LockEndTime: 50, CreatedAt: 100,
@@ -1228,7 +1228,7 @@ func TestIntegration_MultiUserIsolation(t *testing.T) {
 	_ = db.q.UpsertUserBinding(ctx, gen.UpsertUserBindingParams{ChainID: testChainID, Address: bob, BoundTo: ""})
 	_ = db.q.InitUserBalance(ctx, gen.InitUserBalanceParams{ChainID: testChainID, UserAddress: bob})
 
-	// 2. Stake 5000 for alice, 3000 for bob (via StakeNFT positions)
+	// 2. Stake 5000 for alice, 3000 for bob (via veAWP positions)
 	_ = db.q.InsertStakePosition(ctx, gen.InsertStakePositionParams{ChainID: testChainID,
 		TokenID: 1, Owner: alice, Amount: numericFromInt64(5000),
 		LockEndTime: 50, CreatedAt: 100,
@@ -1357,7 +1357,7 @@ func TestIntegration_EpochDistributionAccounting(t *testing.T) {
 	assertNumericEqual(t, "daily_emission", epoch.DailyEmission, 1000)
 }
 
-func TestIntegration_StakeNFTLifecycle(t *testing.T) {
+func TestIntegration_VeAWPLifecycle(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
 

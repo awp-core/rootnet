@@ -27,9 +27,9 @@ type ChainConfig struct {
 	AWPRegistry  string `yaml:"awpRegistry" json:"-"`
 	AWPToken     string `yaml:"awpToken" json:"-"`
 	AWPEmission  string `yaml:"awpEmission" json:"-"`
-	StakingVault string `yaml:"stakingVault" json:"-"`
-	StakeNFT     string `yaml:"stakeNFT" json:"-"`
-	WorknetNFT    string `yaml:"worknetNFT" json:"-"`
+	AWPAllocator string `yaml:"awpAllocator" json:"-"`
+	VeAWP        string `yaml:"veAWP" json:"-"`
+	AWPWorkNet   string `yaml:"awpWorkNet" json:"-"`
 	DAOAddress   string `yaml:"dao" json:"-"`
 	LPManager    string `yaml:"lpManager" json:"-"`
 }

@@ -54,9 +54,9 @@ contract LPManagerUni is LPManagerBase {
         address _posMgr = positionManager;
 
         IERC20(c0).forceApprove(_permit2, amt0);
-        IPermit2(_permit2).approve(c0, _posMgr, uint160(amt0), uint48(block.timestamp + 600));
+        IPermit2(_permit2).approve(c0, _posMgr, uint160(amt0), uint48(block.timestamp));
         IERC20(c1).forceApprove(_permit2, amt1);
-        IPermit2(_permit2).approve(c1, _posMgr, uint160(amt1), uint48(block.timestamp + 600));
+        IPermit2(_permit2).approve(c1, _posMgr, uint160(amt1), uint48(block.timestamp));
 
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(
             sqrtPriceX96, MIN_SQRT_RATIO, MAX_SQRT_RATIO, amt0, amt1
@@ -103,11 +103,11 @@ contract LPManagerUni is LPManagerBase {
 
         if (bal0 > 0) {
             IERC20(c0).forceApprove(_permit2, bal0);
-            IPermit2(_permit2).approve(c0, _posMgr, uint160(bal0), uint48(block.timestamp + 600));
+            IPermit2(_permit2).approve(c0, _posMgr, uint160(bal0), uint48(block.timestamp));
         }
         if (bal1 > 0) {
             IERC20(c1).forceApprove(_permit2, bal1);
-            IPermit2(_permit2).approve(c1, _posMgr, uint160(bal1), uint48(block.timestamp + 600));
+            IPermit2(_permit2).approve(c1, _posMgr, uint160(bal1), uint48(block.timestamp));
         }
 
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts(

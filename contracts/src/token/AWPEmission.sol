@@ -3,10 +3,10 @@ pragma solidity ^0.8.20;
 
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {IAWPToken} from "../interfaces/IAWPToken.sol";
 import {IAWPEmission} from "../interfaces/IAWPEmission.sol";
-import {IERC1363Receiver} from "../interfaces/IERC1363Receiver.sol";
+import {IERC1363Receiver} from "@openzeppelin/contracts/interfaces/IERC1363Receiver.sol";
 
 /// @title AWPEmission V3 — UUPS upgradeable emission contract (epoch-versioned weight distribution engine)
 /// @notice Guardian-only weight submission, no Oracle/Timelock dependency.
@@ -16,7 +16,7 @@ import {IERC1363Receiver} from "../interfaces/IERC1363Receiver.sol";
 ///      100% of epoch emission goes to recipients; Guardian includes treasury in recipients for DAO share.
 ///      Anyone can call settleEpoch to trigger settlement.
 ///      AWPEmission now owns its own epoch timing (baseEpoch + baseTime + epochDuration).
-contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, IAWPEmission {
+contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardTransient, IAWPEmission {
 
     // ══════════════════════════════════════════════
     //  Storage layout — V3 (fresh proxy deployment, epoch-versioned weights)
@@ -25,8 +25,8 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @dev Reserved slot 0: was awpRegistry, kept for UUPS proxy upgrade safety
     uint256 private __reserved_slot0;               // slot 0
 
-    /// @notice AWP token contract reference
-    IAWPToken public awpToken;                      // slot 1
+    /// @dev Freed slot 1: was awpToken storage ref, now immutable in bytecode
+    uint256 private __freed_slot1;                  // slot 1
 
     /// @notice Treasury address — queryable on-chain reference; Guardian includes it in recipient list for DAO share
     address public treasury;                        // slot 2
@@ -81,7 +81,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
     /// @notice Epoch pause: 0 = not paused; >0 = resume timestamp. Packed with frozenEpoch in slot 19.
     uint64 public pausedUntil;
-    /// @notice Epoch value frozen at pause time (= settledEpoch when paused)
+    /// @notice Epoch value frozen at pause time (= settledEpoch - 1 when paused, so currentEpoch < settledEpoch)
     uint64 public frozenEpoch;                       // slot 19 (packed: pausedUntil + frozenEpoch = 16 bytes)
 
     /// @notice Maximum number of recipients allowed
@@ -93,8 +93,8 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @dev Freed slot 22: was isOracleMap (Guardian replaced Oracle)
     mapping(address => bool) private __freed_isOracleMap; // slot 22
 
-    /// @notice Cached AWP MAX_SUPPLY (set in initialize, avoids repeated cross-contract call)
-    uint256 private _cachedMaxSupply;               // slot 23
+    /// @dev Freed slot 23: was _cachedMaxSupply, now immutable in bytecode
+    uint256 private __freed_slot23;                 // slot 23
 
     /// @notice Decay factor per epoch (default 996844 / 1000000 ≈ 0.3156% decay)
     uint256 public decayFactor;                     // slot 24
@@ -115,14 +115,16 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice Exponential decay factor denominator
     uint256 public constant DECAY_PRECISION = 1000000;
 
+    /// @notice AWP token contract (immutable — baked into impl bytecode, zero SLOAD cost)
+    IAWPToken public immutable awpToken;
+
+    /// @notice AWP MAX_SUPPLY cache (immutable — avoids repeated cross-contract call)
+    uint256 public immutable cachedMaxSupply;
+
     // ══════════════════════════════════════════════
     //  Error definitions
     // ══════════════════════════════════════════════
 
-    /// @dev Recipient address is the zero address
-    error InvalidRecipient();
-    /// @dev Weight is zero
-    error ZeroWeight();
     /// @dev All epochs up to the current time-based epoch have already been settled
     error EpochNotReady();
     /// @dev All AWP has been minted
@@ -148,7 +150,6 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @dev Patch index exceeds allocation array length
     error IndexOutOfBounds(uint256 index, uint256 length);
 
-
     // ══════════════════════════════════════════════
     //  Modifiers
     // ══════════════════════════════════════════════
@@ -159,22 +160,33 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         _;
     }
 
+    /// @dev Reject calls while settlement is in progress or for already-settled epochs
+    modifier whenIdle(uint256 effectiveEpoch) {
+        if (settleProgress != 0) revert SettlementInProgress();
+        if (effectiveEpoch < settledEpoch) revert MustBeFutureEpoch();
+        _;
+    }
+
     // ══════════════════════════════════════════════
     //  Constructor + initialization
     // ══════════════════════════════════════════════
 
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
+    /// @param awpToken_ AWP token address (baked into bytecode as immutable)
+    constructor(address awpToken_) {
+        awpToken = IAWPToken(awpToken_);
+        cachedMaxSupply = IAWPToken(awpToken_).MAX_SUPPLY();
         _disableInitializers();
     }
 
-    /// @notice Initialize the emission contract (called on proxy deployment)
-    /// @param awpToken_ AWP token contract address
+    /// @notice Initialize the emission contract (called on proxy deployment).
+    ///         awpToken and cachedMaxSupply are immutables set in constructor — not written here.
+    /// @param awpToken_ Unused (kept for ABI compatibility); actual awpToken is immutable from constructor
     /// @param guardian_ Guardian address (cross-chain Safe multisig) — controls weights, decay, upgrades
     /// @param initialDailyEmission_ Daily emission for the first epoch (wei)
     /// @param genesisTime_ Genesis timestamp for epoch calculation
     /// @param epochDuration_ Epoch duration in seconds (default 86400 = 1 day)
-    /// @param treasury_ Treasury address (fallback for failed recipient mints)
+    /// @param treasury_ Treasury address (queryable reference; Guardian includes it in recipients for DAO share)
     function initialize(
         address awpToken_,
         address guardian_,
@@ -183,12 +195,11 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         uint256 epochDuration_,
         address treasury_
     ) external initializer {
-        __UUPSUpgradeable_init();
-        __ReentrancyGuard_init();
+        // ReentrancyGuardTransient — no init needed (uses TSTORE)
 
         if (epochDuration_ == 0) revert ZeroEpochDuration();
-        if (awpToken_ == address(0) || guardian_ == address(0)) revert ZeroAddress();
-        awpToken = IAWPToken(awpToken_);
+        if (guardian_ == address(0)) revert ZeroAddress();
+        // awpToken_ param kept for ABI compatibility; actual awpToken is immutable from constructor
         guardian = guardian_;
         treasury = treasury_;
         currentDailyEmission = initialDailyEmission_;
@@ -196,7 +207,6 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         epochDuration = epochDuration_;
         maxRecipients = 10000;
         decayFactor = 996844;
-        _cachedMaxSupply = IAWPToken(awpToken_).MAX_SUPPLY();
     }
 
     // ══════════════════════════════════════════════
@@ -204,8 +214,8 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     // ══════════════════════════════════════════════
 
     /// @notice Current epoch number, derived from base time and epoch duration.
-    ///         When paused: returns frozenEpoch (= settledEpoch at pause time).
-    ///         When pause expired: resumes from frozenEpoch at pausedUntil timestamp.
+    ///         When paused: returns frozenEpoch (= settledEpoch - 1, strictly less than settledEpoch).
+    ///         When pause expired: resumes from frozenEpoch + 1 at pausedUntil timestamp.
     function currentEpoch() public view returns (uint256) {
         uint64 pu = pausedUntil;
         if (pu == 0) {
@@ -217,8 +227,8 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             // Paused: epoch frozen
             return uint256(frozenEpoch);
         }
-        // Pause expired: resume from frozenEpoch at pausedUntil
-        return uint256(frozenEpoch) + (block.timestamp - uint256(pu)) / epochDuration;
+        // Pause expired: resume from frozenEpoch + 1 (= settledEpoch) at pausedUntil
+        return uint256(frozenEpoch) + 1 + (block.timestamp - uint256(pu)) / epochDuration;
     }
 
     // ══════════════════════════════════════════════
@@ -247,9 +257,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         uint256[] calldata packed_,
         uint256 totalWeight_,
         uint256 effectiveEpoch
-    ) external onlyGuardian {
-        if (settleProgress != 0) revert SettlementInProgress();
-        if (effectiveEpoch < settledEpoch) revert MustBeFutureEpoch();
+    ) external onlyGuardian whenIdle(effectiveEpoch) {
         if (packed_.length > maxRecipients) revert TooManyRecipients(packed_.length, maxRecipients);
 
         delete _epochAllocations[effectiveEpoch];
@@ -267,9 +275,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     function appendAllocations(
         uint256[] calldata packed_,
         uint256 effectiveEpoch
-    ) external onlyGuardian {
-        if (settleProgress != 0) revert SettlementInProgress();
-        if (effectiveEpoch < settledEpoch) revert MustBeFutureEpoch();
+    ) external onlyGuardian whenIdle(effectiveEpoch) {
         if (packed_.length == 0) revert ZeroLimit();
 
         uint256 existingLen = _epochAllocations[effectiveEpoch].length;
@@ -295,10 +301,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         uint256[] calldata patches_,
         uint256 newTotalWeight_,
         uint256 effectiveEpoch
-    ) external onlyGuardian {
-        if (settleProgress != 0) revert SettlementInProgress();
-        if (effectiveEpoch < settledEpoch) revert MustBeFutureEpoch();
-
+    ) external onlyGuardian whenIdle(effectiveEpoch) {
         uint256[] storage arr = _epochAllocations[effectiveEpoch];
         uint256 arrLen = arr.length;
         uint256 len = patches_.length;
@@ -342,7 +345,6 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice Minimum decay factor (90% of DECAY_PRECISION = max 10% decay per epoch)
     uint256 public constant MIN_DECAY_FACTOR = 900000;
 
-
     /// @notice Update the maximum number of recipients per epoch (Guardian only)
     function setMaxRecipients(uint256 newMax) external onlyGuardian {
         if (newMax == 0) revert ZeroLimit();
@@ -383,19 +385,20 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     // ══════════════════════════════════════════════
 
     /// @notice Pause epoch counting until a specified timestamp (Guardian only).
-    ///         During pause, currentEpoch() returns settledEpoch (frozen).
+    ///         During pause, currentEpoch() returns settledEpoch - 1 (strictly less → blocks settlement).
     ///         Can be called again to update resumeTime. Pass 0 to resume immediately.
-    error InvalidResumeTime();
+    ///         Past timestamps are allowed — epoch freezes briefly then auto-resumes at that timestamp
+    ///         (useful for rebasing epoch timeline to a specific point in time).
 
     function pauseEpochUntil(uint64 resumeTime) external onlyGuardian {
         _checkResume();
-        // resumeTime must be in the future (or 0 for immediate resume)
-        if (resumeTime != 0 && resumeTime <= uint64(block.timestamp)) revert InvalidResumeTime();
+        if (settleProgress != 0) revert SettlementInProgress();
         if (pausedUntil == 0 && resumeTime != 0) {
-            frozenEpoch = uint64(settledEpoch);
+            // Freeze at settledEpoch - 1 so currentEpoch() < settledEpoch → blocks settlement
+            frozenEpoch = settledEpoch > 0 ? uint64(settledEpoch - 1) : 0;
         } else if (pausedUntil != 0 && resumeTime == 0) {
-            // Immediate resume: rebase to now
-            baseEpoch = uint256(frozenEpoch);
+            // Immediate resume: rebase so currentEpoch() resumes at settledEpoch (no 1-epoch delay)
+            baseEpoch = uint256(frozenEpoch) + 1;
             baseTime = block.timestamp;
             frozenEpoch = 0;
         }
@@ -403,11 +406,12 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         emit EpochPausedUntil(resumeTime, frozenEpoch);
     }
 
-    /// @dev Clean up expired pause: absorb pause duration into baseTime/baseEpoch
+    /// @dev Clean up expired pause: absorb pause duration into baseTime/baseEpoch.
+    ///      Resumes at frozenEpoch + 1 (= settledEpoch) so settlement is immediately possible.
     function _checkResume() internal {
         uint64 pu = pausedUntil;
         if (pu != 0 && block.timestamp >= uint256(pu)) {
-            baseEpoch = uint256(frozenEpoch);
+            baseEpoch = uint256(frozenEpoch) + 1;
             baseTime = uint256(pu);
             pausedUntil = 0;
             frozenEpoch = 0;
@@ -452,24 +456,30 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
         // ── Phase 1: Initialization (O(1), no loops) ──
         if (settleProgress == 0) {
+            // Block settlement while paused (covers settledEpoch=0 edge case where frozenEpoch can't go below 0)
+            if (pausedUntil != 0 && block.timestamp < uint256(pausedUntil)) revert EpochNotReady();
+
+            // Cache settledEpoch to avoid repeated SLOADs
+            uint256 _settledEpoch = settledEpoch;
+
             // settledEpoch = next epoch to settle; can settle if <= currentEpoch
-            if (settledEpoch > currentEpoch()) revert EpochNotReady();
+            if (_settledEpoch > currentEpoch()) revert EpochNotReady();
 
             // Exponential decay: skip for the very first epoch (settledEpoch == 0)
-            if (settledEpoch > 0) {
+            if (_settledEpoch > 0) {
                 currentDailyEmission = currentDailyEmission * decayFactor / DECAY_PRECISION;
             }
 
             // Calculate actual epoch emission (capped at remaining AWP mintable supply)
-            uint256 awpRemaining = _cachedMaxSupply - awpToken.totalSupply();
+            uint256 awpRemaining = cachedMaxSupply - awpToken.totalSupply();
             epochEmissionLocked = currentDailyEmission > awpRemaining ? awpRemaining : currentDailyEmission;
             if (epochEmissionLocked == 0) revert MiningComplete();
 
             // Promote activeEpoch if new weights exist for the epoch being settled.
             // O(1): activeEpoch persists in storage; if no new weights, the previous
             // allocation carries forward automatically (supports weekly submissions).
-            if (_epochTotalWeight[settledEpoch] > 0) {
-                activeEpoch = settledEpoch;
+            if (_epochTotalWeight[_settledEpoch] > 0) {
+                activeEpoch = _settledEpoch;
             }
 
             // 100% emission to recipients (Guardian can include treasury in recipients for DAO share)
@@ -494,7 +504,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         uint256 pool = _snapshotPool;
         uint256 tw = _snapshotWeight;
         uint256 minted = _epochMinted;
-        uint256 epoch = settledEpoch; // epoch being settled (before increment in Phase 3)
+        uint256 epoch = settledEpoch;
         uint256 ae = activeEpoch;
 
         // Use epoch-locked budget minus already-minted as the cap (not live totalSupply)
@@ -502,7 +512,6 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
         if (tw > 0) {
             uint256[] storage allocations = _epochAllocations[ae];
-            IAWPToken token = awpToken;
             for (uint256 i = start; i < end;) {
                 uint256 packed = allocations[i];
                 uint256 weight = uint64(packed >> 160);
@@ -512,7 +521,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
                         uint256 toMint = share > awpRemaining ? awpRemaining : share;
                         address recipient = address(uint160(packed));
                         // mint always succeeds; best-effort ERC1363 callback for contract recipients.
-                        token.mint(recipient, toMint);
+                        awpToken.mint(recipient, toMint);
                         if (recipient.code.length > 0) {
                             try IERC1363Receiver(recipient).onTransferReceived(address(this), address(this), toMint, "") {} catch {}
                         }
@@ -524,8 +533,6 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
                 unchecked { ++i; }
             }
         }
-        _epochMinted = minted;
-
         // ── Phase 3: Finalize ──
         if (end >= snapshotLen) {
             _snapshotPool = 0;
@@ -535,6 +542,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
             emit EpochSettled(epoch, minted, snapshotLen);
         } else {
+            _epochMinted = minted;
             settleProgress = end + 1;
         }
     }
@@ -554,7 +562,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     /// @notice Get the weight of a recipient in the active epoch (O(n) scan)
-    function getWeight(address addr) external view returns (uint96) {
+    function getWeight(address addr) external view returns (uint64) {
         return _scanWeight(_epochAllocations[activeEpoch], addr);
     }
 
@@ -569,7 +577,7 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     /// @notice Get the weight of a recipient for a specific epoch (O(n) scan, view only)
-    function getEpochWeight(uint256 epoch, address addr) external view returns (uint96) {
+    function getEpochWeight(uint256 epoch, address addr) external view returns (uint64) {
         return _scanWeight(_epochAllocations[epoch], addr);
     }
 
@@ -583,12 +591,12 @@ contract AWPEmission is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     // ══════════════════════════════════════════════
 
     /// @dev Scan a packed allocations array to find the weight for a given address
-    function _scanWeight(uint256[] storage allocations, address addr) internal view returns (uint96) {
+    function _scanWeight(uint256[] storage allocations, address addr) internal view returns (uint64) {
         uint256 len = allocations.length;
         for (uint256 i = 0; i < len;) {
             uint256 packed = allocations[i];
             if (address(uint160(packed)) == addr) {
-                return uint96(uint64(packed >> 160));
+                return uint64(packed >> 160);
             }
             unchecked { ++i; }
         }

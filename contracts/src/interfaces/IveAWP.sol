@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-/// @title IStakeNFT — Interface for NFT-based staking positions
+/// @title IveAWP — Interface for NFT-based staking positions
 /// @notice Each stake position is an ERC721 token with locked amount and expiry.
 ///         Voting power is derived from NFT positions using amount * sqrt(min(remainingTime, MAX_WEIGHT_DURATION) / VOTE_WEIGHT_DIVISOR).
-interface IStakeNFT {
+interface IveAWP {
     /// @notice Stake position data stored per tokenId
     struct Position {
         uint128 amount;       // Staked AWP amount
@@ -26,14 +26,6 @@ interface IStakeNFT {
     /// @return tokenId The minted NFT token ID
     function deposit(uint256 amount, uint64 lockDuration) external returns (uint256 tokenId);
 
-    /// @notice Create a new stake position on behalf of a user (called by AWPRegistry for registerAndStake)
-    /// @dev AWP is transferred from the user (not msg.sender). Only callable by AWPRegistry.
-    /// @param user User address to mint the position to
-    /// @param amount AWP amount to deposit
-    /// @param lockDuration Lock duration in seconds
-    /// @return tokenId The minted NFT token ID
-    function depositFor(address user, uint256 amount, uint64 lockDuration) external returns (uint256 tokenId);
-
     /// @notice Add AWP and/or extend lock on an existing position
     /// @param tokenId Position token ID (must be owned by msg.sender)
     /// @param amount Additional AWP to add (0 to skip)
@@ -43,6 +35,15 @@ interface IStakeNFT {
     /// @notice Withdraw a position after lock expiry (burns the NFT)
     /// @param tokenId Position token ID (must be owned by msg.sender, lock must be expired)
     function withdraw(uint256 tokenId) external;
+
+    /// @notice Withdraw part of a position's amount (lock must be expired, keeps NFT alive)
+    /// @param tokenId Position token ID
+    /// @param amount Amount to withdraw (must be < position amount)
+    function partialWithdraw(uint256 tokenId, uint128 amount) external;
+
+    /// @notice Withdraw multiple expired positions in a single transaction
+    /// @param tokenIds Array of position token IDs to withdraw
+    function batchWithdraw(uint256[] calldata tokenIds) external;
 
     // ── View functions ──
 

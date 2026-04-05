@@ -71,10 +71,10 @@ func newChainClient(cfg *config.Config) (*chain.Client, error) {
 		"AWPRegistry":  cfg.AWPRegistryAddress,
 		"AWPToken":     cfg.AWPTokenAddress,
 		"AWPEmission":  cfg.AWPEmissionAddress,
-		"StakingVault": cfg.StakingVaultAddress,
-		"WorknetNFT":    cfg.WorknetNFTAddress,
+		"AWPAllocator": cfg.AWPAllocatorAddress,
+		"AWPWorkNet":   cfg.AWPWorkNetAddress,
 		"AWPDAO":       cfg.DAOAddress,
-		"StakeNFT":     cfg.StakeNFTAddress,
+		"VeAWP":        cfg.VeAWPAddress,
 	}
 	dialCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -146,10 +146,10 @@ func startMultiChain(lc fx.Lifecycle, pool *pgxpool.Pool, rdb *redis.Client, cfg
 			"AWPRegistry":  config.ResolveAddress(ch.AWPRegistry, cfg.AWPRegistryAddress),
 			"AWPToken":     config.ResolveAddress(ch.AWPToken, cfg.AWPTokenAddress),
 			"AWPEmission":  config.ResolveAddress(ch.AWPEmission, cfg.AWPEmissionAddress),
-			"StakingVault": config.ResolveAddress(ch.StakingVault, cfg.StakingVaultAddress),
-			"WorknetNFT":    config.ResolveAddress(ch.WorknetNFT, cfg.WorknetNFTAddress),
+			"AWPAllocator": config.ResolveAddress(ch.AWPAllocator, cfg.AWPAllocatorAddress),
+			"AWPWorkNet":   config.ResolveAddress(ch.AWPWorkNet, cfg.AWPWorkNetAddress),
 			"AWPDAO":       config.ResolveAddress(ch.DAOAddress, cfg.DAOAddress),
-			"StakeNFT":     config.ResolveAddress(ch.StakeNFT, cfg.StakeNFTAddress),
+			"VeAWP":        config.ResolveAddress(ch.VeAWP, cfg.VeAWPAddress),
 		}
 		dialCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		client, clientErr := chain.NewClient(dialCtx, ch.RPCURL, addrs)

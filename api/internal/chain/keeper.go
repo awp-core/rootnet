@@ -364,7 +364,7 @@ func (k *Keeper) updateTokenPrices(ctx context.Context) {
 
 	// Update alpha token prices from on-chain pool state
 	if k.lpManager != nil && k.poolManager != nil {
-		k.updateAlphaPrices(ctx)
+		k.updateWorknetTokenPrices(ctx)
 	}
 
 	k.logger.Debug("token caches updated",
@@ -376,31 +376,31 @@ func (k *Keeper) updateTokenPrices(ctx context.Context) {
 }
 
 // alphaPrice is the cached price data for an Alpha token
-type alphaPrice struct {
-	PriceInAWP string `json:"priceInAWP"` // Alpha price denominated in AWP
+type worknetTokenPrice struct {
+	PriceInAWP   string `json:"priceInAWP"`   // worknet token price denominated in AWP
 	SqrtPriceX96 string `json:"sqrtPriceX96"` // raw sqrtPriceX96 for frontend use
-	UpdatedAt  int64  `json:"updatedAt"`  // unix timestamp
+	UpdatedAt    int64  `json:"updatedAt"`     // unix timestamp
 }
 
-// alphaPriceResult holds the computed price data for a single alpha token (used by worker goroutines)
-type alphaPriceResult struct {
+// tokenPriceResult holds the computed price data for a single worknet token (used by worker goroutines)
+type tokenPriceResult struct {
 	key  string
 	data []byte
 }
 
-// updateAlphaPrices reads sqrtPriceX96 from each active subnet's LP pool and caches the price.
+// updateWorknetTokenPrices reads sqrtPriceX96 from each active worknet's LP pool and caches the price.
 // Called every 25s as part of updateTokenPrices.
 // Uses a bounded worker pool (max 10 concurrent) to parallelize RPC calls across tokens.
-// Redis keys are keyed by worknetId (alpha_price:{worknetId}) per spec.
-func (k *Keeper) updateAlphaPrices(ctx context.Context) {
-	// Read worknetId→alphaToken map from Redis (populated by indexer)
-	subnetMapKey := fmt.Sprintf("active_alpha_subnet_map:%d", k.chainIDInt)
+// Redis keys are keyed by worknetId (worknet_token_price:{worknetId}) per spec.
+func (k *Keeper) updateWorknetTokenPrices(ctx context.Context) {
+	// Read worknetId→worknetToken map from Redis (populated by indexer)
+	subnetMapKey := fmt.Sprintf("active_worknet_subnet_map:%d", k.chainIDInt)
 	data, err := k.redis.Get(ctx, subnetMapKey).Result()
 	if err != nil {
 		return // no active tokens, skip
 	}
 
-	var subnetMap map[string]string // worknetId → alphaToken
+	var subnetMap map[string]string // worknetId → worknetToken
 	if err := json.Unmarshal([]byte(data), &subnetMap); err != nil {
 		return
 	}
@@ -421,7 +421,7 @@ func (k *Keeper) updateAlphaPrices(ctx context.Context) {
 	// Bounded worker pool: max 10 concurrent RPC goroutines
 	const maxWorkers = 10
 	sem := make(chan struct{}, maxWorkers)
-	results := make(chan alphaPriceResult, len(entries))
+	results := make(chan tokenPriceResult, len(entries))
 
 	var wg sync.WaitGroup
 	for _, entry := range entries {
@@ -434,7 +434,7 @@ func (k *Keeper) updateAlphaPrices(ctx context.Context) {
 			token := common.HexToAddress(e.token)
 
 			// Read poolId from LPManager (sequential: GetSlot0 depends on poolId)
-			poolId, err := k.lpManager.AlphaTokenToPoolId(nil, token)
+			poolId, err := k.lpManager.WorknetTokenToPoolId(nil, token)
 			if err != nil || poolId == [32]byte{} {
 				return // no pool for this token
 			}
@@ -442,7 +442,7 @@ func (k *Keeper) updateAlphaPrices(ctx context.Context) {
 			// Read sqrtPriceX96 from PoolManager
 			slot0, err := k.poolManager.GetSlot0(nil, poolId)
 			if err != nil {
-				k.logger.Debug("failed to read pool slot0", "worknetId", e.subnetID, "alphaToken", e.token, "error", err)
+				k.logger.Debug("failed to read pool slot0", "worknetId", e.subnetID, "worknetToken", e.token, "error", err)
 				return
 			}
 
@@ -461,14 +461,14 @@ func (k *Keeper) updateAlphaPrices(ctx context.Context) {
 			denominator := new(big.Int).Mul(q96, q96)
 			priceRaw := new(big.Int).Div(numerator, denominator)
 
-			priceData, _ := json.Marshal(alphaPrice{
+			priceData, _ := json.Marshal(worknetTokenPrice{
 				PriceInAWP:   priceRaw.String(),
 				SqrtPriceX96: sqrtPriceBig.String(),
 				UpdatedAt:    time.Now().Unix(),
 			})
 
-			results <- alphaPriceResult{
-				key:  fmt.Sprintf("alpha_price:%s", e.subnetID),
+			results <- tokenPriceResult{
+				key:  fmt.Sprintf("worknet_token_price:%s", e.subnetID),
 				data: priceData,
 			}
 		}(entry)
@@ -481,7 +481,7 @@ func (k *Keeper) updateAlphaPrices(ctx context.Context) {
 	}()
 
 	// Collect results and write all to Redis via pipeline
-	var collected []alphaPriceResult
+	var collected []tokenPriceResult
 	for r := range results {
 		collected = append(collected, r)
 	}
@@ -492,36 +492,36 @@ func (k *Keeper) updateAlphaPrices(ctx context.Context) {
 			pipe.Set(ctx, r.key, r.data, 10*time.Minute)
 		}
 		if _, err := pipe.Exec(ctx); err != nil {
-			k.logger.Error("failed to pipeline alpha prices to Redis", "error", err)
+			k.logger.Error("failed to pipeline worknet token prices to Redis", "error", err)
 		}
 	}
 }
 
-// compoundAllFees iterates active subnet alpha tokens and compounds LP fees for each.
+// compoundAllFees iterates active worknet tokens and compounds LP fees for each.
 // Called every 24h by cron. Each compoundFees call collects accrued trading fees from
 // the LP position and reinvests them as additional liquidity.
 func (k *Keeper) compoundAllFees(ctx context.Context) {
 	// No longer holding lock for entire duration — lock per-tx to avoid blocking settleEpoch
 
-	alphaTokensKey := fmt.Sprintf("active_alpha_tokens:%d", k.chainIDInt)
-	data, err := k.redis.Get(ctx, alphaTokensKey).Result()
+	worknetTokensKey := fmt.Sprintf("active_worknet_tokens:%d", k.chainIDInt)
+	data, err := k.redis.Get(ctx, worknetTokensKey).Result()
 	if err != nil {
-		k.logger.Debug("no active alpha tokens cached for compounding (will be populated by indexer)", "chainId", k.chainIDInt)
+		k.logger.Debug("no active worknet tokens cached for compounding (will be populated by indexer)", "chainId", k.chainIDInt)
 		return
 	}
 
-	var alphaTokens []string
-	if err := json.Unmarshal([]byte(data), &alphaTokens); err != nil {
-		k.logger.Error("failed to parse active alpha tokens", "error", err)
+	var worknetTokens []string
+	if err := json.Unmarshal([]byte(data), &worknetTokens); err != nil {
+		k.logger.Error("failed to parse active worknet tokens", "error", err)
 		return
 	}
 
-	if len(alphaTokens) == 0 {
+	if len(worknetTokens) == 0 {
 		return
 	}
 
 	compounded := 0
-	for _, tokenHex := range alphaTokens {
+	for _, tokenHex := range worknetTokens {
 		token := common.HexToAddress(tokenHex)
 
 		// Per-tx: lock -> auth (auto nonce) -> send -> unlock -> wait for confirmation
@@ -539,10 +539,10 @@ func (k *Keeper) compoundAllFees(ctx context.Context) {
 
 		if txErr != nil {
 			cancel()
-			k.logger.Debug("compoundFees skipped", "alphaToken", tokenHex, "error", txErr)
+			k.logger.Debug("compoundFees skipped", "worknetToken", tokenHex, "error", txErr)
 			continue
 		}
-		k.logger.Info("compoundFees tx sent", "alphaToken", tokenHex, "txHash", tx.Hash().Hex())
+		k.logger.Info("compoundFees tx sent", "worknetToken", tokenHex, "txHash", tx.Hash().Hex())
 
 		// Wait for tx to be mined before sending next one to avoid nonce conflicts
 		_, _ = bind.WaitMined(timeoutCtx, k.client, tx)
@@ -551,7 +551,7 @@ func (k *Keeper) compoundAllFees(ctx context.Context) {
 	}
 
 	if compounded > 0 {
-		k.logger.Info("LP fee compounding complete", "compounded", compounded, "total", len(alphaTokens))
+		k.logger.Info("LP fee compounding complete", "compounded", compounded, "total", len(worknetTokens))
 	}
 }
 

@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {WorknetManager, ICLPositionManager, IPermit2, IWorknetToken} from "./WorknetManager.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {WorknetManagerBase, IWorknetToken, IERC20} from "./WorknetManagerBase.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {LiquidityAmounts} from "infinity-periphery/src/pool-cl/libraries/LiquidityAmounts.sol";
 import {TickMath} from "infinity-core/src/pool-cl/libraries/TickMath.sol";
@@ -29,51 +28,49 @@ interface IUniPoolManager {
     function take(address currency, address to, uint256 amount) external;
 }
 
-/// @title WorknetManagerUni — WorknetManager variant for Uniswap V4
-/// @dev DEX addresses are immutable (constructor). stateView is also immutable.
-contract WorknetManagerUni is WorknetManager {
+interface IUniPositionManager {
+    function modifyLiquidities(bytes calldata payload, uint256 deadline) external payable;
+    function nextTokenId() external view returns (uint256);
+}
+
+interface IPermit2 {
+    function approve(address token, address spender, uint160 amount, uint48 expiration) external;
+}
+
+/// @title WorknetManagerUni — Uniswap V4 worknet manager
+contract WorknetManagerUni is WorknetManagerBase {
     using SafeERC20 for IERC20;
 
-    // ── Uniswap V4 specific (immutable) ──
+    address public immutable poolManager;
+    address public immutable positionManager;
     address public immutable stateView;
+    address public immutable permit2;
 
-    // ── Per-worknet storage (after WorknetManager's __gap) ──
+    uint24 public constant POOL_FEE = 10000;
+    int24 public constant TICK_SPACING = 200;
+
+    uint8 internal constant ACT_MINT_POSITION = 0x02;
+    uint8 internal constant ACT_INCREASE_LIQUIDITY = 0x00;   // [B1]
+    uint8 internal constant ACT_SETTLE_PAIR = 0x0d;
+
     UniPoolKey public uniPoolKey;
 
-    /// @dev Reserved storage gap for future WorknetManagerUni upgrades
-    uint256[46] private __uniGap;
+    uint256[40] private __gap;
 
     error NotPoolManager();
     error SlippageExceeded();
 
-    /// @param permit2_ Permit2
-    /// @param clPoolManager_ Uniswap V4 PoolManager
-    /// @param clPositionManager_ Uniswap V4 PositionManager
-    /// @param clSwapRouter_ Not used for Uni (swap via unlock callback), pass address(0)
-    /// @param stateView_ Uniswap V4 StateView for reading pool state
-    constructor(
-        address permit2_, address clPoolManager_, address clPositionManager_, address clSwapRouter_, address stateView_
-    ) WorknetManager(permit2_, clPoolManager_, clPositionManager_, clSwapRouter_) {
+    constructor(address permit2_, address poolManager_, address positionManager_, address stateView_) {
+        permit2 = permit2_;
+        poolManager = poolManager_;
+        positionManager = positionManager_;
         stateView = stateView_;
+        _disableInitializers();
     }
 
-    /// @notice Initialize per-worknet state + Uniswap V4 PoolKey
-    function initialize(address worknetToken_, bytes32 poolId_, address admin_) external override initializer {
-        __UUPSUpgradeable_init();
-        __AccessControl_init();
-        __ReentrancyGuard_init();
+    function initialize(address worknetToken_, bytes32 poolId_, address admin_) external initializer {
+        __WorknetManagerBase_init(worknetToken_, poolId_, admin_);
 
-        worknetToken = IWorknetToken(worknetToken_);
-        poolId = poolId_;
-
-        _grantRole(DEFAULT_ADMIN_ROLE, admin_);
-        _grantRole(MERKLE_ROLE, admin_);
-        _grantRole(STRATEGY_ROLE, admin_);
-        _grantRole(TRANSFER_ROLE, admin_);
-
-        slippageBps = 500;
-
-        // Construct Uniswap V4 PoolKey
         (address c0, address c1) = awpToken < worknetToken_
             ? (awpToken, worknetToken_)
             : (worknetToken_, awpToken);
@@ -82,9 +79,7 @@ contract WorknetManagerUni is WorknetManager {
         });
     }
 
-    function _getSlot0() internal view override returns (uint160 sqrtPriceX96, int24 tick) {
-        (sqrtPriceX96, tick,,) = IStateView(stateView).getSlot0(poolId);
-    }
+    // ── [B1] Add liquidity: reuse existing position if tick range matches ──
 
     function _addSingleSidedLiquidity(uint256 amount) internal override {
         (, int24 currentTick) = _getSlot0();
@@ -93,19 +88,16 @@ contract WorknetManagerUni is WorknetManager {
         int24 aligned = (currentTick / ts) * ts;
         if (aligned > currentTick) aligned -= ts;
 
-        int24 minTick = (-887272 / ts) * ts;
-        int24 maxTick = (887272 / ts) * ts;
-
         bool awpIs0 = awpToken < address(worknetToken);
 
         int24 tickLower;
         int24 tickUpper;
         if (awpIs0) {
             tickLower = aligned + ts;
-            tickUpper = maxTick;
+            tickUpper = (887272 / ts) * ts;
         } else {
             tickUpper = aligned < currentTick ? aligned : aligned - ts;
-            tickLower = minTick;
+            tickLower = (-887272 / ts) * ts;
         }
 
         uint160 sqrtLower = TickMath.getSqrtRatioAtTick(tickLower);
@@ -115,40 +107,70 @@ contract WorknetManagerUni is WorknetManager {
             ? LiquidityAmounts.getLiquidityForAmount0(sqrtLower, sqrtUpper, amount)
             : LiquidityAmounts.getLiquidityForAmount1(sqrtLower, sqrtUpper, amount);
 
-        IERC20(awpToken).forceApprove(permit2, amount);
-        IPermit2(permit2).approve(awpToken, clPositionManager, uint160(amount), uint48(block.timestamp + 600));
+        if (liquidity == 0) return;  // [S2] amount too small for any liquidity
 
-        uint256 tokenId = ICLPositionManager(clPositionManager).nextTokenId();
-        bytes memory actions = abi.encodePacked(ACT_CL_MINT_POSITION, ACT_SETTLE_PAIR);
-        bytes[] memory params = new bytes[](2);
+        IERC20(awpToken).forceApprove(permit2, amount);
+        IPermit2(permit2).approve(awpToken, positionManager, uint160(amount), uint48(block.timestamp));
+
+        bool reuse = _lastLpTokenId != 0 && tickLower == _lastTickLower && tickUpper == _lastTickUpper;
 
         UniPoolKey memory pk = uniPoolKey;
-        params[0] = abi.encode(
-            pk, tickLower, tickUpper, liquidity,
-            awpIs0 ? uint128(amount) : uint128(0),
-            awpIs0 ? uint128(0) : uint128(amount),
-            address(this), bytes("")
-        );
+        bytes memory actions;
+        bytes[] memory params = new bytes[](2);
+
+        if (reuse) {
+            actions = abi.encodePacked(ACT_INCREASE_LIQUIDITY, ACT_SETTLE_PAIR);
+            params[0] = abi.encode(
+                _lastLpTokenId, liquidity,
+                awpIs0 ? uint128(amount) : uint128(0),
+                awpIs0 ? uint128(0) : uint128(amount),
+                bytes("")
+            );
+        } else {
+            uint256 tokenId = IUniPositionManager(positionManager).nextTokenId();
+            actions = abi.encodePacked(ACT_MINT_POSITION, ACT_SETTLE_PAIR);
+            params[0] = abi.encode(
+                pk, tickLower, tickUpper, liquidity,
+                awpIs0 ? uint128(amount) : uint128(0),
+                awpIs0 ? uint128(0) : uint128(amount),
+                address(this), bytes("")
+            );
+            _lastLpTokenId = tokenId;
+            _lastTickLower = tickLower;
+            _lastTickUpper = tickUpper;
+        }
         params[1] = abi.encode(pk.currency0, pk.currency1);
 
-        ICLPositionManager(clPositionManager).modifyLiquidities(abi.encode(actions, params), block.timestamp);
-        emit LiquidityAdded(tokenId, amount);
+        IUniPositionManager(positionManager).modifyLiquidities(abi.encode(actions, params), block.timestamp);
+
+        if (reuse) {
+            emit LiquidityIncreased(_lastLpTokenId, amount);
+        } else {
+            emit LiquidityAdded(_lastLpTokenId, amount);
+        }
     }
 
-    function _buybackAndBurn(uint256 amount) internal override {
+    // ── [B2] Buyback: accept minAmountOut for MEV protection ──
+
+    function _buybackAndBurn(uint256 amount, uint256 minAmountOut) internal override {
         bool zeroForOne = awpToken < address(worknetToken);
 
-        (uint160 sqrtPriceX96,) = _getSlot0();
-        uint256 expectedOut;
-        if (zeroForOne) {
-            expectedOut = FullMath.mulDiv(FullMath.mulDiv(amount, sqrtPriceX96, 1 << 96), sqrtPriceX96, 1 << 96);
+        uint128 minOut;
+        if (minAmountOut > 0) {
+            minOut = uint128(minAmountOut);
         } else {
-            expectedOut = FullMath.mulDiv(FullMath.mulDiv(amount, 1 << 96, sqrtPriceX96), 1 << 96, sqrtPriceX96);
+            (uint160 sqrtPriceX96,) = _getSlot0();
+            uint256 expectedOut;
+            if (zeroForOne) {
+                expectedOut = FullMath.mulDiv(FullMath.mulDiv(amount, sqrtPriceX96, 1 << 96), sqrtPriceX96, 1 << 96);
+            } else {
+                expectedOut = FullMath.mulDiv(FullMath.mulDiv(amount, 1 << 96, sqrtPriceX96), 1 << 96, sqrtPriceX96);
+            }
+            minOut = uint128(expectedOut * (10000 - slippageBps) / 10000);
         }
-        uint128 minOut = uint128(expectedOut * (10000 - slippageBps) / 10000);
 
         uint256 before = worknetToken.balanceOf(address(this));
-        IUniPoolManager(clPoolManager).unlock(abi.encode(amount, zeroForOne, minOut));
+        IUniPoolManager(poolManager).unlock(abi.encode(amount, zeroForOne, minOut));
 
         uint256 received = worknetToken.balanceOf(address(this)) - before;
         if (received > 0) worknetToken.burn(received);
@@ -156,13 +178,13 @@ contract WorknetManagerUni is WorknetManager {
     }
 
     function unlockCallback(bytes calldata data) external returns (bytes memory) {
-        if (msg.sender != clPoolManager) revert NotPoolManager();
+        if (msg.sender != poolManager) revert NotPoolManager();
 
         (uint256 amount, bool zeroForOne, uint128 minOut) = abi.decode(data, (uint256, bool, uint128));
 
         UniPoolKey memory pk = uniPoolKey;
 
-        int256 delta = IUniPoolManager(clPoolManager).swap(
+        int256 delta = IUniPoolManager(poolManager).swap(
             pk,
             IUniPoolManager.SwapParams({
                 zeroForOne: zeroForOne,
@@ -184,12 +206,16 @@ contract WorknetManagerUni is WorknetManager {
 
         if (outputAmt < minOut) revert SlippageExceeded();
 
-        IUniPoolManager(clPoolManager).sync(inputCurrency);
-        IERC20(inputCurrency).safeTransfer(clPoolManager, inputAmt);
-        IUniPoolManager(clPoolManager).settle();
+        IUniPoolManager(poolManager).sync(inputCurrency);
+        IERC20(inputCurrency).safeTransfer(poolManager, inputAmt);
+        IUniPoolManager(poolManager).settle();
 
-        IUniPoolManager(clPoolManager).take(outputCurrency, address(this), outputAmt);
+        IUniPoolManager(poolManager).take(outputCurrency, address(this), outputAmt);
 
         return bytes("");
+    }
+
+    function _getSlot0() internal view returns (uint160 sqrtPriceX96, int24 tick) {
+        (sqrtPriceX96, tick,,) = IStateView(stateView).getSlot0(poolId);
     }
 }

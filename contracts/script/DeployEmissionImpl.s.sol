@@ -4,26 +4,36 @@ pragma solidity ^0.8.20;
 import {Script, console} from "forge-std/Script.sol";
 import {AWPEmission} from "../src/token/AWPEmission.sol";
 
-/// @title DeployEmissionImpl — Deploy new AWPEmission implementation via deterministic CREATE2
-/// @dev Same salt on all chains → identical impl address
 contract DeployEmissionImpl is Script {
-    bytes32 constant SALT = 0xb1729b95e89705c1ccf369240e9d5a17feaf66177106289f2fdbcb79261649e6;
+    address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
+    address constant AWP_TOKEN = 0x0000A1050AcF9DEA8af9c2E74f0D7CF43f1000A1;
+    bytes32 constant SALT = 0xd37af1bd9051f030d1411478b9e9ee40ad353b83f05bc1e99db913921c32ff34;
+    address constant EXPECTED = 0x0000dd24c04AaC097149fb4Fc75D09a8378900ae;
 
     function run() external {
-        bytes memory initCode = type(AWPEmission).creationCode;
+        uint256 deployerPk = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        vm.startBroadcast(deployerPk);
 
-        uint256 pk = vm.envUint("DEPLOYER_PRIVATE_KEY");
-        vm.startBroadcast(pk);
+        bytes memory initcode = abi.encodePacked(
+            type(AWPEmission).creationCode,
+            abi.encode(AWP_TOKEN)
+        );
+        (bool ok,) = CREATE2_DEPLOYER.call(abi.encodePacked(SALT, initcode));
+        require(ok, "deploy failed");
 
-        (bool ok, bytes memory ret) = CREATE2_FACTORY.call(abi.encodePacked(SALT, initCode));
-        require(ok && ret.length == 20, "CREATE2 deploy failed");
-
-        address deployed;
-        assembly { deployed := mload(add(ret, 20)) }
+        address deployed = _predict(SALT, keccak256(initcode));
+        require(deployed == EXPECTED, "addr mismatch");
 
         vm.stopBroadcast();
 
-        console.log("AWPEmission new impl:", deployed);
-        console.log("Chain ID:", block.chainid);
+        console.log("AWPEmission impl:", deployed);
+        console.log("  awpToken:", address(AWPEmission(deployed).awpToken()));
+        console.log("  cachedMaxSupply:", AWPEmission(deployed).cachedMaxSupply());
+    }
+
+    function _predict(bytes32 salt, bytes32 h) internal pure returns (address) {
+        return address(uint160(uint256(keccak256(
+            abi.encodePacked(bytes1(0xff), CREATE2_DEPLOYER, salt, h)
+        ))));
     }
 }

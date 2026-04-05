@@ -1,5 +1,5 @@
 -- name: InsertSubnet :exec
-INSERT INTO subnets (subnet_id, chain_id, owner, name, symbol, subnet_contract, skills_uri, min_stake, alpha_token, lp_pool, status, created_at, immunity_ends_at)
+INSERT INTO subnets (subnet_id, chain_id, owner, name, symbol, subnet_contract, skills_uri, min_stake, worknet_token, lp_pool, status, created_at, immunity_ends_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Pending', $11, $12)
 ON CONFLICT (subnet_id) DO NOTHING;
 
@@ -50,11 +50,11 @@ UPDATE subnets SET burned = TRUE WHERE subnet_id = $1;
 -- name: GetActiveSubnets :many
 SELECT * FROM subnets WHERE chain_id = $1 AND status = 'Active' AND burned = FALSE ORDER BY subnet_id;
 
--- name: ListActiveAlphaTokens :many
-SELECT alpha_token FROM subnets WHERE chain_id = $1 AND status = 'Active' AND alpha_token != '';
+-- name: ListActiveWorknetTokens :many
+SELECT worknet_token FROM subnets WHERE chain_id = $1 AND status = 'Active' AND worknet_token != '';
 
 -- name: CountAllSubnets :one
 SELECT COUNT(*) FROM subnets WHERE burned = FALSE;
 
--- name: ListActiveAlphaTokensWithSubnetID :many
-SELECT subnet_id, alpha_token FROM subnets WHERE chain_id = $1 AND status = 'Active' AND alpha_token != '';
+-- name: ListActiveWorknetTokensWithSubnetID :many
+SELECT subnet_id, worknet_token FROM subnets WHERE chain_id = $1 AND status = 'Active' AND worknet_token != '';

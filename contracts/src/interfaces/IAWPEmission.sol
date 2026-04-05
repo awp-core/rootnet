@@ -38,10 +38,10 @@ interface IAWPEmission {
     function currentEpoch() external view returns (uint256);
     function getRecipientCount() external view returns (uint256);
     function getRecipient(uint256 index) external view returns (address);
-    function getWeight(address addr) external view returns (uint96);
+    function getWeight(address addr) external view returns (uint64);
     function getTotalWeight() external view returns (uint256);
     function getEpochRecipientCount(uint256 epoch) external view returns (uint256);
-    function getEpochWeight(uint256 epoch, address addr) external view returns (uint96);
+    function getEpochWeight(uint256 epoch, address addr) external view returns (uint64);
     function getEpochTotalWeight(uint256 epoch) external view returns (uint256);
 
     // ── Events ──

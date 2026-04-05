@@ -65,7 +65,7 @@ func NewRouter(p RouterParams) chi.Router {
 		r.Get("/address/{address}/resolve-recipient", h.ResolveRecipient)
 		r.Post("/address/batch-resolve-recipients", h.BatchResolveRecipients)
 		r.Get("/nonce/{address}", h.GetNonce)
-		r.Get("/staking-nonce/{address}", h.GetStakingNonce)
+		r.Get("/staking-nonce/{address}", h.GetAllocatorNonce)
 
 		// Agent nodes
 		r.Route("/agents", func(r chi.Router) {
@@ -115,8 +115,8 @@ func NewRouter(p RouterParams) chi.Router {
 		r.Route("/tokens", func(r chi.Router) {
 			r.Get("/awp", h.GetAWPInfo)
 			r.Get("/awp/global", h.GetAWPInfoGlobal)
-			r.Get("/alpha/{worknetId}", h.GetAlphaInfo)
-			r.Get("/alpha/{worknetId}/price", h.GetAlphaPrice)
+			r.Get("/alpha/{worknetId}", h.GetWorknetTokenInfo)
+			r.Get("/alpha/{worknetId}/price", h.GetWorknetTokenPrice)
 		})
 
 		// Governance
@@ -149,7 +149,7 @@ func NewRouter(p RouterParams) chi.Router {
 			r.Post("/set-recipient", p.RelayHandler.RelaySetRecipient)
 			r.Post("/allocate", p.RelayHandler.RelayAllocate)
 			r.Post("/deallocate", p.RelayHandler.RelayDeallocate)
-			r.Post("/activate-subnet", p.RelayHandler.RelayActivateSubnet)
+			// activate-subnet removed — activation is now Guardian-only
 			r.Post("/register-subnet", p.RelayHandler.RelayRegisterSubnet)
 			r.Post("/grant-delegate", p.RelayHandler.RelayGrantDelegate)
 			r.Post("/revoke-delegate", p.RelayHandler.RelayRevokeDelegate)
