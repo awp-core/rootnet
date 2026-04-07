@@ -184,22 +184,23 @@ func decodeRelayError(err error) string {
 			}
 		}
 	}
-	// Fallback: find a valid 4-byte selector (0x + exactly 8 hex chars)
-	if idx := strings.Index(s, "0x"); idx >= 0 && len(s) >= idx+10 {
-		selector := s[idx : idx+10]
-		// Validate it's a proper hex selector
-		isHex := true
-		for _, c := range selector[2:] {
-			if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
-				isHex = false
-				break
+	// Fallback: find a valid 4-byte selector only in revert context (avoid matching tx hashes)
+	if strings.Contains(s, "execution reverted") {
+		if idx := strings.Index(s, "0x"); idx >= 0 && len(s) >= idx+10 {
+			selector := s[idx : idx+10]
+			isHex := true
+			for _, c := range selector[2:] {
+				if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+					isHex = false
+					break
+				}
 			}
-		}
-		if isHex {
-			if msg, ok := revertErrors[selector]; ok {
-				return msg
+			if isHex {
+				if msg, ok := revertErrors[selector]; ok {
+					return msg
+				}
+				return "on-chain revert: " + selector
 			}
-			return "on-chain revert: " + selector
 		}
 	}
 	// Non-revert errors — match common patterns without leaking internal details
@@ -252,8 +253,8 @@ func (rh *RelayHandler) resolveRelayer(chainID int64) (*chain.Relayer, error) {
 	if r, ok := rh.relayers[chainID]; ok {
 		return r, nil
 	}
-	// Single-chain mode: fall back to the only relayer regardless of requested chainId
-	if len(rh.relayers) == 1 {
+	// Single-chain mode: fall back to the only relayer when chainId is 0 or omitted
+	if chainID == 0 && len(rh.relayers) == 1 {
 		for _, r := range rh.relayers {
 			return r, nil
 		}
@@ -390,6 +391,12 @@ func (rh *RelayHandler) RelayRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, "chain not supported")
+		return
+	}
+
 	exceeded, rateLimitErr := rh.checkRateLimit(r)
 	if rateLimitErr != nil {
 		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
@@ -397,12 +404,6 @@ func (rh *RelayHandler) RelayRegister(w http.ResponseWriter, r *http.Request) {
 	}
 	if exceeded {
 		rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay"))
-		return
-	}
-
-	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
-	if resolveErr != nil {
-		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
 		return
 	}
 
@@ -453,7 +454,12 @@ func (rh *RelayHandler) RelayBind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Rate limit check (after validation)
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, "chain not supported")
+		return
+	}
+
 	exceeded, rateLimitErr := rh.checkRateLimit(r)
 	if rateLimitErr != nil {
 		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
@@ -461,12 +467,6 @@ func (rh *RelayHandler) RelayBind(w http.ResponseWriter, r *http.Request) {
 	}
 	if exceeded {
 		rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay"))
-		return
-	}
-
-	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
-	if resolveErr != nil {
-		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
 		return
 	}
 
@@ -517,7 +517,12 @@ func (rh *RelayHandler) RelaySetRecipient(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Rate limit check
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, "chain not supported")
+		return
+	}
+
 	exceeded, rateLimitErr := rh.checkRateLimit(r)
 	if rateLimitErr != nil {
 		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
@@ -525,12 +530,6 @@ func (rh *RelayHandler) RelaySetRecipient(w http.ResponseWriter, r *http.Request
 	}
 	if exceeded {
 		rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay"))
-		return
-	}
-
-	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
-	if resolveErr != nil {
-		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
 		return
 	}
 
@@ -566,6 +565,9 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 	v, rs, ss, err := parseSignature(req.Signature)
 	if err != nil { rh.writeError(w, http.StatusBadRequest, err.Error()); return }
 
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil { rh.writeError(w, http.StatusBadRequest, "chain not supported"); return }
+
 	exceeded, rateLimitErr := rh.checkRateLimit(r)
 	if rateLimitErr != nil { rh.writeError(w, http.StatusInternalServerError, "rate limit check failed"); return }
 	if exceeded { rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay")); return }
@@ -575,12 +577,6 @@ func (rh *RelayHandler) RelayAllocate(w http.ResponseWriter, r *http.Request) {
 
 	amount, amtOk := new(big.Int).SetString(req.Amount, 10)
 	if !amtOk || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
-
-	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
-	if resolveErr != nil {
-		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
-		return
-	}
 
 	txHash, err := relayer.RelayAllocate(r.Context(),
 		common.HexToAddress(req.Staker), common.HexToAddress(req.Agent),
@@ -612,6 +608,9 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 	v, rs, ss, err := parseSignature(req.Signature)
 	if err != nil { rh.writeError(w, http.StatusBadRequest, err.Error()); return }
 
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil { rh.writeError(w, http.StatusBadRequest, "chain not supported"); return }
+
 	exceeded, rateLimitErr := rh.checkRateLimit(r)
 	if rateLimitErr != nil { rh.writeError(w, http.StatusInternalServerError, "rate limit check failed"); return }
 	if exceeded { rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay")); return }
@@ -621,12 +620,6 @@ func (rh *RelayHandler) RelayDeallocate(w http.ResponseWriter, r *http.Request) 
 
 	amount, amtOk := new(big.Int).SetString(req.Amount, 10)
 	if !amtOk || amount.Sign() <= 0 { rh.writeError(w, http.StatusBadRequest, "invalid amount"); return }
-
-	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
-	if resolveErr != nil {
-		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
-		return
-	}
 
 	txHash, err := relayer.RelayDeallocate(r.Context(),
 		common.HexToAddress(req.Staker), common.HexToAddress(req.Agent),
@@ -693,7 +686,12 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Rate limit
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, "chain not supported")
+		return
+	}
+
 	exceeded, rateLimitErr := rh.checkRateLimit(r)
 	if rateLimitErr != nil {
 		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
@@ -704,7 +702,7 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Build SubnetParams
+	// Build WorknetParams
 	var salt [32]byte
 	if req.Salt != "" {
 		saltHex := strings.TrimPrefix(req.Salt, "0x")
@@ -718,9 +716,14 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 		subnetMgr = common.HexToAddress(req.WorknetManager)
 	}
 
-	minStake, _ := new(big.Int).SetString(req.MinStake, 10)
-	if minStake == nil {
-		minStake = big.NewInt(0)
+	minStake := big.NewInt(0)
+	if req.MinStake != "" {
+		var ok bool
+		minStake, ok = new(big.Int).SetString(req.MinStake, 10)
+		if !ok || minStake.Sign() < 0 {
+			rh.writeError(w, http.StatusBadRequest, "invalid minStake: must be a non-negative integer")
+			return
+		}
 	}
 
 	params := bindings.IAWPRegistryWorknetParams{
@@ -730,12 +733,6 @@ func (rh *RelayHandler) RelayRegisterSubnet(w http.ResponseWriter, r *http.Reque
 		Salt:          salt,
 		MinStake:      minStake,
 		SkillsURI:     req.SkillsURI,
-	}
-
-	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
-	if resolveErr != nil {
-		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
-		return
 	}
 
 	user := common.HexToAddress(req.User)
@@ -827,6 +824,12 @@ func (rh *RelayHandler) RelayGrantDelegate(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, "chain not supported")
+		return
+	}
+
 	exceeded, rateLimitErr := rh.checkRateLimit(r)
 	if rateLimitErr != nil {
 		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
@@ -834,12 +837,6 @@ func (rh *RelayHandler) RelayGrantDelegate(w http.ResponseWriter, r *http.Reques
 	}
 	if exceeded {
 		rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay"))
-		return
-	}
-
-	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
-	if resolveErr != nil {
-		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
 		return
 	}
 
@@ -881,6 +878,12 @@ func (rh *RelayHandler) RelayRevokeDelegate(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, "chain not supported")
+		return
+	}
+
 	exceeded, rateLimitErr := rh.checkRateLimit(r)
 	if rateLimitErr != nil {
 		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
@@ -888,12 +891,6 @@ func (rh *RelayHandler) RelayRevokeDelegate(w http.ResponseWriter, r *http.Reque
 	}
 	if exceeded {
 		rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay"))
-		return
-	}
-
-	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
-	if resolveErr != nil {
-		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
 		return
 	}
 
@@ -935,6 +932,12 @@ func (rh *RelayHandler) RelayUnbind(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, "chain not supported")
+		return
+	}
+
 	exceeded, rateLimitErr := rh.checkRateLimit(r)
 	if rateLimitErr != nil {
 		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
@@ -942,12 +945,6 @@ func (rh *RelayHandler) RelayUnbind(w http.ResponseWriter, r *http.Request) {
 	}
 	if exceeded {
 		rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay"))
-		return
-	}
-
-	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
-	if resolveErr != nil {
-		rh.writeError(w, http.StatusBadRequest, resolveErr.Error())
 		return
 	}
 

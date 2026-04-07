@@ -32,7 +32,6 @@ contract WorknetToken is ERC1363, ERC20Burnable, ERC20Permit {
     error ZeroAddress();
     error ExceedsMaxSupply();
     error ExceedsMintableLimit();
-
     /// @dev Reads token params from factory via callback. No constructor args → constant creationCode.
     constructor()
         ERC20(
@@ -49,7 +48,10 @@ contract WorknetToken is ERC1363, ERC20Burnable, ERC20Permit {
         return minter != address(0);
     }
 
-    /// @notice Lock the permanent minter. One-time, no auth (atomic with deploy).
+    /// @notice Lock the permanent minter. One-time call.
+    /// @dev No access control by design — adding immutable state would change creationCode
+    /// and break universal vanity salt. The race window during _activateWorknet is safe
+    /// because lpManager is trusted AWP code and the call chain is nonReentrant.
     function setMinter(address newMinter) external {
         if (minter != address(0)) revert AlreadyInitialized();
         if (newMinter == address(0)) revert ZeroAddress();
