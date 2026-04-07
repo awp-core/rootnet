@@ -131,10 +131,17 @@ func (h *Handler) rpcUsersCount(ctx context.Context, raw json.RawMessage) (any, 
 		ChainID int64 `json:"chainId"`
 	}
 	_ = json.Unmarshal(raw, &p)
-	chainID := h.resolveRPCChainID(p.ChainID)
-	count, err := h.svcGetUserCount(ctx, chainID)
+	if p.ChainID > 0 {
+		count, err := h.svcGetUserCount(ctx, p.ChainID)
+		if err != nil {
+			return nil, svcToRPC(err)
+		}
+		return map[string]int64{"count": count}, nil
+	}
+	// No chainId — return distinct user count across all chains
+	count, err := h.queries.CountAllDistinctUsers(ctx)
 	if err != nil {
-		return nil, svcToRPC(err)
+		return nil, &RPCErr{Code: rpcInternalError, Message: "count users failed"}
 	}
 	return map[string]int64{"count": count}, nil
 }

@@ -26,12 +26,22 @@ func (h *Handler) ListUsers(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, result)
 }
 
-// GetUserCount returns the total number of users
+// GetUserCount returns the total number of users.
+// Without ?chainId, returns distinct user count across all chains.
 func (h *Handler) GetUserCount(w http.ResponseWriter, r *http.Request) {
-	chainID := h.resolveChainID(r)
-	count, err := h.svcGetUserCount(r.Context(), chainID)
+	if v := r.URL.Query().Get("chainId"); v != "" {
+		chainID := h.resolveChainID(r)
+		count, err := h.svcGetUserCount(r.Context(), chainID)
+		if err != nil {
+			h.writeSvcError(w, err)
+			return
+		}
+		h.writeJSON(w, http.StatusOK, map[string]int64{"count": count})
+		return
+	}
+	count, err := h.queries.CountAllDistinctUsers(r.Context())
 	if err != nil {
-		h.writeSvcError(w, err)
+		h.writeError(w, http.StatusInternalServerError, "count users failed")
 		return
 	}
 	h.writeJSON(w, http.StatusOK, map[string]int64{"count": count})
