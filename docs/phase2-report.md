@@ -1,5 +1,7 @@
 # Phase 2 Development Report — Go Backend
 
+> **Note**: This is a historical report from Phase 2. Contract names have since been renamed: AlphaToken -> WorknetToken, SubnetNFT -> AWPWorkNet, StakingVault -> AWPAllocator, StakeNFT -> veAWP, SubnetManager -> WorknetManager. API event names changed from Subnet* to Worknet* prefix.
+
 ## Overview
 
 The complete Go backend for AWP has been implemented, consisting of three independent processes (API server, Chain Indexer, Keeper Bot) sharing PostgreSQL and Redis for data and inter-process communication.

@@ -80,7 +80,13 @@ func (h *Handler) rpcRegistryGet(ctx context.Context, raw json.RawMessage) (any,
 	if p.ChainID > 0 {
 		return h.svcGetRegistry(ctx, p.ChainID), nil
 	}
-	// No chainId — return all chains
+	// No chainId — return default chain (single object) for backward compatibility.
+	// External skills expect a single registry object, not an array.
+	// Use registry.list for multi-chain array.
+	return h.svcGetRegistry(ctx, h.defaultChainID()), nil
+}
+
+func (h *Handler) rpcRegistryList(ctx context.Context, _ json.RawMessage) (any, *RPCErr) {
 	return h.svcGetRegistryAll(ctx), nil
 }
 

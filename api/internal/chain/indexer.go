@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cortexia/rootnet/api/internal/chain/bindings"
 	"github.com/cortexia/rootnet/api/internal/db/gen"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -566,18 +567,28 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// VeAWP.PositionDecreased — partial withdrawal (amount reduced, position kept)
+	// VeAWP.PositionDecreased — partial withdrawal
 	if evt, err := veAWP.ParsePositionDecreased(lg); err == nil {
-		// Read position from chain to get current lockEndTime (unchanged by partialWithdraw)
-		pos, err := idx.chain.VeAWP.Positions(&bind.CallOpts{Context: ctx}, evt.TokenId)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read position: %w", err)
+		// lockEndTime unchanged by partialWithdraw — read from local DB, fall back to on-chain RPC
+		var lockEndTime int64
+		existing, dbErr := q.GetStakePosition(ctx, gen.GetStakePositionParams{
+			ChainID: idx.chainID, TokenID: evt.TokenId.Int64(),
+		})
+		if dbErr == nil {
+			lockEndTime = existing.LockEndTime
+		} else {
+			// Position not yet in DB (indexer started mid-stream) — read from chain
+			pos, rpcErr := idx.chain.VeAWP.Positions(&bind.CallOpts{Context: ctx}, evt.TokenId)
+			if rpcErr != nil {
+				return nil, fmt.Errorf("PositionDecreased: position not in DB and RPC failed: %w", rpcErr)
+			}
+			lockEndTime = int64(pos.LockEndTime)
 		}
 		if err := q.UpdateStakePosition(ctx, gen.UpdateStakePositionParams{
 			ChainID:     idx.chainID,
 			TokenID:     evt.TokenId.Int64(),
 			Amount:      bigIntToNumeric(evt.RemainingAmount),
-			LockEndTime: int64(pos.LockEndTime),
+			LockEndTime: lockEndTime,
 		}); err != nil {
 			return nil, fmt.Errorf("UpdateStakePosition (PositionDecreased): %w", err)
 		}
@@ -746,12 +757,15 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			worknetManager = strings.ToLower(nftData.WorknetManager.Hex())
 			worknetToken = strings.ToLower(nftData.WorknetToken.Hex())
 		}
-		// Read on-chain createdAt (block.timestamp, not block number)
+		// Read on-chain createdAt (block.timestamp)
 		var createdAtTs int64
 		if subnetInfo, err := idx.chain.AWPRegistry.GetWorknet(nil, evt.WorknetId); err == nil {
 			createdAtTs = int64(subnetInfo.CreatedAt)
-		} else {
-			createdAtTs = int64(lg.BlockNumber) // fallback to block number if RPC fails
+		} else if header, err := idx.chain.Eth.HeaderByNumber(ctx, new(big.Int).SetUint64(lg.BlockNumber)); err == nil {
+			createdAtTs = int64(header.Time)
+		}
+		if createdAtTs == 0 {
+			return nil, fmt.Errorf("WorknetRegistered: unable to determine createdAt timestamp for worknet %s", evt.WorknetId)
 		}
 		if err := q.InsertSubnet(ctx, gen.InsertSubnetParams{
 			SubnetID:       bigIntToNumeric(evt.WorknetId),
@@ -810,8 +824,11 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		var activatedAtTs int64
 		if subnetInfo, err := idx.chain.AWPRegistry.GetWorknet(nil, evt.WorknetId); err == nil {
 			activatedAtTs = int64(subnetInfo.ActivatedAt)
-		} else {
-			activatedAtTs = int64(lg.BlockNumber) // fallback
+		} else if header, err := idx.chain.Eth.HeaderByNumber(ctx, new(big.Int).SetUint64(lg.BlockNumber)); err == nil {
+			activatedAtTs = int64(header.Time)
+		}
+		if activatedAtTs == 0 {
+			return nil, fmt.Errorf("WorknetActivated: unable to determine activatedAt timestamp for worknet %s", evt.WorknetId)
 		}
 		if err := q.UpdateSubnetActivated(ctx, gen.UpdateSubnetActivatedParams{
 			SubnetID:    bigIntToNumeric(evt.WorknetId),
@@ -824,72 +841,30 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 		})}, nil
 	}
 
-	// WorknetPaused
-	if evt, err := awpRegistry.ParseWorknetPaused(lg); err == nil {
+	// Worknet status change events (Paused/Resumed/Banned/Unbanned/Rejected)
+	if worknetId, eventName, dbStatus, ok := parseWorknetStatusEvent(awpRegistry, lg); ok {
 		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: bigIntToNumeric(evt.WorknetId),
-			Status:   "Paused",
+			SubnetID: bigIntToNumeric(worknetId),
+			Status:   dbStatus,
 		}); err != nil {
-			return nil, fmt.Errorf("UpdateSubnetStatus(Paused): %w", err)
+			return nil, fmt.Errorf("UpdateSubnetStatus(%s): %w", dbStatus, err)
 		}
-		return []redisEvent{makeEvent("WorknetPaused", idx.chainID, lg, map[string]interface{}{
-			"worknetId": evt.WorknetId.String(),
+		return []redisEvent{makeEvent(eventName, idx.chainID, lg, map[string]interface{}{
+			"worknetId": worknetId.String(),
 		})}, nil
 	}
 
-	// WorknetResumed
-	if evt, err := awpRegistry.ParseWorknetResumed(lg); err == nil {
-		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: bigIntToNumeric(evt.WorknetId),
-			Status:   "Active",
-		}); err != nil {
-			return nil, fmt.Errorf("UpdateSubnetStatus(Active): %w", err)
-		}
-		return []redisEvent{makeEvent("WorknetResumed", idx.chainID, lg, map[string]interface{}{
-			"worknetId": evt.WorknetId.String(),
-		})}, nil
-	}
-
-	// WorknetBanned
-	if evt, err := awpRegistry.ParseWorknetBanned(lg); err == nil {
-		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: bigIntToNumeric(evt.WorknetId),
-			Status:   "Banned",
-		}); err != nil {
-			return nil, fmt.Errorf("UpdateSubnetStatus(Banned): %w", err)
-		}
-		return []redisEvent{makeEvent("WorknetBanned", idx.chainID, lg, map[string]interface{}{
-			"worknetId": evt.WorknetId.String(),
-		})}, nil
-	}
-
-	// WorknetUnbanned
-	if evt, err := awpRegistry.ParseWorknetUnbanned(lg); err == nil {
-		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: bigIntToNumeric(evt.WorknetId),
-			Status:   "Active",
-		}); err != nil {
-			return nil, fmt.Errorf("UpdateSubnetStatus(Active): %w", err)
-		}
-		return []redisEvent{makeEvent("WorknetUnbanned", idx.chainID, lg, map[string]interface{}{
-			"worknetId": evt.WorknetId.String(),
-		})}, nil
-	}
-
-	// WorknetRejected
+	// WorknetRejected — Guardian rejects pending worknet (refund + delete, same as cancel)
 	if evt, err := awpRegistry.ParseWorknetRejected(lg); err == nil {
-		if err := q.UpdateSubnetStatus(ctx, gen.UpdateSubnetStatusParams{
-			SubnetID: bigIntToNumeric(evt.WorknetId),
-			Status:   "Rejected",
-		}); err != nil {
-			return nil, fmt.Errorf("UpdateSubnetStatus(Rejected): %w", err)
+		if err := q.UpdateSubnetBurned(ctx, bigIntToNumeric(evt.WorknetId)); err != nil {
+			return nil, fmt.Errorf("UpdateSubnetBurned(Rejected): %w", err)
 		}
 		return []redisEvent{makeEvent("WorknetRejected", idx.chainID, lg, map[string]interface{}{
 			"worknetId": evt.WorknetId.String(),
 		})}, nil
 	}
 
-	// WorknetCancelled
+	// WorknetCancelled — Owner cancels pending worknet (refund + delete)
 	if evt, err := awpRegistry.ParseWorknetCancelled(lg); err == nil {
 		if err := q.UpdateSubnetBurned(ctx, bigIntToNumeric(evt.WorknetId)); err != nil {
 			return nil, fmt.Errorf("UpdateSubnetBurned: %w", err)
@@ -1049,6 +1024,12 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 			return []redisEvent{makeEvent("InitialAlphaPriceUpdated", idx.chainID, lg, map[string]interface{}{
 				"newPrice": newPrice.String(),
 			})}, nil
+		// InitialAlphaMintUpdated(uint256 amount)
+		case common.HexToHash("0x4e054961bd2201ea7f7258bd8aa882b8ccb002f27ba9e6c0f10d2c0546cf616e"):
+			amount := new(big.Int).SetBytes(lg.Data)
+			return []redisEvent{makeEvent("InitialAlphaMintUpdated", idx.chainID, lg, map[string]interface{}{
+				"amount": amount.String(),
+			})}, nil
 		// WorknetTokenFactoryUpdated(address indexed newFactory)
 		case common.HexToHash("0x6fac6d042be483deca8d53cac5f9d41f12737c9d1bd41bac9a83651ba6360ba3"):
 			newFactory := common.BytesToAddress(lg.Topics[1].Bytes())
@@ -1114,6 +1095,27 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// Unrecognized event (may be Paused/Unpaused or other events that don't need to be stored)
 	return nil, nil
+}
+
+// parseWorknetStatusEvent tries to parse a log as one of the worknet status-change events.
+// Returns (worknetId, redisEventName, dbStatus, true) on match, or (nil, "", "", false).
+func parseWorknetStatusEvent(reg *bindings.AWPRegistry, lg types.Log) (*big.Int, string, string, bool) {
+	if evt, err := reg.ParseWorknetPaused(lg); err == nil {
+		return evt.WorknetId, "WorknetPaused", "Paused", true
+	}
+	if evt, err := reg.ParseWorknetResumed(lg); err == nil {
+		return evt.WorknetId, "WorknetResumed", "Active", true
+	}
+	if evt, err := reg.ParseWorknetBanned(lg); err == nil {
+		return evt.WorknetId, "WorknetBanned", "Banned", true
+	}
+	if evt, err := reg.ParseWorknetUnbanned(lg); err == nil {
+		return evt.WorknetId, "WorknetUnbanned", "Active", true
+	}
+	// WorknetRejected is NOT a status change — it deletes the worknet (same as cancel).
+	// Handled separately via UpdateSubnetBurned in the caller.
+
+	return nil, "", "", false
 }
 
 // bigIntToNumeric converts a *big.Int to pgtype.Numeric

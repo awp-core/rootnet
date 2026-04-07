@@ -17,11 +17,11 @@ Returns all protocol contract addresses + chainId:
   "awpRegistry": "0x...",
   "awpToken": "0x...",
   "awpEmission": "0x...",
-  "stakingVault": "0x...",
-  "stakeNFT": "0x...",
-  "subnetNFT": "0x...",
+  "awpAllocator": "0x...",
+  "veAWP": "0x...",
+  "awpWorkNet": "0x...",
   "lpManager": "0x...",
-  "alphaTokenFactory": "0x...",
+  "worknetTokenFactory": "0x...",
   "dao": "0x...",
   "treasury": "0x...",
   "eip712Domain": {
@@ -33,7 +33,7 @@ Returns all protocol contract addresses + chainId:
 }
 ```
 
-> **Note:** Per-subnet addresses (`subnet_contract`, `alpha_token`, `lp_pool`) are returned by `GET /subnets/{subnetId}`, not by `/registry`.
+> **Note:** Per-worknet addresses (`worknet_contract`, `worknet_token`, `lp_pool`) are returned by `GET /worknets/{worknetId}`, not by `/registry`.
 
 ### `GET /chains`
 Returns all supported chains:
@@ -88,10 +88,10 @@ Paginated user list.
   "unallocated": "5000000000000000000000"
 }
 ```
-> `totalStaked` is computed from StakeNFT positions. No `withdrawRequest` field.
+> `totalStaked` is computed from veAWP positions. No `withdrawRequest` field.
 
 ### `GET /staking/user/{address}/positions`
-StakeNFT position NFTs owned by the user:
+veAWP position NFTs owned by the user:
 ```json
 [
   {"token_id": 1, "amount": "5000000000000000000000", "lock_end_time": 1710604800, "created_at": 1710000000},
@@ -101,20 +101,20 @@ StakeNFT position NFTs owned by the user:
 
 ### `GET /staking/user/{address}/allocations?page=1&limit=20`
 ```json
-[{"user_address": "0x...", "agent_address": "0x...", "subnet_id": 1, "amount": "5000000000000000000000", "frozen": false}]
+[{"user_address": "0x...", "agent_address": "0x...", "worknet_id": 1, "amount": "5000000000000000000000", "frozen": false}]
 ```
 
-### `GET /staking/agent/{agent}/subnet/{subnetId}`
+### `GET /staking/agent/{agent}/worknet/{worknetId}`
 ```json
 {"amount": "5000000000000000000000"}
 ```
 
-### `GET /staking/agent/{agent}/subnets`
+### `GET /staking/agent/{agent}/worknets`
 ```json
-[{"subnet_id": 1, "amount": "5000000000000000000000"}, {"subnet_id": 3, "amount": "2000000000000000000000"}]
+[{"worknet_id": 1, "amount": "5000000000000000000000"}, {"worknet_id": 3, "amount": "2000000000000000000000"}]
 ```
 
-### `GET /staking/subnet/{subnetId}/total`
+### `GET /staking/worknet/{worknetId}/total`
 ```json
 {"total": "50000000000000000000000"}
 ```
@@ -127,56 +127,53 @@ Returns pending operations (currently always empty):
 
 ---
 
-## Subnets
+## Worknets
 
-### `GET /subnets?status=Active&page=1&limit=20`
+### `GET /worknets?status=Active&page=1&limit=20`
 ```json
 [
   {
-    "subnet_id": 1,
+    "worknet_id": 1,
     "chain_id": 8453,
     "owner": "0x...",
-    "name": "My Subnet",
-    "symbol": "MSUB",
-    "subnet_contract": "0x...",
+    "name": "My Worknet",
+    "symbol": "MWN",
+    "worknet_contract": "0x...",
     "skills_uri": "ipfs://QmSkills...",
-    "alpha_token": "0x...",
+    "worknet_token": "0x...",
     "lp_pool": "0x...",
     "status": "Active",
     "created_at": 1710000000,
     "activated_at": 1710000100,
     "min_stake": 0,
-    "immunity_ends_at": null,
     "burned": false
   }
 ]
 ```
-> Subnet responses now include `chain_id` indicating which chain the subnet is deployed on.
+> Worknet responses include `chain_id` indicating which chain the worknet is deployed on.
 > `status` filter is optional. Values: `Pending`, `Active`, `Paused`, `Banned`.
 
-### `GET /subnets/{subnetId}`
-Single subnet detail (same fields as above).
+### `GET /worknets/{worknetId}`
+Single worknet detail (same fields as above).
 
-### `GET /subnets/{subnetId}/earnings?page=1&limit=20`
+### `GET /worknets/{worknetId}/earnings?page=1&limit=20`
 ```json
 [{"epoch_id": 5, "recipient": "0x1234...", "awp_amount": "7900000000000000000000000"}]
 ```
 
-### `GET /subnets/{subnetId}/skills`
+### `GET /worknets/{worknetId}/skills`
 ```json
-{"subnetId": 1, "skillsURI": "ipfs://QmSkillsFile..."}
+{"worknetId": 1, "skillsURI": "ipfs://QmSkillsFile..."}
 ```
 
-### `GET /subnets/{subnetId}/agents/{agent}`
+### `GET /worknets/{worknetId}/agents/{agent}`
 ```json
-{"agent": "0x...", "subnetId": 1, "stake": "5000000000000000000000"}
+{"agent": "0x...", "worknetId": 1, "stake": "5000000000000000000000"}
 ```
 
 ---
 
-## Emission [DRAFT]
-
-> **Emission API endpoints are preliminary. The mechanism has not been finalized.**
+## Emission
 
 ### `GET /emission/current`
 From Redis cache (TTL 30s, refreshed every 25s by Keeper):
@@ -199,7 +196,7 @@ Projected emission for 30/90/365 days:
 
 ### `GET /emission/epochs?page=1&limit=20`
 ```json
-[{"epoch_id": 42, "start_time": 1710000000, "daily_emission": "15000000000000000000000000", "dao_emission": "7500000000000000000000000"}]
+[{"epoch_id": 42, "start_time": 1710000000, "daily_emission": "15000000000000000000000000", "recipient_count": 50}]
 ```
 
 ---
@@ -212,12 +209,12 @@ From Redis cache (TTL 1m):
 {"totalSupply": "5015800000000000000000000000", "maxSupply": "10000000000000000000000000000"}
 ```
 
-### `GET /tokens/alpha/{subnetId}`
+### `GET /tokens/worknet/{worknetId}`
 ```json
-{"subnetId": 1, "name": "My Subnet Alpha", "symbol": "MSALPHA", "alphaToken": "0x..."}
+{"worknetId": 1, "name": "My Worknet", "symbol": "MWN", "worknetToken": "0x..."}
 ```
 
-### `GET /tokens/alpha/{subnetId}/price`
+### `GET /tokens/worknet/{worknetId}/price`
 From Redis cache (TTL 10m):
 ```json
 {"priceInAWP": "0.015", "reserve0": "...", "reserve1": "...", "updatedAt": "..."}
@@ -265,28 +262,26 @@ ws.onmessage = (event) => {
 | `RecipientUpdated` | `{user, recipient}` | AWPRegistry |
 | `DelegateGranted` | `{user, delegate}` | AWPRegistry |
 | `DelegateRevoked` | `{user, delegate}` | AWPRegistry |
-| `Deposited` | `{user, tokenId, amount, lockEndTime}` | StakeNFT |
-| `PositionIncreased` | `{tokenId, addedAmount, newLockEndTime}` | StakeNFT |
-| `Withdrawn` | `{user, tokenId, amount}` | StakeNFT |
-| `Allocated` | `{user, agent, subnetId, amount, operator}` | AWPRegistry |
-| `Deallocated` | `{user, agent, subnetId, amount, operator}` | AWPRegistry |
-| `Reallocated` | `{user, fromAgent, fromSubnet, toAgent, toSubnet, amount, operator}` | AWPRegistry |
-| `SubnetRegistered` | `{subnetId, owner, name, symbol, subnetManager, alphaToken}` | AWPRegistry |
-| `LPCreated` | `{subnetId, poolId, awpAmount, alphaAmount}` | AWPRegistry |
-| `SkillsURIUpdated` | `{subnetId, skillsURI}` | SubnetNFT |
-| `MinStakeUpdated` | `{subnetId, minStake}` | SubnetNFT |
-| `SubnetActivated` | `{subnetId}` | AWPRegistry |
-| `SubnetPaused` | `{subnetId}` | AWPRegistry |
-| `SubnetResumed` | `{subnetId}` | AWPRegistry |
-| `SubnetBanned` | `{subnetId}` | AWPRegistry |
-| `SubnetUnbanned` | `{subnetId}` | AWPRegistry |
-| `SubnetDeregistered` | `{subnetId}` | AWPRegistry |
-| `GovernanceWeightUpdated` | `{addr, weight}` | AWPEmission |
+| `Deposited` | `{user, tokenId, amount, lockEndTime}` | veAWP |
+| `PositionIncreased` | `{tokenId, addedAmount, newLockEndTime}` | veAWP |
+| `Withdrawn` | `{user, tokenId, amount}` | veAWP |
+| `Allocated` | `{user, agent, worknetId, amount, operator}` | AWPAllocator |
+| `Deallocated` | `{user, agent, worknetId, amount, operator}` | AWPAllocator |
+| `Reallocated` | `{user, fromAgent, fromWorknet, toAgent, toWorknet, amount, operator}` | AWPAllocator |
+| `WorknetRegistered` | `{worknetId, owner, name, symbol, worknetManager, worknetToken}` | AWPRegistry |
+| `LPCreated` | `{worknetId, poolId, awpAmount, worknetTokenAmount}` | AWPRegistry |
+| `SkillsURIUpdated` | `{worknetId, skillsURI}` | AWPWorkNet |
+| `MinStakeUpdated` | `{worknetId, minStake}` | AWPWorkNet |
+| `WorknetActivated` | `{worknetId}` | AWPRegistry |
+| `WorknetPaused` | `{worknetId}` | AWPRegistry |
+| `WorknetResumed` | `{worknetId}` | AWPRegistry |
+| `WorknetBanned` | `{worknetId}` | AWPRegistry |
+| `WorknetUnbanned` | `{worknetId}` | AWPRegistry |
+| `WorknetCancelled` | `{worknetId}` | AWPRegistry |
+| `WorknetRejected` | `{worknetId}` | AWPRegistry |
 | `RecipientAWPDistributed` | `{epoch, recipient, awpAmount}` | AWPEmission |
-| `DAOMatchDistributed` | `{epoch, amount}` | AWPEmission |
 | `EpochSettled` | `{epoch, totalEmission, recipientCount}` | AWPEmission |
 | `AllocationsSubmitted` | `{nonce, recipients, weights}` | AWPEmission |
-| `OracleConfigUpdated` | `{oracles, threshold}` | AWPEmission |
 
 ---
 
@@ -339,7 +334,7 @@ Gasless stake allocation — relayer submits `allocateFor()`.
 
 **Request:**
 ```json
-{"staker": "0x...", "agent": "0x...", "subnetId": 1, "amount": "5000000000000000000000", "deadline": 1742400000, "signature": "0x...65 bytes hex"}
+{"staker": "0x...", "agent": "0x...", "worknetId": 1, "amount": "5000000000000000000000", "deadline": 1742400000, "signature": "0x...65 bytes hex"}
 ```
 
 **Response:**
@@ -352,7 +347,7 @@ Gasless stake deallocation — relayer submits `deallocateFor()`.
 
 **Request:**
 ```json
-{"staker": "0x...", "agent": "0x...", "subnetId": 1, "amount": "5000000000000000000000", "deadline": 1742400000, "signature": "0x...65 bytes hex"}
+{"staker": "0x...", "agent": "0x...", "worknetId": 1, "amount": "5000000000000000000000", "deadline": 1742400000, "signature": "0x...65 bytes hex"}
 ```
 
 **Response:**
@@ -360,12 +355,12 @@ Gasless stake deallocation — relayer submits `deallocateFor()`.
 {"txHash": "0x..."}
 ```
 
-### `POST /relay/activate-subnet`
-Gasless subnet activation — relayer submits `activateSubnetFor()`.
+### `POST /relay/activate-worknet`
+Gasless worknet activation — relayer submits `activateWorknetFor()`.
 
 **Request:**
 ```json
-{"user": "0x...", "subnetId": 1, "deadline": 1742400000, "signature": "0x...65 bytes hex"}
+{"user": "0x...", "worknetId": 1, "deadline": 1742400000, "signature": "0x...65 bytes hex"}
 ```
 
 **Response:**
@@ -373,18 +368,18 @@ Gasless subnet activation — relayer submits `activateSubnetFor()`.
 {"txHash": "0x..."}
 ```
 
-### `POST /relay/register-subnet`
-Fully gasless subnet registration via `registerSubnetForWithPermit()`. User signs two off-chain messages (ERC-2612 permit for AWP + EIP-712 registerSubnet), relayer pays all gas. SubnetNFT + SubnetManager admin go to user.
+### `POST /relay/register-worknet`
+Fully gasless worknet registration via `registerWorknetForWithPermit()`. User signs two off-chain messages (ERC-2612 permit for AWP + EIP-712 registerWorknet), relayer pays all gas. AWPWorkNet NFT + WorknetManager admin go to user.
 
 **Request:**
 ```json
 {
-  "user": "0x...", "name": "EVO Alpha", "symbol": "EVO",
-  "subnetManager": "0x0000...0000", "salt": "0x...",
+  "user": "0x...", "name": "EVO Token", "symbol": "EVO",
+  "worknetManager": "0x0000...0000", "salt": "0x...",
   "minStake": "0", "skillsUri": "https://example.com/skills.md",
   "deadline": 1742400000,
   "permitSignature": "0x...65 bytes (ERC-2612 AWP permit)",
-  "registerSignature": "0x...65 bytes (EIP-712 registerSubnet)"
+  "registerSignature": "0x...65 bytes (EIP-712 registerWorknet)"
 }
 ```
 
@@ -395,7 +390,7 @@ Fully gasless subnet registration via `registerSubnetForWithPermit()`. User sign
 
 **Two signatures required:**
 - `permitSignature`: ERC-2612 permit — authorizes AWPRegistry to spend user's AWP (no prior approve tx needed)
-- `registerSignature`: EIP-712 — authorizes subnet registration parameters
+- `registerSignature`: EIP-712 — authorizes worknet registration parameters
 
 Both are standard 65-byte signatures (r[32] + s[32] + v[1]), hex-encoded with `0x` prefix.
 
@@ -408,9 +403,9 @@ Both are standard 65-byte signatures (r[32] + s[32] + v[1]), hex-encoded with `0
 | 400 | `{"error": "invalid signature"}` | EIP-712 signature verification failed |
 | 400 | `{"error": "signature expired"}` | On-chain deadline check failed |
 | 400 | `{"error": "cycle detected"}` | Binding would create a cycle in the tree |
-| 400 | `{"error": "invalid subnet params (name 1-64 bytes, symbol 1-16 bytes)"}` | Name/symbol length violation |
-| 400 | `{"error": "subnet manager address required (auto-deploy not available)"}` | No default SubnetManager impl set |
-| 400 | `{"error": "insufficient AWP balance"}` | User lacks AWP for subnet registration |
+| 400 | `{"error": "invalid worknet params (name 1-64 bytes, symbol 1-16 bytes)"}` | Name/symbol length violation |
+| 400 | `{"error": "worknet manager address required (auto-deploy not available)"}` | No default WorknetManager impl set |
+| 400 | `{"error": "insufficient AWP balance"}` | User lacks AWP for worknet registration |
 | 400 | `{"error": "insufficient AWP allowance"}` | Permit signature did not authorize enough AWP |
 | 400 | `{"error": "contract is paused"}` | AWPRegistry is in emergency pause state |
 | 400 | `{"error": "relay transaction failed"}` | Unrecognized on-chain revert |

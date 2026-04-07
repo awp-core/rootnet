@@ -2,11 +2,11 @@
 
 ## 1. REST API Examples (no wallet needed)
 
-### Query subnet info
+### Query worknet info
 ```javascript
-const res = await fetch(`${API_BASE}/subnets/1`);
-const subnet = await res.json();
-console.log(subnet.name, subnet.status, subnet.skills_uri);
+const res = await fetch(`${API_BASE}/worknets/1`);
+const worknet = await res.json();
+console.log(worknet.name, worknet.status, worknet.skills_uri);
 ```
 
 ### Query user balance
@@ -17,7 +17,7 @@ const balance = await res.json();
 const totalAWP = Number(balance.totalStaked) / 1e18;
 ```
 
-### Query user positions (StakeNFT)
+### Query user positions (veAWP)
 ```javascript
 const res = await fetch(`${API_BASE}/staking/user/0x1234.../positions`);
 const positions = await res.json();
@@ -31,15 +31,15 @@ const emission = await res.json();
 // emission.epoch, emission.dailyEmission, emission.totalWeight
 ```
 
-### List active subnets
+### List active worknets
 ```javascript
-const res = await fetch(`${API_BASE}/subnets?status=Active&page=1&limit=10`);
-const subnets = await res.json();
+const res = await fetch(`${API_BASE}/worknets?status=Active&page=1&limit=10`);
+const worknets = await res.json();
 ```
 
-### Get subnet skills
+### Get worknet skills
 ```javascript
-const res = await fetch(`${API_BASE}/subnets/1/skills`);
+const res = await fetch(`${API_BASE}/worknets/1/skills`);
 const { skillsURI } = await res.json();
 // skillsURI = "ipfs://QmSkillsFile..."
 ```
@@ -49,7 +49,7 @@ const { skillsURI } = await res.json();
 const res = await fetch(`${API_BASE}/agents/batch-info`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ agents: ['0xAgent1', '0xAgent2'], subnetId: 1 })
+  body: JSON.stringify({ agents: ['0xAgent1', '0xAgent2'], worknetId: 1 })
 });
 const agents = await res.json();
 // agents[0].agent, agents[0].stake
@@ -73,15 +73,15 @@ const AWP_REGISTRY = '0x...'; // from deployment
 const AWP_EMISSION = '0x...';
 ```
 
-### Read subnet info (full — combines AWPRegistry state + SubnetNFT identity)
+### Read worknet info (full — combines AWPRegistry state + AWPWorkNet identity)
 ```javascript
-const subnet = await client.readContract({
+const worknet = await client.readContract({
   address: AWP_REGISTRY,
-  abi: parseAbi(['function getSubnetFull(uint256) view returns (address subnetManager, address alphaToken, bytes32 lpPool, uint8 status, uint64 createdAt, uint64 activatedAt, string name, string skillsURI, uint128 minStake, address owner)']),
-  functionName: 'getSubnetFull',
+  abi: parseAbi(['function getWorknetFull(uint256) view returns (address worknetManager, address worknetToken, bytes32 lpPool, uint8 status, uint64 createdAt, uint64 activatedAt, string name, string skillsURI, uint128 minStake, address owner)']),
+  functionName: 'getWorknetFull',
   args: [1n],
 });
-// subnet.subnetManager, subnet.alphaToken, subnet.status (0=Pending, 1=Active, 2=Paused, 3=Banned)
+// worknet.worknetManager, worknet.worknetToken, worknet.status (0=Pending, 1=Active, 2=Paused, 3=Banned)
 ```
 
 ### Read agent info
@@ -140,22 +140,22 @@ const hash = await walletClient.writeContract({
 });
 ```
 
-### Deposit AWP (via StakeNFT)
+### Deposit AWP (via veAWP)
 ```javascript
-const STAKENFT = '0x...'; // from deployment
+const VEAWP = '0x...'; // from deployment
 
-// 1. Approve AWP transfer to StakeNFT
+// 1. Approve AWP transfer to veAWP
 const awpAmount = 10000n * 10n**18n; // 10,000 AWP
 await walletClient.writeContract({
   address: AWP_TOKEN,
   abi: parseAbi(['function approve(address,uint256) returns (bool)']),
   functionName: 'approve',
-  args: [STAKENFT, awpAmount],
+  args: [VEAWP, awpAmount],
 });
 
 // 2. Deposit with lock period (e.g., ~182 days in seconds)
 const hash = await walletClient.writeContract({
-  address: STAKENFT,
+  address: VEAWP,
   abi: parseAbi(['function deposit(uint256,uint64) returns (uint256)']),
   functionName: 'deposit',
   args: [awpAmount, 15724800n], // 182 days × 86400 seconds
@@ -179,15 +179,17 @@ await walletClient.writeContract({
 
 ### Allocate stake
 ```javascript
+const AWP_ALLOCATOR = '0x...'; // from deployment
+
 await walletClient.writeContract({
-  address: AWP_REGISTRY,
+  address: AWP_ALLOCATOR,
   abi: parseAbi(['function allocate(address,address,uint256,uint256)']),
   functionName: 'allocate',
-  args: [account.address, '0xAgentAddress', 1n, 5000n * 10n**18n], // staker, agent, subnetId, amount
+  args: [account.address, '0xAgentAddress', 1n, 5000n * 10n**18n], // staker, agent, worknetId, amount
 });
 ```
 
-### Register subnet
+### Register worknet
 ```javascript
 // 1. Calculate LP cost
 const initialAlphaPrice = await client.readContract({
@@ -213,15 +215,15 @@ const vanityRes = await fetch(`${API_BASE}/vanity/compute-salt`, {
 const { salt: vanitySalt, address: predictedAddr } = await vanityRes.json();
 // vanitySalt = "0x530c11...", predictedAddr = "0xA1b275...cafe"
 
-// 3b. Register subnet (salt=0x00..00 uses subnetId as CREATE2 salt; or pass vanitySalt for vanity address)
+// 3b. Register worknet (salt=0x00..00 uses worknetId as CREATE2 salt; or pass vanitySalt for vanity address)
 const hash = await walletClient.writeContract({
   address: AWP_REGISTRY,
-  abi: parseAbi(['function registerSubnet((string,string,address,bytes32,uint128,string)) returns (uint256)']),
-  functionName: 'registerSubnet',
+  abi: parseAbi(['function registerWorknet((string,string,address,bytes32,uint128,string)) returns (uint256)']),
+  functionName: 'registerWorknet',
   args: [{
-    name: "My Subnet Alpha",
+    name: "My Worknet Token",
     symbol: "MSALPHA",
-    subnetManager: "0x0000000000000000000000000000000000000000", // address(0) = auto-deploy SubnetManager
+    worknetManager: "0x0000000000000000000000000000000000000000", // address(0) = auto-deploy WorknetManager
     salt: vanitySalt ?? "0x0000000000000000000000000000000000000000000000000000000000000000",
     minStake: 0n,
     skillsURI: "https://example.com/SKILL.md",
@@ -229,13 +231,13 @@ const hash = await walletClient.writeContract({
 });
 ```
 
-### Activate subnet
+### Activate worknet
 ```javascript
 await walletClient.writeContract({
   address: AWP_REGISTRY,
-  abi: parseAbi(['function activateSubnet(uint256)']),
-  functionName: 'activateSubnet',
-  args: [1n], // subnetId
+  abi: parseAbi(['function activateWorknet(uint256)']),
+  functionName: 'activateWorknet',
+  args: [1n], // worknetId
 });
 ```
 
@@ -247,7 +249,7 @@ await walletClient.writeContract({
 const ws = new WebSocket(`wss://<API_HOST>/ws/live`);
 
 ws.onopen = () => {
-  // Subscribe to events relevant for a subnet coordinator
+  // Subscribe to events relevant for a worknet coordinator
   ws.send(JSON.stringify({
     subscribe: [
       'Allocated', 'Deallocated', 'Reallocated',
@@ -260,7 +262,7 @@ ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
   switch (msg.type) {
     case 'Allocated':
-      console.log(`User ${msg.data.user} allocated ${msg.data.amount} to agent ${msg.data.agent} subnet ${msg.data.subnetId}`);
+      console.log(`User ${msg.data.user} allocated ${msg.data.amount} to agent ${msg.data.agent} worknet ${msg.data.worknetId}`);
       break;
     case 'RecipientAWPDistributed':
       console.log(`Epoch ${msg.data.epoch}: ${msg.data.recipient} received ${msg.data.awpAmount} AWP`);

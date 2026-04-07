@@ -1,6 +1,6 @@
 # Phase 1 Development Report — Smart Contracts
 
-> **Note**: This report describes the Phase 1 design. Several features have been redesigned since: AlphaToken deployment changed from Clones to CREATE2, StakingVault cooldown/freeze-release removed, AWPEmission restructured to V3 epoch-versioned allocations.
+> **Note**: This is a historical report from Phase 1. Major renames since: AlphaToken -> WorknetToken, AlphaTokenFactory -> WorknetTokenFactory, SubnetNFT -> AWPWorkNet, StakingVault -> AWPAllocator, StakeNFT -> veAWP, SubnetManager -> WorknetManager. Also: AlphaToken deployment changed from Clones to CREATE2, StakingVault cooldown/freeze-release removed, AWPEmission restructured to V3 Guardian-only allocations, onlyTimelock -> onlyGuardian on AWPRegistry.
 
 ## Overview
 

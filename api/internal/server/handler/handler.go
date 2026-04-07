@@ -77,8 +77,8 @@ func (h *Handler) getChainReader(chainID int64) ChainReader {
 	if cr, ok := h.chainReaders[chainID]; ok {
 		return cr
 	}
-	// Single-chain fallback: return the only reader
-	if len(h.chainReaders) == 1 {
+	// Single-chain fallback: return the only reader when chainId is 0 or omitted
+	if chainID == 0 && len(h.chainReaders) == 1 {
 		for _, cr := range h.chainReaders {
 			return cr
 		}
