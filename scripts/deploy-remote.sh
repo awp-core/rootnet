@@ -74,14 +74,14 @@ do_stop() {
     step "Stopping remote services..."
     ssh_cmd "
         for svc in api indexer keeper; do
-            PIDS=\$(ps aux | grep \"$REMOTE_DIR/awp-\${svc}\" | grep -v grep | awk '{print \$2}')
+            PIDS=\$(ps aux | grep \"awp-\${svc}\" | grep -v grep | awk '{print \$2}')
             if [ -n \"\$PIDS\" ]; then
                 kill \$PIDS 2>/dev/null && echo \"Stopped \$svc (PID \$PIDS)\" || true
             fi
         done
         sleep 1
-        # Force kill any remaining
-        REMAINING=\$(ps aux | grep \"$REMOTE_DIR/awp-\" | grep -v grep | awk '{print \$2}')
+        # Force kill any remaining (match both absolute and relative paths)
+        REMAINING=\$(ps aux | grep 'awp-\(api\|indexer\|keeper\)' | grep -v grep | awk '{print \$2}')
         if [ -n \"\$REMAINING\" ]; then
             kill -9 \$REMAINING 2>/dev/null || true
             sleep 1
