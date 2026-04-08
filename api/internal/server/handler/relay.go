@@ -989,8 +989,8 @@ func (rh *RelayHandler) RelayStake(w http.ResponseWriter, r *http.Request) {
 		rh.writeError(w, http.StatusBadRequest, "amount is required")
 		return
 	}
-	if req.LockDuration == 0 {
-		rh.writeError(w, http.StatusBadRequest, "lockDuration is required")
+	if req.LockDuration < 86400 {
+		rh.writeError(w, http.StatusBadRequest, "lockDuration must be at least 86400 seconds (1 day)")
 		return
 	}
 	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() {

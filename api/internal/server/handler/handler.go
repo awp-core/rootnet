@@ -272,6 +272,7 @@ type registryResponse struct {
 	WorknetTokenFactory string               `json:"worknetTokenFactory"`
 	DAO                 string               `json:"dao"`
 	Treasury            string               `json:"treasury"`
+	VeAWPHelper         string               `json:"veAWPHelper"`
 	EIP712Domain        eip712DomainResponse `json:"eip712Domain"`
 	AllocatorEIP712     eip712DomainResponse `json:"allocatorEip712Domain"`
 }

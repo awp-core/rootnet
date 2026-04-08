@@ -130,6 +130,7 @@ func (h *Handler) svcGetRegistry(ctx context.Context, chainID int64) registryRes
 		WorknetTokenFactory: h.cfg.WorknetTokenFactoryAddress,
 		DAO:                 h.cfg.DAOAddress,
 		Treasury:            h.cfg.TreasuryAddress,
+		VeAWPHelper:         "0x0000561EDE5C1Ba0b81cE585964050bEAE730001",
 		EIP712Domain: eip712DomainResponse{
 			Name: "AWPRegistry", Version: "1",
 			ChainID: chainID, VerifyingContract: h.cfg.AWPRegistryAddress,
@@ -176,6 +177,7 @@ func (h *Handler) registryFromChainRow(c gen.Chain) registryResponse {
 		WorknetTokenFactory: h.cfg.WorknetTokenFactoryAddress,
 		DAO:                 resolve(c.DaoAddress, h.cfg.DAOAddress),
 		Treasury:            h.cfg.TreasuryAddress,
+		VeAWPHelper:         "0x0000561EDE5C1Ba0b81cE585964050bEAE730001",
 		EIP712Domain: eip712DomainResponse{
 			Name: "AWPRegistry", Version: "1",
 			ChainID: c.ChainID, VerifyingContract: registry,
