@@ -640,23 +640,32 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// Allocated (V2: staker instead of user, now emitted by AWPAllocator)
 	if evt, err := awpAllocator.ParseAllocated(lg); err == nil {
+		// Read on-chain absolute values (not event delta) for idempotent DB writes
+		absStake, _ := idx.chain.AWPAllocator.GetAgentStake(nil, evt.Staker, evt.Agent, evt.WorknetId)
+		absTotalAlloc, _ := idx.chain.AWPAllocator.UserTotalAllocated(nil, evt.Staker)
+		if absStake == nil {
+			absStake = evt.Amount // fallback to event delta for first allocation
+		}
+		if absTotalAlloc == nil {
+			absTotalAlloc = evt.Amount
+		}
 		if err := q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
 			SubnetID:     bigIntToNumeric(evt.WorknetId),
-			Amount:       bigIntToNumeric(evt.Amount),
+			Amount:       bigIntToNumeric(absStake),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
 			return nil, fmt.Errorf("UpsertStakeAllocation: %w", err)
 		}
-		if err := q.AddUserAllocated(ctx, gen.AddUserAllocatedParams{
+		if err := q.SetUserAllocated(ctx, gen.SetUserAllocatedParams{
 			ChainID:        idx.chainID,
 			UserAddress:    strings.ToLower(evt.Staker.Hex()),
-			TotalAllocated: bigIntToNumeric(evt.Amount),
+			TotalAllocated: bigIntToNumeric(absTotalAlloc),
 			UpdatedBlock:   int64(lg.BlockNumber),
 		}); err != nil {
-			return nil, fmt.Errorf("AddUserAllocated: %w", err)
+			return nil, fmt.Errorf("SetUserAllocated: %w", err)
 		}
 		return []redisEvent{makeEvent("Allocated", idx.chainID, lg, map[string]interface{}{
 			"staker":   evt.Staker.Hex(),
@@ -669,23 +678,32 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// Deallocated (V2: staker instead of user, now emitted by AWPAllocator)
 	if evt, err := awpAllocator.ParseDeallocated(lg); err == nil {
-		if err := q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
+		// Read on-chain absolute values for idempotent DB writes
+		absStake, _ := idx.chain.AWPAllocator.GetAgentStake(nil, evt.Staker, evt.Agent, evt.WorknetId)
+		absTotalAlloc, _ := idx.chain.AWPAllocator.UserTotalAllocated(nil, evt.Staker)
+		if absStake == nil {
+			absStake = new(big.Int)
+		}
+		if absTotalAlloc == nil {
+			absTotalAlloc = new(big.Int)
+		}
+		if err := q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.Agent.Hex()),
 			SubnetID:     bigIntToNumeric(evt.WorknetId),
-			Amount:       bigIntToNumeric(evt.Amount),
+			Amount:       bigIntToNumeric(absStake),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
-			return nil, fmt.Errorf("SubtractStakeAllocation: %w", err)
+			return nil, fmt.Errorf("UpsertStakeAllocation(Deallocated): %w", err)
 		}
-		if err := q.SubtractUserAllocated(ctx, gen.SubtractUserAllocatedParams{
+		if err := q.SetUserAllocated(ctx, gen.SetUserAllocatedParams{
 			ChainID:        idx.chainID,
 			UserAddress:    strings.ToLower(evt.Staker.Hex()),
-			TotalAllocated: bigIntToNumeric(evt.Amount),
+			TotalAllocated: bigIntToNumeric(absTotalAlloc),
 			UpdatedBlock:   int64(lg.BlockNumber),
 		}); err != nil {
-			return nil, fmt.Errorf("SubtractUserAllocated: %w", err)
+			return nil, fmt.Errorf("SetUserAllocated(Deallocated): %w", err)
 		}
 		return []redisEvent{makeEvent("Deallocated", idx.chainID, lg, map[string]interface{}{
 			"staker":   evt.Staker.Hex(),
@@ -698,27 +716,36 @@ func (idx *Indexer) processLog(ctx context.Context, q *gen.Queries, lg types.Log
 
 	// Reallocated (V2: staker instead of user, now emitted by AWPAllocator)
 	if evt, err := awpAllocator.ParseReallocated(lg); err == nil {
-		// Subtract from source allocation
-		if err := q.SubtractStakeAllocation(ctx, gen.SubtractStakeAllocationParams{
+		// Read on-chain absolute values for both source and destination
+		absFrom, _ := idx.chain.AWPAllocator.GetAgentStake(nil, evt.Staker, evt.FromAgent, evt.FromWorknetId)
+		absTo, _ := idx.chain.AWPAllocator.GetAgentStake(nil, evt.Staker, evt.ToAgent, evt.ToWorknetId)
+		if absFrom == nil {
+			absFrom = new(big.Int)
+		}
+		if absTo == nil {
+			absTo = new(big.Int)
+		}
+		// Overwrite source allocation
+		if err := q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.FromAgent.Hex()),
 			SubnetID:     bigIntToNumeric(evt.FromWorknetId),
-			Amount:       bigIntToNumeric(evt.Amount),
+			Amount:       bigIntToNumeric(absFrom),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
-			return nil, fmt.Errorf("SubtractStakeAllocation(Reallocated): %w", err)
+			return nil, fmt.Errorf("UpsertStakeAllocation(Reallocated/from): %w", err)
 		}
-		// Add to destination allocation
+		// Overwrite destination allocation
 		if err := q.UpsertStakeAllocation(ctx, gen.UpsertStakeAllocationParams{
 			ChainID:      idx.chainID,
 			UserAddress:  strings.ToLower(evt.Staker.Hex()),
 			AgentAddress: strings.ToLower(evt.ToAgent.Hex()),
 			SubnetID:     bigIntToNumeric(evt.ToWorknetId),
-			Amount:       bigIntToNumeric(evt.Amount),
+			Amount:       bigIntToNumeric(absTo),
 			UpdatedBlock: int64(lg.BlockNumber),
 		}); err != nil {
-			return nil, fmt.Errorf("UpsertStakeAllocation(Reallocated): %w", err)
+			return nil, fmt.Errorf("UpsertStakeAllocation(Reallocated/to): %w", err)
 		}
 		// Touch user_balances.updated_block for correct reorg rollback
 		// (total_allocated unchanged in reallocate, but updated_block must advance)

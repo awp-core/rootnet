@@ -293,6 +293,23 @@ func (q *Queries) UpsertUserBalance(ctx context.Context, arg UpsertUserBalancePa
 	return err
 }
 
+const setUserAllocated = `-- name: SetUserAllocated :exec
+INSERT INTO user_balances (chain_id, user_address, total_allocated, updated_block) VALUES ($1, $2, $3, $4)
+ON CONFLICT (chain_id, user_address) DO UPDATE SET total_allocated = EXCLUDED.total_allocated, updated_block = EXCLUDED.updated_block
+`
+
+type SetUserAllocatedParams struct {
+	ChainID        int64          `json:"chain_id"`
+	UserAddress    string         `json:"user_address"`
+	TotalAllocated pgtype.Numeric `json:"total_allocated"`
+	UpdatedBlock   int64          `json:"updated_block"`
+}
+
+func (q *Queries) SetUserAllocated(ctx context.Context, arg SetUserAllocatedParams) error {
+	_, err := q.db.Exec(ctx, setUserAllocated, arg.ChainID, arg.UserAddress, arg.TotalAllocated, arg.UpdatedBlock)
+	return err
+}
+
 const upsertUserBinding = `-- name: UpsertUserBinding :exec
 INSERT INTO users (chain_id, address, bound_to) VALUES ($1, $2, $3)
 ON CONFLICT (chain_id, address) DO UPDATE SET bound_to = EXCLUDED.bound_to

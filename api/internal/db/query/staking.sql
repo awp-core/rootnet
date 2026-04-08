@@ -8,7 +8,7 @@ DELETE FROM user_balances WHERE updated_block > $1 AND chain_id = $2;
 INSERT INTO stake_allocations (chain_id, user_address, agent_address, subnet_id, amount, frozen, updated_block)
 VALUES ($1, $2, $3, $4, $5, FALSE, $6)
 ON CONFLICT (chain_id, user_address, agent_address, subnet_id) DO UPDATE SET
-  amount = stake_allocations.amount + EXCLUDED.amount,
+  amount = EXCLUDED.amount,
   updated_block = EXCLUDED.updated_block;
 
 -- name: SubtractStakeAllocation :exec
