@@ -15,6 +15,7 @@
 #   cd /home/ubuntu/awp
 #   set -a && source .env && set +a
 #   export KEEPER_SKIP_SETTLE=true    # IMPORTANT: prevent accidental epoch settlement
+#   export PID_DIR=/home/ubuntu/awp   # flock-based single-instance protection
 #   nohup ./awp-api     >> logs/api.log     2>&1 & echo $! > awp-api.pid
 #   nohup ./awp-indexer >> logs/indexer.log  2>&1 & echo $! > awp-indexer.pid
 #   nohup ./awp-keeper  >> logs/keeper.log   2>&1 & echo $! > awp-keeper.pid
@@ -108,6 +109,7 @@ do_install_and_start() {
 cd $REMOTE_DIR
 set -a; source .env; set +a
 mkdir -p logs
+export PID_DIR=$REMOTE_DIR
 
 nohup ./awp-api >> logs/api.log 2>&1 &
 echo \$! > awp-api.pid

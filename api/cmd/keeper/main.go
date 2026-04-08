@@ -17,9 +17,17 @@ import (
 
 	"github.com/cortexia/rootnet/api/internal/chain"
 	"github.com/cortexia/rootnet/api/internal/config"
+	"github.com/cortexia/rootnet/api/internal/pidlock"
 )
 
 func main() {
+	lock, err := pidlock.Acquire("keeper")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	defer lock.Release()
+
 	fx.New(
 		fx.Provide(
 			newLogger,
