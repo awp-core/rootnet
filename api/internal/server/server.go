@@ -154,6 +154,7 @@ func NewRouter(p RouterParams) chi.Router {
 			r.Post("/grant-delegate", p.RelayHandler.RelayGrantDelegate)
 			r.Post("/revoke-delegate", p.RelayHandler.RelayRevokeDelegate)
 			r.Post("/unbind", p.RelayHandler.RelayUnbind)
+			r.Post("/stake", p.RelayHandler.RelayStake)
 			r.Get("/status/{txHash}", p.RelayHandler.GetRelayStatus)
 		})
 	}

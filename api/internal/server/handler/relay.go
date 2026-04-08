@@ -99,6 +99,11 @@ var revertErrors = map[string]string{
 	"0xf7a632f5": "invalid callback",
 	"0xddefae28": "initial mint already called",
 
+	// ── VeAWPHelper errors ──
+	"0xfd684c3b": "invalid user (cannot stake to helper itself)",
+	"0x90b8ec18": "AWP transfer to helper failed",
+	"0x3e3f8f73": "AWP approve to veAWP failed",
+
 	// ── WorknetTokenFactory errors ──
 	"0x16a1ae75": "invalid vanity address (EIP-55 mismatch)",
 
@@ -357,6 +362,15 @@ type relayRegisterSubnetRequest struct {
 	Deadline          uint64 `json:"deadline"`
 	PermitSignature   string `json:"permitSignature"`   // ERC-2612 permit signature (AWP approval)
 	RegisterSignature string `json:"registerSignature"` // EIP-712 registerSubnet signature
+}
+
+type relayStakeRequest struct {
+	ChainID      int64  `json:"chainId"`
+	User         string `json:"user"`
+	Amount       string `json:"amount"`       // AWP wei string
+	LockDuration uint64 `json:"lockDuration"` // seconds
+	Deadline     uint64 `json:"deadline"`
+	Signature    string `json:"signature"`    // ERC-2612 permit (AWP → VeAWPHelper)
 }
 
 type relayResponse struct {
@@ -951,6 +965,76 @@ func (rh *RelayHandler) RelayUnbind(w http.ResponseWriter, r *http.Request) {
 	txHash, err := relayer.RelayUnbind(r.Context(), common.HexToAddress(req.User), new(big.Int).SetUint64(req.Deadline), v, rs, ss)
 	if err != nil {
 		rh.logger.Error("relay unbindFor failed", "error", err, "user", req.User)
+		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
+		return
+	}
+
+	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
+}
+
+// RelayStake POST /api/relay/stake — gasless staking via VeAWPHelper.depositFor
+func (rh *RelayHandler) RelayStake(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+
+	var req relayStakeRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		rh.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if !common.IsHexAddress(req.User) {
+		rh.writeError(w, http.StatusBadRequest, "invalid user address")
+		return
+	}
+	if req.Amount == "" {
+		rh.writeError(w, http.StatusBadRequest, "amount is required")
+		return
+	}
+	if req.LockDuration == 0 {
+		rh.writeError(w, http.StatusBadRequest, "lockDuration is required")
+		return
+	}
+	if req.Deadline == 0 || int64(req.Deadline) <= time.Now().Unix() {
+		rh.writeError(w, http.StatusBadRequest, "deadline is missing or expired")
+		return
+	}
+	if req.Signature == "" {
+		rh.writeError(w, http.StatusBadRequest, "missing signature")
+		return
+	}
+
+	amount, ok := new(big.Int).SetString(req.Amount, 10)
+	if !ok || amount.Sign() <= 0 {
+		rh.writeError(w, http.StatusBadRequest, "invalid amount")
+		return
+	}
+
+	v, rs, ss, err := parseSignature(req.Signature)
+	if err != nil {
+		rh.writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, "chain not supported")
+		return
+	}
+
+	exceeded, rateLimitErr := rh.checkRateLimit(r)
+	if rateLimitErr != nil {
+		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
+		return
+	}
+	if exceeded {
+		rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay"))
+		return
+	}
+
+	txHash, err := relayer.RelayStake(r.Context(),
+		common.HexToAddress(req.User), amount, req.LockDuration,
+		new(big.Int).SetUint64(req.Deadline), v, rs, ss)
+	if err != nil {
+		rh.logger.Error("relay stake failed", "error", err, "user", req.User, "amount", req.Amount)
 		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
 		return
 	}

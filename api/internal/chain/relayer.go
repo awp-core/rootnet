@@ -23,6 +23,7 @@ type Relayer struct {
 	client       *ethclient.Client
 	awpRegistry  *bindings.AWPRegistry
 	awpAllocator *bindings.AWPAllocator
+	veAWPHelper  *bindings.VeAWPHelper
 	key          *ecdsa.PrivateKey
 	chainID      *big.Int
 	logger       *slog.Logger
@@ -39,6 +40,9 @@ type RelayTxStatus struct {
 
 
 // NewRelayer creates a Relayer instance
+// VeAWPHelper address — same on all chains (CREATE2 deterministic deployment)
+var VeAWPHelperAddr = common.HexToAddress("0x0000561EDE5C1Ba0b81cE585964050bEAE730001")
+
 func NewRelayer(
 	client *ethclient.Client,
 	awpRegistryAddr common.Address,
@@ -56,10 +60,15 @@ func NewRelayer(
 	if err != nil {
 		return nil, fmt.Errorf("bind AWPAllocator: %w", err)
 	}
+	veAWPHelper, err := bindings.NewVeAWPHelper(VeAWPHelperAddr, client)
+	if err != nil {
+		return nil, fmt.Errorf("bind VeAWPHelper: %w", err)
+	}
 	return &Relayer{
 		client:       client,
 		awpRegistry:  awpRegistry,
 		awpAllocator: awpAllocator,
+		veAWPHelper:  veAWPHelper,
 		key:          key,
 		chainID:      chainID,
 		rdb:          rdb,
@@ -339,6 +348,37 @@ func (r *Relayer) RelayUnbind(ctx context.Context, user common.Address, deadline
 	}
 
 	r.logger.Info("relay unbindFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex())
+	r.trackTx(tx.Hash().Hex())
+	return tx.Hash().Hex(), nil
+}
+
+// RelayStake relays a gasless stake via VeAWPHelper.depositFor
+// User signs one ERC-2612 permit (AWP → VeAWPHelper), relayer pays gas.
+func (r *Relayer) RelayStake(
+	ctx context.Context,
+	user common.Address,
+	amount *big.Int,
+	lockDuration uint64,
+	deadline *big.Int,
+	v uint8, rs [32]byte, ss [32]byte,
+) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	txCtx, cancel := context.WithTimeout(ctx, 60*time.Second) // staking is heavier
+	defer cancel()
+
+	auth, err := r.auth(txCtx)
+	if err != nil {
+		return "", err
+	}
+
+	tx, err := r.veAWPHelper.DepositFor(auth, user, amount, lockDuration, deadline, v, rs, ss)
+	if err != nil {
+		return "", fmt.Errorf("VeAWPHelper.DepositFor tx: %w", err)
+	}
+
+	r.logger.Info("relay stake sent", "txHash", tx.Hash().Hex(), "user", user.Hex(), "amount", amount.String())
 	r.trackTx(tx.Hash().Hex())
 	return tx.Hash().Hex(), nil
 }
