@@ -35,7 +35,7 @@ func (q *WSAllocQuerier) GetAgentSubnetStakeWS(ctx context.Context, _ int64, age
 		return "0", err
 	}
 	if stake.Valid {
-		return stake.Int.String(), nil
+		return numericString(stake), nil
 	}
 	return "0", nil
 }

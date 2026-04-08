@@ -297,7 +297,7 @@ func (h *Handler) svcGetBalance(ctx context.Context, chainID int64, address stri
 
 	totalStaked := "0"
 	if totalStakedNum.Valid {
-		totalStaked = totalStakedNum.Int.String()
+		totalStaked = numericString(totalStakedNum)
 	}
 
 	totalAllocated := "0"
@@ -310,7 +310,7 @@ func (h *Handler) svcGetBalance(ctx context.Context, chainID int64, address stri
 			return balanceResponse{}, newSvcErr(errInternal, "failed to get user balance")
 		}
 	} else if balance.TotalAllocated.Valid {
-		totalAllocated = balance.TotalAllocated.Int.String()
+		totalAllocated = numericString(balance.TotalAllocated)
 	}
 
 	unallocated := "0"
@@ -368,6 +368,28 @@ func (h *Handler) svcGetStakePositions(ctx context.Context, chainID int64, addre
 	return positions, nil
 }
 
+// numericString converts a pgtype.Numeric to its full decimal string representation.
+// pgtype.Numeric stores (Int, Exp) where value = Int * 10^Exp.
+// Int.String() alone returns just the mantissa, ignoring the exponent.
+func numericString(n pgtype.Numeric) string {
+	if !n.Valid || n.Int == nil {
+		return "0"
+	}
+	if n.Exp == 0 {
+		return n.Int.String()
+	}
+	if n.Exp > 0 {
+		return new(big.Int).Mul(n.Int, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(n.Exp)), nil)).String()
+	}
+	// Negative exponent: decimal representation (e.g., Exp=-2 means divide by 100)
+	s := n.Int.String()
+	absExp := int(-n.Exp)
+	if absExp >= len(s) {
+		return "0"
+	}
+	return s[:len(s)-absExp]
+}
+
 // svcGetAgentSubnetStake fetches the agent's stake in a subnet (cross-chain aggregation, chainID not needed)
 func (h *Handler) svcGetAgentSubnetStake(ctx context.Context, agent string, subnetID pgtype.Numeric) (string, error) {
 	stake, err := h.queries.GetAgentSubnetStakeGlobal(ctx, gen.GetAgentSubnetStakeGlobalParams{
@@ -378,7 +400,7 @@ func (h *Handler) svcGetAgentSubnetStake(ctx context.Context, agent string, subn
 		return "", newSvcErr(errInternal, "failed to get agent subnet stake")
 	}
 	if stake.Valid {
-		return stake.Int.String(), nil
+		return numericString(stake), nil
 	}
 	return "0", nil
 }
@@ -401,7 +423,7 @@ func (h *Handler) svcGetSubnetTotalStake(ctx context.Context, subnetID pgtype.Nu
 		return "", newSvcErr(errInternal, "failed to get subnet total stake")
 	}
 	if total.Valid {
-		return total.Int.String(), nil
+		return numericString(total), nil
 	}
 	return "0", nil
 }
@@ -642,7 +664,7 @@ func (h *Handler) svcBatchAgentInfo(ctx context.Context, chainID int64, agents [
 	stakeMap := make(map[string]string, len(stakes))
 	for _, s := range stakes {
 		if s.Total.Valid {
-			stakeMap[s.AgentAddress] = s.Total.Int.String()
+			stakeMap[s.AgentAddress] = numericString(s.Total)
 		}
 	}
 
@@ -691,11 +713,11 @@ func (h *Handler) svcGetGlobalStats(ctx context.Context) (map[string]any, error)
 
 	stakedStr := "0"
 	if totalStaked.Valid {
-		stakedStr = totalStaked.Int.String()
+		stakedStr = numericString(totalStaked)
 	}
 	allocatedStr := "0"
 	if totalAllocated.Valid {
-		allocatedStr = totalAllocated.Int.String()
+		allocatedStr = numericString(totalAllocated)
 	}
 
 	chainCount := 1
@@ -735,7 +757,7 @@ func (h *Handler) svcGetUserBalanceGlobal(ctx context.Context, address string) (
 
 	totalStaked := "0"
 	if totalStakedNum.Valid {
-		totalStaked = totalStakedNum.Int.String()
+		totalStaked = numericString(totalStakedNum)
 	}
 
 	totalAllocatedNum, err := h.queries.GetUserBalanceGlobal(ctx, address)
@@ -746,7 +768,7 @@ func (h *Handler) svcGetUserBalanceGlobal(ctx context.Context, address string) (
 
 	totalAllocated := "0"
 	if totalAllocatedNum.Valid {
-		totalAllocated = totalAllocatedNum.Int.String()
+		totalAllocated = numericString(totalAllocatedNum)
 	}
 
 	unallocated := "0"

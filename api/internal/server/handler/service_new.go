@@ -122,10 +122,10 @@ func (h *Handler) svcListWorknetsRanked(ctx context.Context, chainID int64, limi
 			return nil, newSvcErr(errInternal, "failed to list ranked worknets")
 		}
 		if subnetID.Valid {
-			r.SubnetID = subnetID.Int.String()
+			r.SubnetID = numericString(subnetID)
 		}
 		if totalStake.Valid {
-			r.TotalStake = totalStake.Int.String()
+			r.TotalStake = numericString(totalStake)
 		} else {
 			r.TotalStake = "0"
 		}
@@ -163,11 +163,11 @@ func (h *Handler) svcGetEpochDetail(ctx context.Context, chainID int64, epochID 
 
 	dailyStr := "0"
 	if epoch.DailyEmission.Valid {
-		dailyStr = epoch.DailyEmission.Int.String()
+		dailyStr = numericString(epoch.DailyEmission)
 	}
 	daoStr := "0"
 	if epoch.DaoEmission.Valid {
-		daoStr = epoch.DaoEmission.Int.String()
+		daoStr = numericString(epoch.DaoEmission)
 	}
 
 	return map[string]any{
@@ -213,7 +213,7 @@ func (h *Handler) svcListWorknetAgents(ctx context.Context, chainID int64, subne
 			return nil, newSvcErr(errInternal, "failed to list worknet agents")
 		}
 		if totalStake.Valid {
-			r.TotalStake = totalStake.Int.String()
+			r.TotalStake = numericString(totalStake)
 		} else {
 			r.TotalStake = "0"
 		}
