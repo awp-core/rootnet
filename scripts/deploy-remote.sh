@@ -11,14 +11,13 @@
 #   ./scripts/deploy-remote.sh --logs [service]   # Tail remote logs (api/indexer/keeper)
 #   ./scripts/deploy-remote.sh --stop             # Stop remote services
 #
-# Remote server startup command (for reference):
-#   cd /home/ubuntu/awp
-#   set -a && source .env && set +a
-#   export KEEPER_SKIP_SETTLE=true    # IMPORTANT: prevent accidental epoch settlement
-#   export PID_DIR=/home/ubuntu/awp   # flock-based single-instance protection
-#   nohup ./awp-api     >> logs/api.log     2>&1 & echo $! > awp-api.pid
-#   nohup ./awp-indexer >> logs/indexer.log  2>&1 & echo $! > awp-indexer.pid
-#   nohup ./awp-keeper  >> logs/keeper.log   2>&1 & echo $! > awp-keeper.pid
+# Remote server uses systemd services (awp-api, awp-indexer, awp-keeper).
+# EnvironmentFile=/home/ubuntu/awp/.env must include KEEPER_SKIP_SETTLE=true
+# Manual control:
+#   sudo systemctl stop awp-api awp-indexer awp-keeper
+#   sudo systemctl start awp-api awp-indexer awp-keeper
+#   sudo systemctl restart awp-api awp-indexer awp-keeper
+#   journalctl -u awp-api -f
 #
 # Config (env vars or defaults):
 #   REMOTE_HOST     SSH host (default: ubuntu@api.awp.sh)
@@ -73,54 +72,24 @@ do_upload() {
 
 do_stop() {
     step "Stopping remote services..."
-    ssh_cmd bash -s << 'STOP_SCRIPT'
-        # Kill all awp service processes (SIGKILL to avoid fx shutdown delays)
-        PIDS=$(ps aux | grep -E 'awp-(api|indexer|keeper)' | grep -v grep | awk '{print $2}')
-        if [ -n "$PIDS" ]; then
-            kill -9 $PIDS 2>/dev/null
-            sleep 1
-        fi
-        # Verify
-        REMAINING=$(ps aux | grep -E 'awp-(api|indexer|keeper)' | grep -v grep | wc -l)
-        if [ "$REMAINING" -gt 0 ]; then
-            echo "WARNING: $REMAINING processes still running after kill -9"
-            ps aux | grep -E 'awp-(api|indexer|keeper)' | grep -v grep
-        else
-            echo "All services stopped"
-        fi
-STOP_SCRIPT
+    ssh_cmd "sudo systemctl stop awp-api awp-indexer awp-keeper 2>/dev/null; echo 'All services stopped'"
 }
 
 # ─── Install + Start ───
 
 do_install_and_start() {
     step "Installing binaries and restarting..."
-    ssh_cmd bash -s << INSTALL_SCRIPT
-        # Remove old binaries (avoids 'Text file busy')
-        rm -f $REMOTE_DIR/awp-api $REMOTE_DIR/awp-indexer $REMOTE_DIR/awp-keeper
 
-        # Install new
-        cp /tmp/awp-api /tmp/awp-indexer /tmp/awp-keeper $REMOTE_DIR/
-        chmod +x $REMOTE_DIR/awp-api $REMOTE_DIR/awp-indexer $REMOTE_DIR/awp-keeper
+    # Install binaries
+    ssh_cmd "rm -f $REMOTE_DIR/awp-api $REMOTE_DIR/awp-indexer $REMOTE_DIR/awp-keeper && \
+             cp /tmp/awp-api /tmp/awp-indexer /tmp/awp-keeper $REMOTE_DIR/ && \
+             chmod +x $REMOTE_DIR/awp-api $REMOTE_DIR/awp-indexer $REMOTE_DIR/awp-keeper"
 
-        # Source env and start
-        cd $REMOTE_DIR
-        set -a; source .env; set +a
-        mkdir -p logs
-        export PID_DIR=$REMOTE_DIR
-
-        nohup ./awp-api >> logs/api.log 2>&1 &
-        echo \$! > awp-api.pid
-        echo "api=\$!"
-
-        nohup ./awp-indexer >> logs/indexer.log 2>&1 &
-        echo \$! > awp-indexer.pid
-        echo "indexer=\$!"
-
-        nohup ./awp-keeper >> logs/keeper.log 2>&1 &
-        echo \$! > awp-keeper.pid
-        echo "keeper=\$!"
-INSTALL_SCRIPT
+    # Install start.sh on remote (start-stop-daemon for clean double-fork)
+    # Start services via systemd (handles daemonization, logging, restart)
+    ssh_cmd "sudo systemctl start awp-api awp-indexer awp-keeper"
+    sleep 2
+    ssh_cmd "for svc in awp-api awp-indexer awp-keeper; do printf '%s=%s\n' \$svc \$(systemctl show -p MainPID --value \$svc); done"
 
     # Health check with retry
     step "Waiting for health check..."
@@ -144,13 +113,10 @@ do_status() {
     echo "  Remote Service Status ($REMOTE_HOST):"
     echo "  ──────────────────────────────────────"
     ssh_cmd bash -s << 'STATUS_SCRIPT'
-        for svc in api indexer keeper; do
-            PID=$(ps aux | grep -E "awp-${svc}" | grep -v grep | awk '{print $2}' | head -1)
-            if [ -n "$PID" ]; then
-                echo "  $svc:    running (PID $PID)"
-            else
-                echo "  $svc:    stopped"
-            fi
+        for svc in awp-api awp-indexer awp-keeper; do
+            status=$(systemctl is-active $svc 2>/dev/null || echo "unknown")
+            pid=$(systemctl show -p MainPID --value $svc 2>/dev/null || echo "?")
+            echo "  $svc:    $status (PID $pid)"
         done
         if curl -sf http://localhost:8080/api/health >/dev/null 2>&1; then
             echo '  health:  OK'
@@ -165,7 +131,7 @@ STATUS_SCRIPT
 
 do_logs() {
     local svc="${1:-api}"
-    ssh_cmd "tail -50f $REMOTE_DIR/logs/${svc}.log"
+    ssh_cmd "sudo journalctl -u awp-${svc} -f -n 50"
 }
 
 # ─── Cleanup ───
