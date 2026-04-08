@@ -73,29 +73,29 @@ do_upload() {
 
 do_stop() {
     step "Stopping remote services..."
-    ssh_cmd "
-        for svc in api indexer keeper; do
-            PIDS=\$(ps aux | grep \"awp-\${svc}\" | grep -v grep | awk '{print \$2}')
-            if [ -n \"\$PIDS\" ]; then
-                kill \$PIDS 2>/dev/null && echo \"Stopped \$svc (PID \$PIDS)\" || true
-            fi
-        done
-        sleep 1
-        # Force kill any remaining (match both absolute and relative paths)
-        REMAINING=\$(ps aux | grep 'awp-\(api\|indexer\|keeper\)' | grep -v grep | awk '{print \$2}')
-        if [ -n \"\$REMAINING\" ]; then
-            kill -9 \$REMAINING 2>/dev/null || true
+    ssh_cmd bash -s << 'STOP_SCRIPT'
+        # Kill all awp service processes (SIGKILL to avoid fx shutdown delays)
+        PIDS=$(ps aux | grep -E 'awp-(api|indexer|keeper)' | grep -v grep | awk '{print $2}')
+        if [ -n "$PIDS" ]; then
+            kill -9 $PIDS 2>/dev/null
             sleep 1
         fi
-        echo 'All services stopped'
-    "
+        # Verify
+        REMAINING=$(ps aux | grep -E 'awp-(api|indexer|keeper)' | grep -v grep | wc -l)
+        if [ "$REMAINING" -gt 0 ]; then
+            echo "WARNING: $REMAINING processes still running after kill -9"
+            ps aux | grep -E 'awp-(api|indexer|keeper)' | grep -v grep
+        else
+            echo "All services stopped"
+        fi
+STOP_SCRIPT
 }
 
 # ─── Install + Start ───
 
 do_install_and_start() {
     step "Installing binaries and restarting..."
-    ssh_cmd "
+    ssh_cmd bash -s << INSTALL_SCRIPT
         # Remove old binaries (avoids 'Text file busy')
         rm -f $REMOTE_DIR/awp-api $REMOTE_DIR/awp-indexer $REMOTE_DIR/awp-keeper
 
@@ -103,30 +103,24 @@ do_install_and_start() {
         cp /tmp/awp-api /tmp/awp-indexer /tmp/awp-keeper $REMOTE_DIR/
         chmod +x $REMOTE_DIR/awp-api $REMOTE_DIR/awp-indexer $REMOTE_DIR/awp-keeper
 
-        # Start via helper script (avoids env sourcing issues over SSH)
-        cat > /tmp/_awp_start.sh << 'STARTSCRIPT'
-#!/bin/bash
-cd $REMOTE_DIR
-set -a; source .env; set +a
-mkdir -p logs
-export PID_DIR=$REMOTE_DIR
+        # Source env and start
+        cd $REMOTE_DIR
+        set -a; source .env; set +a
+        mkdir -p logs
+        export PID_DIR=$REMOTE_DIR
 
-nohup ./awp-api >> logs/api.log 2>&1 &
-echo \$! > awp-api.pid
-echo \"api=\$!\"
+        nohup ./awp-api >> logs/api.log 2>&1 &
+        echo \$! > awp-api.pid
+        echo "api=\$!"
 
-nohup ./awp-indexer >> logs/indexer.log 2>&1 &
-echo \$! > awp-indexer.pid
-echo \"indexer=\$!\"
+        nohup ./awp-indexer >> logs/indexer.log 2>&1 &
+        echo \$! > awp-indexer.pid
+        echo "indexer=\$!"
 
-nohup ./awp-keeper >> logs/keeper.log 2>&1 &
-echo \$! > awp-keeper.pid
-echo \"keeper=\$!\"
-STARTSCRIPT
-        sed -i \"s|\\\$REMOTE_DIR|$REMOTE_DIR|g\" /tmp/_awp_start.sh
-        chmod +x /tmp/_awp_start.sh
-        /tmp/_awp_start.sh
-    "
+        nohup ./awp-keeper >> logs/keeper.log 2>&1 &
+        echo \$! > awp-keeper.pid
+        echo "keeper=\$!"
+INSTALL_SCRIPT
 
     # Health check with retry
     step "Waiting for health check..."
@@ -149,13 +143,13 @@ do_status() {
     echo ""
     echo "  Remote Service Status ($REMOTE_HOST):"
     echo "  ──────────────────────────────────────"
-    ssh_cmd "
+    ssh_cmd bash -s << 'STATUS_SCRIPT'
         for svc in api indexer keeper; do
-            PID=\$(ps aux | grep \"$REMOTE_DIR/awp-\${svc}\" | grep -v grep | awk '{print \$2}' | head -1)
-            if [ -n \"\$PID\" ]; then
-                echo \"  \$svc:    running (PID \$PID)\"
+            PID=$(ps aux | grep -E "awp-${svc}" | grep -v grep | awk '{print $2}' | head -1)
+            if [ -n "$PID" ]; then
+                echo "  $svc:    running (PID $PID)"
             else
-                echo \"  \$svc:    stopped\"
+                echo "  $svc:    stopped"
             fi
         done
         if curl -sf http://localhost:8080/api/health >/dev/null 2>&1; then
@@ -163,7 +157,7 @@ do_status() {
         else
             echo '  health:  unreachable'
         fi
-    "
+STATUS_SCRIPT
     echo ""
 }
 

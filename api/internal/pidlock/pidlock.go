@@ -32,6 +32,9 @@ func Acquire(name string) (*Lock, error) {
 		return nil, fmt.Errorf("pidlock: open %s: %w", path, err)
 	}
 
+	// Set close-on-exec to prevent child processes from inheriting the lock fd
+	syscall.CloseOnExec(int(f.Fd()))
+
 	// Try non-blocking exclusive lock
 	err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 	if err != nil {
