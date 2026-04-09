@@ -299,7 +299,9 @@ func wireChainReader(lc fx.Lifecycle, h *handler.Handler, rh *handler.RelayHandl
 	}
 
 	// Share chain readers with RelayHandler for prepare endpoints
-	rh.SetChainReaders(h.GetChainReaders())
+	if rh != nil {
+		rh.SetChainReaders(h.GetChainReaders())
+	}
 
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {

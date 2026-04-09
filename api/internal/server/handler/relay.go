@@ -267,11 +267,6 @@ func (rh *RelayHandler) getChainReader(chainID int64) ChainReader {
 	if cr, ok := rh.chainReaders[chainID]; ok {
 		return cr
 	}
-	if len(rh.chainReaders) == 1 {
-		for _, cr := range rh.chainReaders {
-			return cr
-		}
-	}
 	return nil
 }
 
@@ -1027,19 +1022,34 @@ func (rh *RelayHandler) PrepareStake(w http.ResponseWriter, r *http.Request) {
 		rh.writeError(w, http.StatusBadRequest, "lockDuration must be at least 86400 seconds (1 day)")
 		return
 	}
+	if req.ChainID <= 0 {
+		rh.writeError(w, http.StatusBadRequest, "chainId is required")
+		return
+	}
 
-	// Resolve chain reader for on-chain queries
+	// Validate chain is supported
 	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
 	if resolveErr != nil {
 		rh.writeError(w, http.StatusBadRequest, "chain not supported")
 		return
 	}
-	_ = relayer // relayer not needed for prepare, but validates chainId
+	_ = relayer
+
+	// Rate limit (RPC call per request — prevent DoS on RPC provider)
+	exceeded, rateLimitErr := rh.checkRateLimit(r)
+	if rateLimitErr != nil {
+		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
+		return
+	}
+	if exceeded {
+		rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay"))
+		return
+	}
 
 	// Resolve chain reader to get permit nonce
 	cr := rh.getChainReader(req.ChainID)
 	if cr == nil {
-		rh.writeError(w, http.StatusBadRequest, "chain not available")
+		rh.writeError(w, http.StatusBadRequest, "chain reader not available")
 		return
 	}
 
@@ -1051,11 +1061,8 @@ func (rh *RelayHandler) PrepareStake(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deadline := uint64(time.Now().Unix()) + 3600 // 1 hour from now
+	deadline := uint64(time.Now().Unix()) + 3600
 	chainID := req.ChainID
-	if chainID == 0 {
-		chainID = 8453 // default to Base
-	}
 
 	rh.writeJSON(w, http.StatusOK, map[string]any{
 		"typedData": map[string]any{
