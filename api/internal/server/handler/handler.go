@@ -41,6 +41,7 @@ type ChainReader interface {
 	GetNonce(addr string) (uint64, error)
 	GetAllocatorNonce(addr string) (uint64, error)
 	GetPermitNonce(addr string) (uint64, error)
+	GetAWPTokenAddress() string
 	ResolveRecipient(addr string) (string, error)
 	BatchResolveRecipients(addrs []string) ([]string, error)
 }

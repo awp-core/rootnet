@@ -1086,7 +1086,7 @@ func (rh *RelayHandler) PrepareStake(w http.ResponseWriter, r *http.Request) {
 				"name":              "AWP Token",
 				"version":           "1",
 				"chainId":           chainID,
-				"verifyingContract": "0x0000A1050AcF9DEA8af9c2E74f0D7CF43f1000A1",
+				"verifyingContract": cr.GetAWPTokenAddress(),
 			},
 			"message": map[string]any{
 				"owner":    common.HexToAddress(user).Hex(),

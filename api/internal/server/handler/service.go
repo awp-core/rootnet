@@ -383,13 +383,21 @@ func numericString(n pgtype.Numeric) string {
 	if n.Exp > 0 {
 		return new(big.Int).Mul(n.Int, new(big.Int).Exp(big.NewInt(10), big.NewInt(int64(n.Exp)), nil)).String()
 	}
-	// Negative exponent: decimal representation (e.g., Exp=-2 means divide by 100)
+	// Negative exponent: integer part only (truncate fractional digits)
+	// e.g., Int=12345, Exp=-2 → 123 (drop .45)
+	// e.g., Int=5, Exp=-3 → 0 (0.005 truncated to 0)
+	// Token amounts in this codebase always use Exp=0, so this path is a safety fallback.
 	s := n.Int.String()
+	neg := ""
+	if s[0] == '-' {
+		neg = "-"
+		s = s[1:]
+	}
 	absExp := int(-n.Exp)
 	if absExp >= len(s) {
 		return "0"
 	}
-	return s[:len(s)-absExp]
+	return neg + s[:len(s)-absExp]
 }
 
 // svcGetAgentSubnetStake fetches the agent's stake in a subnet (cross-chain aggregation, chainID not needed)

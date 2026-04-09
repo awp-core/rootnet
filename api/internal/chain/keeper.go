@@ -140,7 +140,8 @@ func (k *Keeper) renewLock(ctx context.Context) {
 	script := `if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("EXPIRE", KEYS[1], ARGV[2]) else return 0 end`
 	result, _ := k.redis.Eval(ctx, script, []string{lockKey}, k.lockValue, 90).Int64()
 	if result == 0 {
-		k.logger.Warn("lost keeper lock, another instance may have taken over", "chainId", k.chainIDInt)
+		k.logger.Error("lost keeper lock, stopping cron to prevent split-brain", "chainId", k.chainIDInt)
+		k.Stop()
 	}
 }
 
@@ -564,7 +565,7 @@ func (k *Keeper) updateRelayerBalance(ctx context.Context) {
 		return
 	}
 	key := fmt.Sprintf("relayer_balance:%d", k.chainIDInt)
-	k.redis.Set(ctx, key, balance.String(), 1*time.Minute)
+	k.redis.Set(ctx, key, balance.String(), 25*time.Second)
 
 	// Alert when balance is below 0.01 ETH/BNB
 	threshold := big.NewInt(1e16)

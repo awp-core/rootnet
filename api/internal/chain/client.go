@@ -151,6 +151,11 @@ func (c *Client) GetAllocatorNonce(addr string) (uint64, error) {
 	return nonce.Uint64(), nil
 }
 
+// GetAWPTokenAddress returns the AWP token contract address for this chain
+func (c *Client) GetAWPTokenAddress() string {
+	return c.AWPTokenAddr.Hex()
+}
+
 // GetPermitNonce reads the ERC-2612 permit nonce for an address from AWPToken
 func (c *Client) GetPermitNonce(addr string) (uint64, error) {
 	nonce, err := c.AWPToken.Nonces(nil, common.HexToAddress(addr))
