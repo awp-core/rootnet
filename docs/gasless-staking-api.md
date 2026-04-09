@@ -1,5 +1,110 @@
 # Gasless Staking API
 
+## POST /api/relay/stake/prepare
+
+**LLM-friendly endpoint.** Returns pre-built EIP-712 typedData (ready to sign) and a pre-filled submit request body. Designed so that LLM agents never need to remember addresses, construct typed data, or fetch nonces — everything is returned in one response.
+
+### Request
+
+```http
+POST https://api.awp.sh/api/relay/stake/prepare
+Content-Type: application/json
+```
+
+```json
+{
+  "chainId": 8453,
+  "user": "0x00000000000c964F36f7f69292cb950f7D45e48f",
+  "amount": "1000000000000000000000",
+  "lockDuration": 86400
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `chainId` | int64 | Chain ID (8453 Base, 1 Ethereum, 42161 Arbitrum, 56 BSC) |
+| `user` | string | User address |
+| `amount` | string | AWP amount in wei |
+| `lockDuration` | uint64 | Lock period in seconds (minimum 86400 = 1 day) |
+
+### Response
+
+```json
+{
+  "typedData": {
+    "types": {
+      "EIP712Domain": [
+        {"name": "name", "type": "string"},
+        {"name": "version", "type": "string"},
+        {"name": "chainId", "type": "uint256"},
+        {"name": "verifyingContract", "type": "address"}
+      ],
+      "Permit": [
+        {"name": "owner", "type": "address"},
+        {"name": "spender", "type": "address"},
+        {"name": "value", "type": "uint256"},
+        {"name": "nonce", "type": "uint256"},
+        {"name": "deadline", "type": "uint256"}
+      ]
+    },
+    "primaryType": "Permit",
+    "domain": {
+      "name": "AWP Token",
+      "version": "1",
+      "chainId": 8453,
+      "verifyingContract": "0x0000A1050AcF9DEA8af9c2E74f0D7CF43f1000A1"
+    },
+    "message": {
+      "owner": "0x00000000000c964F36f7f69292cb950f7D45e48f",
+      "spender": "0x0000561EDE5C1Ba0b81cE585964050bEAE730001",
+      "value": "1000000000000000000000",
+      "nonce": 1,
+      "deadline": 1775729974
+    }
+  },
+  "submitTo": {
+    "url": "https://api.awp.sh/api/relay/stake",
+    "method": "POST",
+    "body": {
+      "chainId": 8453,
+      "user": "0x00000000000c964F36f7f69292cb950f7D45e48f",
+      "amount": "1000000000000000000000",
+      "lockDuration": 86400,
+      "deadline": 1775729974,
+      "signature": "REPLACE_WITH_SIGNATURE"
+    }
+  },
+  "nextAction": "Sign the typedData using signTypedData (EIP-712) with the user's private key. Then POST the submitTo.body to submitTo.url, replacing the signature field with the signing result."
+}
+```
+
+### What the Response Contains
+
+| Field | Description |
+|-------|-------------|
+| `typedData` | Complete EIP-712 typed data — pass directly to `signTypedData`. Includes pre-fetched permit nonce from chain and auto-generated deadline (1 hour from now). |
+| `submitTo.url` | The endpoint to POST the signed transaction to |
+| `submitTo.body` | Pre-filled request body — replace `"REPLACE_WITH_SIGNATURE"` with the signing result |
+| `nextAction` | Human/LLM-readable instruction for the next step |
+
+### Usage Flow
+
+```
+Step 1:  POST /api/relay/stake/prepare { chainId, user, amount, lockDuration }
+           → { typedData, submitTo, nextAction }
+
+Step 2:  signTypedData(typedData)
+           → signature (0x-prefixed 65-byte hex)
+
+Step 3:  POST submitTo.url with submitTo.body (replace signature field)
+           → { txHash, nextAction: "Poll GET /api/relay/status/{txHash}..." }
+
+Step 4:  GET /api/relay/status/{txHash}
+           → { status: "confirmed" | "pending" | "failed" }
+```
+
+---
+
 ## POST /api/relay/stake
 
 Gasless AWP staking via [VeAWPHelper](../contracts/src/core/VeAWPHelper.sol). The user signs a single ERC-2612 permit off-chain; the relayer pays gas and executes the deposit on behalf of the user.
@@ -40,7 +145,8 @@ Content-Type: application/json
 **Success (200):**
 ```json
 {
-  "txHash": "0xfa18553e2ce7876d5e3c6069137193cfb781248f914c494cf3f28dcdbad28168"
+  "txHash": "0xfa18553e2ce7876d5e3c6069137193cfb781248f914c494cf3f28dcdbad28168",
+  "nextAction": "Transaction submitted. Poll GET /api/relay/status/0xfa18553e... until status is 'confirmed' or 'failed'."
 }
 ```
 
