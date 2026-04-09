@@ -151,6 +151,15 @@ func (c *Client) GetAllocatorNonce(addr string) (uint64, error) {
 	return nonce.Uint64(), nil
 }
 
+// GetPermitNonce reads the ERC-2612 permit nonce for an address from AWPToken
+func (c *Client) GetPermitNonce(addr string) (uint64, error) {
+	nonce, err := c.AWPToken.Nonces(nil, common.HexToAddress(addr))
+	if err != nil {
+		return 0, err
+	}
+	return nonce.Uint64(), nil
+}
+
 // ResolveRecipient reads the resolved recipient for an address (walks the bind chain to root)
 func (c *Client) ResolveRecipient(addr string) (string, error) {
 	resolved, err := c.AWPRegistry.ResolveRecipient(nil, common.HexToAddress(addr))

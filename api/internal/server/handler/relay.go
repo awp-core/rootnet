@@ -239,9 +239,10 @@ func decodeRelayError(err error) string {
 
 // RelayHandler handles gasless relay transaction requests (multi-chain)
 type RelayHandler struct {
-	relayers map[int64]*chain.Relayer // chainId → relayer
-	limiter  *ratelimit.Limiter
-	logger   *slog.Logger
+	relayers     map[int64]*chain.Relayer     // chainId → relayer
+	chainReaders map[int64]ChainReader        // chainId → chain reader (for prepare endpoints)
+	limiter      *ratelimit.Limiter
+	logger       *slog.Logger
 }
 
 // NewRelayHandler creates a multi-chain RelayHandler
@@ -251,6 +252,27 @@ func NewRelayHandler(relayers map[int64]*chain.Relayer, limiter *ratelimit.Limit
 		limiter:  limiter,
 		logger:   logger,
 	}
+}
+
+// SetChainReaders injects chain readers for prepare endpoints (called after construction)
+func (rh *RelayHandler) SetChainReaders(readers map[int64]ChainReader) {
+	rh.chainReaders = readers
+}
+
+// getChainReader returns the chain reader for the given chainId
+func (rh *RelayHandler) getChainReader(chainID int64) ChainReader {
+	if rh.chainReaders == nil {
+		return nil
+	}
+	if cr, ok := rh.chainReaders[chainID]; ok {
+		return cr
+	}
+	if len(rh.chainReaders) == 1 {
+		for _, cr := range rh.chainReaders {
+			return cr
+		}
+	}
+	return nil
 }
 
 // resolveRelayer returns the relayer for the given chainId, or the single relayer if only one exists
@@ -972,6 +994,117 @@ func (rh *RelayHandler) RelayUnbind(w http.ResponseWriter, r *http.Request) {
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
 }
 
+// PrepareStake POST /api/relay/stake/prepare — returns pre-built EIP-712 typed data for signing.
+// Designed for LLM agents: returns everything needed to sign + submit in a single response,
+// eliminating the need to remember addresses, construct typed data, or fetch nonces.
+func (rh *RelayHandler) PrepareStake(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 4096)
+
+	var req struct {
+		ChainID      int64  `json:"chainId"`
+		User         string `json:"user"`
+		Amount       string `json:"amount"`
+		LockDuration uint64 `json:"lockDuration"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		rh.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if !common.IsHexAddress(req.User) {
+		rh.writeError(w, http.StatusBadRequest, "invalid user address")
+		return
+	}
+	if req.Amount == "" {
+		rh.writeError(w, http.StatusBadRequest, "amount is required")
+		return
+	}
+	amount, ok := new(big.Int).SetString(req.Amount, 10)
+	if !ok || amount.Sign() <= 0 {
+		rh.writeError(w, http.StatusBadRequest, "invalid amount")
+		return
+	}
+	if req.LockDuration < 86400 {
+		rh.writeError(w, http.StatusBadRequest, "lockDuration must be at least 86400 seconds (1 day)")
+		return
+	}
+
+	// Resolve chain reader for on-chain queries
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, "chain not supported")
+		return
+	}
+	_ = relayer // relayer not needed for prepare, but validates chainId
+
+	// Resolve chain reader to get permit nonce
+	cr := rh.getChainReader(req.ChainID)
+	if cr == nil {
+		rh.writeError(w, http.StatusBadRequest, "chain not available")
+		return
+	}
+
+	user := strings.ToLower(req.User)
+	permitNonce, err := cr.GetPermitNonce(user)
+	if err != nil {
+		rh.logger.Error("failed to get permit nonce", "error", err, "user", user)
+		rh.writeError(w, http.StatusInternalServerError, "failed to read on-chain permit nonce")
+		return
+	}
+
+	deadline := uint64(time.Now().Unix()) + 3600 // 1 hour from now
+	chainID := req.ChainID
+	if chainID == 0 {
+		chainID = 8453 // default to Base
+	}
+
+	rh.writeJSON(w, http.StatusOK, map[string]any{
+		"typedData": map[string]any{
+			"types": map[string]any{
+				"EIP712Domain": []map[string]string{
+					{"name": "name", "type": "string"},
+					{"name": "version", "type": "string"},
+					{"name": "chainId", "type": "uint256"},
+					{"name": "verifyingContract", "type": "address"},
+				},
+				"Permit": []map[string]string{
+					{"name": "owner", "type": "address"},
+					{"name": "spender", "type": "address"},
+					{"name": "value", "type": "uint256"},
+					{"name": "nonce", "type": "uint256"},
+					{"name": "deadline", "type": "uint256"},
+				},
+			},
+			"primaryType": "Permit",
+			"domain": map[string]any{
+				"name":              "AWP Token",
+				"version":           "1",
+				"chainId":           chainID,
+				"verifyingContract": "0x0000A1050AcF9DEA8af9c2E74f0D7CF43f1000A1",
+			},
+			"message": map[string]any{
+				"owner":    common.HexToAddress(user).Hex(),
+				"spender":  chain.VeAWPHelperAddr.Hex(),
+				"value":    amount.String(),
+				"nonce":    permitNonce,
+				"deadline": deadline,
+			},
+		},
+		"submitTo": map[string]any{
+			"url":    "https://api.awp.sh/api/relay/stake",
+			"method": "POST",
+			"body": map[string]any{
+				"chainId":      chainID,
+				"user":         common.HexToAddress(user).Hex(),
+				"amount":       amount.String(),
+				"lockDuration": req.LockDuration,
+				"deadline":     deadline,
+				"signature":    "REPLACE_WITH_SIGNATURE",
+			},
+		},
+		"nextAction": "Sign the typedData using signTypedData (EIP-712) with the user's private key. Then POST the submitTo.body to submitTo.url, replacing the signature field with the signing result.",
+	})
+}
+
 // RelayStake POST /api/relay/stake — gasless staking via VeAWPHelper.depositFor
 func (rh *RelayHandler) RelayStake(w http.ResponseWriter, r *http.Request) {
 	r.Body = http.MaxBytesReader(w, r.Body, 4096)
@@ -1039,5 +1172,8 @@ func (rh *RelayHandler) RelayStake(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
+	rh.writeJSON(w, http.StatusOK, map[string]any{
+		"txHash":     txHash,
+		"nextAction": "Transaction submitted. Poll GET /api/relay/status/" + txHash + " until status is 'confirmed' or 'failed'.",
+	})
 }

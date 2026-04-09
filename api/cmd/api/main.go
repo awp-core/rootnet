@@ -234,7 +234,7 @@ func newVanityHandler(cfg *config.Config, queries *gen.Queries, limiter *ratelim
 }
 
 // wireChainReader creates a lightweight chain client for on-chain reads (nonce, etc.)
-func wireChainReader(lc fx.Lifecycle, h *handler.Handler, hub *ws.Hub, queries *gen.Queries, cfg *config.Config, logger *slog.Logger) {
+func wireChainReader(lc fx.Lifecycle, h *handler.Handler, rh *handler.RelayHandler, hub *ws.Hub, queries *gen.Queries, cfg *config.Config, logger *slog.Logger) {
 	// Inject WebSocket allocation query interface (chainID from events, fallback to first configured chain)
 	defaultCID := cfg.ChainID
 	if cfg.ChainsFile != "" {
@@ -297,6 +297,9 @@ func wireChainReader(lc fx.Lifecycle, h *handler.Handler, hub *ws.Hub, queries *
 		clients = append(clients, client)
 		logger.Info("chain reader connected (single-chain)", "chainId", cfg.ChainID)
 	}
+
+	// Share chain readers with RelayHandler for prepare endpoints
+	rh.SetChainReaders(h.GetChainReaders())
 
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {

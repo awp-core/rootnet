@@ -40,6 +40,7 @@ type Handler struct {
 type ChainReader interface {
 	GetNonce(addr string) (uint64, error)
 	GetAllocatorNonce(addr string) (uint64, error)
+	GetPermitNonce(addr string) (uint64, error)
 	ResolveRecipient(addr string) (string, error)
 	BatchResolveRecipients(addrs []string) ([]string, error)
 }
@@ -67,6 +68,11 @@ func (h *Handler) SetChainReader(chainID int64, cr ChainReader) {
 		h.chainReaders = make(map[int64]ChainReader)
 	}
 	h.chainReaders[chainID] = cr
+}
+
+// GetChainReaders returns all registered chain readers (for sharing with RelayHandler)
+func (h *Handler) GetChainReaders() map[int64]ChainReader {
+	return h.chainReaders
 }
 
 // getChainReader returns the chain reader for a given chain ID, with single-chain fallback
