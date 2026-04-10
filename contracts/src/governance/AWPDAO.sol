@@ -113,6 +113,12 @@ contract AWPDAO is
         guardian = guardian_;
     }
 
+    /// @notice Migration: update voting parameters (called via upgradeToAndCall)
+    function migrateVotingParams(uint48 newVotingDelay, uint32 newVotingPeriod) external reinitializer(2) {
+        _setVotingDelay(newVotingDelay);
+        _setVotingPeriod(newVotingPeriod);
+    }
+
     /// @dev UUPS upgrade authorization — Guardian or Executor
     function _authorizeUpgrade(address) internal view override {
         if (msg.sender != guardian && msg.sender != _executor()) revert NotGuardianOrExecutor();

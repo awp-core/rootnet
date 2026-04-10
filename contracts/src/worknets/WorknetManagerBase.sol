@@ -168,17 +168,19 @@ abstract contract WorknetManagerBase is Initializable, UUPSUpgradeable, AccessCo
     // ═══════════════════════════════════════════════
 
     function transferToken(address token, address to, uint256 amount) external onlyRole(TRANSFER_ROLE) {
-        IERC20(token).safeTransfer(to, amount);
-        emit TokenTransferred(token, to, amount);
+        address resolved = IAWPRegistry(awpRegistry).resolveRecipient(to);
+        IERC20(token).safeTransfer(resolved, amount);
+        emit TokenTransferred(token, resolved, amount);
     }
 
     function batchTransferToken(address token, address[] calldata recipients, uint256[] calldata amounts)
         external onlyRole(TRANSFER_ROLE)
     {
         if (recipients.length != amounts.length) revert ArrayLengthMismatch();
-        for (uint256 i = 0; i < recipients.length;) {
-            IERC20(token).safeTransfer(recipients[i], amounts[i]);
-            emit TokenTransferred(token, recipients[i], amounts[i]);
+        address[] memory resolved = IAWPRegistry(awpRegistry).batchResolveRecipients(recipients);
+        for (uint256 i = 0; i < resolved.length;) {
+            IERC20(token).safeTransfer(resolved[i], amounts[i]);
+            emit TokenTransferred(token, resolved[i], amounts[i]);
             unchecked { ++i; }
         }
     }
