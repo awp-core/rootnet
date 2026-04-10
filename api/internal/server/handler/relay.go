@@ -381,6 +381,16 @@ type relayRegisterSubnetRequest struct {
 	RegisterSignature string `json:"registerSignature"` // EIP-712 registerSubnet signature
 }
 
+type relayVoteRequest struct {
+	ChainID    int64    `json:"chainId"`
+	ProposalID string   `json:"proposalId"`
+	Support    uint8    `json:"support"`    // 0=Against, 1=For, 2=Abstain
+	Voter      string   `json:"voter"`
+	Reason     string   `json:"reason"`
+	TokenIDs   []string `json:"tokenIds"`   // veAWP position NFT IDs used for voting
+	Signature  string   `json:"signature"`  // EIP-712 ExtendedBallot signature (full bytes, not split v/r/s)
+}
+
 type relayStakeRequest struct {
 	ChainID      int64  `json:"chainId"`
 	User         string `json:"user"`
@@ -987,6 +997,109 @@ func (rh *RelayHandler) RelayUnbind(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rh.writeJSON(w, http.StatusOK, relayResponse{TxHash: txHash})
+}
+
+// RelayVote POST /api/relay/vote — gasless DAO vote via castVoteWithReasonAndParamsBySig
+func (rh *RelayHandler) RelayVote(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 8192)
+
+	var req relayVoteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		rh.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if !common.IsHexAddress(req.Voter) {
+		rh.writeError(w, http.StatusBadRequest, "invalid voter address")
+		return
+	}
+	if req.ProposalID == "" {
+		rh.writeError(w, http.StatusBadRequest, "proposalId is required")
+		return
+	}
+	proposalId, ok := new(big.Int).SetString(req.ProposalID, 10)
+	if !ok || proposalId.Sign() <= 0 {
+		rh.writeError(w, http.StatusBadRequest, "invalid proposalId")
+		return
+	}
+	if req.Support > 2 {
+		rh.writeError(w, http.StatusBadRequest, "support must be 0 (Against), 1 (For), or 2 (Abstain)")
+		return
+	}
+	if len(req.TokenIDs) == 0 {
+		rh.writeError(w, http.StatusBadRequest, "tokenIds is required (veAWP position NFT IDs)")
+		return
+	}
+	if req.Signature == "" {
+		rh.writeError(w, http.StatusBadRequest, "missing signature")
+		return
+	}
+
+	// Encode tokenIds as params: abi.encode(uint256[])
+	tokenIds := make([]*big.Int, len(req.TokenIDs))
+	for i, s := range req.TokenIDs {
+		id, idOk := new(big.Int).SetString(s, 10)
+		if !idOk || id.Sign() < 0 {
+			rh.writeError(w, http.StatusBadRequest, "invalid tokenId: "+s)
+			return
+		}
+		tokenIds[i] = id
+	}
+	// ABI encode: uint256[]
+	params, err := abiEncodeUint256Array(tokenIds)
+	if err != nil {
+		rh.writeError(w, http.StatusBadRequest, "failed to encode tokenIds")
+		return
+	}
+
+	// Decode signature (raw bytes, not split v/r/s — OZ Governor uses SignatureChecker)
+	sigBytes, err := hex.DecodeString(strings.TrimPrefix(req.Signature, "0x"))
+	if err != nil || len(sigBytes) != 65 {
+		rh.writeError(w, http.StatusBadRequest, "invalid signature: expected 65 bytes hex")
+		return
+	}
+
+	relayer, resolveErr := rh.resolveRelayer(req.ChainID)
+	if resolveErr != nil {
+		rh.writeError(w, http.StatusBadRequest, "chain not supported")
+		return
+	}
+
+	exceeded, rateLimitErr := rh.checkRateLimit(r)
+	if rateLimitErr != nil {
+		rh.writeError(w, http.StatusInternalServerError, "rate limit check failed")
+		return
+	}
+	if exceeded {
+		rh.writeError(w, http.StatusTooManyRequests, rh.limiter.FormatError(r.Context(), "relay"))
+		return
+	}
+
+	txHash, err := relayer.RelayVote(r.Context(),
+		proposalId, req.Support, common.HexToAddress(req.Voter),
+		req.Reason, params, sigBytes)
+	if err != nil {
+		rh.logger.Error("relay vote failed", "error", err, "voter", req.Voter, "proposalId", req.ProposalID)
+		rh.writeError(w, http.StatusBadRequest, decodeRelayError(err))
+		return
+	}
+
+	rh.writeJSON(w, http.StatusOK, map[string]any{
+		"txHash":     txHash,
+		"nextAction": "Transaction submitted. Poll GET /api/relay/status/" + txHash + " until status is 'confirmed' or 'failed'.",
+	})
+}
+
+// abiEncodeUint256Array encodes a uint256[] for use as AWPDAO vote params
+func abiEncodeUint256Array(ids []*big.Int) ([]byte, error) {
+	// ABI encoding: offset(32) + length(32) + elements(32 each)
+	// offset = 32 (points to the start of the array data)
+	buf := make([]byte, 32+32+len(ids)*32)
+	big.NewInt(32).FillBytes(buf[0:32]) // offset
+	big.NewInt(int64(len(ids))).FillBytes(buf[32:64]) // length
+	for i, id := range ids {
+		id.FillBytes(buf[64+i*32 : 64+(i+1)*32])
+	}
+	return buf, nil
 }
 
 // PrepareStake POST /api/relay/stake/prepare — returns pre-built EIP-712 typed data for signing.

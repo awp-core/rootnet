@@ -125,6 +125,7 @@ func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, rdb *redis.Client, lim
 		rpcURL       string
 		awpRegistry  string
 		awpAllocator string
+		dao          string
 	}
 	var rpcs []chainRPC
 
@@ -138,6 +139,7 @@ func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, rdb *redis.Client, lim
 				rpcURL:       ch.RPCURL,
 				awpRegistry:  config.ResolveAddress(ch.AWPRegistry, cfg.AWPRegistryAddress),
 				awpAllocator: config.ResolveAddress(ch.AWPAllocator, cfg.AWPAllocatorAddress),
+				dao:          config.ResolveAddress(ch.DAOAddress, cfg.DAOAddress),
 			})
 		}
 	} else if cfg.RPCURL != "" {
@@ -145,6 +147,7 @@ func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, rdb *redis.Client, lim
 			rpcURL:       cfg.RPCURL,
 			awpRegistry:  cfg.AWPRegistryAddress,
 			awpAllocator: cfg.AWPAllocatorAddress,
+			dao:          cfg.DAOAddress,
 		})
 	}
 
@@ -168,7 +171,8 @@ func newRelayHandler(lc fx.Lifecycle, cfg *config.Config, rdb *redis.Client, lim
 
 		awpRegistryAddr := common.HexToAddress(rpc.awpRegistry)
 		awpAllocatorAddr := common.HexToAddress(rpc.awpAllocator)
-		rl, rlErr := chain.NewRelayer(client, awpRegistryAddr, awpAllocatorAddr, key, chainID, rdb, logger)
+		daoAddr := common.HexToAddress(rpc.dao)
+		rl, rlErr := chain.NewRelayer(client, awpRegistryAddr, awpAllocatorAddr, daoAddr, key, chainID, rdb, logger)
 		if rlErr != nil {
 			client.Close()
 			logger.Warn("relay: failed to create relayer, skipping", "chainId", chainID, "error", rlErr)

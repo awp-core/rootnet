@@ -24,6 +24,7 @@ type Relayer struct {
 	awpRegistry  *bindings.AWPRegistry
 	awpAllocator *bindings.AWPAllocator
 	veAWPHelper  *bindings.VeAWPHelper
+	awpDAO       *bindings.AWPDAO
 	key          *ecdsa.PrivateKey
 	chainID      *big.Int
 	logger       *slog.Logger
@@ -47,6 +48,7 @@ func NewRelayer(
 	client *ethclient.Client,
 	awpRegistryAddr common.Address,
 	awpAllocatorAddr common.Address,
+	daoAddr common.Address,
 	key *ecdsa.PrivateKey,
 	chainID *big.Int,
 	rdb *redis.Client,
@@ -64,11 +66,19 @@ func NewRelayer(
 	if err != nil {
 		return nil, fmt.Errorf("bind VeAWPHelper: %w", err)
 	}
+	var awpDAO *bindings.AWPDAO
+	if daoAddr != (common.Address{}) {
+		awpDAO, err = bindings.NewAWPDAO(daoAddr, client)
+		if err != nil {
+			return nil, fmt.Errorf("bind AWPDAO: %w", err)
+		}
+	}
 	return &Relayer{
 		client:       client,
 		awpRegistry:  awpRegistry,
 		awpAllocator: awpAllocator,
 		veAWPHelper:  veAWPHelper,
+		awpDAO:       awpDAO,
 		key:          key,
 		chainID:      chainID,
 		rdb:          rdb,
@@ -348,6 +358,42 @@ func (r *Relayer) RelayUnbind(ctx context.Context, user common.Address, deadline
 	}
 
 	r.logger.Info("relay unbindFor sent", "txHash", tx.Hash().Hex(), "user", user.Hex())
+	r.trackTx(tx.Hash().Hex())
+	return tx.Hash().Hex(), nil
+}
+
+// RelayVote relays a gasless DAO vote via castVoteWithReasonAndParamsBySig
+// User signs EIP-712 ExtendedBallot off-chain, relayer pays gas.
+func (r *Relayer) RelayVote(
+	ctx context.Context,
+	proposalId *big.Int,
+	support uint8,
+	voter common.Address,
+	reason string,
+	params []byte,
+	signature []byte,
+) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.awpDAO == nil {
+		return "", fmt.Errorf("DAO not configured")
+	}
+
+	txCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	auth, err := r.auth(txCtx)
+	if err != nil {
+		return "", err
+	}
+
+	tx, err := r.awpDAO.CastVoteWithReasonAndParamsBySig(auth, proposalId, support, voter, reason, params, signature)
+	if err != nil {
+		return "", fmt.Errorf("CastVoteWithReasonAndParamsBySig tx: %w", err)
+	}
+
+	r.logger.Info("relay vote sent", "txHash", tx.Hash().Hex(), "voter", voter.Hex(), "proposalId", proposalId.String())
 	r.trackTx(tx.Hash().Hex())
 	return tx.Hash().Hex(), nil
 }
