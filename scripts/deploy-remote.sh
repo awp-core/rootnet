@@ -52,9 +52,12 @@ do_build() {
     step "Building static binaries (CGO_ENABLED=0)..."
     mkdir -p "$TMP_DIR"
     cd "$API_DIR"
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$TMP_DIR/awp-api"     ./cmd/api     &
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$TMP_DIR/awp-indexer" ./cmd/indexer  &
-    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o "$TMP_DIR/awp-keeper"  ./cmd/keeper   &
+    local version
+    version=$(git rev-parse --short HEAD 2>/dev/null || echo "dev")
+    local ldflags="-X github.com/cortexia/rootnet/api/internal/server/handler.Version=$version"
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$ldflags" -o "$TMP_DIR/awp-api"     ./cmd/api     &
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$ldflags" -o "$TMP_DIR/awp-indexer" ./cmd/indexer  &
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "$ldflags" -o "$TMP_DIR/awp-keeper"  ./cmd/keeper   &
     wait
     info "Built: awp-api, awp-indexer, awp-keeper"
     ls -lh "$TMP_DIR"/awp-*

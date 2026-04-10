@@ -164,6 +164,9 @@ func isValidAddress(addr string) bool {
 	return true
 }
 
+// Version is set at build time via -ldflags "-X ...Version=xxx"
+var Version = "dev"
+
 // Health is the health-check endpoint (checks DB + Redis connectivity for load balancer use)
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -181,7 +184,7 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	if status != "ok" {
 		code = http.StatusServiceUnavailable
 	}
-	h.writeJSON(w, code, map[string]string{"status": status})
+	h.writeJSON(w, code, map[string]string{"status": status, "version": Version})
 }
 
 // buildDetailedHealth gathers per-chain health, Redis connectivity, and DB connectivity.

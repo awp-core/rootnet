@@ -34,10 +34,13 @@ generate-sqlc:
 migrate:
 	atlas schema apply --env local
 
+VERSION ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "dev")
+LDFLAGS := -ldflags "-X github.com/cortexia/rootnet/api/internal/server/handler.Version=$(VERSION)"
+
 build:
-	go build -o bin/api ./cmd/api
-	go build -o bin/indexer ./cmd/indexer
-	go build -o bin/keeper ./cmd/keeper
+	go build $(LDFLAGS) -o bin/api ./cmd/api
+	go build $(LDFLAGS) -o bin/indexer ./cmd/indexer
+	go build $(LDFLAGS) -o bin/keeper ./cmd/keeper
 
 test:
 	go test ./internal/chain/ -count=1 -timeout 60s
