@@ -6,6 +6,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {veAWP} from "../src/core/veAWP.sol";
 import {AWPAllocator} from "../src/core/AWPAllocator.sol";
 import {IveAWP} from "../src/interfaces/IveAWP.sol";
+import {WorknetToken} from "../src/token/WorknetToken.sol";
 
 /// @title ForkVeAWP — Fork tests for veAWP staking, withdrawal, and edge cases on live Base chain
 contract ForkVeAWP is Test {
@@ -499,5 +500,57 @@ contract ForkVeAWP is Test {
         string memory uri = ve.tokenURI(tokenId);
         // Should start with data:application/json;base64,
         assertGt(bytes(uri).length, 40, "URI not empty");
+    }
+}
+
+// Test that WorknetToken mint works after burn (the fix for supply-lock underflow)
+contract ForkWorknetTokenBurn is Test {
+    address constant AWP_TOKEN = 0x0000A1050AcF9DEA8af9c2E74f0D7CF43f1000A1;
+    address constant REGISTRY = 0x0000F34Ed3594F54faABbCb2Ec45738DDD1c001A;
+
+    function setUp() public {
+        vm.createSelectFork(vm.envString("BASE_RPC_URL"));
+    }
+
+    function test_mint_after_burn_does_not_revert() public {
+        // Deploy a fresh WorknetToken using the fixed code
+        MockTokenFactory factory = new MockTokenFactory();
+        address token = factory.deployForTest("Test", "TST", 1);
+
+        WorknetToken wt = WorknetToken(token);
+
+        // Open mint phase: mint some tokens
+        wt.mint(address(this), 1_000_000 ether);
+        assertEq(wt.totalSupply(), 1_000_000 ether);
+
+        // Lock minter
+        wt.setMinter(address(this));
+        uint256 lock = wt.supplyAtLock();
+        assertEq(lock, 1_000_000 ether);
+
+        // Burn tokens below supplyAtLock
+        wt.burn(500_000 ether);
+        assertLt(wt.totalSupply(), lock, "supply < supplyAtLock after burn");
+
+        // Warp 1 day for time cap
+        vm.warp(block.timestamp + 1 days);
+
+        // Mint should NOT revert (the fix handles supply < lock gracefully)
+        wt.mint(address(this), 1 ether);
+        assertEq(wt.totalSupply(), 500_001 ether);
+    }
+}
+
+// Minimal factory mock for testing (WorknetToken reads params from msg.sender via callback)
+contract MockTokenFactory {
+    string public pendingName;
+    string public pendingSymbol;
+    uint256 public pendingWorknetId;
+
+    function deployForTest(string memory name, string memory symbol, uint256 wid) external returns (address) {
+        pendingName = name;
+        pendingSymbol = symbol;
+        pendingWorknetId = wid;
+        return address(new WorknetToken());
     }
 }

@@ -73,7 +73,8 @@ contract WorknetToken is ERC1363, ERC20Burnable, ERC20Permit {
             uint256 budget = MAX_SUPPLY - lock;
             uint256 cap = budget * elapsed / 365 days;
             if (cap > budget) cap = budget;
-            if (supply - lock + amount > cap) revert ExceedsMintableLimit();
+            uint256 used = supply > lock ? supply - lock : 0;
+            if (used + amount > cap) revert ExceedsMintableLimit();
         }
         _mint(to, amount);
     }
