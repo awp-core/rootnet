@@ -167,7 +167,8 @@ func isValidAddress(addr string) bool {
 // Version is set at build time via -ldflags "-X ...Version=xxx"
 var Version = "dev"
 
-// Health is the health-check endpoint (checks DB + Redis connectivity for load balancer use)
+// Health is the health-check endpoint.
+// Returns version, chain count, and per-chain epoch/pause status from Redis cache (no RPC calls).
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	status := "ok"
@@ -180,11 +181,53 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 		status = "degraded"
 	}
 
+	// Build per-chain epoch info from Redis cache (written by keeper every 25s)
+	chainIDs := h.getActiveChainIDs()
+	type chainEpochInfo struct {
+		ChainID      int64  `json:"chainId"`
+		Epoch        string `json:"epoch"`
+		SettledEpoch string `json:"settledEpoch"`
+		PausedUntil  uint64 `json:"pausedUntil"`
+	}
+	chains := make([]chainEpochInfo, 0, len(chainIDs))
+	for _, cid := range chainIDs {
+		key := fmt.Sprintf("emission_current:%d", cid)
+		val, err := h.rdb.Get(ctx, key).Result()
+		if err != nil {
+			chains = append(chains, chainEpochInfo{ChainID: cid})
+			continue
+		}
+		var em struct {
+			Epoch        string `json:"epoch"`
+			SettledEpoch string `json:"settledEpoch"`
+			PausedUntil  uint64 `json:"pausedUntil"`
+		}
+		if json.Unmarshal([]byte(val), &em) == nil {
+			chains = append(chains, chainEpochInfo{
+				ChainID:      cid,
+				Epoch:        em.Epoch,
+				SettledEpoch: em.SettledEpoch,
+				PausedUntil:  em.PausedUntil,
+			})
+		} else {
+			chains = append(chains, chainEpochInfo{ChainID: cid})
+		}
+	}
+
+	// Stats from DB (lightweight query)
+	userCount, _ := h.queries.CountAllDistinctUsers(ctx)
+
 	code := http.StatusOK
 	if status != "ok" {
 		code = http.StatusServiceUnavailable
 	}
-	h.writeJSON(w, code, map[string]string{"status": status, "version": Version})
+	h.writeJSON(w, code, map[string]any{
+		"status":  status,
+		"version": Version,
+		"chains":  len(chainIDs),
+		"users":   userCount,
+		"epoch":   chains,
+	})
 }
 
 // buildDetailedHealth gathers per-chain health, Redis connectivity, and DB connectivity.

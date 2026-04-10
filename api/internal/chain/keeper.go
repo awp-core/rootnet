@@ -57,6 +57,7 @@ type emissionInfo struct {
 	SettledEpoch  string `json:"settledEpoch"`
 	DailyEmission string `json:"dailyEmission"`
 	TotalWeight   string `json:"totalWeight"`
+	PausedUntil   uint64 `json:"pausedUntil"`
 }
 
 // awpInfo is used to cache AWP token info in Redis
@@ -323,12 +324,18 @@ func (k *Keeper) updateTokenPrices(ctx context.Context) {
 		return
 	}
 
+	var pausedUntilVal uint64
+	if pu, puErr := k.awpEmission.PausedUntil(nil); puErr == nil {
+		pausedUntilVal = pu
+	}
+
 	// Write emission_current cache, TTL=30s (per Redis Key Spec)
 	emData, err := json.Marshal(emissionInfo{
 		Epoch:         currentEpoch.String(),
 		SettledEpoch:  settledEpoch.String(),
 		DailyEmission: dailyEmission.String(),
 		TotalWeight:   totalWeight.String(),
+		PausedUntil:   pausedUntilVal,
 	})
 	if err != nil {
 		k.logger.Error("failed to serialize emission info", "error", err)
