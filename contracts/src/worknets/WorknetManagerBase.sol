@@ -71,6 +71,7 @@ abstract contract WorknetManagerBase is Initializable, UUPSUpgradeable, AccessCo
     error NoRootForEpoch();
     error ZeroAmount();
     error ZeroRoot();
+    error ZeroAddress();
 
     function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
 
@@ -167,18 +168,20 @@ abstract contract WorknetManagerBase is Initializable, UUPSUpgradeable, AccessCo
     //  Token Transfer (TRANSFER_ROLE)
     // ═══════════════════════════════════════════════
 
-    function transferToken(address token, address to, uint256 amount) external onlyRole(TRANSFER_ROLE) {
+    function transferToken(address token, address to, uint256 amount) external nonReentrant onlyRole(TRANSFER_ROLE) {
         address resolved = IAWPRegistry(awpRegistry).resolveRecipient(to);
+        if (resolved == address(0)) revert ZeroAddress();
         IERC20(token).safeTransfer(resolved, amount);
         emit TokenTransferred(token, resolved, amount);
     }
 
     function batchTransferToken(address token, address[] calldata recipients, uint256[] calldata amounts)
-        external onlyRole(TRANSFER_ROLE)
+        external nonReentrant onlyRole(TRANSFER_ROLE)
     {
         if (recipients.length != amounts.length) revert ArrayLengthMismatch();
         address[] memory resolved = IAWPRegistry(awpRegistry).batchResolveRecipients(recipients);
         for (uint256 i = 0; i < resolved.length;) {
+            if (resolved[i] == address(0)) revert ZeroAddress();
             IERC20(token).safeTransfer(resolved[i], amounts[i]);
             emit TokenTransferred(token, resolved[i], amounts[i]);
             unchecked { ++i; }

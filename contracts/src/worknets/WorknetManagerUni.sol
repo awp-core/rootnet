@@ -59,6 +59,7 @@ contract WorknetManagerUni is WorknetManagerBase {
 
     error NotPoolManager();
     error SlippageExceeded();
+    error AmountExceedsPermit2Limit();
 
     constructor(address permit2_, address poolManager_, address positionManager_, address stateView_) {
         permit2 = permit2_;
@@ -109,6 +110,7 @@ contract WorknetManagerUni is WorknetManagerBase {
 
         if (liquidity == 0) return;  // [S2] amount too small for any liquidity
 
+        if (amount > type(uint160).max) revert AmountExceedsPermit2Limit();
         IERC20(awpToken).forceApprove(permit2, amount);
         IPermit2(permit2).approve(awpToken, positionManager, uint160(amount), uint48(block.timestamp));
 
@@ -157,6 +159,7 @@ contract WorknetManagerUni is WorknetManagerBase {
 
         uint128 minOut;
         if (minAmountOut > 0) {
+            if (minAmountOut > type(uint128).max) revert SlippageExceeded();
             minOut = uint128(minAmountOut);
         } else {
             (uint160 sqrtPriceX96,) = _getSlot0();
