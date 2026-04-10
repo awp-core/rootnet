@@ -173,10 +173,6 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	status := "ok"
 
-	chainID := h.defaultChainID()
-	if _, err := h.queries.GetUserCount(ctx, chainID); err != nil {
-		status = "degraded"
-	}
 	if err := h.rdb.Ping(ctx).Err(); err != nil {
 		status = "degraded"
 	}
@@ -214,8 +210,14 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Stats from DB (lightweight query)
-	userCount, _ := h.queries.CountAllDistinctUsers(ctx)
+	// User count from DB (doubles as DB connectivity probe — replaces the separate GetUserCount check)
+	var usersField any
+	if cnt, err := h.queries.CountAllDistinctUsers(ctx); err == nil {
+		usersField = cnt
+	} else {
+		status = "degraded"
+		usersField = nil
+	}
 
 	code := http.StatusOK
 	if status != "ok" {
@@ -225,7 +227,7 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 		"status":  status,
 		"version": Version,
 		"chains":  len(chainIDs),
-		"users":   userCount,
+		"users":   usersField,
 		"epoch":   chains,
 	})
 }
