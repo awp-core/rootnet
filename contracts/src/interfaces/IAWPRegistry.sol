@@ -74,7 +74,6 @@ interface IAWPRegistry {
     event GuardianUpdated(address indexed newGuardian);
     event InitialAlphaPriceUpdated(uint256 newPrice);
     event InitialAlphaMintUpdated(uint256 amount);
-    event WorknetTokenFactoryUpdated(address indexed newFactory);
     event DefaultWorknetManagerImplUpdated(address indexed newImpl);
     // DexConfigUpdated, LPManagerUpdated, veAWPUpdated, AWPWorkNetUpdated removed — all immutable proxies
 
