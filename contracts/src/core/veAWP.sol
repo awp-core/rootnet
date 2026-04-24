@@ -368,7 +368,7 @@ contract veAWP is ERC721, ReentrancyGuard, IveAWP {
 
     // ══════════════════════════════════════════════
     //  Internal
-    // ═════════════════════════════════════════════
+    // ══════════════════════════════════════════════
 
     /// @dev Internal deposit logic: transfer AWP from user, mint NFT to user
     function _deposit(address user, uint256 amount, uint64 lockDuration) internal returns (uint256 tokenId) {
